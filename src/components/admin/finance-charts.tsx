@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { MONTHS, type Pnl } from "@/lib/finance/board";
+
+/** Every month, which is what a chart draws unless it is told otherwise. */
+const ALL_MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 import type { CostObjectNode } from "@/lib/finance/objects";
 
 /**
@@ -164,23 +167,35 @@ function Frame({ title, subtitle, hero, children, footer }: {
 
 /* ── 1. Cash position ─────────────────────────────────────────────────────── */
 
-export function CashChart({ pnl, opening, scopeName }: { pnl: Pnl; opening: number; scopeName?: string | null }) {
+export function CashChart({ pnl, opening, scopeName, months = ALL_MONTHS }: {
+  pnl: Pnl; opening: number; scopeName?: string | null;
+  /** The months this chart is drawing, 1..12. The pnl handed in is already
+   *  clipped to them, so its arrays and this list are the same length. */
+  months?: number[];
+}) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 1400, H = 230, L = 10, R = 10, T = 26, B = 26;
   const pts = pnl.accumulated;
+  const n = Math.max(1, months.length);
+  const last = n - 1;
+  const wholeYear = n === 12;
   const lo = Math.min(0, ...pts, opening);
   const hi = Math.max(0, ...pts, opening);
   const span = hi - lo || 1;
-  const x = (i: number) => L + (i * (W - L - R)) / 11;
+  // One point has no gap to divide, so it sits in the middle rather than at the
+  // left edge with a division by zero behind it.
+  const x = (i: number) => n === 1 ? L + (W - L - R) / 2 : L + (i * (W - L - R)) / last;
   const y = (v: number) => T + (hi - v) * (H - T - B) / span;
   const zeroY = y(0);
+  const bandW = (W - L - R) / n;
 
   // A rounded polyline reads calmer than corners at every month.
   const path = pts.map((v, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(v)}`).join(" ");
-  const area = `${path} L${x(11)},${zeroY} L${x(0)},${zeroY} Z`;
+  const area = `${path} L${x(last)},${zeroY} L${x(0)},${zeroY} Z`;
   const lowIdx = pts.indexOf(pnl.lowestPoint);
-  const closing = pts[11] ?? 0;
-  const shown = hover ?? 11;
+  const closing = pts[last] ?? 0;
+  const shown = hover ?? last;
+  const nameOf = (i: number) => MONTHS[(months[i] ?? i + 1) - 1];
 
   return (
     <Frame
@@ -191,10 +206,14 @@ export function CashChart({ pnl, opening, scopeName }: { pnl: Pnl; opening: numb
                         : "Closing balance each month. The low point is what the year needs funding for."}
       hero={
         <div className="text-right">
-          <div className="fin-label">{hover === null ? (scopeName ? "Net for the year" : "Year end") : MONTHS[shown]}</div>
+          <div className="fin-label">
+            {hover !== null ? nameOf(shown)
+              : scopeName ? (wholeYear ? "Net for the year" : "Net for the period")
+              : wholeYear ? "Year end" : "Ends at"}
+          </div>
           <div className={`fin-hero ${pts[shown] < 0 ? "text-red-400" : ""}`}>{eur0(pts[shown])}</div>
           <div className="fin-sub mt-0.5">
-            low {eur0(pnl.lowestPoint)} · {MONTHS[lowIdx >= 0 ? lowIdx : 0]}
+            low {eur0(pnl.lowestPoint)} · {nameOf(lowIdx >= 0 ? lowIdx : 0)}
           </div>
         </div>
       }
@@ -210,7 +229,7 @@ export function CashChart({ pnl, opening, scopeName }: { pnl: Pnl; opening: numb
 
         {/* months under water, tinted rather than boxed */}
         {pts.map((v, i) => v < 0 ? (
-          <rect key={i} x={x(i) - (W - L - R) / 22} y={T} width={(W - L - R) / 11} height={H - T - B}
+          <rect key={i} x={x(i) - bandW / 2} y={T} width={bandW} height={H - T - B}
                 fill="var(--viz-neg-band)" />
         ) : null)}
 
@@ -220,7 +239,7 @@ export function CashChart({ pnl, opening, scopeName }: { pnl: Pnl; opening: numb
               strokeLinejoin="round" strokeLinecap="round" />
 
         {/* one resting dot at the end, the rest appear under the cursor */}
-        <circle cx={x(11)} cy={y(closing)} r="4" fill="var(--viz-line)"
+        <circle cx={x(last)} cy={y(closing)} r="4" fill="var(--viz-line)"
                 stroke="var(--admin-surface)" strokeWidth="2.5" />
         {hover !== null && (
           <g>
@@ -231,18 +250,18 @@ export function CashChart({ pnl, opening, scopeName }: { pnl: Pnl; opening: numb
           </g>
         )}
 
-        {MONTHS.map((m, i) => (
+        {months.map((m, i) => (
           <text key={m} x={x(i)} y={H - 8} textAnchor="middle" fontSize="13"
-                opacity={hover === null || hover === i ? 1 : 0.45}>{m}</text>
+                opacity={hover === null || hover === i ? 1 : 0.45}>{MONTHS[m - 1]}</text>
         ))}
-        {MONTHS.map((_, i) => (
-          <rect key={i} x={x(i) - (W - L - R) / 22} y={0} width={(W - L - R) / 11} height={H}
+        {months.map((m, i) => (
+          <rect key={m} x={x(i) - bandW / 2} y={0} width={bandW} height={H}
                 fill="transparent" onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} />
         ))}
       </svg>
       {hover !== null && (
         <p className="fin-sub mt-1">
-          moved <span className="fin-num">{eur2(pnl.cashMovement.byMonth[hover])}</span> in {MONTHS[hover]}
+          moved <span className="fin-num">{eur2(pnl.cashMovement.byMonth[hover])}</span> in {nameOf(hover)}
         </p>
       )}
     </Frame>
@@ -251,14 +270,15 @@ export function CashChart({ pnl, opening, scopeName }: { pnl: Pnl; opening: numb
 
 /* ── 2. Money in and out ──────────────────────────────────────────────────── */
 
-export function FlowChart({ pnl }: { pnl: Pnl }) {
+export function FlowChart({ pnl, months = ALL_MONTHS }: { pnl: Pnl; months?: number[] }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 1000, H = 260, L = 78, R = 16, T = 16, B = 28;
-  const ins = MONTHS.map((_, i) => [
+  const n = Math.max(1, months.length);
+  const ins = months.map((_, i) => [
     { key: "revenue", v: pnl.revenue.byMonth[i] },
     { key: "funding", v: pnl.financing.byMonth[i] },
   ]);
-  const outs = MONTHS.map((_, i) => [
+  const outs = months.map((_, i) => [
     { key: "cogs", v: pnl.cogs.byMonth[i] },
     { key: "inventory", v: pnl.inventory.byMonth[i] },
     { key: "opex", v: pnl.opex.byMonth[i] },
@@ -267,8 +287,11 @@ export function FlowChart({ pnl }: { pnl: Pnl }) {
   const maxIn = Math.max(1, ...ins.map((s) => s.reduce((a, b) => a + b.v, 0)));
   const maxOut = Math.max(1, ...outs.map((s) => s.reduce((a, b) => a + b.v, 0)));
   const span = maxIn + maxOut;
-  const x = (i: number) => L + (i * (W - L - R)) / 12;
-  const bw = (W - L - R) / 12 - 10;
+  const slot = (W - L - R) / n;
+  const x = (i: number) => L + i * slot;
+  // Fewer months means wider bars, but a single month should not become one
+  // enormous slab across the card.
+  const bw = Math.min(96, slot - 10);
   const zeroY = T + (maxIn / span) * (H - T - B);
   const h = (v: number) => (v / span) * (H - T - B);
 
@@ -282,8 +305,8 @@ export function FlowChart({ pnl }: { pnl: Pnl }) {
         <text x={L - 8} y={zeroY + 3} textAnchor="end" fontSize="12">0</text>
         <text x={L - 8} y={H - B} textAnchor="end" fontSize="12">{eur0(-maxOut)}</text>
 
-        {MONTHS.map((m, i) => {
-          const bx = x(i) + 5;
+        {months.map((m, i) => {
+          const bx = x(i) + (slot - bw) / 2;
           let up = zeroY, down = zeroY;
           const dim = hover !== null && hover !== i ? 0.35 : 1;
           return (
@@ -300,19 +323,19 @@ export function FlowChart({ pnl }: { pnl: Pnl }) {
                 return <rect key={s.key} x={bx} y={yy + 2} width={bw} height={Math.max(0, bh - 2)} rx="2"
                              fill={`var(--s-${s.key})`} />;
               })}
-              <rect x={x(i)} y={T} width={(W - L - R) / 12} height={H - T - B} fill="transparent"
+              <rect x={x(i)} y={T} width={slot} height={H - T - B} fill="transparent"
                     onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} />
             </g>
           );
         })}
-        {MONTHS.map((m, i) => (
-          <text key={m} x={x(i) + 5 + bw / 2} y={H - 8} textAnchor="middle" fontSize="13">{m}</text>
+        {months.map((m, i) => (
+          <text key={m} x={x(i) + slot / 2} y={H - 8} textAnchor="middle" fontSize="13">{MONTHS[m - 1]}</text>
         ))}
       </svg>
       <Legend keys={["revenue", "funding", "cogs", "inventory", "opex", "development"]} />
       {hover !== null && (
         <p className="text-[11px] admin-muted mt-1">
-          <span className="font-semibold admin-heading">{MONTHS[hover]}</span>
+          <span className="font-semibold admin-heading">{MONTHS[(months[hover] ?? hover + 1) - 1]}</span>
           {[...ins[hover], ...outs[hover]].filter((s) => s.v > 0).map((s) => (
             <span key={s.key}>{" · "}{SERIES.find((x) => x.key === s.key)?.label} {eur0(s.v)}</span>
           ))}
@@ -326,9 +349,14 @@ export function FlowChart({ pnl }: { pnl: Pnl }) {
 
 type Driver = "none" | "revenue" | "units" | "equal";
 
-export function ObjectChart({ nodes, onOpen, driver = "none", onDriver }: {
+export function ObjectChart({ nodes, onOpen, driver = "none", onDriver, wholeYearNote = null }: {
   nodes: CostObjectNode[]; onOpen?: (id: string) => void;
   driver?: Driver; onDriver?: (d: Driver) => void;
+  /** These figures are per year, not per period, because they are rolled up
+   *  from the cost-object tree rather than from the month columns. When a
+   *  narrower period is on screen, say so instead of letting the reader assume
+   *  this card narrowed with the rest. */
+  wholeYearNote?: string | null;
 }) {
   const rows = nodes.filter((n) => n.total.revenue > 0 || n.total.cogs + n.total.inventory + n.total.opex + n.total.development > 0);
   if (!rows.length) {
@@ -346,10 +374,10 @@ export function ObjectChart({ nodes, onOpen, driver = "none", onDriver }: {
   return (
     <Frame
       title="What the money was for"
-      subtitle={driver === "none"
+      subtitle={(wholeYearNote ? `${wholeYearNote} ` : "") + (driver === "none"
         ? "Direct costs only, rolled up from the sizes beneath each range. This is the part that is simply true."
         : `Overheads shared out ${driver === "revenue" ? "in proportion to revenue"
-            : driver === "units" ? "per unit" : "equally"}. A choice, not a fact, so the direct view is one click away.`}
+            : driver === "units" ? "per unit" : "equally"}. A choice, not a fact, so the direct view is one click away.`)}
       hero={onDriver ? (
         <div className="fin-seg" role="group" aria-label="How overheads are shared out">
           {([["none", "Direct"], ["revenue", "By revenue"], ["units", "Per unit"], ["equal", "Equal"]] as const)

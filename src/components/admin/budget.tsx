@@ -380,10 +380,12 @@ export function Budget({ world }: { world?: AdminEnv }) {
 
           {view === "dashboard" && (
             <div className="flex flex-col gap-4">
-              <CashChart pnl={board.pnlPlanned} opening={board.openingBalance} scopeName={scope?.name ?? null} />
+              <CashChart pnl={shownPlanned!} opening={board.openingBalance} months={months}
+                         scopeName={scope?.name ?? null} />
               <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0,3fr) minmax(0,2fr)" }}>
-                <FlowChart pnl={board.pnlPlanned} />
-                <ObjectChart nodes={objects ?? []} onOpen={setOpenObject} driver={driver} onDriver={setDriver} />
+                <FlowChart pnl={shownPlanned!} months={months} />
+                <ObjectChart nodes={objects ?? []} onOpen={setOpenObject} driver={driver} onDriver={setDriver}
+                             wholeYearNote={isFullYear(period) ? null : `Whole of ${year}, not just ${periodLabel(period, year)}.`} />
               </div>
               <BudgetSources sources={sources} entityName={board.entity?.name} year={year} />
               <BusinessChat entityName={board.entity?.name} year={year} />
@@ -401,7 +403,7 @@ export function Budget({ world }: { world?: AdminEnv }) {
           {view === "roadmap" && <Roadmap world={env} />}
 
           {view === "timeline" && (
-            <FinanceTimeline board={board}
+            <FinanceTimeline board={board} months={months}
                              categoryGroup={new Map(categories.map((c) => [c.id, c.pnl_group]))} />
           )}
 

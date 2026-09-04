@@ -18,9 +18,15 @@ const eur0 = (n: number) =>
 
 type Event = { label: string; amount: number; group: string; inflow: boolean };
 
-export function FinanceTimeline({ board, categoryGroup }: {
+const ALL_MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+export function FinanceTimeline({ board, categoryGroup, months = ALL_MONTHS }: {
   board: Board;
   categoryGroup: Map<string, string | null>;
+  /** Which months to show, 1..12. The events are always computed for the whole
+   *  year; this only decides which of them get drawn, so the running cash
+   *  figures under each card still count from January. */
+  months?: number[];
 }) {
   // A set, not a single index: these are twelve independent cards side by side,
   // and opening March is not a reason to close February.
@@ -55,9 +61,16 @@ export function FinanceTimeline({ board, categoryGroup }: {
 
   const cash = board.pnlPlanned.accumulated;
   const busiest = Math.max(1, ...byMonth.map((e) => e.reduce((s, x) => s + x.amount, 0)));
-  const live = byMonth.map((e, i) => ({ i, count: e.length })).filter((m) => m.count > 0);
+  const inPeriod = new Set(months.map((m) => m - 1));
+  const live = byMonth.map((e, i) => ({ i, count: e.length }))
+    .filter((m) => m.count > 0 && inPeriod.has(m.i));
   if (!live.length) {
-    return <p className="fin-sub py-10 text-center">Nothing planned in this year yet.</p>;
+    return (
+      <p className="fin-sub py-10 text-center">
+        {months.length === 12 ? "Nothing planned in this year yet."
+                              : "Nothing planned in the months you are looking at."}
+      </p>
+    );
   }
 
   return (
@@ -66,10 +79,11 @@ export function FinanceTimeline({ board, categoryGroup }: {
 
       {/* the year at a glance: how heavy each month is, and where cash sits */}
       <div className="fin-card">
-        <h3 className="fin-title">The year at a glance</h3>
+        <h3 className="fin-title">{months.length === 12 ? "The year at a glance" : "These months at a glance"}</h3>
         <p className="fin-sub mb-4">Bar height is how much money moves that month. Underneath is the closing balance.</p>
-        <div className="grid gap-1" style={{ gridTemplateColumns: "repeat(12, 1fr)" }}>
-          {MONTHS.map((m, i) => {
+        <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${months.length}, 1fr)` }}>
+          {months.map((mn) => {
+            const i = mn - 1, m = MONTHS[i];
             const moved = byMonth[i].reduce((s, x) => s + x.amount, 0);
             const active = open.has(i);
             return (
