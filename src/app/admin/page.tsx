@@ -510,7 +510,7 @@ function ExperienceDashboard() {
 
       {/* Finance + ops cards — hidden for restricted (no-money) roles. */}
       {!slim && (
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           {d.finance && <StatCard label="Open revenue" value={amt(d.finance.openRevenue)} href="/admin/payments" accent />}
           {d.finance && <StatCard label="Unmatched payments" value={d.finance.unmatchedPayments} href="/admin/payments" />}
           <StatCard label="Overdue to-dos" value={d.overdueTodos} href="/admin/todos" />
