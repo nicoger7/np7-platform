@@ -569,7 +569,12 @@ export default async function BookingDetail({ params }: Props) {
           daysToGo={daysToGo}
         />
       )}
-      {preTrip.preTripNote && (
+      {/* It is a PRE-trip note: the group chat that is about to open, the
+          schedule that is about to firm up. A week after the trip it is a
+          person telling you about something that already happened, sitting
+          above the photos you actually came back for. The page already knows
+          the trip is over, so it stops showing it. */}
+      {preTrip.preTripNote && !tripEnded && (
         <div className="rounded-2xl border border-[#f0e6d6] bg-[#fffdf8] p-5">
           <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#9aa6ac] mb-2">A note from Nico</p>
           <p className="text-[14px] text-[#3a4a50] leading-relaxed whitespace-pre-line">{preTrip.preTripNote}</p>
@@ -585,7 +590,12 @@ export default async function BookingDetail({ params }: Props) {
               /* A guide is coaching, not paperwork — the teaser speaks the
                  guide page's own language: ocean card, sun hairline, the
                  numbered points it actually contains. */
-              <a key={g.id} href={`/account/guides/${g.id}`}
+              /* Link, not <a>: a plain anchor is a full document load, and the
+                 admin's member preview only keeps its identity across an RSC
+                 navigation (see lib/preview-client). As an <a> this card
+                 answered as the admin, the guide was not theirs, and the
+                 preview showed a bare 404. */
+              <Link key={g.id} href={`/account/guides/${g.id}`}
                 className="group relative block rounded-2xl overflow-hidden p-5 transition-transform hover:scale-[1.01]"
                 style={{ background: "linear-gradient(155deg,#00232f,#00374a 55%,#075b7d)" }}>
                 <span className="absolute top-0 inset-x-0 h-[3px]" style={{ background: "linear-gradient(90deg,#ffc42e,#f0774a 55%,#00afdb)" }} />
@@ -612,7 +622,7 @@ export default async function BookingDetail({ params }: Props) {
                   Open your guide
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                 </p>
-              </a>
+              </Link>
             ))}
           </div>
         </div>

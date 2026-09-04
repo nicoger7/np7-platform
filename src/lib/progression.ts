@@ -60,7 +60,19 @@ export type Achievement = { milestone_id: string; verified_via: VerifiedVia; ver
 export type SkillState = VerifiedVia | "available" | "locked";
 export type ProgressSkill = CatalogSkill & { state: SkillState; prereqLabel: string | null; band: number };
 export type Track = { discipline: Discipline; label: string; skills: ProgressSkill[]; verified: number; total: number };
-export type LadderRung = { name: string; done: boolean; current: boolean };
+export type LadderRung = { name: string; done: boolean; current: boolean; weight: number };
+
+/**
+ * How wide each rung is drawn, as a flex weight.
+ *
+ * Equal segments said the six ranks are the same size, and they are not: the
+ * band above you is always the harder one, and Pro is a handful of people. A
+ * ladder that narrows toward the top reads as a climb rather than a row of
+ * boxes, and the rungs still ahead of you look like a summit instead of more of
+ * the same. Widths only, in one place, so the bar and its labels cannot drift
+ * apart. Order matches RANKS.
+ */
+export const RANK_WIDTHS = [1.38, 1.22, 1.08, 0.95, 0.82, 0.7] as const;
 
 /** Tally a set of skills by verification state — feeds the layered progress bar
  *  (coach = gold, Wind Coach = purple, self-logged = grey "to fill up"). */
@@ -141,7 +153,7 @@ export function buildProgression(catalogRaw: CatalogSkill[], achievements: Achie
   // and toNext stay verified-only; the ring never hits 100 until truly mastered.
   const selfInWb = skills.filter((s) => s.discipline !== "side" && s.band === wb && s.state === "self").length;
   const pct = mastered ? 100 : bands[wb].total ? Math.min(99, Math.round(((bands[wb].verified + selfInWb * 0.5) / bands[wb].total) * 100)) : 100;
-  const ladder: LadderRung[] = RANKS.map((name, i) => ({ name, done: i < currentIdx || mastered, current: i === currentIdx && !mastered }));
+  const ladder: LadderRung[] = RANKS.map((name, i) => ({ name, done: i < currentIdx || mastered, current: i === currentIdx && !mastered, weight: RANK_WIDTHS[i] ?? 1 }));
 
   const makeTrack = (d: Discipline): Track => {
     const s = skills.filter((x) => x.discipline === d).sort((a, b) => a.sort_order - b.sort_order);

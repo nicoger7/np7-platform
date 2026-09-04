@@ -89,14 +89,14 @@ export function HomeProgress({ progression, selfLevel, avatarUrl, initials }: { 
       {/* rank ladder — 6 segments; the current one fills sun→sea as you master its band */}
       <div className="flex gap-1 mt-4">
         {ladder.map((r) => (
-          <div key={r.name} className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: r.done ? "#00afdb" : "rgba(255,255,255,.14)" }}>
+          <div key={r.name} className="h-2 rounded-full overflow-hidden" style={{ flex: `${r.weight} 1 0%`, background: r.done ? "#00afdb" : "rgba(255,255,255,.14)" }}>
             {r.current && <div className="h-full rounded-full" style={{ width: `${pct}%`, background: "linear-gradient(90deg,#ffc42e,#f47b20 55%,#00afdb)" }} />}
           </div>
         ))}
       </div>
       <div className="flex justify-between mt-1.5 text-[10.5px] text-[#7fa6b3]">
         {ladder.map((r) => (
-          <span key={r.name} className="flex-1 text-center truncate px-0.5" style={r.current ? { color: "#fff", fontWeight: 700 } : r.done ? { color: "#9fc9d6" } : undefined}>{r.name}</span>
+          <span key={r.name} className="text-center truncate px-0.5" style={{ flex: `${r.weight} 1 0%`, ...(r.current ? { color: "#fff", fontWeight: 700 } : r.done ? { color: "#9fc9d6" } : {}) }}>{r.name}</span>
         ))}
       </div>
 

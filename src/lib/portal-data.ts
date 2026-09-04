@@ -115,7 +115,7 @@ export async function getPreTripContent(
   const [cRes, eRes] = await Promise.all([
     db.from("exp_content").select("packing_list,pre_trip_note,daily_program").eq("experience_id", experienceId).maybeSingle(),
     editionId
-      ? db.from("exp_editions").select("daily_program").eq("id", editionId).maybeSingle()
+      ? db.from("exp_editions").select("daily_program,packing_list,pre_trip_note").eq("id", editionId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
   const clean = (rows: unknown): ProgramDay[] =>
@@ -133,7 +133,20 @@ export async function getPreTripContent(
     clean(cRes.data?.daily_program),
     editionId ?? null,
   );
-  return { packingList: cRes.data?.packing_list ?? null, preTripNote: cRes.data?.pre_trip_note ?? null, program };
+  /* This run's own list and note win over the experience's, which is the rule
+     the pre-trip EMAIL has always used (api/cron/emails). The page did not:
+     it read the experience row only, so the day somebody wrote a packing list
+     for one week in the admin, the mail would carry it and the trip page would
+     quietly show the generic one instead. Nothing overrides anything today, so
+     this changes nothing on screen; it means the two cannot disagree later.
+     Blank counts as unset, same as the mail treats it. */
+  const edition = eRes?.data ?? null;
+  const override = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
+  return {
+    packingList: override(edition?.packing_list) ?? cRes.data?.packing_list ?? null,
+    preTripNote: override(edition?.pre_trip_note) ?? cRes.data?.pre_trip_note ?? null,
+    program,
+  };
 }
 
 /** Attach the auto-branded-tile data (tile_auto + default/head coach) to each
@@ -1185,8 +1198,21 @@ export async function getGuidesForBooking(bookingId: string): Promise<BookingGui
     .eq("booking_id", bookingId).eq("status", "stored")
     .order("created_at", { ascending: false });
   if (error || !data) return [];
+  // A resend is a new row, not an update: wind.coach mints a fresh
+  // idempotency_key each time, so posting the same trip's guide twice stores it
+  // twice and the rider saw the same card twice. Newest wins per trip label.
+  // Deliberately not "newest overall" — a rider with two genuinely different
+  // guides should still see both.
+  const seen = new Set<string>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data as any[]).map((g) => ({
+  const newestPerTrip = (data as any[]).filter((g) => {
+    const label = String(g.trip_label ?? g.id).trim().toLowerCase();
+    if (seen.has(label)) return false;
+    seen.add(label);
+    return true;
+  });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (newestPerTrip as any[]).map((g) => ({
     id: g.id,
     trip_label: g.trip_label ?? null,
     created_at: g.created_at ?? null,
