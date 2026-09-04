@@ -1,6 +1,7 @@
 "use client";
 
 import { MONTHS } from "@/lib/finance/board";
+import type { DatedEvent } from "@/lib/finance/collect-sources";
 
 /**
  * Where these numbers come from.
@@ -24,7 +25,7 @@ export type SourceSummary = {
   href: string | null;
 };
 
-export type CashRow = { id: string; label: string; month: number | null; planned: number; paid: number; href: string | null };
+export type CashRow = { id: string; label: string; month: number | null; on: string | null; planned: number; paid: number; href: string | null };
 
 export type Sources = {
   byLine: Record<string, { committed: number[]; actual: number[] }>;
@@ -32,6 +33,8 @@ export type Sources = {
   cash: CashRow[];
   stranded: { count: number; amount: number };
   consulted: string[];
+  /** Everything that happened, dated. Drawn by ActualEvents, not here. */
+  events: DatedEvent[];
 };
 
 /** What each table is, said the way someone would say it out loud. */

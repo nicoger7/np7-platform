@@ -118,9 +118,9 @@ async function main() {
 
   console.log("\nAttaching facts to the lines that predicted them\n");
   const facts: SourceFact[] = [
-    { table: "exp_costs", id: "a", label: "Hotel", href: null, month: 4, group: "cogs", committed: 1000, actual: 0, vendorId: null, editionId: null, basis: "accrual" },
-    { table: "exp_costs", id: "b", label: "Flights", href: null, month: 5, group: "cogs", committed: 0, actual: 950, vendorId: null, editionId: null, basis: "accrual" },
-    { table: "exp_costs", id: "f", label: "Orphan", href: null, month: null, group: "cogs", committed: 400, actual: 0, vendorId: null, editionId: null, basis: "accrual" },
+    { table: "exp_costs", id: "a", label: "Hotel", href: null, month: 4, on: "2027-04-02", group: "cogs", committed: 1000, actual: 0, vendorId: null, editionId: null, basis: "accrual" },
+    { table: "exp_costs", id: "b", label: "Flights", href: null, month: 5, on: "2027-05-02", group: "cogs", committed: 0, actual: 950, vendorId: null, editionId: null, basis: "accrual" },
+    { table: "exp_costs", id: "f", label: "Orphan", href: null, month: null, on: null, group: "cogs", committed: 400, actual: 0, vendorId: null, editionId: null, basis: "accrual" },
   ];
   const att = attachFacts(facts, [
     { plan_line_id: "L1", source_table: "exp_costs", source_id: "a", share: 100 },
@@ -153,6 +153,13 @@ async function main() {
   check("Experience 2027 already has some", f2027.length > 0, f2027.length);
   check("no real fact is both committed and actual", ![...f2026, ...f2027].some((f) => f.committed > 0 && f.actual > 0));
   check("every real fact carries a month", ![...f2026, ...f2027].some((f) => f.month === null));
+  const dated = [...f2026, ...f2027].filter((f) => f.on !== null).length;
+  const all = f2026.length + f2027.length;
+  console.log(`    ${dated} of ${all} carry an exact date, ${all - dated} only know their month`);
+  check("a fact's day, where it has one, is a real ISO date",
+        [...f2026, ...f2027].every((f) => f.on === null || /^\d{4}-\d{2}-\d{2}$/.test(f.on)));
+  check("...and it agrees with the month it was filed under",
+        [...f2026, ...f2027].every((f) => f.on === null || Number(f.on.slice(5, 7)) === f.month));
   const orphaned = undatedExpCosts(realCosts ?? [], edStart);
   console.log(`    outside every budget: ${orphaned.count} costs, €${orphaned.amount.toLocaleString("de-DE")}`);
   check("nothing real is stranded without a date", orphaned.count === 0, orphaned);
@@ -169,6 +176,28 @@ async function main() {
   const hw2027 = factsFromPoLines(realPoLines ?? [], poMap as any, 2027);
   console.log(`    Performance 2027: ${(realPos ?? []).length} purchase orders, ${(realPoLines ?? []).length} lines, ${hw2027.length} commitments`);
   check("Performance derivation runs clean on the real tables", Array.isArray(hw2027));
+
+  console.log("\nDated events, end to end\n");
+  const { collectSources } = await import("@/lib/finance/collect-sources");
+  const EXP = "b05b08d7-6762-4bed-b66f-75985c06636f";
+  const HW = "14f6046f-b6f9-4210-89ee-3dd82ca38403";
+  const expSrc = await collectSources(db, { id: EXP, division: "experience" }, 2026, []);
+  const hwSrc = await collectSources(db, { id: HW, division: "hardware" }, 2027, []);
+  const withDate = expSrc.events.filter((e) => e.on !== null).length;
+  console.log(`    Experience 2026: ${expSrc.events.length} events, ${withDate} with an exact date`);
+  console.log(`    Performance 2027: ${hwSrc.events.length} events`);
+  check("Experience has real events to plot", expSrc.events.length > 100, expSrc.events.length);
+  check("every event's date is a plain day, never a timestamp",
+        expSrc.events.every((e) => e.on === null || /^\d{4}-\d{2}-\d{2}$/.test(e.on)));
+  check("events come back in date order",
+        expSrc.events.every((e, i, a) => i === 0 || (a[i - 1].on ?? "9999") <= (e.on ?? "9999")));
+  check("money in and money out are both represented",
+        expSrc.events.some((e) => e.inflow) && expSrc.events.some((e) => !e.inflow));
+  check("every event carries an amount", expSrc.events.every((e) => e.amount > 0));
+  check("settled and promised are distinguished, not merged",
+        expSrc.events.some((e) => e.settled));
+  check("a company with no records yields no events, not an error",
+        Array.isArray(hwSrc.events));
 
   console.log(`\n${fail === 0 ? "ALL GREEN" : "FAILURES"} — ${pass} passed, ${fail} failed\n`);
   process.exit(fail === 0 ? 0 : 1);

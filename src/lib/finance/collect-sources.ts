@@ -16,6 +16,28 @@ import {
  * other company's budget by accident.
  */
 
+/**
+ * One thing that happened, on the day it happened.
+ *
+ * The plan is monthly and can only be monthly. What HAPPENED has a date, and
+ * these carry it, so a quarter can be drawn as three blocky planned months with
+ * the real events scattered across the actual days beneath them.
+ *
+ * `on` is null where nobody recorded a date. That is left visible rather than
+ * rounded to the first of the month, because "we do not know when" and "it
+ * happened on the 1st" are different facts and only one of them is true.
+ */
+export type DatedEvent = {
+  id: string; table: string; label: string;
+  on: string | null;
+  amount: number;
+  inflow: boolean;
+  group: string;
+  href: string | null;
+  /** Settled, as against merely promised. */
+  settled: boolean;
+};
+
 export type CollectedSources = {
   /** Per plan line, twelve months of committed and twelve of actual. */
   byLine: Record<string, { committed: number[]; actual: number[] }>;
@@ -27,9 +49,13 @@ export type CollectedSources = {
   stranded: { count: number; amount: number };
   /** Which tables were actually consulted, so the page can say so plainly. */
   consulted: string[];
+  /** Everything that happened, dated to the day where a day is known. */
+  events: DatedEvent[];
 };
 
-const EMPTY: CollectedSources = { byLine: {}, unclaimed: [], cash: [], stranded: { count: 0, amount: 0 }, consulted: [] };
+const EMPTY: CollectedSources = {
+  byLine: {}, unclaimed: [], cash: [], stranded: { count: 0, amount: 0 }, consulted: [], events: [],
+};
 
 export async function collectSources(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -96,11 +122,42 @@ export async function collectSources(
   }
 
   const { byLine, unclaimed } = attachFacts(facts, links);
+
+  /* Every fact that carries money becomes an event. Committed and actual both
+     appear, distinguished rather than merged, because "the forwarder has quoted
+     8.000" and "the forwarder has invoiced 8.000" are different days and
+     different degrees of certainty. */
+  const events: DatedEvent[] = facts
+    .filter((f) => f.committed !== 0 || f.actual !== 0)
+    .map((f) => ({
+      id: `${f.table}:${f.id}`,
+      table: f.table,
+      label: f.label,
+      on: f.on,
+      amount: Math.abs(f.actual || f.committed),
+      inflow: f.group === "revenue",
+      group: f.group,
+      href: f.href,
+      settled: f.actual !== 0,
+    }))
+    .sort((a, b) => (a.on ?? "9999").localeCompare(b.on ?? "9999"));
+
+  // Supplier payments are cash, not P&L, but they are absolutely events.
+  for (const c of cash) {
+    if (c.paid === 0 && c.planned === 0) continue;
+    events.push({
+      id: `hw_po_payments:${c.id}`, table: "hw_po_payments", label: c.label,
+      on: c.on, amount: c.paid || c.planned, inflow: false, group: "inventory",
+      href: c.href, settled: c.paid > 0,
+    });
+  }
+
   return {
     byLine: Object.fromEntries(byLine),
     unclaimed: summariseUnclaimed(unclaimed),
     cash,
     stranded,
     consulted,
+    events: events.sort((a, b) => (a.on ?? "9999").localeCompare(b.on ?? "9999")),
   };
 }

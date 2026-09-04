@@ -13,6 +13,7 @@ import { AllocateDialog } from "@/components/admin/allocate-dialog";
 import { CostObjectPanel } from "@/components/admin/cost-object-panel";
 import { BusinessChat } from "@/components/admin/business-chat";
 import { BudgetSources, type Sources } from "@/components/admin/budget-sources";
+import { ActualEvents } from "@/components/admin/actual-events";
 import { ScopePicker } from "@/components/admin/scope-picker";
 import { PeriodPicker, RowControls } from "@/components/admin/budget-controls";
 import { clipPnl, monthsIn, periodLabel, isFullYear, rowTotals, FULL_YEAR, type Period } from "@/lib/finance/period";
@@ -387,6 +388,7 @@ export function Budget({ world }: { world?: AdminEnv }) {
                 <ObjectChart nodes={objects ?? []} onOpen={setOpenObject} driver={driver} onDriver={setDriver}
                              wholeYearNote={isFullYear(period) ? null : `Whole of ${year}, not just ${periodLabel(period, year)}.`} />
               </div>
+              <ActualEvents events={sources?.events ?? []} period={period} year={year} />
               <BudgetSources sources={sources} entityName={board.entity?.name} year={year} />
               <BusinessChat entityName={board.entity?.name} year={year} />
 

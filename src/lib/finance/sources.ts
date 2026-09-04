@@ -44,6 +44,15 @@ export type SourceFact = {
   href: string | null;
   /** 1..12. Null when the record carries no usable date, which is a fact worth showing. */
   month: number | null;
+  /**
+   * The day it actually happened, as an ISO date.
+   *
+   * The plan is monthly and can only ever be monthly, but what happened has a
+   * date, and that date is the difference between "April" and "the container
+   * cleared customs on the 19th". Null where nobody recorded one, which is a
+   * real state and is shown as such rather than being rounded to the 1st.
+   */
+  on: string | null;
   group: PnlGroup;
   committed: number;
   actual: number;
@@ -53,6 +62,10 @@ export type SourceFact = {
    *  silently is how a forecast ends up wrong, so each fact says which it is. */
   basis: "accrual" | "cash";
 };
+
+/** The date part, when there is one. Timestamps keep their day, not their hour. */
+const dayOfIso = (iso: string | null | undefined): string | null =>
+  iso ? String(iso).slice(0, 10) : null;
 
 const monthOfIso = (iso: string | null | undefined): number | null => {
   if (!iso) return null;
@@ -113,7 +126,7 @@ export function factsFromExpCosts(
       id: c.id,
       label: c.item ?? "Trip cost",
       href: "/admin/exp-costs",
-      month: monthOfIso(when),
+      month: monthOfIso(when), on: dayOfIso(when),
       group: "cogs",
       committed: r2(committed),
       actual: r2(actual),
@@ -169,7 +182,7 @@ export function factsFromExpPayments(payments: RawExpPayment[], year: number): S
       id: p.id,
       label: "Booking payment",
       href: "/admin/payments",
-      month: monthOfIso(when),
+      month: monthOfIso(when), on: dayOfIso(when),
       group: "revenue",
       committed: 0,
       actual: r2(amount),
@@ -221,7 +234,7 @@ export function factsFromPoLines(lines: RawPoLine[], pos: Map<string, RawPo>, ye
       id: l.id,
       label: `${po.po_number ?? "Purchase order"} · ${outstanding} on order`,
       href: "/admin/inventory",
-      month: monthOfIso(when),
+      month: monthOfIso(when), on: dayOfIso(when),
       group: "inventory",
       committed,
       actual: 0,
@@ -250,7 +263,7 @@ export function factsFromReceipts(receipts: RawReceipt[], year: number): SourceF
       id: rec.id,
       label: `${num(rec.qty)} received`,
       href: "/admin/inventory",
-      month: monthOfIso(rec.received_at),
+      month: monthOfIso(rec.received_at), on: dayOfIso(rec.received_at),
       group: "inventory",
       committed: 0,
       actual,
@@ -292,7 +305,7 @@ export function factsFromShipmentCosts(
       id: c.id,
       label: `${c.kind ?? "Shipping"}${estimate ? " (quoted)" : ""}`,
       href: "/admin/inventory",
-      month: monthOfIso(when),
+      month: monthOfIso(when), on: dayOfIso(when),
       group: "inventory",
       committed: estimate ? amount : 0,
       actual: estimate ? 0 : amount,
@@ -328,7 +341,7 @@ export function factsFromHwOrders(orders: RawHwOrder[], year: number): SourceFac
       id: o.id,
       label: o.order_number ?? "Order",
       href: "/admin/orders",
-      month: monthOfIso(when),
+      month: monthOfIso(when), on: dayOfIso(when),
       group: "revenue",
       committed: settled ? 0 : amount,
       actual: settled ? amount : 0,
@@ -350,6 +363,8 @@ export type RawPoPayment = {
 
 export type CashCommitment = {
   id: string; label: string; month: number | null;
+  /** The day the money moved, or is due to. */
+  on: string | null;
   planned: number; paid: number; href: string | null;
 };
 
@@ -375,7 +390,7 @@ export function cashCommitments(payments: RawPoPayment[], pos: Map<string, RawPo
     out.push({
       id: p.id,
       label: `${po?.po_number ?? "Purchase order"} · ${p.kind ?? "payment"}`,
-      month: monthOfIso(when),
+      month: monthOfIso(when), on: dayOfIso(when),
       // Once paid, the planned figure is history: the paid amount is the truth.
       planned: paid > 0 ? 0 : r2(planned),
       paid: r2(paid),
