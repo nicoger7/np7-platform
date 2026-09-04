@@ -51,6 +51,12 @@ export default async function AccountHome() {
   // bottom of one booking's Trip tab, where nobody found it. Unread, it leads
   // the home. Read, it becomes a tile like the rest.
   const unreadGuides = guides.filter((g) => !g.openedAt);
+  /* Somebody who has travelled comes back for what the trip left them: the
+     photos, the guide, the trip itself. For them those three belong near the
+     top, not under the sales row and the ladder. Somebody who has not travelled
+     has empty versions of two of them, so for them the row stays where it was
+     and the page keeps selling. */
+  const hasTravelled = bookings.some((b) => (b.edition?.date_end ?? b.edition?.date_start ?? "") < today);
   const ownPhotoCount = await getProfilePhotoChoices(user.contactId).then((p) => p.length).catch(() => 0);
   // An experience the member already has an UPCOMING booking in doesn't need
   // selling — "book your next trip" means the next one, not the one they're
@@ -149,6 +155,36 @@ export default async function AccountHome() {
         { key: "handle", label: "Pick your @handle", hint: "Your name on the crew & spotguide", done: !!profile.username, href: "/account/profile", inline: "handle" },
       ]
     : [];
+
+  /* Rendered in one of two places depending on hasTravelled, so the markup
+     lives once. */
+  const shelf = (
+    <>
+          {/* What a member comes back for: the trips, the photos from them, and
+              what their coach told them to work on. Three of a kind, so they sit
+              in a row of three rather than being scattered through a row of four
+              with the shop and the catalogue. Gear and Explore are a different
+              errand and sit quieter, below. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
+            <SectionCard
+              href="/account/trips" title="My trips" tone="ocean"
+              desc={bookings.length ? `${bookings.length} trip${bookings.length === 1 ? "" : "s"} · prep, photos` : "Book your first adventure"}
+              icon={<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10" />}
+            />
+            <SectionCard
+              href="/account/memories" title="My memories" tone="ocean"
+              desc={bookings.length ? "Photos and video from your weeks" : "Your photos gather here after a trip"}
+              icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>}
+            />
+            <SectionCard
+              href="/account/guides" title="My focus points" tone="ocean"
+              badge={unreadGuides.length > 0 ? `${unreadGuides.length} new` : undefined}
+              desc={guides.length ? `${guides.length} guide${guides.length === 1 ? "" : "s"} from your coaches` : "What to work on next, after a trip"}
+              icon={<><path d="M12 3v3M12 18v3M3 12h3M18 12h3" /><circle cx="12" cy="12" r="4" /></>}
+            />
+          </div>
+    </>
+  );
 
   return (
     <>
@@ -289,6 +325,10 @@ export default async function AccountHome() {
             )}
           </div>
 
+          {/* High, but never above the money. Anything needing action sits in
+              the grid above this; with nothing upcoming that grid collapses and
+              these land directly under the greeting, which is the point. */}
+          {hasTravelled && shelf}
 
           {/* Book your next trip — full width, OUTSIDE the two-column grid.
               It used to sit in the left column beside the sticky profile card,
@@ -323,29 +363,7 @@ export default async function AccountHome() {
             </div>
           )}
 
-          {/* What a member comes back for: the trips, the photos from them, and
-              what their coach told them to work on. Three of a kind, so they sit
-              in a row of three rather than being scattered through a row of four
-              with the shop and the catalogue. Gear and Explore are a different
-              errand and sit quieter, below. */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
-            <SectionCard
-              href="/account/trips" title="My trips" tone="ocean"
-              desc={bookings.length ? `${bookings.length} trip${bookings.length === 1 ? "" : "s"} · prep, photos` : "Book your first adventure"}
-              icon={<path d="M3 7l9-4 9 4-9 4-9-4zM3 7v10l9 4 9-4V7M12 11v10" />}
-            />
-            <SectionCard
-              href="/account/memories" title="My memories" tone="ocean"
-              desc={bookings.length ? "Photos and video from your weeks" : "Your photos gather here after a trip"}
-              icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></>}
-            />
-            <SectionCard
-              href="/account/guides" title="My focus points" tone="ocean"
-              badge={unreadGuides.length > 0 ? `${unreadGuides.length} new` : undefined}
-              desc={guides.length ? `${guides.length} guide${guides.length === 1 ? "" : "s"} from your coaches` : "What to work on next, after a trip"}
-              icon={<><path d="M12 3v3M12 18v3M3 12h3M18 12h3" /><circle cx="12" cy="12" r="4" /></>}
-            />
-          </div>
+          {!hasTravelled && shelf}
           {(flags.showGear || flags.showExperience) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
               {flags.showGear && <SectionCard href="/account/gear" title="My gear" desc="Board & fin orders" icon={<><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></>} />}
@@ -369,25 +387,33 @@ function SectionCard({ href, title, desc, icon, tone, badge }: { href: string; t
   return (
     <Link
       href={href}
-      className={`group relative bg-white rounded-2xl border p-5 flex items-start gap-3.5 transition-all ${ocean
-        ? "border-[#e6dcc9] hover:-translate-y-1 hover:shadow-[0_20px_46px_rgba(0,55,74,0.11)] hover:border-[#cfe7ef]"
-        : "border-[#f0e6d6] hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,55,74,0.08)]"}`}
+      className={`group relative overflow-hidden bg-white rounded-2xl border flex items-start gap-3.5 transition-all ${ocean
+        ? "border-[#e6dcc9] p-5 pt-[22px] hover:-translate-y-1 hover:shadow-[0_20px_46px_rgba(0,55,74,0.12)] hover:border-[#cfe7ef]"
+        : "border-[#f0e6d6] p-5 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,55,74,0.08)]"}`}
     >
+      {/* Sun to sea. The one device that says NP7 without a logo, and the same
+          bar that runs across the top of a trip hero and a guide card. */}
+      {ocean && (
+        <span className="absolute top-0 inset-x-0 h-[3px]" style={{ background: "linear-gradient(90deg,#ffc42e,#f0774a 55%,#00afdb)" }} />
+      )}
       <span
-        className={`shrink-0 w-11 h-11 rounded-xl grid place-items-center ${ocean ? "text-white" : "bg-[#00afdb]/10 text-[#00afdb]"}`}
-        style={ocean ? { background: "linear-gradient(150deg,#00374a,#0782a0 60%,#00afdb)" } : undefined}
+        className={`shrink-0 w-11 h-11 rounded-xl grid place-items-center transition-transform group-hover:scale-105 ${ocean ? "text-white" : "bg-[#00afdb]/10 text-[#00afdb]"}`}
+        style={ocean ? { background: "linear-gradient(150deg,#00232f,#00374a 45%,#0782a0)", boxShadow: "0 6px 16px -6px rgba(0,55,74,.55)" } : undefined}
       >
         <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">{icon}</svg>
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <h3 className="text-[16px] font-extrabold tracking-[-0.01em] text-[#00374a] group-hover:text-[#00afdb] transition-colors truncate">{title}</h3>
+          <h3 className={`text-[16px] text-[#00374a] group-hover:text-[#00afdb] transition-colors truncate ${ocean ? "font-black tracking-[-0.02em]" : "font-extrabold tracking-[-0.01em]"}`}>{title}</h3>
           {badge && (
-            <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-full bg-[#ffc42e] text-[#3a2a05]">{badge}</span>
+            <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-full text-[#3a2a05]" style={{ background: "linear-gradient(135deg,#ffe08a,#f0a500)" }}>{badge}</span>
           )}
         </div>
         <p className="text-[13px] text-[#6a7a80] leading-snug mt-0.5">{desc}</p>
       </div>
+      {ocean && (
+        <svg className="shrink-0 self-center w-4 h-4 text-[#c3d2d8] group-hover:text-[#00afdb] group-hover:translate-x-0.5 transition-all" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+      )}
     </Link>
   );
 }
