@@ -39,8 +39,8 @@ function MoneyEye({ hidden, onToggle }: { hidden: boolean; onToggle: () => void 
       onClick={onToggle}
       title={hidden ? "Show amounts" : "Hide amounts"}
       aria-pressed={hidden}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors admin-muted"
-      style={{ border: "1px solid var(--admin-border)" }}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] text-xs font-medium tracking-[-.01em] transition-colors admin-muted hover:text-[var(--admin-text)]"
+      style={{ border: ".5px solid var(--fin-hairline)" }}
     >
       {hidden ? (
         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68M6.61 6.61A13.5 13.5 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61M2 2l20 20" /></svg>
@@ -52,10 +52,13 @@ function MoneyEye({ hidden, onToggle }: { hidden: boolean; onToggle: () => void 
   );
 }
 
-function DashboardHeader({ eye }: { eye?: { hidden: boolean; onToggle: () => void } }) {
+function DashboardHeader({ eye, sub }: { eye?: { hidden: boolean; onToggle: () => void }; sub?: string }) {
   return (
-    <div className="flex items-center justify-between mb-6">
-      <h1 className="text-2xl font-bold admin-heading">Dashboard</h1>
+    <div className="flex items-end justify-between gap-3 mb-6">
+      <div>
+        <h1 className="fin-hero mb-1">Dashboard</h1>
+        {sub && <p className="fin-sub">{sub}</p>}
+      </div>
       {/* Privacy eye only for roles that can see money at all — for restricted
           roles there are no € figures on the page, and even showing the toggle
           (or masked ••••) would advertise that something is being hidden. */}
@@ -72,14 +75,9 @@ function Loading() {
 // amber) via the shell's --admin-accent, so every world's dashboard is branded.
 function StatCard({ label, value, href, accent }: { label: string; value: string | number; href?: string; accent?: boolean }) {
   const body = (
-    <div
-      className="rounded-xl p-5 h-full transition-colors"
-      style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}
-      onMouseEnter={(e) => href && (e.currentTarget.style.borderColor = "var(--admin-accent)")}
-      onMouseLeave={(e) => href && (e.currentTarget.style.borderColor = "var(--admin-border)")}
-    >
-      <p className="text-[11px] font-bold tracking-[0.12em] uppercase mb-2" style={{ color: "var(--admin-text-faint)" }}>{label}</p>
-      <p className="text-3xl font-black" style={{ color: accent ? "var(--admin-accent)" : "var(--admin-text)" }}>{value}</p>
+    <div className={`fin-card h-full transition-colors${href ? " hover:border-[var(--admin-accent)]" : ""}`}>
+      <div className="fin-label mb-1.5">{label}</div>
+      <div className="text-[26px] font-semibold tracking-[-.02em] leading-none" style={{ color: accent ? "var(--admin-accent)" : "var(--admin-text)" }}>{value}</div>
     </div>
   );
   return href ? <Link href={href}>{body}</Link> : body;
@@ -87,12 +85,12 @@ function StatCard({ label, value, href, accent }: { label: string; value: string
 
 function Panel({ title, href, linkLabel, subtitle, children }: { title: string; href?: string; linkLabel?: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl p-5" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+    <div className="fin-card">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
-        <h2 className="text-sm font-bold admin-heading">{title}</h2>
+        <h2 className="fin-title">{title}</h2>
         {href && <Link href={href} className="text-xs hover:underline" style={{ color: "var(--admin-accent)" }}>{linkLabel ?? "View all"} →</Link>}
       </div>
-      {subtitle && <p className="text-[11px] admin-faint -mt-1.5 mb-2.5">{subtitle}</p>}
+      {subtitle && <p className="fin-sub -mt-1.5 mb-2.5 leading-relaxed">{subtitle}</p>}
       {children}
     </div>
   );
@@ -103,7 +101,7 @@ function QuickActions({ actions }: { actions: { label: string; href: string }[] 
     <Panel title="Quick actions">
       <div className="grid grid-cols-2 gap-2">
         {actions.map((a) => (
-          <Link key={a.href} href={a.href} className="text-xs admin-muted hover:text-[var(--admin-accent)] py-2 px-3 rounded-lg transition-colors" style={{ border: "1px solid var(--admin-border)" }}>
+          <Link key={a.href} href={a.href} className="fin-row text-xs admin-muted hover:text-[var(--admin-accent)] py-2 px-3 rounded-[10px] transition-colors" style={{ border: ".5px solid var(--fin-hairline)" }}>
             {a.label}
           </Link>
         ))}
@@ -158,8 +156,8 @@ function HardwareDashboard() {
   const amt = (n: number | null | undefined) => (hideMoney ? "€ ••••" : money(n));
 
   return (
-    <div>
-      <DashboardHeader eye={slim ? undefined : { hidden: hideMoney, onToggle: toggleHideMoney }} />
+    <div className="fin">
+      <DashboardHeader eye={slim ? undefined : { hidden: hideMoney, onToggle: toggleHideMoney }} sub="NP7 Hardware · catalogue, stock and orders" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
         <StatCard label="Products" value={d.counts.products} href="/admin/products" />
@@ -182,7 +180,7 @@ function HardwareDashboard() {
           {d.inboundPipeline.length === 0 ? <p className="text-xs admin-faint">No open purchase orders.</p> : (
             <div className="space-y-1.5">
               {d.inboundPipeline.map((po) => (
-                <Link key={po.id} href={`/admin/purchasing/${po.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <Link key={po.id} href={`/admin/purchasing/${po.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                   <span className="font-mono admin-heading">{po.poNumber}</span>
                   <span className="flex-1 admin-faint truncate">{po.supplier ?? ""}</span>
                   <span className={`${PO_DASH_COLOR[po.status] ?? "admin-muted"} capitalize`}>{po.status.replace(/_/g, " ")}</span>
@@ -198,7 +196,7 @@ function HardwareDashboard() {
           {d.latestProducts.length === 0 ? <p className="text-xs admin-faint">No products yet.</p> : (
             <div className="space-y-1.5">
               {d.latestProducts.map((p) => (
-                <Link key={p.id} href={`/admin/products/${p.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <Link key={p.id} href={`/admin/products/${p.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                   <span className="flex-1 admin-heading truncate">{p.name}</span>
                   <span className="admin-faint truncate hidden sm:block max-w-[120px]">{p.category || ""}</span>
                   <span className={`${HW_STATUS_COLOR[p.status ?? "draft"] || "admin-muted"} w-20 text-right`}>{p.status ?? "draft"}</span>
@@ -213,7 +211,7 @@ function HardwareDashboard() {
           {d.contentGaps.length === 0 ? <p className="text-xs admin-faint">Every published product has a hero, gallery &amp; overview. 🎉</p> : (
             <div className="space-y-1.5">
               {d.contentGaps.map((c) => (
-                <Link key={c.productId} href={`/admin/product-pages/${c.productId}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <Link key={c.productId} href={`/admin/product-pages/${c.productId}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                   <span className="flex-1 admin-heading truncate">{c.name}</span>
                   <span className="shrink-0 admin-faint">missing {c.missing.join(" + ")}</span>
                 </Link>
@@ -226,7 +224,7 @@ function HardwareDashboard() {
           {d.latestOrders.length === 0 ? <p className="text-xs admin-faint">No orders yet — web checkout is the next build step.</p> : (
             <div className="space-y-1.5">
               {d.latestOrders.map((o) => (
-                <Link key={o.id} href={`/admin/orders/${o.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <Link key={o.id} href={`/admin/orders/${o.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                   <span className="font-mono admin-heading">#{o.number}</span>
                   <span className="flex-1 admin-faint truncate">{o.email}</span>
                   <span className={`${o.paymentStatus === "paid" ? "text-green-400" : o.paymentStatus === "awaiting" ? "text-amber-500" : "admin-muted"}`}>{o.paymentStatus.replace(/_/g, " ")}</span>
@@ -268,8 +266,8 @@ function MagazineDashboard() {
   if (loading || !d) return <Loading />;
 
   return (
-    <div>
-      <DashboardHeader />
+    <div className="fin">
+      <DashboardHeader sub="Magazine · what is written and what is live" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Posts" value={d.counts.posts} href="/admin/blog" />
@@ -283,7 +281,7 @@ function MagazineDashboard() {
           {d.latestPosts.length === 0 ? <p className="text-xs admin-faint">No posts yet.</p> : (
             <div className="space-y-1.5">
               {d.latestPosts.map((p) => (
-                <Link key={p.id} href={`/admin/blog/${p.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <Link key={p.id} href={`/admin/blog/${p.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                   <span className="flex-1 admin-heading truncate">{p.title}</span>
                   <span className="admin-faint truncate hidden sm:block max-w-[100px]">{p.category || ""}</span>
                   <span className={`${p.status === "published" ? "text-green-400" : "text-amber-400"} w-20 text-right`}>{p.status ?? "draft"}</span>
@@ -331,8 +329,8 @@ function ProductDevDashboard() {
 
   const c = d?.counts;
   return (
-    <div>
-      <DashboardHeader />
+    <div className="fin">
+      <DashboardHeader sub="Product development · projects, layups and gaps" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <StatCard label="Projects" value={c?.projects ?? 0} href="/admin/product-dev/projects" />
@@ -346,7 +344,7 @@ function ProductDevDashboard() {
           {!d?.recentLayups?.length ? <p className="text-xs admin-faint">Nothing yet — start a project and add a layup.</p> : (
             <div className="space-y-1.5">
               {d.recentLayups.map((l) => (
-                <Link key={l.id} href={`/admin/product-dev/projects/${l.projectId}?tab=layups&layup=${l.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <Link key={l.id} href={`/admin/product-dev/projects/${l.projectId}?tab=layups&layup=${l.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                   <span className="flex-1 admin-heading truncate">{l.name}</span>
                   <span className="admin-faint truncate hidden sm:block max-w-[120px]">{[l.construction, l.mold].filter(Boolean).join(" · ")}</span>
                   <span className="admin-faint w-16 text-right">{fmtDate(l.updated_at)}</span>
@@ -363,7 +361,7 @@ function ProductDevDashboard() {
           {!d?.provenanceGaps?.length ? <p className="text-xs admin-faint">Everything is cited and current.</p> : (
             <div className="space-y-1.5">
               {d.provenanceGaps.map((g) => (
-                <Link key={`${g.kind}-${g.id}`} href={`/admin/product-dev/projects/${g.projectId}?tab=${g.kind === "layup" ? "layups" : "process"}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <Link key={`${g.kind}-${g.id}`} href={`/admin/product-dev/projects/${g.projectId}?tab=${g.kind === "layup" ? "layups" : "process"}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                   <span className="flex-1 admin-heading truncate">{g.label}</span>
                   <span className="admin-faint truncate hidden sm:block max-w-[100px]">{g.where}</span>
                   <span className={g.reason === "missing" ? "text-red-400 w-14 text-right" : "text-amber-400 w-14 text-right"}>
@@ -379,7 +377,7 @@ function ProductDevDashboard() {
           {!d?.stepsMissingPhotos?.length ? <p className="text-xs admin-faint">Every step has a reference photo.</p> : (
             <div className="space-y-1.5">
               {d.stepsMissingPhotos.map((s) => (
-                <Link key={s.id} href={`/admin/product-dev/projects/${s.projectId}?tab=process`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <Link key={s.id} href={`/admin/product-dev/projects/${s.projectId}?tab=process`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                   <span className="flex-1 admin-heading truncate">{s.label}</span>
                   <span className="admin-faint truncate hidden sm:block max-w-[140px]">{s.where}</span>
                 </Link>
@@ -479,7 +477,7 @@ function ExperienceDashboard() {
           {photoTasks.length === 0 ? <p className="text-xs admin-faint">Every started trip has participant photos. 🎉</p> : (
             <div className="space-y-3">
               {photoTasks.map((t) => (
-                <Link key={t.editionId} href={`/admin/editions/${t.editionId}?tab=memories`} className="block py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <Link key={t.editionId} href={`/admin/editions/${t.editionId}?tab=memories`} className="block py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-semibold admin-heading truncate">{t.label}</span>
                     <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">{t.total} missing</span>
@@ -495,8 +493,8 @@ function ExperienceDashboard() {
   );
 
   return (
-    <div>
-      <DashboardHeader eye={slim ? undefined : { hidden: hideMoney, onToggle: toggleHideMoney }} />
+    <div className="fin">
+      <DashboardHeader eye={slim ? undefined : { hidden: hideMoney, onToggle: toggleHideMoney }} sub="NP7 Experience · bookings, money and what is due" />
 
       {/* Trips whose scheduled mails are being held back for missing content.
           Renders nothing when there is nothing to say. */}
@@ -530,13 +528,13 @@ function ExperienceDashboard() {
           {d.pendingAddons.length === 0 ? <p className="text-xs admin-faint">No add-on requests waiting.</p> : (
             <div className="space-y-1.5">
               {d.pendingAddons.map((a) => (
-                <div key={a.id} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <div key={a.id} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                   <Link href={`/admin/bookings/${a.bookingId}?tab=addons`} className="flex-1 min-w-0 admin-heading truncate">
                     {a.bookingName} <span className="admin-faint">· {a.label}</span>
                   </Link>
                   {a.payDirect
                     ? <span className="shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500" title="The guest pays the supplier — nothing is invoiced">Pays supplier</span>
-                    : <span className="admin-muted w-14 text-right shrink-0">{amt(a.price)}</span>}
+                    : <span className="fin-num admin-muted w-14 text-right shrink-0">{amt(a.price)}</span>}
                   <button
                     onClick={() => quickConfirmAddon(a)}
                     disabled={confirming === a.id}
@@ -574,7 +572,7 @@ function ExperienceDashboard() {
                   {todo.slice(0, 5).map((r) => (
                     <div key={r.id}>
                       <Link href={`/admin/go-live?open=${r.id}`}
-                        className="flex items-center gap-2 text-xs py-1 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                        className="flex items-center gap-2 text-xs py-1 px-2 -mx-2 rounded-[10px] fin-row">
                         <span className="flex-1 admin-heading truncate font-semibold">{r.title}</span>
                         {r.blockers > 0 && <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">{r.blockers}</span>}
                         <span className="shrink-0 admin-faint" title={`${r.done} of ${r.total} checks done`}>{r.done}/{r.total}</span>
@@ -614,7 +612,7 @@ function ExperienceDashboard() {
             <div className="space-y-1.5">
               {d.upcomingMails.mails.slice(0, 8).map((m) => (
                 <Link key={`${m.editionId}:${m.templateKey}`} href={`/admin/editions/${m.editionId}?tab=mailing`}
-                  className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                   <span className={`shrink-0 w-14 text-right ${m.daysAway <= 3 ? "text-amber-500" : "admin-muted"}`}>
                     <span className="block font-bold">{m.daysAway === 0 ? "today" : `${m.daysAway}d`}</span>
                     {/* Client component → the browser renders the cron's UTC
@@ -646,13 +644,13 @@ function ExperienceDashboard() {
           {d.latestBookings.length === 0 ? <p className="text-xs admin-faint">No bookings yet.</p> : (
             <div className="space-y-1.5">
               {d.latestBookings.map((b) => (
-                <Link key={b.id} href={`/admin/bookings/${b.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                <Link key={b.id} href={`/admin/bookings/${b.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                   <span className="flex-1 admin-heading truncate">{b.name || "Untitled"}</span>
                   <span className="admin-faint truncate hidden sm:block max-w-[120px]">{b.exp_experiences?.title || ""}</span>
                   <span className={`${STATUS_COLOR[normalizeBookingStatus(b.status)] || "admin-muted"} w-24 text-right`}>{BOOKING_STATUS_LABELS[normalizeBookingStatus(b.status)]}</span>
                   {/* price slot only for money-visible roles — an empty (or masked)
                       column just advertises what's being withheld */}
-                  {!slim && <span className="admin-muted w-16 text-right">{amt(b.agreed_price)}</span>}
+                  {!slim && <span className="fin-num admin-muted w-16 text-right">{amt(b.agreed_price)}</span>}
                 </Link>
               ))}
             </div>
@@ -669,7 +667,7 @@ function ExperienceDashboard() {
                 // was thirteen people over its cap.
                 const left = ed.spots_left ?? null;
                 return (
-                  <Link key={ed.id} href={`/admin/editions/${ed.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-lg hover:bg-[var(--admin-surface-hover)]">
+                  <Link key={ed.id} href={`/admin/editions/${ed.id}`} className="flex items-center gap-3 text-xs py-1.5 px-2 -mx-2 rounded-[10px] fin-row">
                     <span className="flex-1 admin-heading truncate">{ed.exp_experiences?.title || "—"} <span className="admin-faint">· {editionLabel(ed)}</span></span>
                     <span className="admin-muted w-20 text-right">{fmtDate(ed.date_start)}</span>
                     <span className={`w-20 text-right ${left != null && left <= 2 ? "text-amber-400" : "admin-faint"}`}>{left != null ? `${left} left` : "—"}</span>
