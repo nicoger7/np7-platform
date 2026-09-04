@@ -164,7 +164,7 @@ function Frame({ title, subtitle, hero, children, footer }: {
 
 /* ── 1. Cash position ─────────────────────────────────────────────────────── */
 
-export function CashChart({ pnl, opening }: { pnl: Pnl; opening: number }) {
+export function CashChart({ pnl, opening, scopeName }: { pnl: Pnl; opening: number; scopeName?: string | null }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 720, H = 220, L = 8, R = 8, T = 26, B = 26;
   const pts = pnl.accumulated;
@@ -184,12 +184,14 @@ export function CashChart({ pnl, opening }: { pnl: Pnl; opening: number }) {
 
   return (
     <Frame
-      title="Cash position"
-      subtitle={opening !== 0 ? `Opening at ${eur0(opening)}. The low point is what the year needs funding for.`
-                              : "Closing balance each month. The low point is what the year needs funding for."}
+      title={scopeName ? `${scopeName} · money in and out` : "Cash position"}
+      subtitle={scopeName
+        ? `What ${scopeName} costs and earns, month by month, from zero. Funding is not allocated to a product, so this is a contribution, not a bank balance.`
+        : opening !== 0 ? `Opening at ${eur0(opening)}. The low point is what the year needs funding for.`
+                        : "Closing balance each month. The low point is what the year needs funding for."}
       hero={
         <div className="text-right">
-          <div className="fin-label">{hover === null ? "Year end" : MONTHS[shown]}</div>
+          <div className="fin-label">{hover === null ? (scopeName ? "Net for the year" : "Year end") : MONTHS[shown]}</div>
           <div className={`fin-hero ${pts[shown] < 0 ? "text-red-400" : ""}`}>{eur0(pts[shown])}</div>
           <div className="fin-sub mt-0.5">
             low {eur0(pnl.lowestPoint)} · {MONTHS[lowIdx >= 0 ? lowIdx : 0]}

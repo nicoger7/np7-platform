@@ -47,12 +47,18 @@ export default function FinancePage() {
   const [view, setView] = useState<"grid" | "dashboard" | "timeline" | "roadmap">("dashboard");
   const [objects, setObjects] = useState<CostObjectNode[] | null>(null);
   const [allocating, setAllocating] = useState<BoardRow | null>(null);
+  // Narrowing to one project, range or size. Kept per world like the other
+  // picks, so a Hardware filter cannot follow you into Experience.
+  const [objectPick, setObjectPick] = useState<{ world: string; id: string } | null>(null);
+  const [filterObjects, setFilterObjects] = useState<{ id: string; name: string; kind: string; parent_id: string | null; sort: number }[]>([]);
+  const [scope, setScope] = useState<{ id: string; name: string } | null>(null);
 
   // These hold what the user PICKED, not what is shown. Empty means "let the
   // server choose for this world", and the choice comes back on the board, so
   // selecting never has to be echoed back into state and cannot loop.
   const entityKey = entityPick?.world === env ? entityPick.key : "";
   const planId = planPick?.world === env ? planPick.id : "";
+  const objectId = objectPick?.world === env ? objectPick.id : "";
   const selectedEntity = entityKey || board?.entity?.key || "";
   const selectedPlan = planId || board?.plan?.id || "";
 
@@ -62,6 +68,7 @@ export default function FinancePage() {
     if (entityKey) qs.set("entity", entityKey);
     if (planId) qs.set("plan", planId);
     if (env === "experience" || env === "hardware") qs.set("world", env);
+    if (objectId) qs.set("object", objectId);
     fetch(`/api/admin/finance/board?${qs}`)
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
@@ -71,6 +78,8 @@ export default function FinancePage() {
         setEntities(data.entities ?? []);
         setCategories(data.categories ?? []);
         setPlans(data.plans ?? []);
+        setFilterObjects(data.filterObjects ?? []);
+        setScope(data.scope ?? null);
         setError(null);
         setLoading(false);
       })
@@ -80,7 +89,7 @@ export default function FinancePage() {
       .then((d) => { if (!cancelled && d) setObjects(d.planned ?? []); })
       .catch(() => { /* the dashboard degrades to totals without it */ });
     return () => { cancelled = true; };
-  }, [entityKey, year, planId, nonce, env]);
+  }, [entityKey, year, planId, nonce, env, objectId]);
 
   /** Re-read the board after a write. */
   const reload = useCallback(() => setNonce((n) => n + 1), []);
@@ -234,6 +243,26 @@ export default function FinancePage() {
         )}
       </div>
 
+      {filterObjects.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="fin-label" htmlFor="fin-scope">Showing</label>
+          <select id="fin-scope" value={objectId}
+                  onChange={(e) => setObjectPick(e.target.value ? { world: env, id: e.target.value } : null)}
+                  className="admin-input border rounded-lg px-2.5 py-1.5 text-xs">
+            <option value="">Everything</option>
+            {objectTree(filterObjects).map(({ o, depth }) => (
+              <option key={o.id} value={o.id}>{"\u00a0\u00a0".repeat(depth)}{o.name}</option>
+            ))}
+          </select>
+          {scope && (
+            <span className="fin-sub">
+              only what is allocated to {scope.name}. Funding belongs to no product, so the running
+              line here is this project&rsquo;s own contribution from zero, not a bank balance.
+            </span>
+          )}
+        </div>
+      )}
+
       {board?.plan && (
         <div className="fin-seg" role="tablist" aria-label="Budget view">
           {([["dashboard", "Dashboard"], ["roadmap", "Roadmap"], ["timeline", "Timeline"], ["grid", "Grid"]] as const).map(([v, label]) => (
@@ -285,7 +314,7 @@ export default function FinancePage() {
 
           {view === "dashboard" && (
             <div className="flex flex-col gap-4">
-              <CashChart pnl={board.pnlPlanned} opening={board.openingBalance} />
+              <CashChart pnl={board.pnlPlanned} opening={board.openingBalance} scopeName={scope?.name ?? null} />
               <FlowChart pnl={board.pnlPlanned} />
               <ObjectChart nodes={objects ?? []} />
             </div>
@@ -477,6 +506,21 @@ export default function FinancePage() {
       )}
     </div>
   );
+}
+
+/** Parents before children, so the picker reads as the hierarchy it is. */
+function objectTree(objects: { id: string; name: string; kind: string; parent_id: string | null; sort: number }[]) {
+  const byParent = new Map<string | null, typeof objects>();
+  for (const o of [...objects].sort((a, b) => a.sort - b.sort)) {
+    if (!byParent.has(o.parent_id)) byParent.set(o.parent_id, []);
+    byParent.get(o.parent_id)!.push(o);
+  }
+  const out: { o: (typeof objects)[number]; depth: number }[] = [];
+  const walk = (parent: string | null, depth: number) => {
+    for (const o of byParent.get(parent) ?? []) { out.push({ o, depth }); walk(o.id, depth + 1); }
+  };
+  walk(null, 0);
+  return out;
 }
 
 /* ── pieces ────────────────────────────────────────────────────── */

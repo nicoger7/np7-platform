@@ -6,6 +6,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { buildBoard, entitiesForWorld, rowKey, monthDate, r2 } from "@/lib/finance/board";
 import { buildObjectTree, flattenTree, type Contribution } from "@/lib/finance/objects";
+import { subtreeOf, shareInScope, scaleToScope } from "@/lib/finance/scope";
 
 const db = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -218,6 +219,40 @@ async function main() {
   const { count: orphaned } = await db.from("fin_line_objects")
     .select("id", { count: "exact", head: true }).in("cost_object_id", [objA.id, objB.id]);
   check("deleting an object takes its allocations with it", (orphaned ?? 0) === 0, orphaned);
+
+  console.log("\n── filtering to one project ────────────────────");
+  const shape = [
+    { id: "boards", parent_id: null }, { id: "slalom", parent_id: "boards" },
+    { id: "s72", parent_id: "slalom" }, { id: "fins", parent_id: null },
+  ];
+  check("a range includes the sizes beneath it",
+    [...subtreeOf(shape, "boards")].sort().join() === "boards,s72,slalom", [...subtreeOf(shape, "boards")]);
+  check("a size is just itself", subtreeOf(shape, "s72").size === 1);
+  check("an id we do not own filters nothing, not everything",
+    subtreeOf(shape, "not-ours").size === 0, subtreeOf(shape, "not-ours").size);
+  check("a cycle does not hang the walk",
+    subtreeOf([{ id: "a", parent_id: "b" }, { id: "b", parent_id: "a" }], "a").size === 2);
+
+  const scopeBoards = subtreeOf(shape, "boards");
+  const shares = shareInScope([
+    { sourceId: "L1", cost_object_id: "slalom", share: 40 },
+    { sourceId: "L1", cost_object_id: "fins", share: 60 },   // outside the scope
+    { sourceId: "L2", cost_object_id: "fins", share: 100 },  // wholly outside
+    { sourceId: "L3", cost_object_id: "slalom", share: 70 },
+    { sourceId: "L3", cost_object_id: "s72", share: 60 },    // two slices, one row
+  ], scopeBoards);
+  check("only the in-scope share counts", shares.get("L1") === 0.4, shares.get("L1"));
+  check("a line wholly outside is absent", !shares.has("L2"));
+  check("two slices of one row cannot exceed the whole of it", shares.get("L3") === 1, shares.get("L3"));
+
+  const scaled = scaleToScope(
+    [{ id: "L1", amount_net: 1000 }, { id: "L2", amount_net: 999 }, { id: "L3", amount_net: 500 }],
+    shares);
+  check("out-of-scope rows are dropped", scaled.length === 2, scaled.map((r) => r.id));
+  check("40% of 1,000 is 400", scaled.find((r) => r.id === "L1")!.amount_net === 400);
+  check("a fully-in-scope row keeps all of it", scaled.find((r) => r.id === "L3")!.amount_net === 500);
+  check("scaling never mutates the input",
+    scaleToScope([{ id: "L1", amount_net: 1000 }], shares)[0] !== scaled[0]);
 
   console.log("\n── per unit: bought and sold are counted apart ──");
   // 100 bought at 10 each, but only 40 sold at 25. One quantity column averaged

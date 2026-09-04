@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
 import { buildBoard, entitiesForWorld, type BoardCategory, type BoardEntity, type BoardPlan } from "@/lib/finance/board";
+import { subtreeOf, shareInScope, scaleToScope, type Allocation } from "@/lib/finance/scope";
 
 /**
  * GET /api/admin/finance/board?entity=<key|id>&year=YYYY&plan=<id>
@@ -32,6 +33,11 @@ export async function GET(req: NextRequest) {
   // chosen it decides the default, so opening Budget in Hardware lands on the
   // hardware company rather than on whatever sorts first.
   const world = searchParams.get("world");
+  // Narrow the whole board to one project, range or size. Everything downstream
+  // (the P&L, the cash curve, the timeline) is computed from the scaled lines,
+  // so one filter re-answers every question on the page rather than just the
+  // one chart that knows about it.
+  const objectParam = searchParams.get("object");
 
   const { data: entities } = await db
     .from("fin_entities").select("id,key,name,role,division,status,active_from,legal_name,own_entity_from,note").order("sort");
@@ -62,6 +68,30 @@ export async function GET(req: NextRequest) {
   });
   const plan = plans.find((p) => p.id === planParam) ?? plans[0] ?? null;
 
+  // The object being filtered to, plus everything beneath it.
+  let scope: Set<string> | null = null;
+  let scopeName: string | null = null;
+  if (objectParam && entity) {
+    const { data: all } = await db
+      .from("fin_cost_objects").select("id,name,parent_id").eq("entity_id", entity.id);
+    const rows = (all ?? []) as { id: string; name: string; parent_id: string | null }[];
+    const found = subtreeOf(rows, objectParam);
+    // An id that is not this entity's filters nothing rather than everything.
+    if (found.size) { scope = found; scopeName = rows.find((o) => o.id === objectParam)?.name ?? null; }
+  }
+
+  /** Share-applied scoping for one table's rows. */
+  async function narrow<T extends { id: string; amount_net: number }>(
+    rows: T[], table: string, key: string,
+  ): Promise<T[]> {
+    if (!scope || !rows.length) return rows;
+    const { data } = await db.from(table).select(`${key},cost_object_id,share`).in(key, rows.map((r) => r.id));
+    const allocs: Allocation[] = ((data ?? []) as Record<string, string | number>[]).map((a) => ({
+      sourceId: String(a[key]), cost_object_id: String(a.cost_object_id), share: Number(a.share) || 0,
+    }));
+    return scaleToScope(rows, shareInScope(allocs, scope));
+  }
+
   let lines: unknown[] = [];
   let allocations: unknown[] = [];
   if (plan) {
@@ -70,6 +100,8 @@ export async function GET(req: NextRequest) {
       .select("id,category_id,label,month,amount_net,edition_id,vendor_id,confidence")
       .eq("plan_id", plan.id);
     lines = l ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    lines = await narrow(lines as any[], "fin_line_objects", "plan_line_id");
     const ids = (lines as { id: string }[]).map((x) => x.id);
     if (ids.length) {
       const { data: a } = await db
@@ -88,6 +120,8 @@ export async function GET(req: NextRequest) {
       .gte("incurred_on", `${year}-01-01`)
       .lte("incurred_on", `${year}-12-31`);
     actuals = ac ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    actuals = await narrow(actuals as any[], "fin_actual_objects", "actual_id");
   }
   const allocatedActualIds = new Set(
     (allocations as { actual_id: string }[]).map((a) => a.actual_id),
@@ -120,7 +154,10 @@ export async function GET(req: NextRequest) {
   // before it ended with money in the account, and the Sep-to-May plan crosses
   // exactly one such boundary. Sum what every earlier plan in force moved.
   let openingBalance = 0;
-  if (entity) {
+  // A project does not have a bank account. Filtered, the running line is the
+  // project's own contribution from zero, not the company's balance, so it must
+  // not inherit last year's cash.
+  if (entity && !scope) {
     const { data: priorPlans } = await db
       .from("fin_plans").select("id").eq("entity_id", entity.id).lt("year", year).eq("status", "active");
     const priorIds = ((priorPlans ?? []) as { id: string }[]).map((p) => p.id);
@@ -146,5 +183,14 @@ export async function GET(req: NextRequest) {
     allocatedActualIds, editionLabels, vendorNames, openingBalance,
   });
 
-  return NextResponse.json({ ...board, entities: entityList, categories, plans });
+  const { data: filterObjects } = entity
+    ? await db.from("fin_cost_objects").select("id,name,kind,parent_id,sort")
+        .eq("entity_id", entity.id).is("archived_at", null).order("sort")
+    : { data: [] };
+
+  return NextResponse.json({
+    ...board, entities: entityList, categories, plans,
+    filterObjects: filterObjects ?? [],
+    scope: scope ? { id: objectParam, name: scopeName } : null,
+  });
 }
