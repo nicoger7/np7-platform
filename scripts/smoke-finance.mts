@@ -21,6 +21,12 @@ const check = (name: string, cond: boolean, got?: unknown) => {
 };
 
 async function main() {
+  // A run that exits early leaves rows behind, and the next run then measures
+  // them instead of its own. Sweep first, so the test cannot poison itself.
+  await db.from("fin_actuals").delete().ilike("description", "SMOKE%");
+  await db.from("fin_plans").delete().ilike("name", "SMOKE%");
+  await db.from("fin_cost_objects").delete().ilike("name", "SMOKE%");
+
   console.log("\n── setup ───────────────────────────────────────");
   const { data: entity } = await db.from("fin_entities").select("*").eq("key", "np7-experience").single();
   check("entity np7-experience exists", !!entity, entity?.name);
@@ -166,6 +172,53 @@ async function main() {
     entitiesForWorld([{ division: "experience" }], "hardware").length === 0);
   check("an unknown world still sees everything", entitiesForWorld(ents, null).length === ents.length);
 
+  console.log("\n── allocating a ROW fans out over its months ───");
+  // Two throwaway objects on this entity, so the split has somewhere to go.
+  const { data: objA } = await db.from("fin_cost_objects")
+    .insert({ entity_id: entity.id, kind: "range", name: "SMOKE A", sort: 9001 }).select("*").single();
+  const { data: objB } = await db.from("fin_cost_objects")
+    .insert({ entity_id: entity.id, kind: "range", name: "SMOKE B", sort: 9002 }).select("*").single();
+
+  const rentLines = inserted.filter((l: any) => l.label === "Office rent");
+  check("the rent row is twelve lines", rentLines.length === 12, rentLines.length);
+
+  // what PUT does: replace, then fan the split across every line of the row
+  const fan = (allocs: { id: string; share: number }[]) =>
+    rentLines.flatMap((l: any) => allocs.map((a) => ({ plan_line_id: l.id, cost_object_id: a.id, share: a.share })));
+  await db.from("fin_line_objects").delete().in("plan_line_id", rentLines.map((l: any) => l.id));
+  await db.from("fin_line_objects").insert(fan([{ id: objA.id, share: 60 }, { id: objB.id, share: 40 }]));
+
+  const { data: after1 } = await db.from("fin_line_objects")
+    .select("plan_line_id,cost_object_id,share").in("plan_line_id", rentLines.map((l: any) => l.id));
+  check("every month carries the split, not just one", after1.length === 24, after1.length);
+  check("no month was left out",
+    new Set(after1.map((a: any) => a.plan_line_id)).size === 12,
+    new Set(after1.map((a: any) => a.plan_line_id)).size);
+
+  const contribOf = (allocs: any[]) => allocs.map((a: any) => {
+    const l: any = inserted.find((x: any) => x.id === a.plan_line_id);
+    return { objectId: a.cost_object_id, group: cats.find((c: any) => c.id === l.category_id)?.pnl_group ?? null,
+             amount: r2((Number(l.amount_net) || 0) * Number(a.share) / 100) };
+  });
+  const tree1 = buildObjectTree([objA, objB], contribOf(after1));
+  const a1 = tree1.find((n) => n.name === "SMOKE A")!, b1 = tree1.find((n) => n.name === "SMOKE B")!;
+  check("60% of 10,800 rent lands on A", a1.total.opex === 6480, a1.total.opex);
+  check("40% lands on B", b1.total.opex === 4320, b1.total.opex);
+  check("the split adds back up to the row", r2(a1.total.opex + b1.total.opex) === 10800);
+
+  // replacing must REMOVE what is no longer in the split
+  await db.from("fin_line_objects").delete().in("plan_line_id", rentLines.map((l: any) => l.id));
+  await db.from("fin_line_objects").insert(fan([{ id: objA.id, share: 100 }]));
+  const { data: after2 } = await db.from("fin_line_objects")
+    .select("cost_object_id").in("plan_line_id", rentLines.map((l: any) => l.id));
+  check("re-splitting drops the object that left", after2.length === 12
+    && !after2.some((a: any) => a.cost_object_id === objB.id), after2.length);
+
+  await db.from("fin_cost_objects").delete().in("id", [objA.id, objB.id]);
+  const { count: orphaned } = await db.from("fin_line_objects")
+    .select("id", { count: "exact", head: true }).in("cost_object_id", [objA.id, objB.id]);
+  check("deleting an object takes its allocations with it", (orphaned ?? 0) === 0, orphaned);
+
   console.log("\n── per unit: bought and sold are counted apart ──");
   // 100 bought at 10 each, but only 40 sold at 25. One quantity column averaged
   // across both sides would make each figure wrong.
@@ -209,6 +262,8 @@ async function main() {
   console.log("\n── cleanup ─────────────────────────────────────");
   await db.from("fin_actuals").delete().in("id", [actual.id, orphan.id]);
   await db.from("fin_plans").delete().eq("id", plan.id);
+  await db.from("fin_actuals").delete().ilike("description", "SMOKE%");
+  await db.from("fin_cost_objects").delete().ilike("name", "SMOKE%");
   const { count: leftLines } = await db.from("fin_plan_lines")
     .select("id", { count: "exact", head: true }).eq("plan_id", plan.id);
   const { count: leftPlans } = await db.from("fin_plans")

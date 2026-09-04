@@ -412,7 +412,7 @@ export default function FinancePage() {
           {view === "grid" && (
             <p className="text-[11px] admin-faint">
               Grey is planned, colour is what actually happened. Click any cell to change the plan, or a
-              row's name to say what it was for. Amounts are net, because the VAT comes back.
+              row&rsquo;s name to say what it was for. Amounts are net, because the VAT comes back.
             </p>
           )}
 
