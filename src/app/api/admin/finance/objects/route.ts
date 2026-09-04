@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess } from "@/lib/admin-auth";
 import { effectiveCanSeeField } from "@/lib/access";
 import { entitiesForWorld, r2, type BoardEntity } from "@/lib/finance/board";
-import { buildObjectTree, type Contribution } from "@/lib/finance/objects";
+import { buildObjectTree, spreadOverheads, type Contribution, type OverheadDriver } from "@/lib/finance/objects";
 
 /**
  * GET /api/admin/finance/objects?entity=&year=&world=
@@ -25,6 +25,10 @@ export async function GET(req: NextRequest) {
   const year = Number(searchParams.get("year")) || new Date().getFullYear();
   const world = searchParams.get("world");
   const entityParam = searchParams.get("entity");
+  // How the overheads are shared out, if at all. Named on screen, never stored.
+  const driverParam = searchParams.get("driver");
+  const driver: OverheadDriver =
+    driverParam === "revenue" || driverParam === "units" || driverParam === "equal" ? driverParam : "none";
 
   const { data: entities } = await db
     .from("fin_entities").select("id,key,name,role,division,status,active_from,legal_name,own_entity_from,note").order("sort");
@@ -94,7 +98,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     entity,
     year,
-    planned: buildObjectTree(objs, plannedContribs),
-    actual: buildObjectTree(objs, actualContribs),
+    driver,
+    planned: spreadOverheads(buildObjectTree(objs, plannedContribs), driver),
+    actual: spreadOverheads(buildObjectTree(objs, actualContribs), driver),
   });
 }

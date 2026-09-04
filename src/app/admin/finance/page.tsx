@@ -55,6 +55,8 @@ export default function FinancePage() {
   const [filterObjects, setFilterObjects] = useState<{ id: string; name: string; kind: string; parent_id: string | null; sort: number }[]>([]);
   const [scope, setScope] = useState<{ id: string; name: string } | null>(null);
   const [openObject, setOpenObject] = useState<string | null>(null);
+  // How overheads are shared out over the ranges. A view, never stored.
+  const [driver, setDriver] = useState<"none" | "revenue" | "units" | "equal">("none");
 
   // These hold what the user PICKED, not what is shown. Empty means "let the
   // server choose for this world", and the choice comes back on the board, so
@@ -87,12 +89,12 @@ export default function FinancePage() {
         setLoading(false);
       })
       .catch(() => { if (!cancelled) { setError("Could not reach the budget."); setLoading(false); } });
-    fetch(`/api/admin/finance/objects?${qs}`)
+    fetch(`/api/admin/finance/objects?${qs}&driver=${driver}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (!cancelled && d) setObjects(d.planned ?? []); })
       .catch(() => { /* the dashboard degrades to totals without it */ });
     return () => { cancelled = true; };
-  }, [entityKey, year, planId, nonce, env, objectId]);
+  }, [entityKey, year, planId, nonce, env, objectId, driver]);
 
   /** Re-read the board after a write. */
   const reload = useCallback(() => setNonce((n) => n + 1), []);
@@ -322,7 +324,7 @@ export default function FinancePage() {
               <CashChart pnl={board.pnlPlanned} opening={board.openingBalance} scopeName={scope?.name ?? null} />
               <div className="grid gap-4" style={{ gridTemplateColumns: "minmax(0,3fr) minmax(0,2fr)" }}>
                 <FlowChart pnl={board.pnlPlanned} />
-                <ObjectChart nodes={objects ?? []} onOpen={setOpenObject} />
+                <ObjectChart nodes={objects ?? []} onOpen={setOpenObject} driver={driver} onDriver={setDriver} />
               </div>
               <details className="fin-card">
                 <summary className="fin-title cursor-pointer select-none">

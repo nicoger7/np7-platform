@@ -154,6 +154,53 @@ export function buildObjectTree(
   return (byParent.get(null) ?? []).map((o) => build(o, 0));
 }
 
+/**
+ * Spreading the overheads across the things that earn.
+ *
+ * A fully loaded product cost is a CHOICE, not a fact: rent does not belong to
+ * a board in any way the world can verify, and every business picks a rule and
+ * lives with it. So this is computed on the way out and never stored, the rule
+ * is always named on screen, and the direct view stays one click away as the
+ * thing that is actually true.
+ *
+ * Overhead objects (kind 'overhead') are emptied of their operating and
+ * development cost, which is shared out over the earning objects. Their
+ * revenue, cost of goods and stock are left alone: a product's own costs are
+ * not overhead and must not be moved.
+ */
+export type OverheadDriver = "none" | "revenue" | "units" | "equal";
+
+export function spreadOverheads(nodes: CostObjectNode[], driver: OverheadDriver): CostObjectNode[] {
+  if (driver === "none") return nodes;
+
+  const tops = nodes.filter((n) => n.kind !== "overhead");
+  const pot = nodes
+    .filter((n) => n.kind === "overhead")
+    .reduce((s, n) => r2(s + n.total.opex + n.total.development), 0);
+  if (!pot || !tops.length) return nodes;
+
+  const weightOf = (n: CostObjectNode) =>
+    driver === "revenue" ? n.total.revenue
+      : driver === "units" ? n.total.unitsSold || n.total.unitsBought
+      : 1;
+  const weights = tops.map(weightOf);
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  // A driver everything scores zero on cannot divide anything. Falling back to
+  // an equal split beats dividing by zero and beats silently doing nothing.
+  const useEqual = totalWeight <= 0;
+  const denom = useEqual ? tops.length : totalWeight;
+
+  return nodes.map((n) => {
+    if (n.kind === "overhead") {
+      const emptied = { ...n.total, opex: 0, development: 0 };
+      return { ...n, total: derive({ ...emptied }) };
+    }
+    const w = useEqual ? 1 : weightOf(n);
+    const shareOfPot = r2((pot * w) / denom);
+    return { ...n, total: derive({ ...n.total, opex: r2(n.total.opex + shareOfPot) }) };
+  });
+}
+
 /** One node's rolled-up figures, found anywhere in the tree. */
 export function subtreeFigures(nodes: CostObjectNode[], id: string): ObjectFigures | null {
   for (const n of flattenTree(nodes)) if (n.id === id) return n.total;

@@ -324,7 +324,12 @@ export function FlowChart({ pnl }: { pnl: Pnl }) {
 
 /* ── 3. What each thing cost and earned ───────────────────────────────────── */
 
-export function ObjectChart({ nodes, onOpen }: { nodes: CostObjectNode[]; onOpen?: (id: string) => void }) {
+type Driver = "none" | "revenue" | "units" | "equal";
+
+export function ObjectChart({ nodes, onOpen, driver = "none", onDriver }: {
+  nodes: CostObjectNode[]; onOpen?: (id: string) => void;
+  driver?: Driver; onDriver?: (d: Driver) => void;
+}) {
   const rows = nodes.filter((n) => n.total.revenue > 0 || n.total.cogs + n.total.inventory + n.total.opex + n.total.development > 0);
   if (!rows.length) {
     return (
@@ -339,8 +344,20 @@ export function ObjectChart({ nodes, onOpen }: { nodes: CostObjectNode[]; onOpen
   const max = Math.max(1, ...rows.map((n) => Math.max(n.total.revenue, cost(n))));
 
   return (
-    <Frame title="What the money was for"
-           subtitle="Everything booked to a range, rolled up from the sizes beneath it. Units bought and units sold are counted apart, because in one window they differ.">
+    <Frame
+      title="What the money was for"
+      subtitle={driver === "none"
+        ? "Direct costs only, rolled up from the sizes beneath each range. This is the part that is simply true."
+        : `Overheads shared out ${driver === "revenue" ? "in proportion to revenue"
+            : driver === "units" ? "per unit" : "equally"}. A choice, not a fact, so the direct view is one click away.`}
+      hero={onDriver ? (
+        <div className="fin-seg" role="group" aria-label="How overheads are shared out">
+          {([["none", "Direct"], ["revenue", "By revenue"], ["units", "Per unit"], ["equal", "Equal"]] as const)
+            .map(([v, label]) => (
+              <button key={v} data-on={driver === v} onClick={() => onDriver(v)}>{label}</button>
+            ))}
+        </div>
+      ) : undefined}>
       <div className="flex flex-col gap-4 mt-1">
         {rows.map((n) => {
           const t = n.total;
@@ -386,8 +403,8 @@ export function ObjectChart({ nodes, onOpen }: { nodes: CostObjectNode[]; onOpen
         })}
       </div>
       <p className="fin-sub mt-3">
-        A unit costs what it takes to land it, goods and freight. Overheads and development are not in
-        it, because they do not scale with one more board.
+        A unit costs what it takes to land it, goods and freight. Overheads are never in the unit cost,
+        whichever way they are shared out, because they do not scale with one more board.
       </p>
       <Legend keys={["revenue", "cogs"]} />
     </Frame>

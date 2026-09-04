@@ -87,12 +87,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   // ── what was actually booked ──
+  type ActualRow = {
+    id: string; description: string; amount_net: number;
+    incurred_on: string; paid_on: string | null; category_id: string | null;
+  };
   const { data: rawActuals } = await db
     .from("fin_actuals").select("id,description,amount_net,incurred_on,paid_on,category_id")
     .eq("entity_id", object.entity_id)
     .gte("incurred_on", `${year}-01-01`).lte("incurred_on", `${year}-12-31`);
-  const actualById = new Map(((rawActuals ?? []) as { id: string }[]).map((a) => [a.id, a]));
-  let actuals: unknown[] = [];
+  const actualById = new Map(((rawActuals ?? []) as ActualRow[]).map((a) => [a.id, a]));
+  let actuals: ActualRow[] = [];
   if (actualById.size) {
     const { data: aAllocs } = await db
       .from("fin_actual_objects").select("actual_id,cost_object_id,share").in("actual_id", [...actualById.keys()]);
@@ -101,10 +105,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       if (!scope.has(a.cost_object_id)) continue;
       keep.set(a.actual_id, Math.min(1, (keep.get(a.actual_id) ?? 0) + (Number(a.share) || 0) / 100));
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    actuals = [...keep.entries()].map(([aid, share]) => {
-      const a = actualById.get(aid) as any;
-      return { ...a, amount_net: r2((Number(a.amount_net) || 0) * share) };
+    actuals = [...keep.entries()].flatMap(([aid, share]) => {
+      const a = actualById.get(aid);
+      return a ? [{ ...a, amount_net: r2((Number(a.amount_net) || 0) * share) }] : [];
     });
   }
 

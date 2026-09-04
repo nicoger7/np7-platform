@@ -5,7 +5,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { buildBoard, entitiesForWorld, rowKey, monthDate, r2 } from "@/lib/finance/board";
-import { buildObjectTree, flattenTree, type Contribution } from "@/lib/finance/objects";
+import { buildObjectTree, flattenTree, spreadOverheads, type Contribution } from "@/lib/finance/objects";
 import { subtreeOf, shareInScope, scaleToScope } from "@/lib/finance/scope";
 
 const db = createClient(
@@ -219,6 +219,52 @@ async function main() {
   const { count: orphaned } = await db.from("fin_line_objects")
     .select("id", { count: "exact", head: true }).in("cost_object_id", [objA.id, objB.id]);
   check("deleting an object takes its allocations with it", (orphaned ?? 0) === 0, orphaned);
+
+  console.log("\n── sharing the overheads out ───────────────────");
+  const shapeO = [
+    { id: "boards", name: "Boards", kind: "range", parent_id: null, sort: 1 },
+    { id: "fins", name: "Fins", kind: "range", parent_id: null, sort: 2 },
+    { id: "co", name: "Company", kind: "overhead", parent_id: null, sort: 9 },
+  ];
+  const contribO: Contribution[] = [
+    { objectId: "boards", group: "revenue", amount: 750, quantity: 3 },
+    { objectId: "boards", group: "inventory", amount: 300, quantity: 3 },
+    { objectId: "fins", group: "revenue", amount: 250, quantity: 1 },
+    { objectId: "co", group: "opex", amount: 200 },
+    { objectId: "co", group: "revenue", amount: 40 },   // must stay put
+  ];
+  const base = buildObjectTree(shapeO, contribO);
+  const find = (ns: any[], n: string) => ns.find((x) => x.name === n)!;
+
+  check("direct view leaves the overhead where it is",
+    find(base, "Company").total.opex === 200 && find(base, "Boards").total.opex === 0);
+
+  const byRev = spreadOverheads(base, "revenue");
+  check("by revenue, Boards takes 75% of 200", find(byRev, "Boards").total.opex === 150,
+    find(byRev, "Boards").total.opex);
+  check("by revenue, Fins takes 25%", find(byRev, "Fins").total.opex === 50, find(byRev, "Fins").total.opex);
+  check("the overhead object is emptied of what was shared out",
+    find(byRev, "Company").total.opex === 0, find(byRev, "Company").total.opex);
+  check("nothing is created or destroyed",
+    r2(find(byRev, "Boards").total.opex + find(byRev, "Fins").total.opex + find(byRev, "Company").total.opex) === 200);
+  check("the overhead object keeps its own revenue",
+    find(byRev, "Company").total.revenue === 40, find(byRev, "Company").total.revenue);
+
+  const byUnits = spreadOverheads(base, "units");
+  check("per unit, 3 boards to 1 fin splits 150 / 50",
+    find(byUnits, "Boards").total.opex === 150 && find(byUnits, "Fins").total.opex === 50);
+  const equal = spreadOverheads(base, "equal");
+  check("equal splits it in two", find(equal, "Boards").total.opex === 100 && find(equal, "Fins").total.opex === 100);
+
+  check("the unit cost never absorbs overhead, whichever driver is on",
+    find(byRev, "Boards").total.unitCost === 100 && find(base, "Boards").total.unitCost === 100,
+    find(byRev, "Boards").total.unitCost);
+
+  // a driver everything scores zero on must not divide by zero
+  const zero = spreadOverheads(buildObjectTree(shapeO, [{ objectId: "co", group: "opex", amount: 100 }]), "revenue");
+  check("a driver nothing scores on falls back to an equal split",
+    find(zero, "Boards").total.opex === 50 && find(zero, "Fins").total.opex === 50,
+    find(zero, "Boards").total.opex);
 
   console.log("\n── filtering to one project ────────────────────");
   const shape = [
