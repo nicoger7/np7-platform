@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
+import { after } from "next/server";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { getGuideForMember, markGuideOpened, type GuideBlock } from "@/lib/portal-data";
@@ -75,7 +76,7 @@ export default async function GuidePage({ params }: Props) {
      this member, because looking over someone's shoulder must not spend their
      badge. Fire and forget, since a failed stamp is a guide that stays new,
      which is the harmless direction. */
-  if (!user.preview) void markGuideOpened(guide.id).catch(() => {});
+  if (!user.preview) after(() => markGuideOpened(guide.id).catch(() => {}));
 
   const firstName = (guide.name ?? user.name ?? "").trim().split(/\s+/)[0] || null;
   const dateLabel = guide.trip_start ? fmtDates(guide.trip_start, guide.trip_end) : null;
