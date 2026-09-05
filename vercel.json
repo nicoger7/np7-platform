@@ -43,5 +43,8 @@
       "path": "/api/cron/campaigns",
       "schedule": "0 * * * *"
     }
+  ],
+  "regions": [
+    "dub1"
   ]
 }
