@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { normalizeLevel, normalizeAccess, mergeAccess, builtinAccess, effectiveCanAccess, effectiveCanWrite, type EffectiveAccess } from "@/lib/access";
 import { signGate, GATE_HEADERS } from "@/lib/admin-gate";
+import { verifiedUser } from "@/lib/verified-user";
 
 function svc(): SupabaseClient {
   return createClient(
@@ -94,7 +95,8 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // Verified locally against the project's signing key; see lib/verified-user.
+  const user = await verifiedUser(supabase);
 
   /**
    * Carry any refreshed auth cookies onto whatever we return.
@@ -132,7 +134,7 @@ export async function middleware(request: NextRequest) {
         ? carry(NextResponse.json({ error: "Unauthorized" }, { status: 401 }))
         : redirect("/admin/login");
     }
-    const member = await teamMemberFor(user.email);
+    const member = await teamMemberFor(user.email ?? undefined);
     if (!member || !member.active) {
       // A logged-in non-team account hitting /admin should land on the team
       // login (so they can sign in with a team account), NOT the member portal.
@@ -172,7 +174,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isAdminLogin && user) {
-    const member = await teamMemberFor(user.email);
+    const member = await teamMemberFor(user.email ?? undefined);
     if (member && member.active) return redirect("/admin");
   }
 

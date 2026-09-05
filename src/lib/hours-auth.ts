@@ -1,6 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase";
-import { getActiveTeamMember } from "@/lib/admin-auth";
+import { getRequestMember } from "@/lib/admin-auth";
 
 /**
  * Who is logging hours, and may they touch OTHER people's hours?
@@ -13,10 +12,8 @@ import { getActiveTeamMember } from "@/lib/admin-auth";
 export type HoursActor = { id: string; name: string; canManageOthers: boolean };
 
 export async function getHoursActor(): Promise<HoursActor | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const member = await getActiveTeamMember(user);
+  // The middleware already resolved and signed this caller; no second lookup.
+  const member = await getRequestMember();
   if (!member) return null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

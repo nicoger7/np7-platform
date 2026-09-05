@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { verifyGate, type GateContext } from "@/lib/admin-gate";
+import { verifiedUser } from "@/lib/verified-user";
 import { createAdminClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeLevel, normalizeAccess, mergeAccess, builtinAccess, roleSectionLevel, SECTIONS, type AccessLevel, type EffectiveAccess } from "@/lib/access";
@@ -95,7 +96,7 @@ export async function getRequestMember(): Promise<{ id: string; accessLevel: Acc
   const g = await readGate();
   if (g) return { id: g.memberId, accessLevel: g.level, roleIds: g.roleIds };
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await verifiedUser(supabase);
   if (!user) return null;
   return getActiveTeamMember(user);
 }
@@ -164,7 +165,7 @@ export async function requireSectionEdit(sectionKey: string): Promise<NextRespon
 
 export async function requireTeamMember(): Promise<NextResponse | null> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await verifiedUser(supabase);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!(await isActiveTeamMember(user.id)))
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

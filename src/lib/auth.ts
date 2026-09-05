@@ -16,6 +16,7 @@ import { createAdminClient } from "@/lib/supabase";
 export { VIEW_AS_COOKIE, PREVIEW_PARAM } from "@/lib/preview-const";
 import { VIEW_AS_COOKIE, PREVIEW_PARAM } from "@/lib/preview-const";
 
+import { verifiedUser } from "@/lib/verified-user";
 export type TeamMember = { userId: string; email: string; teamMemberId: string; role: string | null };
 export type PortalUser = { userId: string; email: string; contactId: string; name: string; preview?: boolean };
 
@@ -67,7 +68,7 @@ async function viewAsPreviewUser(realUserId: string): Promise<PortalUser | null>
 
 export async function getTeamMember(): Promise<TeamMember | null> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await verifiedUser(supabase);
   if (!user?.email) return null;
   const admin = createAdminClient();
   const { data } = await admin
@@ -89,7 +90,7 @@ export async function requireTeamApi():
 export async function getPortalUser(opts: { allowPreview?: boolean } = {}): Promise<PortalUser | null> {
   const { allowPreview = true } = opts;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await verifiedUser(supabase);
   if (!user) return null;
 
   // Admin previewing a member's portal (read-only). Reads honour it; writes pass
