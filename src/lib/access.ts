@@ -134,7 +134,7 @@ export const SECTIONS: Section[] = [
   { key: "components", label: "Components", world: "experience", group: "Operations", paths: ["/admin/components", "/api/admin/components"] },
   // Experience · Website
   { key: "file_storage", label: "File storage", world: "experience", group: "Website", shared: true, paths: ["/admin/images", "/api/admin/images", "/api/admin/memories", "/api/admin/videos", "/api/admin/media"] },
-  { key: "event_content", label: "Event content", world: "experience", group: "Website", paths: ["/admin/content", "/api/admin/content", "/api/admin/events", "/api/admin/event-dates", "/api/admin/youtube"] },
+  { key: "event_content", label: "Event content", world: "experience", group: "Website", paths: ["/admin/content", "/api/admin/content", "/api/admin/content-templates", "/api/admin/content-custom", "/api/admin/events", "/api/admin/event-dates", "/api/admin/youtube"] },
   { key: "members", label: "Member management", world: "experience", group: "Website", paths: ["/admin/members", "/api/admin/members"] },
   { key: "magazine", label: "Magazine", world: "experience", group: "Website", paths: ["/admin/blog", "/api/admin/blog"] },
   { key: "spotguide", label: "Spotguide", world: "experience", group: "Website", paths: ["/admin/spotguide", "/admin/spots", "/api/admin/spotguide", "/api/admin/spots", "/api/admin/spot-notes"] },
@@ -203,7 +203,19 @@ export const SECTIONS: Section[] = [
   // what makes Owner edits WORK at all: writes to an unclaimed /api/admin path
   // fail closed for everyone — which is exactly how the Owner spent a morning
   // staring at "view access here, not edit" on his own knowledge base.
-  { key: "finance", label: "Finance & budget", world: "experience", group: "Finance", shared: true, paths: ["/admin/finance", "/api/admin/finance"] },
+  //
+  // It then happened AGAIN, twice, on /api/admin/roadmap and
+  // /api/admin/content-templates. The trap is that it looks like a permissions
+  // problem and is not: effectiveCanWrite() does `if (!sec) return false`, so a
+  // path no section claims is read-only for EVERY role, Owner included. It only
+  // bites people who hold custom roles, because the tier shortcut above never
+  // reaches the section lookup — which is why it is always the Owner, the one
+  // person with every role, who finds it.
+  //
+  // src/__tests__/access-sections.test.ts now fails if a route that accepts a
+  // write method is left unclaimed. Add the path here in the same commit as the
+  // route, and the test stays quiet.
+  { key: "finance", label: "Finance & budget", world: "experience", group: "Finance", shared: true, paths: ["/admin/finance", "/api/admin/finance", "/api/admin/roadmap"] },
   { key: "knowledge", label: "Knowledge Base", world: "knowledge", group: "Knowledge", paths: ["/admin/knowledge", "/api/admin/kb"] },
   { key: "tier_perks", label: "Tier perks", world: "experience", group: "Website", paths: ["/admin/perks", "/api/admin/tier-perks"] },
   { key: "templates", label: "Page templates", world: "experience", group: "Website", paths: ["/admin/templates", "/admin/home", "/api/admin/templates", "/api/admin/site-settings"] },
