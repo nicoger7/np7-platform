@@ -1,16 +1,17 @@
 import { describe, it, expect, beforeAll } from "vitest";
 
 /**
- * The gate is the second lock on every /api/admin route: the middleware signs a
- * request once it has been authorized, and the route checks that signature
- * instead of repeating the whole session lookup. These tests pin the two things
- * that make it worth having — a stamp cannot be forged or re-aimed, and a
- * missing key produces no stamp at all (so the route falls back to the full
- * database check rather than letting anyone through).
+ * The gate is the second lock on every /api/admin route, and since the stamp
+ * started carrying the resolved member it is also what lets a route skip
+ * re-resolving the caller. These pin the properties that make that safe: a
+ * stamp cannot be forged, re-aimed, stretched, or have its PAYLOAD altered
+ * without the signature failing, and no key means no stamp at all.
  */
 
 let signGate: typeof import("@/lib/admin-gate").signGate;
 let verifyGate: typeof import("@/lib/admin-gate").verifyGate;
+
+const CTX = { userId: "user-1", memberId: "member-9", level: "manager" as const, roleIds: ["r1", "r2"] };
 
 beforeAll(async () => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key-abc";
@@ -18,40 +19,42 @@ beforeAll(async () => {
 });
 
 describe("admin gate", () => {
-  it("accepts the stamp it just made", async () => {
-    const stamp = await signGate("user-1", "POST", "/api/admin/team");
+  it("hands back exactly what was signed", async () => {
+    const stamp = await signGate(CTX, "POST", "/api/admin/team");
     expect(stamp).toBeTruthy();
-    expect(await verifyGate(stamp!, "POST", "/api/admin/team")).toBe(true);
+    expect(await verifyGate(stamp!, "POST", "/api/admin/team")).toEqual(CTX);
   });
 
   it("will not let a stamp be re-aimed at another method or path", async () => {
-    const stamp = (await signGate("user-1", "GET", "/api/admin/team"))!;
-    expect(await verifyGate(stamp, "DELETE", "/api/admin/team")).toBe(false);
-    expect(await verifyGate(stamp, "GET", "/api/admin/finance/lines")).toBe(false);
+    const stamp = (await signGate(CTX, "GET", "/api/admin/team"))!;
+    expect(await verifyGate(stamp, "DELETE", "/api/admin/team")).toBeNull();
+    expect(await verifyGate(stamp, "GET", "/api/admin/finance/lines")).toBeNull();
+  });
+
+  it("rejects a stamp whose payload was edited, even with the original signature", async () => {
+    const stamp = (await signGate(CTX, "POST", "/api/admin/team"))!;
+    const [exp, , sig] = stamp.split(".");
+    const owner = Buffer.from(JSON.stringify({ ...CTX, level: "owner" })).toString("base64url");
+    expect(await verifyGate(`${exp}.${owner}.${sig}`, "POST", "/api/admin/team")).toBeNull();
   });
 
   it("rejects a forged signature, a stretched expiry and rubbish", async () => {
-    const stamp = (await signGate("user-1", "POST", "/api/admin/team"))!;
-    const sig = stamp.split(".")[2];
-    expect(await verifyGate(`9999999999999.user-1.forged`, "POST", "/api/admin/team")).toBe(false);
-    // Well past the 60s TTL the stamp was signed for, so the expiry is part of
-    // what is signed and cannot be stretched.
-    expect(await verifyGate(`${Date.now() + 600_000}.user-1.${sig}`, "POST", "/api/admin/team")).toBe(false);
-    expect(await verifyGate("garbage", "POST", "/api/admin/team")).toBe(false);
-    expect(await verifyGate("", "POST", "/api/admin/team")).toBe(false);
-  });
-
-  it("expires", async () => {
-    expect(await verifyGate("1.user-1.whatever", "POST", "/api/admin/team")).toBe(false);
+    const stamp = (await signGate(CTX, "POST", "/api/admin/team"))!;
+    const [, payload, sig] = stamp.split(".");
+    expect(await verifyGate(`9999999999999.${payload}.forged`, "POST", "/api/admin/team")).toBeNull();
+    expect(await verifyGate(`${Date.now() + 600_000}.${payload}.${sig}`, "POST", "/api/admin/team")).toBeNull();
+    expect(await verifyGate("garbage", "POST", "/api/admin/team")).toBeNull();
+    expect(await verifyGate("", "POST", "/api/admin/team")).toBeNull();
+    expect(await verifyGate("1.x.y", "POST", "/api/admin/team")).toBeNull();
   });
 
   it("mints nothing without a key, so the route falls back to the database check", async () => {
-    const stamp = (await signGate("user-1", "POST", "/api/admin/team"))!;
+    const stamp = (await signGate(CTX, "POST", "/api/admin/team"))!;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     process.env.SUPABASE_SERVICE_ROLE_KEY = "";
     try {
-      expect(await signGate("user-1", "POST", "/api/admin/team")).toBeNull();
-      expect(await verifyGate(stamp, "POST", "/api/admin/team")).toBe(false);
+      expect(await signGate(CTX, "POST", "/api/admin/team")).toBeNull();
+      expect(await verifyGate(stamp, "POST", "/api/admin/team")).toBeNull();
     } finally {
       process.env.SUPABASE_SERVICE_ROLE_KEY = key;
     }

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { getActiveTeamMember, getEffectiveAccess, requireAdminGate } from "@/lib/admin-auth";
+import { getEffectiveAccess, getRequestMember, requireAdminGate } from "@/lib/admin-auth";
 import { getHoursActor } from "@/lib/hours-auth";
 // GET /api/admin/me — the current team member's effective access, for client
 // components that redact sensitive fields (prices, costs, contact PII). Also
@@ -9,10 +8,8 @@ import { getHoursActor } from "@/lib/hours-auth";
 export async function GET() {
   const denied = await requireAdminGate();
   if (denied) return denied;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const member = await getActiveTeamMember(user);
+  // Resolved by the middleware and signed into the request; no second lookup.
+  const member = await getRequestMember();
   if (!member) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const access = await getEffectiveAccess(member);
   const actor = await getHoursActor();

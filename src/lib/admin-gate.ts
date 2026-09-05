@@ -1,3 +1,4 @@
+import type { AccessLevel } from "@/lib/access";
 /**
  * A second lock on every admin API route.
  *
@@ -52,24 +53,58 @@ function sameString(a: string, b: string): boolean {
 }
 
 /** Called by the middleware once a request has passed every admin check. */
-export async function signGate(userId: string, method: string, path: string): Promise<string | null> {
+
+/**
+ * What the middleware already knows about the caller, carried into the route.
+ *
+ * The first version of the stamp proved only "the gate ran". Routes then
+ * resolved the caller AGAIN from scratch: auth.getUser() (a network call to
+ * Supabase Auth to re-validate the token), then team_members, then team_roles.
+ * Three round trips the middleware had just made. On a 1 KB response that was
+ * most of the latency. So the stamp now carries the resolution itself, signed.
+ * A route that trusts the signature can skip all three.
+ */
+export type GateContext = { userId: string; memberId: string; level: AccessLevel; roleIds: string[] };
+
+function encode(ctx: GateContext): string {
+  return Buffer.from(JSON.stringify(ctx), "utf8").toString("base64url");
+}
+function decode(payload: string): GateContext | null {
+  try {
+    const v = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (typeof v?.userId !== "string" || typeof v?.memberId !== "string") return null;
+    if (v.level !== "owner" && v.level !== "manager") return null;
+    const roleIds = Array.isArray(v.roleIds) ? v.roleIds.filter((r: unknown) => typeof r === "string") : [];
+    return { userId: v.userId, memberId: v.memberId, level: v.level, roleIds };
+  } catch {
+    return null;
+  }
+}
+
+/** Called by the middleware once a request has passed every admin check. */
+export async function signGate(ctx: GateContext, method: string, path: string): Promise<string | null> {
   const secret = keyMaterial();
   if (!secret) return null;
   const exp = String(Date.now() + TTL_MS);
-  const sig = await hmac(secret, `${exp}|${userId}|${method}|${path}`);
-  return `${exp}.${userId}.${sig}`;
+  const payload = encode(ctx);
+  const sig = await hmac(secret, `${exp}|${payload}|${method}|${path}`);
+  return `${exp}.${payload}.${sig}`;
 }
 
-export async function verifyGate(stamp: string, method: string, path: string): Promise<boolean> {
+/** The verified context, or null for anything that is not a fresh stamp signed
+ *  by us for exactly this method and path. base64url contains no dots, so the
+ *  first and last dot delimit the three parts unambiguously. */
+export async function verifyGate(stamp: string, method: string, path: string): Promise<GateContext | null> {
   const secret = keyMaterial();
-  if (!secret) return false;
+  if (!secret) return null;
   const firstDot = stamp.indexOf(".");
   const lastDot = stamp.lastIndexOf(".");
-  if (firstDot <= 0 || lastDot <= firstDot) return false;
+  if (firstDot <= 0 || lastDot <= firstDot) return null;
   const exp = stamp.slice(0, firstDot);
-  const userId = stamp.slice(firstDot + 1, lastDot);
+  const payload = stamp.slice(firstDot + 1, lastDot);
   const sig = stamp.slice(lastDot + 1);
   const expiresAt = Number(exp);
-  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return false;
-  return sameString(sig, await hmac(secret, `${exp}|${userId}|${method}|${path}`));
+  if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) return null;
+  if (!sameString(sig, await hmac(secret, `${exp}|${payload}|${method}|${path}`))) return null;
+  return decode(payload);
 }

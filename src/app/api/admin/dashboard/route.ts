@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { createClient } from "@/lib/supabase/server";
-import { getActiveTeamMember, getEffectiveAccess, requireAdminGate } from "@/lib/admin-auth";
+import { getEffectiveAccess, getRequestMember, requireAdminGate } from "@/lib/admin-auth";
 import { effectiveCanAccess, effectiveCanEnterWorld, effectiveCanSeeField } from "@/lib/access";
 import { normalizeBookingStatus } from "@/lib/types";
 import { getUpcomingMails } from "@/lib/email/upcoming";
@@ -16,9 +15,7 @@ export async function GET(request: NextRequest) {
   // Finance figures are owner-only — don't even send them to managers.
   // A role-based member additionally needs the `money` field grant to see ANY
   // money (booking prices, add-on prices) — so a photographer sees no numbers.
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const member = user ? await getActiveTeamMember(user) : null;
+  const member = await getRequestMember(); // signed in by the middleware, no re-resolution
   const isOwner = member?.accessLevel === "owner";
   const access = member ? await getEffectiveAccess(member) : null;
   const showMoney = !access || effectiveCanSeeField(access, "money");

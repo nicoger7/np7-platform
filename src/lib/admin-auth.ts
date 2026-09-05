@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { verifyGate } from "@/lib/admin-gate";
+import { verifyGate, type GateContext } from "@/lib/admin-gate";
 import { createAdminClient } from "@/lib/supabase";
 import { createClient } from "@/lib/supabase/server";
 import { normalizeLevel, normalizeAccess, mergeAccess, builtinAccess, roleSectionLevel, SECTIONS, type AccessLevel, type EffectiveAccess } from "@/lib/access";
@@ -69,11 +69,41 @@ export async function getMemberRoleLabel(
 
 /** The effective access for the current request's team member (or null). Use in
  *  API routes to redact sensitive fields the member's role can't see. */
-export async function getRequestAccess(): Promise<EffectiveAccess | null> {
+/** The middleware's verdict about this caller, if it signed one. Null means the
+ *  stamp is absent, stale or forged, and the caller must be resolved in full. */
+async function readGate(): Promise<GateContext | null> {
+  try {
+    const h = await headers();
+    const stamp = h.get("x-np7-gate");
+    if (!stamp) return null;
+    return await verifyGate(stamp, h.get("x-np7-gate-method") ?? "", h.get("x-np7-gate-path") ?? "");
+  } catch {
+    return null; // no request scope to read from
+  }
+}
+
+/**
+ * The active team member behind this request.
+ *
+ * Fast path: the middleware resolved them a few milliseconds ago and signed the
+ * result into the request, so this is one HMAC and no I/O. Slow path, for a
+ * request that somehow arrived without a stamp: auth.getUser() plus the
+ * team_members lookup, exactly as before. Same shape either way, so callers do
+ * not know or care which one they got.
+ */
+export async function getRequestMember(): Promise<{ id: string; accessLevel: AccessLevel; roleIds: string[] } | null> {
+  const g = await readGate();
+  if (g) return { id: g.memberId, accessLevel: g.level, roleIds: g.roleIds };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const member = await getActiveTeamMember(user);
+  return getActiveTeamMember(user);
+}
+
+/** The effective access for the current request's team member (or null). Use in
+ *  API routes to redact sensitive fields the member's role can't see. */
+export async function getRequestAccess(): Promise<EffectiveAccess | null> {
+  const member = await getRequestMember();
   if (!member) return null;
   return getEffectiveAccess(member);
 }
@@ -154,14 +184,6 @@ export async function requireTeamMember(): Promise<NextResponse | null> {
  * It cannot lock anyone out: the slow path is always there behind it.
  */
 export async function requireAdminGate(): Promise<NextResponse | null> {
-  try {
-    const h = await headers();
-    const stamp = h.get("x-np7-gate");
-    if (stamp && (await verifyGate(stamp, h.get("x-np7-gate-method") ?? "", h.get("x-np7-gate-path") ?? ""))) {
-      return null;
-    }
-  } catch {
-    /* no request scope to read — fall through to the full check */
-  }
+  if (await readGate()) return null;
   return requireTeamMember();
 }

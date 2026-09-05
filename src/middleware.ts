@@ -13,14 +13,14 @@ function svc(): SupabaseClient {
 }
 
 /** Active team member behind a session email + their access level + role ids. */
-async function teamMemberFor(email: string | undefined): Promise<{ active: boolean; level: ReturnType<typeof normalizeLevel>; roleIds: string[] } | null> {
+async function teamMemberFor(email: string | undefined): Promise<{ id: string; active: boolean; level: ReturnType<typeof normalizeLevel>; roleIds: string[] } | null> {
   if (!email) return null;
   // select("*") so a not-yet-migrated access_level/role_ids column can't error the query.
   const { data } = await svc().from("team_members").select("*").ilike("email", email).maybeSingle();
   if (!data) return null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const d = data as any;
-  return { active: d.active !== false, level: normalizeLevel(d.access_level), roleIds: Array.isArray(d.role_ids) ? d.role_ids : [] };
+  return { id: String(d.id), active: d.active !== false, level: normalizeLevel(d.access_level), roleIds: Array.isArray(d.role_ids) ? d.role_ids : [] };
 }
 
 /** Effective access: custom roles (merged) override the owner/manager tier. */
@@ -158,7 +158,7 @@ export async function middleware(request: NextRequest) {
     // Everything above passed. Sign the request so the route itself can tell,
     // in one HMAC and no round trip, that this gate actually ran — see
     // lib/admin-gate.ts for why the routes no longer take that on trust.
-    const stamp = await signGate(user.id, request.method, path);
+    const stamp = await signGate({ userId: user.id, memberId: member.id, level: member.level, roleIds: member.roleIds }, request.method, path);
     if (stamp) {
       authedHeaders.set("x-np7-gate", stamp);
       authedHeaders.set("x-np7-gate-method", request.method);
