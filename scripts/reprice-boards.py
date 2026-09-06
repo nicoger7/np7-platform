@@ -169,9 +169,11 @@ for r in range(3, 19):
     if not nm: continue
     for y, col in sold_col.items(): units[y][nm] = num(SU, f"{col}{r}")
 
-# 2027 sells 350 boards, not the sheet's 412: Nico's own figure. The MIX is the
-# sheet's; the VOLUME is his.
-ACTUAL_BOARDS = {2027: 350}
+# 2027 sells 430 boards, not the sheet's 412 and not the 350 that stood before.
+# Nico, 2026-09-06: 200 direct + 80 European dealers + 150 worldwide, and "with
+# this ratio we can do more than 350". The MIX below is the sheet's; the VOLUME
+# and the channel split are his.
+ACTUAL_BOARDS = {2027: sum(CHANNEL_UNITS.values())}
 
 def spread(total, weights):
     parts = [round(total * w, 2) for w in weights]

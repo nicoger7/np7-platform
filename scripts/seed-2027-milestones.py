@@ -89,7 +89,7 @@ def main():
     rows = []
     # ── sales checkpoints, placed by the plan's own curve ────────────────────
     for obj, total, label, marks in [
-        ("Boards", 350, "boards sold", (100, 200, 300)),
+        ("Boards", 430, "boards sold", (100, 200, 300, 430)),
         ("Rockstar fin", 400, "Rockstar fins sold", (200, 300)),
         ("B-Line fin", 400, "B-Line fins sold", (100, 200, 300)),
     ]:
