@@ -56,7 +56,10 @@ HW = "14f6046f-b6f9-4210-89ee-3dd82ca38403"
 RRP_INCL_VAT = {
     "Slalom":   2800.0,
     "Freerace": 1970.0,
-    # "Freeride": not confirmed. Sells from 2028, so there is time.
+    # Nico: "under 1800 for freeride ideally". The business plan already sat at
+    # 1.794, so this is a rounder shelf price at the same level rather than a
+    # change of plan. Freeride does not sell until 2028.
+    "Freeride": 1790.0,
 }
 DIRECT_SHARE = 0.70
 RETAILER_MARGIN = 0.38
