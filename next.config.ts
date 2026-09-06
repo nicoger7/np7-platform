@@ -1,6 +1,54 @@
 import type { NextConfig } from "next";
 import { withBotId } from "botid/next/config";
 
+/**
+ * Spotguide slugs that were renamed, and the old URLs that must keep working.
+ *
+ * These links get pasted into chats, so they outlive any deploy: somebody is
+ * still sitting on the old one. Two kinds were fixed at once.
+ *
+ * RANDOM SUFFIXES. Seven destinations carried a generated tail from the intake
+ * that created them, so an area read `norway-sandefjord-gtdo` rather than its
+ * own name.
+ *
+ * ACCENTS PUNCHED THROUGH. The slug builder kept a-z0-9 and hyphenated the
+ * rest, so an accented letter did not get dropped, it became a word break and
+ * split the name in two: `monta-a-roja`, `el-m-dano`. The builder is fixed in
+ * lib/spotguide.ts; these are the four rows it had already damaged.
+ *
+ * A renamed DESTINATION takes its spots with it, hence the second rule in each
+ * pair: /spotguide/<old>/<spot> has to land on the same spot under the new name,
+ * not on the destination.
+ */
+const DEST_RENAMES: [string, string][] = [
+  ["laghi-alimini-xz0x", "laghi-alimini"],
+  ["le-morne-5wp3", "le-morne"],
+  ["norway-sandefjord-gtdo", "sandefjord"],
+  ["ostsee-eckernf-rder-bucht-17xo", "bay-of-eckernforde"],
+  ["paracas-bay-jkdk", "paracas"],
+  ["vasiliki-bay-z67l", "vasiliki"],
+  ["veluwemeer-h1p2", "veluwemeer"],
+];
+
+const SPOT_RENAMES: [string, string, string][] = [
+  ["tenerife", "la-tejita-monta-a-roja", "la-tejita-montana-roja"],
+  ["tenerife", "las-am-ricas-la-fitania", "las-americas-la-fitania"],
+  ["tenerife", "south-bay-el-m-dano", "south-bay-el-medano"],
+  ["fuerteventura", "playa-esquinzo-jand-a", "playa-esquinzo-jandia"],
+];
+
+const SPOTGUIDE_RENAMES = [
+  ...DEST_RENAMES.flatMap(([from, to]) => [
+    { source: `/spotguide/${from}`, destination: `/spotguide/${to}`, permanent: true },
+    { source: `/spotguide/${from}/:spot`, destination: `/spotguide/${to}/:spot`, permanent: true },
+  ]),
+  ...SPOT_RENAMES.map(([dest, from, to]) => ({
+    source: `/spotguide/${dest}/${from}`,
+    destination: `/spotguide/${dest}/${to}`,
+    permanent: true,
+  })),
+];
+
 const nextConfig: NextConfig = {
   // Allow the local preview (loads via 127.0.0.1) to fetch dev /_next resources;
   // Next 16 otherwise trusts only "localhost" and blocks the client bundle,
@@ -73,6 +121,7 @@ const nextConfig: NextConfig = {
       // old spotguide-articles tab was a confusing duplicate. Send it (and any
       // indexed links) to the real thing.
       { source: "/blog/spotguide", destination: "/spotguide", permanent: true },
+      ...SPOTGUIDE_RENAMES,
     ];
   },
 };

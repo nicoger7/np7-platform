@@ -46,6 +46,9 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
   const [note, setNote] = useState<string | null>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const coarseRef = useRef(false);
+  /** Pointer is inside the map right now. Read by the blur handler, which must
+   *  not switch scroll-zoom off underneath a cursor that never left. */
+  const hoverRef = useRef(false);
   const teardownRef = useRef<(() => void)[]>([]);
 
   // One transient line for the moments the map owes an answer: a zoom button
@@ -85,7 +88,17 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       // single finger belongs to the page (see `dragging:false` above) and two
       // fingers pinch, so nothing here applies and a synthetic mouseover from a
       // tap must not change anything.
-      map.on("blur", () => map.scrollWheelZoom.disable());
+      /* BLUR MUST NOT OUTRANK THE CURSOR.
+         Leaflet markers are focusable, so CLICKING A PIN moves focus off the
+         container and the map fires `blur`. This handler then switched
+         scroll-zoom off while the pointer was still sitting on the map, and
+         nothing switched it back on: `pointerenter` only fires on the way IN,
+         and you never left. So the wheel scrolled the page instead, right after
+         the one gesture most likely to be followed by a zoom.
+         Same trap as the mouseover/mouseout one described below, through a
+         different door. Blur still counts for tabbing away, it just no longer
+         overrules a cursor that is demonstrably still here. */
+      map.on("blur", () => { if (!hoverRef.current) map.scrollWheelZoom.disable(); });
       if (!coarse) {
         // pointerenter/pointerleave on the CONTAINER, not Leaflet's
         // mouseover/mouseout on the map.
@@ -99,8 +112,8 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
         // pointerenter/pointerleave don't fire for children, so the map stays
         // "hovered" the whole time the cursor is anywhere inside it, markers
         // and popups included.
-        const enter = () => { map.scrollWheelZoom.enable(); setZoomHint(true); };
-        const leave = () => { map.scrollWheelZoom.disable(); setZoomHint(false); };
+        const enter = () => { hoverRef.current = true; map.scrollWheelZoom.enable(); setZoomHint(true); };
+        const leave = () => { hoverRef.current = false; map.scrollWheelZoom.disable(); setZoomHint(false); };
         el.addEventListener("pointerenter", enter);
         el.addEventListener("pointerleave", leave);
         teardownRef.current.push(() => {
