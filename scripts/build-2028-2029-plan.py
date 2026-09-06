@@ -25,9 +25,15 @@ the sheet was written:
 3. Units are carried on the revenue and stock lines, so cost of sales works.
    Without them the P&L reports a profit with the boards left out of it.
 
-4. Moulds stay in development rather than being capitalised. The 03.09
-   Anmerkungen flags that as wrong, and it is still wrong; it is left as the
-   sheet has it so the two documents can be compared, and noted here.
+4. Board moulds are not bought at all. The sheet has NP7 paying 50.000 in 2028
+   and 40.000 in 2029 for them, but the boards are made in China and that
+   factory owns the moulds. Both figures sit in the budget as switched off
+   lines, so they cost nothing and are one click from coming back.
+
+   The fin moulds at Proceed ARE NP7's, and stay. Nico put them at 40.000
+   rather than the sheet's 60.000. They still run through development rather
+   than being capitalised, which the 03.09 Anmerkungen calls wrong and which it
+   still is.
 
 Run: python3 scripts/build-2028-2029-plan.py [--apply]
 """
@@ -126,7 +132,11 @@ OVERHEAD = [("CEO / factory lead salary", 25, "cost-personnel"),
             ("Lars Wichmann, media", 35, "cost-personnel")]
 DEV = [("Slalom range development", 38, "Slalom"), ("Freerace and freeride development", 39, "Freerace"),
        ("Packaging and accessories", 40, "Boards"), ("Marketing samples", 41, "Boards"),
-       ("Moulds", 42, "Boards"), ("Pre-production samples", 43, "Boards"),
+       # No board moulds while the boards are made in China: that factory owns
+       # them. [NICO 2026-09-06] Only tooling NP7 owns belongs in the plan, which
+       # today is the fin moulds at Proceed. The figure is parked as a switched
+       # off line in the budget rather than lost, in case production moves in house.
+       ("Pre-production samples", 43, "Boards"),
        ("Graphics and design", 44, "Boards")]
 
 cats = {c["key"]: c for c in rest("GET", "fin_categories?select=id,key,name,pnl_group")}
