@@ -69,6 +69,19 @@ export async function POST(request: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
+  /*
+   * A SPOT IS A PLACE, SO IT NEEDS A PLACE.
+   *
+   * The pin was only ever required by the form (add-spot.tsx: `if (!pin)`).
+   * The insert below reads `coords?.lat ?? null`, so a POST straight at this
+   * route created a spot with no coordinates at all: absent from the map,
+   * skipped by every distance check, and impossible to verify, since confirming
+   * a spot means recognising where it is.
+   */
+  if (!coords || !Number.isFinite(coords.lat) || !Number.isFinite(coords.lng)) {
+    return NextResponse.json({ error: "Drop a pin on the map so we know exactly where it is." }, { status: 400 });
+  }
+
   // Either attach to an existing destination, or the member is proposing a NEW
   // area → create a pending destination (draft + submitted_by) for NP7 to review.
   let destinationId = (body.destination_id ?? "").trim();
@@ -104,8 +117,25 @@ export async function POST(request: NextRequest) {
   const standing = await getStanding(db, user.contactId, destinationId);
   const verification = standing.moderator || standing.specialist ? "community" : "pending";
 
+  /*
+   * The slug is a URL now (/spotguide/<area>/<spot>), not just a column. Two
+   * spots sharing one inside the same area make that link ambiguous, and the
+   * page resolves it by taking the first match, so one of the two becomes
+   * unreachable. Suffix the loser rather than refuse the member's name.
+   */
+  let slug = slugifySpot(name) || "spot";
+  {
+    const { data: clash } = await db.from("spots").select("slug").eq("destination_id", destinationId).like("slug", `${slug}%`);
+    const taken = new Set(((clash ?? []) as { slug: string | null }[]).map((r) => r.slug));
+    if (taken.has(slug)) {
+      let n = 2;
+      while (taken.has(`${slug}-${n}`)) n++;
+      slug = `${slug}-${n}`;
+    }
+  }
+
   const insertRow: Record<string, unknown> = {
-    destination_id: destinationId, name, slug: slugifySpot(name),
+    destination_id: destinationId, name, slug,
     level, levels, conditions, infrastructure, wind_window: asWindWindow(body.wind_window),
     lat: coords?.lat ?? null, lng: coords?.lng ?? null, description, summary,
     source: "member", submitted_by: user.contactId,
