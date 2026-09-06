@@ -77,6 +77,19 @@ BC = sheet("Business Case")
 SU = sheet("Sales Units")
 num = lambda cells, ref: float(cells.get(ref) or 0)
 
+# ── The one assumption that is not settled ───────────────────────────────────
+# Nico, 2026-09-06: "mostly direct and also retail. the mix is not clear yet."
+#
+# The sheet buries its own answer inside blended revenue totals, which is how it
+# came to disagree with the 2027 plan without anyone noticing. So the split is a
+# number here instead, applied to the real per-model prices out of the Margins
+# sheet, and every board line is written twice: what retailers pay NP7, and what
+# customers pay NP7 direct. Change DIRECT_SHARE and re-run to see another mix.
+#
+# 65% is "mostly direct" read literally. It is an assumption, and the lines say
+# so; it is not a finding.
+DIRECT_SHARE = 0.65
+
 # [PLAN] the business plan's own Cashflow weights, same as the 2027 builder used.
 REVENUE_W = [0, .05, .12, .15, .12, .15, .12, .08, .06, .08, .05, .02]
 COST_W    = [.08, .08, .10, .08, .08, .10, .08, .08, .08, .08, .08, .08]
@@ -128,11 +141,32 @@ def build(year):
     for fin, rows in FIN_ROWS.items():
         units[fin] = sum(num(SU, f"{sold}{r}") for r in rows)
 
-    rev = {"Slalom": num(BC, f"{col}4") + num(BC, f"{col}5"),
-           "Freerace": num(BC, f"{col}6") + num(BC, f"{col}7"),
-           "Freeride": num(BC, f"{col}8") + num(BC, f"{col}9"),
-           "Rockstar fin": num(BC, f"{col}10") + num(BC, f"{col}11"),
+    # Board revenue is rebuilt from per-model prices and the stated mix, rather
+    # than taken as the sheet's blend, so the assumption is on screen.
+    MG = sheet("Margins")
+    price = {}
+    for r in range(3, 19):
+        nm = MG.get(f"A{r}")
+        if nm: price[nm] = (num(MG, f"E{r}"), num(MG, f"I{r}"))   # retail, direct
+    def range_of(nm):
+        for rng, rows in BOARD_ROWS.items():
+            if any(SU.get(f"A{r}") == nm for r in rows): return rng
+        return None
+    split = {rng: [0.0, 0.0] for rng in BOARD_ROWS}
+    for r in range(3, 19):
+        nm = SU.get(f"A{r}")
+        u = num(SU, f"{sold}{r}")
+        if not nm or not u or nm not in price: continue
+        rng = range_of(nm)
+        if not rng: continue
+        retail, direct = price[nm]
+        split[rng][0] += u * (1 - DIRECT_SHARE) * retail
+        split[rng][1] += u * DIRECT_SHARE * direct
+
+    rev = {"Rockstar fin": num(BC, f"{col}10") + num(BC, f"{col}11"),
            "B-Line fin": num(BC, f"{col}12") + num(BC, f"{col}13")}
+    for rng in BOARD_ROWS:
+        rev[rng] = round(split[rng][0] + split[rng][1], 2)
     cogs = {"Slalom": num(BC, f"{col}17"), "Freerace": num(BC, f"{col}18"),
             "Freeride": num(BC, f"{col}19"),
             "Rockstar fin": num(BC, f"{col}20"), "B-Line fin": num(BC, f"{col}21")}
@@ -148,8 +182,14 @@ def build(year):
                           "confidence": confidence, "note": note, "_obj": obj})
 
     for rng in ("Slalom", "Freerace", "Freeride"):
-        add(f"{rng} board sales", "rev-hardware-d2c", rng, REVENUE_W, rev[rng], units[rng],
-            f"[PLAN] Business Case {year}: retail plus direct, {units[rng]:,.0f} boards.")
+        retail_rev, direct_rev = round(split[rng][0], 2), round(split[rng][1], 2)
+        add(f"{rng} boards, direct", "rev-hardware-d2c", rng, REVENUE_W, direct_rev,
+            units[rng] * DIRECT_SHARE,
+            f"[ASSUM] {DIRECT_SHARE*100:.0f}% of {units[rng]:,.0f} {rng} boards sold direct, at the "
+            f"Margins sheet's own per-model direct price. The mix is not settled.")
+        add(f"{rng} boards, wholesale", "rev-hardware-b2b", rng, REVENUE_W, retail_rev,
+            units[rng] * (1 - DIRECT_SHARE),
+            f"[ASSUM] the other {100-DIRECT_SHARE*100:.0f}%, at what a retailer pays NP7.")
         add(f"{rng} boards, landed cost", "cost-goods", rng, GOODS_W, cogs[rng], units[rng],
             f"[PLAN] Business Case {year} cost of goods. Made in China; Croatia is not assumed.")
     for fin in ("Rockstar fin", "B-Line fin"):
