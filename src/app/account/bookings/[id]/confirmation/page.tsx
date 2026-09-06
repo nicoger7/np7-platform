@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { getMemberBooking, getBookingPaid, getConfirmedAddonsTotal } from "@/lib/portal-data";
 import { fmtDates, money, bookingStatus, isSecured } from "@/lib/portal-status";
-import { computePaymentPlan } from "@/lib/payments";
+import { computePaymentPlan, mergeSameDayStages } from "@/lib/payments";
 import { createAdminClient } from "@/lib/supabase";
 import { PrintButton } from "@/components/portal/print-button";
 
@@ -193,7 +193,9 @@ export default async function ConfirmationPage({ params }: { params: Promise<{ i
                 {/* A ticket is bought outright. Printing "Deposit — secures your
                     spot" and a €0 balance against a paid-in-full purchase
                     invents a plan the buyer never agreed to. */}
-                {!isEvent && plan.map((m) => (
+                {/* Merged at the render, not above: line 146 still reads the
+                    plan BY KIND to name the next payment. */}
+                {!isEvent && mergeSameDayStages(plan).map((m) => (
                   <tr key={m.kind} className="border-b border-[#eef2f3]">
                     <td className="py-2.5 text-[#6a7a80]">
                       {m.label}
