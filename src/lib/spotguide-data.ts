@@ -21,6 +21,9 @@ export type SpotguideDestinationCard = {
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
   hero_image: string | null; image: string; tagline: string | null;
   level_min: string | null; level_max: string | null; tags: string[];
+  /** Where it is. Already selected for the satellite fallback; carried on the
+   *  card so a destination page can pin its NEIGHBOURS on its own map. */
+  lat: number | null; lng: number | null;
   spotCount: number; toVerifyCount: number; np7: number; member: RatingSummary;
 };
 
@@ -111,6 +114,7 @@ export async function getSpotguideDestinations(): Promise<SpotguideDestinationCa
     hero_image: d.hero_image as string | null, image, tagline: d.tagline as string | null,
     level_min: d.level_min as string | null, level_max: d.level_max as string | null,
     tags: Array.isArray(d.tags) ? (d.tags as string[]) : [],
+    lat, lng,
     spotCount: (spotsByDest.get(id)?.length) ?? 0,
     toVerifyCount: (pendingByDest.get(id)?.length) ?? 0,
     np7: np7Overall(d.np7_ratings, DESTINATION_CRITERIA_KEYS),

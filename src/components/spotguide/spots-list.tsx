@@ -18,7 +18,12 @@ import { SuggestEdit } from "./suggest-edit";
 
 /** Foldable list of a destination's spots. Collapsed = name + key chips +
     score; expanded = photo, wind rose, ratings, forecast, infrastructure. */
-export function SpotsList({ spots: published, accent = "#00afdb" }: { spots: PublicSpot[]; accent?: string }) {
+/** The share-friendly id for a spot: its slug when it has one, its uuid only as
+ *  a fallback. Anchors and /spotguide/<dest>/<spot> both key off this, so a
+ *  link that gets pasted into WhatsApp reads like a place instead of a uuid. */
+export const spotKey = (s: { slug: string | null; id: string }) => s.slug || s.id;
+
+export function SpotsList({ spots: published, accent = "#00afdb", focus }: { spots: PublicSpot[]; accent?: string; focus?: string }) {
   // The server render is the same for everyone (the page is CDN-cached), so a
   // viewer's not-yet-public spots — their own, or all of them for the team —
   // are merged in here from the provider. Anonymous visitors get an empty list,
@@ -43,20 +48,29 @@ export function SpotsList({ spots: published, accent = "#00afdb" }: { spots: Pub
    * out on the right one.
    */
   useEffect(() => {
-    const jump = () => {
-      const id = window.location.hash.replace(/^#spot-/, "");
-      if (!id || id === window.location.hash) return;
-      if (!spots.some((sp) => sp.id === id)) return;
-      setOpen((o) => (o.includes(id) ? o : [...o, id]));
+    // Open and scroll to whichever spot the URL is pointing at. `focus` comes
+    // from /spotguide/<dest>/<spot>; the hash is the older form and still works,
+    // including the uuid anchors that were shared before slugs were used.
+    const openTo = (raw: string | undefined) => {
+      if (!raw) return;
+      const hit = spots.find((sp) => spotKey(sp) === raw || sp.id === raw || sp.slug === raw);
+      if (!hit) return;
+      setOpen((o) => (o.includes(hit.id) ? o : [...o, hit.id]));
       // after the row expands, not before, or we scroll to where it used to be
       requestAnimationFrame(() => {
-        document.getElementById(`spot-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        document.getElementById(`spot-${spotKey(hit)}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     };
-    jump();
-    window.addEventListener("hashchange", jump);
-    return () => window.removeEventListener("hashchange", jump);
-  }, [spots]);
+    const fromHash = () => {
+      const h = window.location.hash;
+      if (!h.startsWith("#spot-")) return;
+      openTo(h.replace(/^#spot-/, ""));
+    };
+    openTo(focus);
+    fromHash();
+    window.addEventListener("hashchange", fromHash);
+    return () => window.removeEventListener("hashchange", fromHash);
+  }, [spots, focus]);
 
   return (
     <div className="space-y-3">
@@ -72,7 +86,7 @@ export function SpotsList({ spots: published, accent = "#00afdb" }: { spots: Pub
           winds.length ? `Best: ${winds.join(", ")}` : "",
         ].filter(Boolean);
         return (
-          <div key={spot.id} id={`spot-${spot.id}`}
+          <div key={spot.id} id={`spot-${spotKey(spot)}`}
             className={`rounded-2xl bg-white overflow-hidden scroll-mt-24 transition-all ${isOpen ? "mb-7" : ""}`}
             style={isOpen
               // Open: an accent rail down the full height plus a lifted shadow.

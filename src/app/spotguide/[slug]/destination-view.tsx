@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getSpotguideDestination } from "@/lib/spotguide-data";
+import { getSpotguideDestination, getSpotguideDestinations } from "@/lib/spotguide-data";
 import { satImage } from "@/lib/satellite";
 import { levelRangeLabel, DESTINATION_CRITERIA } from "@/lib/spotguide";
 import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
@@ -34,7 +34,7 @@ import { jsonLdScript } from "@/lib/json-ld";
  * route that was never static to begin with.
  */
 export async function DestinationView({
-  slug, viewerId, isTeam, from, sectionCookie,
+  slug, viewerId, isTeam, from, sectionCookie, focusSpot,
 }: {
   slug: string;
   /** null on the cached route — it cannot know, and must not try */
@@ -42,9 +42,31 @@ export async function DestinationView({
   isTeam: boolean;
   from?: string;
   sectionCookie?: string;
+  /** Spot slug from /spotguide/<dest>/<spot> — opened and scrolled to on load. */
+  focusSpot?: string;
 }) {
   const d = await getSpotguideDestination(slug, viewerId, isTeam);
   if (!d) notFound();
+
+  /* The rest of the world, nearest first.
+     A destination page used to end in a cul-de-sac: the only way to another
+     area was the browser's back button or the small link in the hero. These
+     feed both exits — pins on this page's own map, and the row at the bottom —
+     and they are ordered by how far they actually are, because "what else is
+     near here" is the question someone reading Sørlandet is asking. */
+  const others = (await getSpotguideDestinations().catch(() => []))
+    .filter((o) => o.slug && o.id !== d.id && o.lat != null && o.lng != null)
+    .map((o) => {
+      const km =
+        d.lat != null && d.lng != null
+          ? 6371 * Math.acos(Math.min(1,
+              Math.sin((d.lat * Math.PI) / 180) * Math.sin(((o.lat as number) * Math.PI) / 180) +
+              Math.cos((d.lat * Math.PI) / 180) * Math.cos(((o.lat as number) * Math.PI) / 180) *
+              Math.cos((((o.lng as number) - d.lng) * Math.PI) / 180)))
+          : Number.POSITIVE_INFINITY;
+      return { ...o, km };
+    })
+    .sort((a, b) => a.km - b.km);
 
   // Only ever true on the dynamic draft branch; on a cached page the client
   // provider resolves the real state on mount (it already overwrote this).
@@ -104,7 +126,15 @@ export async function DestinationView({
           <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(0,36,48,0.42) 0%, rgba(0,36,48,0.18) 45%, rgba(0,36,48,0.80) 100%)" }} />
           {heroPoster.includes("/api/sat") && <span className="absolute bottom-1 right-2 z-20 text-[9px] font-medium text-white/55">Imagery © Esri</span>}
           <div className="relative z-10 mt-auto w-full max-w-[1000px] mx-auto px-6 sm:px-8 pt-12 pb-11 sm:pt-16 sm:pb-14">
-            <Link href={`/spotguide?from=${section}`} className="text-[12px] font-bold text-white/70 hover:text-white transition-colors">← Spotguide</Link>
+            {/* The way out, as a control rather than a caption. As 12px grey-on-photo
+                it was routinely missed, and a destination is a place people leave. */}
+            <Link
+              href={`/spotguide?from=${section}`}
+              className="inline-flex items-center gap-2 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur border border-white/25 text-white text-[12.5px] font-extrabold px-3.5 py-2 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
+              All destinations
+            </Link>
             {d.status === "draft" && (
               <span className="block mt-3"><span className="inline-flex items-center gap-1.5 rounded-full bg-[#f0a500]/90 text-[#3a2a00] text-[11px] font-black uppercase tracking-[0.12em] px-3 py-1">Proposed area · members only · {d.verify?.confirms ?? 0}/3 confirms</span></span>
             )}
@@ -211,14 +241,25 @@ export async function DestinationView({
                         const spotRating = s.np7 > 0 ? s.np7 : s.member.overall;
                         return {
                           lat: s.lat as number, lng: s.lng as number, name: s.name, destSlug: d.slug ?? "", verification: s.verification,
-                          anchor: `spot-${s.id}`,
+                          anchor: `spot-${s.slug || s.id}`,
                           ...(spotRating > 0 ? { spotRating, spotRatingKind: (s.np7 > 0 ? "np7" : "member") as "np7" | "member", spotRatingCount: s.member.count } : {}),
                         };
                       });
-                    return pts.length > 0 ? <div className="mb-5"><SpotMap spots={pts} cluster height={340} /></div> : null;
+                    // The other areas ride along on the same map, quietly. Zoom out
+                    // from this bay and the next place is already there, one click
+                    // from being the page you are reading.
+                    const near = others.map((o) => ({
+                      lat: o.lat as number, lng: o.lng as number, name: o.name, destSlug: o.slug as string,
+                      neighbour: true, thumb: o.image, spotCount: o.spotCount,
+                      level: levelRangeLabel(o.level_min, o.level_max),
+                      ...(o.np7 > 0 || o.member.overall > 0
+                        ? { rating: o.np7 > 0 ? o.np7 : o.member.overall, ratingKind: (o.np7 > 0 ? "np7" : "member") as "np7" | "member" }
+                        : {}),
+                    }));
+                    return pts.length > 0 ? <div className="mb-5"><SpotMap spots={[...pts, ...near]} cluster height={340} /></div> : null;
                   })()}
                   <MeteredContent accent={chrome.accent} spotCount={d.spots.length} destName={d.name}>
-                    <SpotsList spots={d.spots} accent={chrome.accent} />
+                    <SpotsList spots={d.spots} accent={chrome.accent} focus={focusSpot} />
                   </MeteredContent>
                 </>
               )}
@@ -231,6 +272,36 @@ export async function DestinationView({
               <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Contribute</h2>
               <AddSpot destId={d.id} destName={d.name} accent={chrome.accent} />
             </section>
+            {/* Where next.
+                The bottom of a destination is the moment someone decides whether
+                the spotguide is one page or a place to browse. Nearest areas
+                first, and the index behind a full-width link, so leaving is as
+                easy as arriving. */}
+            {others.length > 0 && (
+              <section className="pt-2">
+                <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Where next</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {others.slice(0, 4).map((o) => (
+                    <Link key={o.id} href={`/spotguide/${o.slug}?from=${section}`}
+                      className="group flex flex-col rounded-2xl overflow-hidden bg-white border border-[#f0e6d6] hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(0,55,74,0.10)] transition-all">
+                      <div className="aspect-[4/3] bg-cover bg-center" style={{ backgroundImage: `url('${o.image}')` }} />
+                      <div className="p-3">
+                        <p className="text-[13.5px] font-extrabold text-[#00374a] leading-snug group-hover:underline">{o.name}</p>
+                        <p className="text-[11.5px] text-[#8a9aa0] mt-0.5">
+                          {[o.country, o.spotCount > 0 ? `${o.spotCount} spot${o.spotCount === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ")}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+                <Link href={`/spotguide?from=${section}`}
+                  className="mt-3 flex items-center justify-center gap-2 rounded-2xl border border-[#ece3d3] bg-white text-[#00374a] text-[13.5px] font-extrabold py-3.5 hover:bg-[#fffdf9] hover:border-[#d9cdb8] transition-colors">
+                  All {others.length + 1} destinations
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                </Link>
+              </section>
+            )}
+
             {/* Rider-proposed area: the verification ladder sits at the very bottom —
                 3 confirms (or a verified first spot, or NP7) make the area official. */}
             {d.status === "draft" && d.verify && (

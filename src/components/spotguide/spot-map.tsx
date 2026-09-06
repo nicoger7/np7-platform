@@ -12,6 +12,10 @@ export type MapSpot = {
    *  Present → the popup jumps to and opens that row instead of navigating to
    *  the destination you are already looking at. */
   anchor?: string; destName?: string; verification?: string;
+  /** Not a spot here at all — another DESTINATION, pinned on this destination's
+   *  map so you can hop straight over instead of going back to the index.
+   *  Drawn differently, kept out of the fit bounds and out of the clusters. */
+  neighbour?: boolean;
   // Optional destination context for a richer popup card (index map only).
   thumb?: string | null; rating?: number; ratingKind?: "np7" | "member"; spotCount?: number; toVerifyCount?: number; level?: string | null;
   spotRating?: number; spotRatingKind?: "np7" | "member"; spotRatingCount?: number;
@@ -114,9 +118,46 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       // street/satellite base layers + toggle
       attachBaseLayers(L, map);
 
+      /* Close enough to read the bay and the launch, wide enough to keep the
+         next headland in frame. */
+      const SPOT_ZOOM = 13;
+
       const teardrop = (fill: string, border: string) =>
         `position:relative;width:26px;height:26px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${fill};border:${border};box-shadow:0 3px 9px rgba(0,55,74,.4)`;
-      const markers = spots.map((s) => {
+
+      /* Neighbouring destinations, on a destination's own map.
+         Reading one area used to be a dead end: the map showed six pins and
+         nothing else in the world, so the only way to the next place was back
+         out to the index. These are the other areas, drawn as quiet deep-ocean
+         dots with their name attached — clearly NOT one of the spots you are
+         reading, and one click from being the page you are reading. They stay
+         out of fitBounds so the map still opens on THIS area, and out of the
+         cluster group so "6 spots" never silently becomes "23". */
+      const neighbours = spots.filter((s) => s.neighbour).map((s) => {
+        const icon = L.divIcon({
+          className: "",
+          html:
+            `<div style="display:flex;flex-direction:column;align-items:center;gap:2px;opacity:.92">` +
+            `<div style="width:15px;height:15px;border-radius:50%;background:#00374a;border:2.5px solid rgba(255,255,255,.92);box-shadow:0 2px 7px rgba(0,55,74,.35)"></div>` +
+            `<span style="background:rgba(255,255,255,.94);color:#00374a;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:99px;box-shadow:0 2px 5px rgba(0,55,74,.18);white-space:nowrap">${s.name}</span>` +
+            `</div>`,
+          iconSize: [15, 15], iconAnchor: [7.5, 7.5], popupAnchor: [0, -10],
+        });
+        const bits: string[] = [];
+        if (s.rating && s.rating > 0) bits.push(`<span style="font-weight:700;color:#00374a">${s.ratingKind === "np7" ? "NP7 " : ""}★ ${s.rating.toFixed(1)}</span>`);
+        if (s.spotCount) bits.push(`<span>${s.spotCount} spot${s.spotCount === 1 ? "" : "s"}</span>`);
+        if (s.level) bits.push(`<span>${s.level}</span>`);
+        return L.marker([s.lat, s.lng], { icon, zIndexOffset: -400 }).bindPopup(
+          `<div style="font-family:inherit;width:${s.thumb ? 190 : 152}px">` +
+            (s.thumb ? `<div style="height:84px;border-radius:10px;background:#e8f1f3 center/cover no-repeat;background-image:url('${s.thumb}');margin-bottom:8px"></div>` : "") +
+            `<div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#8a9aa0">Another destination</div>` +
+            `<strong style="color:#00374a;font-size:13.5px">${s.name}</strong>` +
+            (bits.length ? `<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:3px;font-size:11.5px;color:#5a6b72">${bits.join("")}</div>` : "") +
+            `<a href="/spotguide/${s.destSlug}" style="display:block;margin-top:10px;background:#00374a;color:#fff;font-weight:800;font-size:13px;text-align:center;padding:10px 14px;border-radius:999px;text-decoration:none">Open ${s.name} →</a></div>`
+        );
+      });
+
+      const markers = spots.filter((s) => !s.neighbour).map((s) => {
         // The pin colours ARE the verification ladder, and the eye must rank
         // them the way the ladder does. Solid amber sat next to the gold end of
         // the NP7 gradient and read as MORE verified than community green — so
@@ -165,6 +206,14 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
               : "") +
             `<a href="${s.anchor ? `#${s.anchor}` : `/spotguide/${s.destSlug}`}" style="display:block;margin-top:10px;background:linear-gradient(90deg,#00afdb,#0891b2);color:#fff;font-weight:800;font-size:13px;text-align:center;padding:10px 14px;border-radius:999px;text-decoration:none;box-shadow:0 4px 12px rgba(0,175,219,0.35)">${linkLabel}</a></div>`
         );
+        /* Clicking a pin flies to it, it does not just open a label.
+           On a world map a pin is a dot in an ocean: the popup told you the
+           name and left you no idea what the place looks like. Zoom to where
+           the coastline is readable, and never zoom OUT — someone who has
+           already worked their way in close is not asking to be pulled back. */
+        m.on("click", () => {
+          map.flyTo([s.lat, s.lng], Math.max(map.getZoom(), SPOT_ZOOM), { duration: 0.6 });
+        });
         // stash the destination on the marker so clusters can label themselves
         // and the focus filter can pick its pins
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -206,6 +255,9 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       layerRef.current = layer;
       markersRef.current = markers;
       boundsRef.current = layer.getBounds().pad(0.25);
+      // AFTER the bounds are taken, so a destination on the far side of the
+      // world cannot drag this map's opening view out to sea.
+      if (neighbours.length) L.layerGroup(neighbours).addTo(map);
       // FILL the card: don't zoom out past the point where the world tile band
       // (±85°) is shorter than the container — that's what letterboxes water
       // above/below. Min zoom = world height ≥ container height, and vertical
@@ -228,7 +280,7 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (map as any).__coverZoom = coverZoom;
       map.fitBounds(boundsRef.current);
-      if (spots.length === 1) map.setZoom(11);
+      if (markers.length === 1) map.setZoom(11); // neighbours don't count — they aren't this area
 
       const zoomBtns = bindZoomButtons(map, el, (dir) =>
         flash(dir === "out" ? "You're already showing the whole map" : "That's as close as the map goes")
