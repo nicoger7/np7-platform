@@ -11,7 +11,7 @@ retailer pays NP7. Two constants set the whole model:
 
   SLALOM_RRP        what a Slalom sells for        [NICO 2026-09-06] 2.800 incl VAT
   DIRECT_SHARE      how much is sold direct        [NICO 2026-09-06] 70%
-  RETAILER_MARGIN   what the shop keeps            [NICO 2026-09-06] 40%
+  RETAILER_MARGIN   what the shop keeps            [NICO 2026-09-06] 38%
   VAT               German GmbH                    19%
 
 Everything is derived from the price on the shelf, because that is the number
@@ -49,9 +49,17 @@ XLSX = "/Users/nicolasprien/Documents/Claude/Projects/NP7 Hardware GmbH/NP7_Busi
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 HW = "14f6046f-b6f9-4210-89ee-3dd82ca38403"
 
-SLALOM_RRP = 2800.0        # incl VAT, Nico 2026-09-06
+# What a board costs on the shelf, including VAT. Nico's own figures, 2026-09-06.
+# A range not listed here keeps the business plan's price and says so, rather
+# than being scaled off another range: the two prices we do know are 9.4% and
+# 1.5% below the sheet, so there is no factor to borrow.
+RRP_INCL_VAT = {
+    "Slalom":   2800.0,
+    "Freerace": 1970.0,
+    # "Freeride": not confirmed. Sells from 2028, so there is time.
+}
 DIRECT_SHARE = 0.70
-RETAILER_MARGIN = 0.40
+RETAILER_MARGIN = 0.38
 VAT = 0.19
 REVENUE_W = [0, .05, .12, .15, .12, .15, .12, .08, .06, .08, .05, .02]
 FEE = 0.09
@@ -91,16 +99,28 @@ num = lambda d, r: float(d.get(r) or 0)
 RANGES = {"Slalom": ["Slalom 63", "Slalom 67", "Slalom 72", "Slalom 77", "Slalom 82", "Slalom 85", "Slalom Foil 85"],
           "Freerace": ["Freerace 100", "Freerace 110", "Freerace 120", "Freerace 130", "Freerace 145", "Freerace 155"],
           "Freeride": ["Freeride 120", "Freeride 130", "Freeride 140"]}
-# Column O is the shelf price including VAT. Scale the sheet's list so the
-# Slalom lands on the price actually being asked, then work backwards.
-scale_rrp = SLALOM_RRP / num(M, "O3")
-direct_price, wholesale_price = {}, {}
+# Column O is the shelf price including VAT. Where Nico has given a real price
+# for a range, the whole range moves onto it, keeping the sheet's own premium
+# for the odd model out (the foil board is dearer than the other Slaloms and
+# should stay dearer).
+BASE_MODEL = {"Slalom": "Slalom 63", "Freerace": "Freerace 110", "Freeride": "Freeride 130"}
+sheet_rrp = {}
 for r in range(3, 19):
     nm = M.get(f"A{r}")
-    if not nm: continue
-    net = num(M, f"O{r}") * scale_rrp / (1 + VAT)
-    direct_price[nm] = round(net, 2)
-    wholesale_price[nm] = round(net * (1 - RETAILER_MARGIN), 2)
+    if nm: sheet_rrp[nm] = num(M, f"O{r}")
+
+direct_price, wholesale_price, priced_from = {}, {}, {}
+for rng, models in RANGES.items():
+    base = sheet_rrp.get(BASE_MODEL[rng], 0)
+    told = RRP_INCL_VAT.get(rng)
+    factor = (told / base) if (told and base) else 1.0
+    for m in models:
+        if m not in sheet_rrp: continue
+        rrp = sheet_rrp[m] * factor
+        net = rrp / (1 + VAT)
+        direct_price[m] = round(net, 2)
+        wholesale_price[m] = round(net * (1 - RETAILER_MARGIN), 2)
+        priced_from[m] = ("Nico" if told else "business plan", rrp)
 sold_col = {2027: "H", 2028: "O", 2029: "V"}
 units = {y: {} for y in sold_col}
 for r in range(3, 19):
@@ -158,6 +178,14 @@ for year in (2027, 2028, 2029):
            and "landed" not in l["label"].lower() and "development" not in l["label"].lower()
            and "prototype" not in l["label"].lower() and "sample" not in l["label"].lower()]
     old_rev = sum(float(l["amount_net"]) for l in old)
+    if year == 2027:
+        print("\n  Shelf price to what NP7 books:\n")
+        print(f"    {'model':16} {'RRP incl':>9} {'source':>14} {'direct':>9} {'wholesale':>10}")
+        for rng, models in RANGES.items():
+            for m in models:
+                if m not in priced_from or not units[2028].get(m) and not units[2027].get(m): continue
+                src, rrp = priced_from[m]
+                print(f"    {m:16} {rrp:>9,.0f} {src:>14} {direct_price[m]:>9,.0f} {wholesale_price[m]:>10,.0f}")
     print(f"\n{year}: {boards:,.0f} boards")
     print(f"    was {old_rev:>12,.0f} across {len(old)} lines")
     print(f"    now {board_rev:>12,.0f} across {len(new)} lines   ({board_rev/boards:,.0f} per board)")
