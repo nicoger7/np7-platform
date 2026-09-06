@@ -12,7 +12,7 @@
  * Run: npx tsx --env-file=.env.local --tsconfig tsconfig.json scripts/smoke-pnl.mts
  */
 import { createClient } from "@supabase/supabase-js";
-import { buildBoard, monthDate, PLAN_LINE_COLUMNS, type BoardCategory } from "@/lib/finance/board";
+import { buildBoard, monthDate, r2, PLAN_LINE_COLUMNS, type BoardCategory } from "@/lib/finance/board";
 
 const db = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -148,14 +148,25 @@ if (!plan) {
   check("350 boards bought and 350 sold, so the stock is entirely a cost",
         p.costOfSales.total === p.inventory.total, [p.costOfSales.total, p.inventory.total]);
   check("nothing is left in stock at the end of the year", p.closingStock.total === 0, p.closingStock.total);
-  check("the result is the business plan's own 182k, not 586k",
-        Math.abs(p.result.total - 182_477.5) < 1, p.result.total);
+  /* Not a frozen figure any more. Repricing the boards changed the result, as
+     it should, and a test that has to be edited every time the plan changes is
+     a test of the plan rather than of the code. What must hold is that the
+     stock IS in the result: the gap between the two is exactly cost of sales. */
+  const withoutStock = r2(p.revenue.total - p.cogs.total - p.opex.total - p.development.total);
+  check("the result carries the cost of the goods sold",
+        Math.abs((withoutStock - p.costOfSales.total) - p.result.total) < 0.01,
+        [withoutStock, p.costOfSales.total, p.result.total]);
+  check("...which is a difference of hundreds of thousands, not a rounding",
+        withoutStock - p.result.total > 300_000, withoutStock - p.result.total);
   // Funding is money in that was never earned, so it moves the bank and never
   // the result. Stating it this way holds whether or not a tranche is planned.
   check("cash exceeds the result by exactly the funding, and by nothing else",
         Math.abs((p.cashMovement.total - p.financing.total) - p.result.total) < 1,
         [p.cashMovement.total, p.financing.total, p.result.total]);
-  check("funding is not in the result", Math.abs(p.result.total - 182_477.5) < 1, p.result.total);
+  check("funding is not in the result at all",
+        Math.abs(p.result.total - (p.cashMovement.total - p.financing.total)) < 0.01
+        && p.financing.total > 0,
+        [p.result.total, p.financing.total]);
   check("a margin can finally be quoted", p.grossMarginPct !== null, p.grossMarginPct);
   console.log(`    gross margin ${p.grossMarginPct}% · result ${eur(p.result.total)}`);
 

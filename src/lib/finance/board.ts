@@ -275,12 +275,20 @@ function assemblePnl(
   const share = Math.min(1, Math.max(0, sellThrough));
   const costOfSalesTotal = r2(inventory.total * share);
   const revenueTotal = revenue.total;
-  const costOfSales = line(
-    revenueTotal > 0
-      ? revenue.byMonth.map((v) => r2((v / revenueTotal) * costOfSalesTotal))
-      // No revenue to match against: leave it where the stock was bought.
-      : inventory.byMonth.map((v) => r2(v * share)),
-  );
+  const costOfSalesMonths = revenueTotal > 0
+    ? revenue.byMonth.map((v) => r2((v / revenueTotal) * costOfSalesTotal))
+    // No revenue to match against: leave it where the stock was bought.
+    : inventory.byMonth.map((v) => r2(v * share));
+  // Twelve roundings do not have to add back to the total, and a stray cent
+  // here shows up as stock that never sold. Push the drift into the biggest
+  // month so cost of sales and the stock it came from always agree exactly.
+  const drift = r2(costOfSalesTotal - costOfSalesMonths.reduce((a, b) => a + b, 0));
+  if (drift !== 0) {
+    let big = 0;
+    for (let i = 1; i < 12; i++) if (costOfSalesMonths[i] > costOfSalesMonths[big]) big = i;
+    costOfSalesMonths[big] = r2(costOfSalesMonths[big] + drift);
+  }
+  const costOfSales = line(costOfSalesMonths);
   const closingStock = line(inventory.byMonth.map((v, i) => r2(v - costOfSales.byMonth[i])));
 
   const grossProfit = line(revenue.byMonth.map((v, i) => r2(v - cogs.byMonth[i] - costOfSales.byMonth[i])));
