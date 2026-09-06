@@ -95,6 +95,45 @@ export function addDays(iso: string, days: number): string {
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+/** Whole days from one ISO date to another. Negative if `to` is already past. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(to.slice(0, 10)) - Date.parse(from.slice(0, 10))) / 86_400_000);
+}
+
+/** Inside this many days of departure, the normal payment window is too long. */
+export const LATE_SIGNUP_WITHIN_DAYS = 14;
+/** What a late signup gets instead. */
+export const LATE_SIGNUP_PAY_DAYS = 2;
+
+/**
+ * When the securing payment is due.
+ *
+ * The window used to be signup + refundDays, full stop, with nothing checking it
+ * against the trip. Book five days before departure and the plan told you to pay
+ * nine days AFTER the trip had finished, and the pro-forma printed that date.
+ *
+ * Nico: "ab 14 tagen sollte man nur 2 tage zeit haben zum bezahlen". So the
+ * window collapses inside the last fortnight, and is then floored so it can
+ * never land past departure: somebody booking the day before travel pays on the
+ * day, not the day after.
+ *
+ * This deliberately does NOT touch refundableUntil, which hangs off the date the
+ * money actually arrived. Shortening a late booker's deadline must not quietly
+ * shorten their right to change their mind. Nico: "widerruf bleibt gleich".
+ */
+export function securingDue(signup: string | null, editionStart: string | null, refundDays: number): string | null {
+  if (!signup) return null;
+  const from = signup.slice(0, 10);
+  if (!editionStart) return addDays(from, refundDays);
+  const start = editionStart.slice(0, 10);
+  const lead = daysBetween(from, start);
+  // Already departed, or departing today. Nothing to schedule, it is due now.
+  if (lead <= 0) return from;
+  const window = lead <= LATE_SIGNUP_WITHIN_DAYS ? LATE_SIGNUP_PAY_DAYS : refundDays;
+  const due = addDays(from, window);
+  return due > start ? start : due;
+}
+
 function fmtDue(dueDate: string): string {
   if (dueDate <= todayISO()) return "Due now";
   const d = new Date(dueDate + "T00:00:00Z");
@@ -130,7 +169,7 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
   // the rider's window to book flights before the first real payment is due.
   // Deposit-payment date only as a fallback for legacy rows missing bookedAt.
   const downpaymentAnchor = state.bookedAt ?? state.depositReceivedAt ?? null;
-  const downpaymentDue = downpaymentAnchor ? addDays(downpaymentAnchor, refundDays) : null;
+  const downpaymentDue = securingDue(downpaymentAnchor, state.editionStart ?? null, refundDays);
   /*
    * The final may never fall due BEFORE the downpayment. `start − final_days_
    * before` says nothing about when the guest signed up, so a late signup —

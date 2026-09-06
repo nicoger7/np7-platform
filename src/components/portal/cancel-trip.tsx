@@ -47,10 +47,19 @@ export function CancelTrip({ bookingId, milestones, paid, currency = "EUR" }: {
     tone = "warn";
     headline = "Past the refund point";
     detail = `The ${money(paid, currency)} you've paid is the cancellation fee at this stage, so it isn't refundable. Before you do: you can pass your place to someone else instead, which costs you nothing — just tell us who.`;
-  } else {
+  } else if (deposit) {
     tone = "warn";
     headline = "Your deposit is the cancellation fee now";
     detail = `Your ${money(paid, currency)} deposit is past its refund window, so it's kept as the cancellation fee and nothing more is owed. You can also pass your place to someone else instead, which costs you nothing.`;
+  } else {
+    /* NP7 sells with no deposit, so a part payment that has not yet reached the
+       first instalment landed here and was told "your EUR 500 deposit is past
+       its refund window" about a deposit that does not exist. The number was
+       right and the sentence was fiction. Same rule as the branch above, said
+       without inventing a stage: what you have paid is the fee. */
+    tone = "warn";
+    headline = "What you've paid is the cancellation fee";
+    detail = `The ${money(paid, currency)} you've paid so far is kept as the cancellation fee at this stage, and nothing more is owed. You can also pass your place to someone else instead, which costs you nothing — just tell us who.`;
   }
 
   async function request() {

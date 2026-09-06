@@ -26,6 +26,7 @@ import {
   PAYMENT_DEFAULTS,
   type PackagePaymentConfig,
   type BookingPaymentState,
+  securingDue,
 } from "@/lib/payments";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { coveredExtraTotal, getCoverer } from "@/lib/group-booking";
@@ -602,7 +603,10 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
    * document that asks for money by a date already gone reads as a mistake,
    * not a deadline.
    */
-  const secureDue = booking.created_at ? addDays(booking.created_at, refundDays) : null;
+  // Same helper the member's plan uses. Two separate formulas for one deadline
+  // is how this file's history says these bugs ship: the document and the
+  // account page disagree, and the guest believes whichever they saw first.
+  const secureDue = securingDue(booking.created_at ?? null, booking.exp_editions?.date_start ?? null, refundDays);
   const finalStageDue = booking.exp_editions?.date_start ? addDays(booking.exp_editions.date_start, -finalDaysBefore) : null;
   const proformaDue =
     proformaMilestone === "final"
