@@ -64,6 +64,13 @@ RRP_INCL_VAT = {
 DIRECT_SHARE = 0.70
 RETAILER_MARGIN = 0.38
 VAT = 0.19
+# Nico, 2026-09-06: "europe shops we import to europe and deliver to shops.
+# worldwide shops they arrange shipping from china."
+#
+# So only the European half of wholesale costs NP7 any outbound freight. A shop
+# outside Europe collects in China and pays its own way, which also means NP7
+# never lands those boards and never pays the import on them.
+EUROPE_SHARE_OF_WHOLESALE = 0.70   # [ASSUM] not confirmed
 REVENUE_W = [0, .05, .12, .15, .12, .15, .12, .08, .06, .08, .05, .02]
 FEE = 0.09
 
@@ -174,10 +181,35 @@ for year in (2027, 2028, 2029):
                             "quantity": round(qty * REVENUE_W[i], 2), "confidence": "expected",
                             "note": note, "_obj": rng})
 
+    # ── getting the board to the shop ────────────────────────────────────────
+    # Dealers expect a delivered price, so NP7 quotes delivered and NP7 pays the
+    # freight. The business plan assumed the opposite, ex works, which is why its
+    # wholesale price is ~150 lower per board. Either the money comes off the
+    # revenue or it goes on as a cost; it cannot be neither, and it was neither.
+    # The per-board figure is the plan's own import cost, which is what it also
+    # used as the retailer's landed adder.
+    out_freight = 0.0
+    for rng, models in RANGES.items():
+        for m in models:
+            u = units[year].get(m, 0) * scale * (1 - DIRECT_SHARE) * EUROPE_SHARE_OF_WHOLESALE
+            out_freight += u * num(M, f"C{[r for r in range(3,19) if M.get(f'A{r}') == m][0]}")
+    if out_freight > 0:
+        for i, amt in enumerate(spread(round(out_freight, 2), REVENUE_W)):
+            if amt == 0: continue
+            new.append({"plan_id": plan["id"], "category_id": cats["cost-fulfilment"]["id"],
+                        "label": "Outbound freight to retailers", "month": f"{year}-{i+1:02d}-01",
+                        "amount_net": amt, "quantity": 0, "confidence": "expected",
+                        "note": f"[NICO 2026-09-06] European shops only: NP7 imports and delivers to them, "
+                                f"so NP7 pays this. Shops outside Europe collect in China and ship "
+                                f"themselves. Assumes {EUROPE_SHARE_OF_WHOLESALE*100:.0f}% of wholesale is "
+                                f"European, which is not confirmed.",
+                        "_obj": "Company"})
+
     board_rev = sum(v[1] for v in summary.values())
     boards = sum(v[0] for v in summary.values())
     old = [l for l in rest("GET", f"fin_plan_lines?select=id,label,amount_net&plan_id=eq.{plan['id']}")
-           if "board" in l["label"].lower() and "cost" not in l["label"].lower()
+           if ("board" in l["label"].lower() or "outbound freight" in l["label"].lower())
+           and "cost" not in l["label"].lower()
            and "landed" not in l["label"].lower() and "development" not in l["label"].lower()
            and "prototype" not in l["label"].lower() and "sample" not in l["label"].lower()]
     old_rev = sum(float(l["amount_net"]) for l in old)
