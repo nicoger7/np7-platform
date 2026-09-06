@@ -10,12 +10,11 @@ Now every board range is two lines. What a customer pays NP7 direct, and what a
 retailer pays NP7. Two constants set the whole model:
 
   DIRECT_SHARE      how much is sold direct        [NICO 2026-09-06] 70%
-  RETAILER_MARGIN   what the shop keeps            [NICO 2026-09-06] 35%
+  RETAILER_MARGIN   what the shop keeps            [NICO 2026-09-06] 40%
 
 Wholesale is therefore direct x (1 - margin), rather than the Margins sheet's
-own retail column. Worth knowing: that column implies a 41.8% retailer margin,
-so 35% is BETTER for NP7 than the plan being pitched, by 103 to 158 EUR on
-every wholesale board.
+own retail column. That column implies 41.8%, so 40% sits just inside it and is
+the normal band for windsurf hardgoods: dealers expect 35 to 45%.
 
 Direct prices are the Margins sheet's per-model figures, treated as net. Nico
 thinks 2.325 for a Slalom may be "a touch lower" in reality; when that number
@@ -35,7 +34,7 @@ NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 HW = "14f6046f-b6f9-4210-89ee-3dd82ca38403"
 
 DIRECT_SHARE = 0.70
-RETAILER_MARGIN = 0.35
+RETAILER_MARGIN = 0.40
 REVENUE_W = [0, .05, .12, .15, .12, .15, .12, .08, .06, .08, .05, .02]
 FEE = 0.09
 
@@ -119,7 +118,8 @@ for year in (2027, 2028, 2029):
              f"sheet's net price per model."),
             (f"{rng} boards, wholesale", "rev-hardware-b2b", w_rev, u * (1 - DIRECT_SHARE),
              f"[NICO 2026-09-06] the other {(1-DIRECT_SHARE)*100:.0f}%, with the retailer keeping "
-             f"{RETAILER_MARGIN*100:.0f}%. The sheet's own retail column implies 41.8%, so this is better for NP7."),
+             f"{RETAILER_MARGIN*100:.0f}%. The business plan's own retail column implies 41.8%, so this is "
+             f"a shade better for NP7 and well inside what a dealer expects."),
         ):
             for i, amt in enumerate(spread(round(total, 2), REVENUE_W)):
                 if amt == 0: continue
