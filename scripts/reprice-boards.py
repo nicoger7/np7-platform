@@ -9,12 +9,28 @@ because a blend hides both the price and the mix inside one figure.
 Now every board range is two lines. What a customer pays NP7 direct, and what a
 retailer pays NP7. Two constants set the whole model:
 
+  SLALOM_RRP        what a Slalom sells for        [NICO 2026-09-06] 2.800 incl VAT
   DIRECT_SHARE      how much is sold direct        [NICO 2026-09-06] 70%
   RETAILER_MARGIN   what the shop keeps            [NICO 2026-09-06] 40%
+  VAT               German GmbH                    19%
 
-Wholesale is therefore direct x (1 - margin), rather than the Margins sheet's
-own retail column. That column implies 41.8%, so 40% sits just inside it and is
-the normal band for windsurf hardgoods: dealers expect 35 to 45%.
+Everything is derived from the price on the shelf, because that is the number
+Nico actually knows. Take VAT off it to get what NP7 books selling direct; take
+the retailer's 40% off that to get what NP7 books selling through a shop.
+
+Two things this corrects.
+
+The plan assumed a Slalom at 3.091 incl VAT and the real price is 2.800, so the
+sheet's whole price list is 9.4% high. Every other model is scaled by the same
+factor until Nico confirms it individually.
+
+And the sheet's "NP7 Revenue Direct" column is already net of the fulfiller
+fee, while the budget charges a 9% payment and fulfilment line as well. The fee
+was coming off twice. Revenue is the ex-VAT shelf price now, and the fee is
+deducted once, in the one place it belongs.
+
+Those two errors were pulling in opposite directions and very nearly cancelled,
+which is exactly why neither was visible.
 
 Direct prices are the Margins sheet's per-model figures, treated as net. Nico
 thinks 2.325 for a Slalom may be "a touch lower" in reality; when that number
@@ -33,8 +49,10 @@ XLSX = "/Users/nicolasprien/Documents/Claude/Projects/NP7 Hardware GmbH/NP7_Busi
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 HW = "14f6046f-b6f9-4210-89ee-3dd82ca38403"
 
+SLALOM_RRP = 2800.0        # incl VAT, Nico 2026-09-06
 DIRECT_SHARE = 0.70
 RETAILER_MARGIN = 0.40
+VAT = 0.19
 REVENUE_W = [0, .05, .12, .15, .12, .15, .12, .08, .06, .08, .05, .02]
 FEE = 0.09
 
@@ -73,10 +91,16 @@ num = lambda d, r: float(d.get(r) or 0)
 RANGES = {"Slalom": ["Slalom 63", "Slalom 67", "Slalom 72", "Slalom 77", "Slalom 82", "Slalom 85", "Slalom Foil 85"],
           "Freerace": ["Freerace 100", "Freerace 110", "Freerace 120", "Freerace 130", "Freerace 145", "Freerace 155"],
           "Freeride": ["Freeride 120", "Freeride 130", "Freeride 140"]}
-direct_price = {}
+# Column O is the shelf price including VAT. Scale the sheet's list so the
+# Slalom lands on the price actually being asked, then work backwards.
+scale_rrp = SLALOM_RRP / num(M, "O3")
+direct_price, wholesale_price = {}, {}
 for r in range(3, 19):
     nm = M.get(f"A{r}")
-    if nm: direct_price[nm] = num(M, f"I{r}")
+    if not nm: continue
+    net = num(M, f"O{r}") * scale_rrp / (1 + VAT)
+    direct_price[nm] = round(net, 2)
+    wholesale_price[nm] = round(net * (1 - RETAILER_MARGIN), 2)
 sold_col = {2027: "H", 2028: "O", 2029: "V"}
 units = {y: {} for y in sold_col}
 for r in range(3, 19):
@@ -109,17 +133,16 @@ for year in (2027, 2028, 2029):
         u = sum(units[year].get(m, 0) for m in models) * scale
         if u <= 0: continue
         d_rev = sum(units[year].get(m, 0) * scale * DIRECT_SHARE * direct_price.get(m, 0) for m in models)
-        w_rev = sum(units[year].get(m, 0) * scale * (1 - DIRECT_SHARE) * direct_price.get(m, 0) * (1 - RETAILER_MARGIN)
+        w_rev = sum(units[year].get(m, 0) * scale * (1 - DIRECT_SHARE) * wholesale_price.get(m, 0)
                     for m in models)
         summary[rng] = (u, d_rev + w_rev)
         for label, catkey, total, qty, note in (
             (f"{rng} boards, direct", "rev-hardware-d2c", d_rev, u * DIRECT_SHARE,
-             f"[NICO 2026-09-06] {DIRECT_SHARE*100:.0f}% of {u:,.0f} {rng} boards direct, at the Margins "
-             f"sheet's net price per model."),
+             f"[NICO 2026-09-06] {DIRECT_SHARE*100:.0f}% of {u:,.0f} {rng} boards direct. Shelf price less "
+             f"{VAT*100:.0f}% VAT; the 9% fee is a separate line and is not taken off twice."),
             (f"{rng} boards, wholesale", "rev-hardware-b2b", w_rev, u * (1 - DIRECT_SHARE),
              f"[NICO 2026-09-06] the other {(1-DIRECT_SHARE)*100:.0f}%, with the retailer keeping "
-             f"{RETAILER_MARGIN*100:.0f}%. The business plan's own retail column implies 41.8%, so this is "
-             f"a shade better for NP7 and well inside what a dealer expects."),
+             f"{RETAILER_MARGIN*100:.0f}% of the same shelf price."),
         ):
             for i, amt in enumerate(spread(round(total, 2), REVENUE_W)):
                 if amt == 0: continue
