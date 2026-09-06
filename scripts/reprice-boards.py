@@ -295,18 +295,9 @@ for year in (2027, 2028, 2029):
     for i in range(0, len(allocs), 200):
         rest("POST", "fin_line_objects", allocs[i:i+200])
 
-    # the 9% fee follows net sales
-    fee_lines = [l for l in rest("GET", f"fin_plan_lines?select=id,label,amount_net,month&plan_id=eq.{plan['id']}")
-                 if "fulfilment" in l["label"].lower() or "fulfillment" in l["label"].lower()]
-    all_rev = sum(float(l["amount_net"]) for l in rest("GET", f"fin_plan_lines?select=amount_net,category_id&plan_id=eq.{plan['id']}")
-                  if any(c["id"] == l["category_id"] and c["pnl_group"] == "revenue" for c in cats.values()))
-    want = round(all_rev * FEE, 2)
-    have = sum(float(l["amount_net"]) for l in fee_lines)
-    if fee_lines and abs(want - have) > 1:
-        k = want / have
-        for l in fee_lines:
-            rest("PATCH", f"fin_plan_lines?id=eq.{l['id']}", {"amount_net": round(float(l["amount_net"]) * k, 2)})
-        print(f"    fee rescaled {have:,.0f} -> {want:,.0f} (9% of {all_rev:,.0f})")
+    # The 9% fee used to be rescaled here every time revenue moved. It carries
+    # driver_kind = pct_of_revenue now, so the board works it out and there is
+    # nothing left to keep in step.
     print(f"    written: {len(made)} lines, {len(allocs)} allocations")
 
 if not APPLY: print("\nDry run. Re-run with --apply to write.")

@@ -64,7 +64,7 @@ console.log("\nRows\n");
 const mk = (key: string, label: string, planned: number[], actual: number[] = twelve(0),
             over: Partial<BoardRow> = {}): BoardRow => ({
   key, categoryId: "c", label, editionId: null, editionLabel: null, vendorId: null, vendorName: null,
-  confidence: "expected", included: true,
+  confidence: "expected", included: true, driverKind: null, driverValue: null,
   cells: planned.map((p, i) => ({ month: i + 1, lineId: null, planned: p, actual: actual[i] })),
   plannedTotal: planned.reduce((a, b) => a + b, 0), actualTotal: actual.reduce((a, b) => a + b, 0),
   ...over,

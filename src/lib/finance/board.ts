@@ -71,6 +71,10 @@ export type BoardRow = {
   confidence: string;
   /** False = kept and shown, but left out of every total. The what-if switch. */
   included: boolean;
+  /** Set when the amount is worked out rather than typed: 5% of sales, a
+   *  royalty per board. The cells hold the computed figure; this says why. */
+  driverKind: string | null;
+  driverValue: number | null;
   cells: BoardCell[];     // always 12, month 1..12
   plannedTotal: number;
   actualTotal: number;
@@ -191,7 +195,8 @@ export function entitiesForWorld<T extends { division: string | null }>(
  * Both use this now.
  */
 export const PLAN_LINE_COLUMNS =
-  "id,category_id,label,month,amount_net,edition_id,vendor_id,confidence,included,quantity";
+  "id,category_id,label,month,amount_net,edition_id,vendor_id,confidence,included,quantity," +
+  "driver_kind,driver_value";
 
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -223,6 +228,9 @@ type RawLine = {
   /** Units. Present on the lines that count things, absent on the rest, and it
    *  is what tells the P&L how much of the stock bought was actually sold. */
   quantity?: number | string | null;
+  /** A rule instead of a figure. See the note on driven rows below. */
+  driver_kind?: string | null;
+  driver_value?: number | string | null;
 };
 type RawAlloc = { plan_line_id: string; amount: number | string | null };
 type RawActual = {
@@ -364,6 +372,8 @@ export function buildBoard(input: {
         vendorName: l.vendor_id ? input.vendorNames.get(l.vendor_id) ?? null : null,
         confidence: l.confidence ?? "expected",
         included: l.included !== false,
+        driverKind: l.driver_kind ?? null,
+        driverValue: l.driver_value != null ? Number(l.driver_value) : null,
         cells: Array.from({ length: 12 }, (_, i) => ({ month: i + 1, lineId: null, planned: 0, actual: 0 })),
         plannedTotal: 0,
         actualTotal: 0,
@@ -418,6 +428,45 @@ export function buildBoard(input: {
       plannedTotal: r2(plannedByMonth.reduce((s, n) => s + n, 0)),
       actualTotal: r2(actualByMonth.reduce((s, n) => s + n, 0)),
     };
+  }
+
+  /*
+   * Lines that work themselves out.
+   *
+   * Nico's sponsor replacement is 5% of sales, the payment and fulfilment fee
+   * is 9%, and the shaper is moving to a royalty. Those are rules, not figures,
+   * and keeping them right by re-running a script over twelve rows every time
+   * the sales number moves is how they drift.
+   *
+   * Revenue is summed first, then the driven rows are computed from it. That
+   * ordering is the whole safety argument: only costs may be driven by revenue,
+   * so nothing here can feed back into what it is derived from. A revenue row
+   * carrying a driver is ignored rather than allowed to make a loop.
+   */
+  const revenueByMonth = zero12();
+  const unitsByMonth = zero12();
+  for (const row of rowsByKey.values()) {
+    if (!row.included) continue;
+    const cat = row.categoryId ? catById.get(row.categoryId) : undefined;
+    if ((cat?.pnl_group ?? (cat?.kind === "revenue" ? "revenue" : "opex")) !== "revenue") continue;
+    for (let i = 0; i < 12; i++) revenueByMonth[i] = r2(revenueByMonth[i] + row.cells[i].planned);
+  }
+  for (const l of lines) {
+    const m = monthOf(l.month);
+    const cat = l.category_id ? catById.get(l.category_id) : undefined;
+    if (!m || (cat?.pnl_group) !== "revenue") continue;
+    unitsByMonth[m - 1] += Number(l.quantity) || 0;
+  }
+  for (const row of rowsByKey.values()) {
+    if (!row.driverKind || row.driverValue == null) continue;
+    const cat = row.categoryId ? catById.get(row.categoryId) : undefined;
+    if (cat?.pnl_group === "revenue") continue;   // would be circular
+    for (let i = 0; i < 12; i++) {
+      row.cells[i].planned = row.driverKind === "pct_of_revenue"
+        ? r2(revenueByMonth[i] * row.driverValue / 100)
+        : r2(unitsByMonth[i] * row.driverValue);
+    }
+    row.plannedTotal = r2(row.cells.reduce((a, c) => a + c.planned, 0));
   }
 
   const revenue = groupsFor("revenue");
