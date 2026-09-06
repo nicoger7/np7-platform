@@ -9,8 +9,9 @@ import { createAdminClient } from "@/lib/supabase";
  * waiver somewhere else. Nobody could answer "what happened today?".
  *
  * Split into two kinds, because they lead to different work:
- *  - trip     — money and logistics. Someone booked, paid, signed, asked for
- *               an extra. These usually need a reply.
+ *  - trip     — the people arriving and the money. Someone signed up, booked,
+ *               paid, signed, asked for an extra. Most of these need a reply,
+ *               and a sign-up is where the booking pipeline literally starts.
  *  - community — spotguide contributions, levels, gear. Good to see, rarely
  *               urgent, and it would drown the trip signal if mixed in.
  *
@@ -37,6 +38,84 @@ export type ActivityItem = {
 
 const LIMIT_PER_SOURCE = 60;
 
+/** How a member reached us, said in words. The raw column holds intake slugs. */
+const SIGNUP_ORIGIN: Record<string, string> = {
+  "website-register": "Registered on the site",
+  "newsletter": "Came from the newsletter",
+  "signature-apply": "Signature application",
+  "website-event": "From an event page",
+  "survey_open_link": "From a survey link",
+  "instagram": "From Instagram",
+};
+
+/**
+ * Accounts created, newest first.
+ *
+ * The timestamp has to come from the auth user, NOT from contacts.created_at.
+ * Most people are already a contact long before they ever sign in: 53 of the
+ * first 90 accounts belonged to someone we had already met, a newsletter
+ * subscriber or a past guest. Dating those by the contact row would file
+ * today's sign-up under the day we imported the mailing list.
+ *
+ * There is no view over auth.users and this does not add one. Exposing that
+ * table through PostgREST is the classic way to leak every address in the
+ * system, so this goes through the service-role admin API the same way
+ * lib/members.ts already does. The whole user base is under a hundred, so one
+ * page covers it.
+ */
+async function getSignups(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+): Promise<ActivityItem[]> {
+  const [users, linked, staff] = await Promise.all([
+    db.auth.admin.listUsers({ page: 1, perPage: 200 })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((r: any) => r?.data?.users ?? []).catch(() => []),
+    db.from("contacts").select("id, name, auth_user_id, created_at, source")
+      .not("auth_user_id", "is", null).limit(2000)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((r: any) => r?.data ?? []).catch(() => []),
+    db.from("team_members").select("auth_user_id").not("auth_user_id", "is", null)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((r: any) => r?.data ?? []).catch(() => []),
+  ]);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const byUser = new Map<string, any>(linked.map((c: any) => [c.auth_user_id, c]));
+  // A colleague getting a login is not a member signing up.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isStaff = new Set<string>(staff.map((t: any) => t.auth_user_id));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (users as any[])
+    .filter((u) => u.created_at && !isStaff.has(u.id))
+    // Placeholder logins the platform mints for itself, never a person.
+    .filter((u) => !String(u.email ?? "").endsWith("@np7.internal"))
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+    .slice(0, LIMIT_PER_SOURCE)
+    .map((u) => {
+      const c = byUser.get(u.id);
+      // Somebody we already knew, rather than a stranger off the website. Five
+      // minutes of slack because a fresh signup writes both rows at once.
+      const known = c?.created_at
+        ? new Date(c.created_at).getTime() < new Date(u.created_at).getTime() - 5 * 60_000
+        : false;
+      const origin = SIGNUP_ORIGIN[String(c?.source ?? "")] ?? null;
+      return {
+        id: `signup:${u.id}`,
+        at: u.created_at as string,
+        kind: "trip" as const,
+        action: "Signed up",
+        subject: [origin, known ? "already a contact" : null].filter(Boolean).join(" · ") || null,
+        contactId: c?.id ?? null,
+        // An account with no contact row can sign in but has no CRM record, so
+        // show the address rather than an anonymous row.
+        contactName: c?.name ?? u.email ?? null,
+        href: c?.id ? `/admin/members/${c.id}` : "/admin/members",
+      };
+    });
+}
+
 export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
@@ -45,8 +124,9 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const safe = async (fn: () => Promise<any>) => { try { return await fn(); } catch { return { data: [] }; } };
 
-  const [bookings, payments, waivers, addons, applications, ratings, photos, newSpots, edits, levels, orders] =
+  const [signups, bookings, payments, waivers, addons, applications, ratings, photos, newSpots, edits, levels, orders] =
     await Promise.all([
+      getSignups(db).catch(() => [] as ActivityItem[]),
       safe(() => db.from("exp_bookings").select("id, name, created_at, contact_id, contacts(name), exp_experiences(title), notes").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_payments").select("id, amount, received_at, created_at, contact_id, booking_id, contacts(name)").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_waiver_signatures").select("id, signed_at, created_at, contact_id, booking_id, contacts(name)").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
@@ -61,6 +141,7 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
     ]);
 
   const push = (i: ActivityItem) => { if (i.at) items.push(i); };
+  for (const s of signups) push(s);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const nameOf = (r: any) => r?.contacts?.name ?? null;
 
