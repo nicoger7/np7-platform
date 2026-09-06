@@ -3,7 +3,7 @@ import { bookingPrice } from "@/lib/tier-perks";
 import { resolveGearInfo, gearDelta, gearOptions, parseGearChoice, parseGearBaseline } from "@/lib/gear-choice";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
-import { computePaymentPlan, PAYMENT_DEFAULTS } from "@/lib/payments";
+import { computePaymentPlan, mergeSameDayStages, PAYMENT_DEFAULTS } from "@/lib/payments";
 
 /**
  * Public payment-plan quote for the registration modal.
@@ -102,6 +102,9 @@ export async function GET(request: NextRequest) {
     deposit: cfg.deposit ?? PAYMENT_DEFAULTS.deposit,
     downpaymentPercent: cfg.downpayment_percent ?? PAYMENT_DEFAULTS.downpaymentPercent,
     refundDays: cfg.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays,
-    milestones: plan.map((m) => ({ kind: m.kind, label: m.label, amount: m.amount, dueLabel: m.dueLabel, dueDate: m.dueDate })),
+    // Merged for the quote, which is a sales surface: a late signup whose two
+    // instalments land on the same day should read as one payment, not as a
+    // schedule that isn't one. The invoice engine still sees both stages.
+    milestones: mergeSameDayStages(plan).map((m) => ({ kind: m.kind, label: m.label, amount: m.amount, dueLabel: m.dueLabel, dueDate: m.dueDate })),
   });
 }

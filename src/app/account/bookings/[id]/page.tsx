@@ -22,7 +22,7 @@ import { RedeemVoucher } from "@/components/portal/redeem-voucher";
 import { CrewCard } from "@/components/portal/crew-card";
 import { InvitePanel } from "@/components/portal/invite-panel";
 import { getInvitesForBooking, resolveRewards } from "@/lib/invites";
-import { computePaymentPlan, amountDueNow, addDays, PAYMENT_DEFAULTS, type Milestone } from "@/lib/payments";
+import { computePaymentPlan, mergeSameDayStages, amountDueNow, addDays, PAYMENT_DEFAULTS, type Milestone } from "@/lib/payments";
 import { describePrice } from "@/lib/pricing";
 import { createAdminClient } from "@/lib/supabase";
 import { getCoverer, getCoveredBookings, coveredExtraTotal } from "@/lib/group-booking";
@@ -502,7 +502,10 @@ export default async function BookingDetail({ params }: Props) {
         </p>
       )}
       <div className="mt-3.5">
-        <PaymentPlan milestones={plan} currency={cur} total={total ?? 0} paid={paid} voucherCredit={voucherCredit} />
+        {/* Merged only here. `plan` above is still addressed by kind (deposit,
+            final) for the secured check, the next-step hero and the cancel
+            terms, so the merge must not reach it. */}
+        <PaymentPlan milestones={mergeSameDayStages(plan)} currency={cur} total={total ?? 0} paid={paid} voucherCredit={voucherCredit} />
       </div>
       {/* How to pay + the invoice/pro-forma (with the bank details & reference)
           right where the money is — not buried in a separate documents tab. */}

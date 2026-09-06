@@ -72,6 +72,9 @@ export type Milestone = {
   status: MilestoneStatus;
   /** For the deposit: ISO date until which it's still refundable. */
   refundableUntil?: string | null;
+  /** Set by mergeSameDayStages when two instalments share a due date and were
+   *  collapsed into this one. Display only: the invoice engine never sees it. */
+  mergedFrom?: MilestoneKind[];
 };
 
 export const PAYMENT_DEFAULTS = {
@@ -189,6 +192,50 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
   // Drop any zero-amount milestone — so a package with deposit = 0 collapses to
   // a clean 2-stage plan (downpayment → final) with no empty "€0 deposit" step.
   return all.filter((m) => m.amount > 0);
+}
+
+/**
+ * Two instalments that fall due on the SAME DAY are one instalment.
+ *
+ * computePaymentPlan clamps the final balance so it can never predate the
+ * downpayment (see the note there). For a late signup that clamp lands both on
+ * the same date, and the plan then said, in full:
+ *
+ *   Downpayment · 50%   EUR 1,495   Due by 20 September 2026
+ *   Final balance       EUR 1,495   Due by 20 September 2026
+ *
+ * which is not a schedule, it is one payment printed twice. It reads as though
+ * the second half were somehow later, and a rider deciding whether to book is
+ * doing arithmetic to find out that it is not.
+ *
+ * ONLY for display. The invoice engine addresses stages BY KIND through
+ * milestoneAmount(), so the underlying plan must keep both, or a down-payment
+ * invoice would find nothing to bill. Call this at the point of rendering, never
+ * before anything that issues money.
+ *
+ * A stage already paid is left alone: merging it would hide what the rider has
+ * already sent us.
+ */
+export function mergeSameDayStages(plan: Milestone[]): Milestone[] {
+  const down = plan.find((m) => m.kind === "downpayment");
+  const fin = plan.find((m) => m.kind === "final");
+  if (!down || !fin) return plan;
+  if (down.status === "paid" || fin.status === "paid") return plan;
+  if (!down.dueDate || !fin.dueDate || down.dueDate !== fin.dueDate) return plan;
+
+  const merged: Milestone = {
+    ...fin,
+    // Keeps the FINAL kind: it owns the real deadline, and anything reading the
+    // plan for "what is still outstanding" already looks at the last stage.
+    kind: "final",
+    label: "Full amount",
+    amount: round(down.amount + fin.amount),
+    cumulative: fin.cumulative,
+    // Inherit the earlier stage's status, since that is the one falling due now.
+    status: down.status,
+    mergedFrom: ["downpayment", "final"],
+  };
+  return plan.flatMap((m) => (m.kind === "downpayment" ? [merged] : m.kind === "final" ? [] : [m]));
 }
 
 /** Amount already paid, derived from which milestones are marked received. */
