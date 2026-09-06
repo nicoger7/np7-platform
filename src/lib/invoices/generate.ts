@@ -148,10 +148,12 @@ export async function unbilledAddonLines(bookingId: string): Promise<{ id: strin
 /** Total of the real (non-void) tax invoices already ISSUED for a booking. Used
     to derive the outstanding balance — a real invoice is immutable, so anything
     added after it flows into the next document, never backward. */
-export async function issuedInvoiceTotal(bookingId: string): Promise<number> {
+export async function issuedInvoiceTotal(bookingId: string, excludeDocumentId?: string): Promise<number> {
   const db = getDb();
-  const { data } = await db.from("documents").select("amount,type,status").eq("booking_id", bookingId).eq("status", "issued");
-  return round2(((data ?? []) as { amount: number | null; type: string }[])
+  const { data } = await db.from("documents").select("id,amount,type,status").eq("booking_id", bookingId).eq("status", "issued");
+  return round2(((data ?? []) as { id: string; amount: number | null; type: string }[])
+    // A document being RE-ISSUED must not count itself as already invoiced.
+    .filter((d) => !excludeDocumentId || d.id !== excludeDocumentId)
     .filter((d) => ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice", "credit_note"].includes(d.type))
     .reduce((s, d) => s + (Number(d.amount) || 0), 0));
 }
@@ -572,6 +574,29 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   ]);
   const finalAmt = round2(Math.max(0, total - received - unpaidInvoiced));
 
+  /*
+   * WHAT AN INVOICE IS FOR, WHICH IS NOT WHAT A REQUEST IS FOR.
+   *
+   * finalAmt answers "what is still owed", and that is the right answer for a
+   * PRO-FORMA, which asks somebody for money. It is the wrong answer for a tax
+   * invoice, which documents a supply, and it silently ate one:
+   *
+   *   Uwe Baerenz, Bonaire, EUR 5,790. Pro-forma issued 1 Sep, paid 4 Sep.
+   *   promoteProformaIfPaid voids the pro-forma to claim it, then asks for the
+   *   real invoice. By then `received` was the whole 5,790, so finalAmt came out
+   *   as zero, the engine threw "no outstanding final balance", the throw was
+   *   swallowed by a .catch(console.error) at the payment route, and the booking
+   *   was left with one voided document whose stated reason is "paid → real
+   *   invoice issued". No invoice was issued. EUR 5,790 of revenue, undocumented.
+   *
+   * The promotion path can only ever run AFTER the money lands, so for a booking
+   * paid in one go the old formula was guaranteed to reach zero. This is the
+   * amount an invoice should carry: the part of the trip no document stands for
+   * yet, regardless of who has paid what.
+   */
+  const invoicedGross = await issuedInvoiceTotal(bookingId, input.reuseDocumentId);
+  const uninvoiced = round2(Math.max(0, total - invoicedGross));
+
   // Add-on invoice: bills exactly the confirmed extras nothing has invoiced
   // yet — an interim document for things added AFTER the down-payment, so the
   // guest pays the extra now while the final stays on its own schedule.
@@ -638,7 +663,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   if (type === "downpayment_invoice" && downpaymentAmt <= 0) {
     throw new Error("This booking has no down-payment stage — nothing to invoice.");
   }
-  if (type === "final_invoice" && finalAmt <= 0) {
+  if (type === "final_invoice" && uninvoiced <= 0.005) {
     throw new Error("This booking has no outstanding final balance — nothing to invoice.");
   }
   if (type === "addon_invoice" && addonAmt <= 0) {
@@ -662,7 +687,9 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   if (type === "proforma_invoice") amount = proformaAmt;
   else if (type === "deposit_invoice") amount = depositAmt;
   else if (type === "downpayment_invoice") amount = downpaymentAmt;
-  else if (type === "final_invoice") amount = finalAmt;
+  // Bills what is not yet documented, never what is not yet paid. See the note
+  // at `uninvoiced`: the old figure was zero exactly when the invoice was due.
+  else if (type === "final_invoice") amount = uninvoiced;
   else if (type === "addon_invoice") amount = addonAmt;
 
   // A figure set by hand overrides the formula — see GenerateInput.amount. It

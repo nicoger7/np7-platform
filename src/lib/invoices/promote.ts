@@ -106,7 +106,27 @@ export async function promoteProformaIfPaid(bookingId: string): Promise<{ promot
       .select("id");
     if (!claimed || claimed.length === 0) break;
 
-    const real: (DocumentRow & { pdf?: Buffer }) = await generateDocument({ bookingId, type: realType });
+    /*
+     * THE VOID IS ONLY SAFE IF THE INVOICE ACTUALLY ARRIVES.
+     *
+     * The claim above voids the pro-forma so two concurrent payments cannot mint
+     * two tax invoices, which is right. But the generate below was unguarded,
+     * and when it threw, the void stood: Uwe Baerenz's Bonaire booking was left
+     * with a single voided document whose stated reason is "paid → real invoice
+     * issued", and no invoice. The caller swallowed the error, so nothing
+     * anywhere said so.
+     *
+     * Put the pro-forma back before rethrowing. A booking that still has its
+     * open request is a booking somebody can fix; a booking with a voided one
+     * and no invoice looks finished and is not.
+     */
+    let real: (DocumentRow & { pdf?: Buffer });
+    try {
+      real = await generateDocument({ bookingId, type: realType });
+    } catch (e) {
+      await db.from("documents").update({ status: "issued", meta: pf.meta ?? {} }).eq("id", pf.id);
+      throw e;
+    }
     const realId = real.id;
 
     // Link the (now void) pro-forma to its real invoice + re-point allocations.
