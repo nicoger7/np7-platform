@@ -183,7 +183,7 @@ if (!plan) {
     editionLabels: new Map(), vendorNames: new Map(), openingBalance: 0,
   }).pnlPlanned;
   check("without quantity the P&L reverts to the wrong answer, which is why it must be queried",
-        blind.costOfSales.total === 0 && Math.abs(blind.result.total - p.result.total) > 400_000,
+        blind.costOfSales.total === 0 && Math.abs(blind.result.total - p.result.total) > 300_000,
         [blind.result.total, p.result.total]);
 }
 

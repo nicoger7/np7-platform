@@ -61,9 +61,26 @@ RRP_INCL_VAT = {
     # change of plan. Freeride does not sell until 2028.
     "Freeride": 1790.0,
 }
-DIRECT_SHARE = 0.70
 RETAILER_MARGIN = 0.38
 VAT = 0.19
+
+# ── Three channels, not two ─────────────────────────────────────────────────
+# Nico's rough plan for a year, 2026-09-06: 200 boards direct to consumers from
+# the European warehouse, 80 to European dealers, 150 to centres and dealers
+# worldwide. Only the ratio is used here; the volume comes from the plan.
+#
+# They are genuinely different businesses per board:
+#
+#   direct     NP7 imports, warehouses and ships to a person. Full shelf price
+#              less VAT, against the landed cost.
+#   Europe     NP7 imports AND pays the freight on to the shop, then earns the
+#              wholesale price. Two lots of shipping on the thinnest margin.
+#   worldwide  the shop collects in China. NP7 never imports the board, so the
+#              cost is the factory price with no duty and no freight, and the
+#              price they pay is lower by exactly what they now carry.
+CHANNEL_UNITS = {"direct": 200, "europe": 80, "world": 150}
+_tot = sum(CHANNEL_UNITS.values())
+CHANNEL = {k: v / _tot for k, v in CHANNEL_UNITS.items()}
 # Nico, 2026-09-06: "europe shops we import to europe and deliver to shops.
 # worldwide shops they arrange shipping from china."
 #
@@ -72,6 +89,7 @@ VAT = 0.19
 # never lands those boards and never pays the import on them.
 EUROPE_SHARE_OF_WHOLESALE = 0.70   # [ASSUM] not confirmed
 REVENUE_W = [0, .05, .12, .15, .12, .15, .12, .08, .06, .08, .05, .02]
+GOODS_W   = [0, 0, .30, .20, 0, .30, .20, 0, 0, 0, 0, 0]
 FEE = 0.09
 
 
@@ -119,17 +137,30 @@ for r in range(3, 19):
     nm = M.get(f"A{r}")
     if nm: sheet_rrp[nm] = num(M, f"O{r}")
 
-direct_price, wholesale_price, priced_from = {}, {}, {}
+# What NP7 books per board, per channel, and what it costs NP7 to supply it.
+price = {"direct": {}, "europe": {}, "world": {}}
+supply = {"direct": {}, "europe": {}, "world": {}}
+priced_from = {}
+row_of = {M.get(f"A{r}"): r for r in range(3, 19) if M.get(f"A{r}")}
 for rng, models in RANGES.items():
     base = sheet_rrp.get(BASE_MODEL[rng], 0)
     told = RRP_INCL_VAT.get(rng)
     factor = (told / base) if (told and base) else 1.0
     for m in models:
         if m not in sheet_rrp: continue
+        r = row_of[m]
+        production, importing = num(M, f"B{r}"), num(M, f"C{r}")
         rrp = sheet_rrp[m] * factor
         net = rrp / (1 + VAT)
-        direct_price[m] = round(net, 2)
-        wholesale_price[m] = round(net * (1 - RETAILER_MARGIN), 2)
+        wholesale = net * (1 - RETAILER_MARGIN)
+        price["direct"][m] = round(net, 2)
+        price["europe"][m] = round(wholesale, 2)
+        # A shop outside Europe imports the board itself, so it pays NP7 less by
+        # exactly the import it has taken on.
+        price["world"][m] = round(wholesale - importing, 2)
+        supply["direct"][m] = round(production + importing, 2)
+        supply["europe"][m] = round(production + importing * 2, 2)   # in, then on to the shop
+        supply["world"][m] = round(production, 2)                    # never lands in Europe
         priced_from[m] = ("Nico" if told else "business plan", rrp)
 sold_col = {2027: "H", 2028: "O", 2029: "V"}
 units = {y: {} for y in sold_col}
@@ -162,17 +193,19 @@ for year in (2027, 2028, 2029):
     for rng, models in RANGES.items():
         u = sum(units[year].get(m, 0) for m in models) * scale
         if u <= 0: continue
-        d_rev = sum(units[year].get(m, 0) * scale * DIRECT_SHARE * direct_price.get(m, 0) for m in models)
-        w_rev = sum(units[year].get(m, 0) * scale * (1 - DIRECT_SHARE) * wholesale_price.get(m, 0)
-                    for m in models)
-        summary[rng] = (u, d_rev + w_rev)
+        rev = {ch: sum(units[year].get(m, 0) * scale * CHANNEL[ch] * price[ch].get(m, 0) for m in models)
+               for ch in CHANNEL}
+        summary[rng] = (u, sum(rev.values()))
         for label, catkey, total, qty, note in (
-            (f"{rng} boards, direct", "rev-hardware-d2c", d_rev, u * DIRECT_SHARE,
-             f"[NICO 2026-09-06] {DIRECT_SHARE*100:.0f}% of {u:,.0f} {rng} boards direct. Shelf price less "
-             f"{VAT*100:.0f}% VAT; the 9% fee is a separate line and is not taken off twice."),
-            (f"{rng} boards, wholesale", "rev-hardware-b2b", w_rev, u * (1 - DIRECT_SHARE),
-             f"[NICO 2026-09-06] the other {(1-DIRECT_SHARE)*100:.0f}%, with the retailer keeping "
-             f"{RETAILER_MARGIN*100:.0f}% of the same shelf price."),
+            (f"{rng} boards, direct", "rev-hardware-d2c", rev["direct"], u * CHANNEL["direct"],
+             f"[NICO 2026-09-06] {CHANNEL['direct']*100:.0f}% of {u:,.0f} {rng} boards sold direct from the "
+             f"European warehouse. Shelf price less {VAT*100:.0f}% VAT; the 9% fee is a separate line."),
+            (f"{rng} boards, Europe dealers", "rev-hardware-b2b", rev["europe"], u * CHANNEL["europe"],
+             f"[NICO 2026-09-06] {CHANNEL['europe']*100:.0f}%. NP7 imports and delivers to the shop, and the "
+             f"shop keeps {RETAILER_MARGIN*100:.0f}%."),
+            (f"{rng} boards, worldwide dealers", "rev-hardware-b2b", rev["world"], u * CHANNEL["world"],
+             f"[NICO 2026-09-06] {CHANNEL['world']*100:.0f}%. They collect in China and import themselves, so "
+             f"they pay less by exactly the import they have taken on, and NP7 never lands the board."),
         ):
             for i, amt in enumerate(spread(round(total, 2), REVENUE_W)):
                 if amt == 0: continue
@@ -180,6 +213,23 @@ for year in (2027, 2028, 2029):
                             "month": f"{year}-{i+1:02d}-01", "amount_net": amt,
                             "quantity": round(qty * REVENUE_W[i], 2), "confidence": "expected",
                             "note": note, "_obj": rng})
+
+        # ── what those boards cost NP7 to supply ────────────────────────────
+        # A board sold to Shanghai never crosses a European border, so it costs
+        # the factory price and nothing else. One sold to a German shop crosses
+        # two: in from China, then out to the shop.
+        goods = sum(units[year].get(m, 0) * scale * CHANNEL[ch] * supply[ch].get(m, 0)
+                    for ch in CHANNEL for m in models)
+        for i, amt in enumerate(spread(round(goods, 2), GOODS_W)):
+            if amt == 0: continue
+            new.append({"plan_id": plan["id"], "category_id": cats["cost-goods"]["id"],
+                        "label": f"{rng} boards, landed cost", "month": f"{year}-{i+1:02d}-01",
+                        "amount_net": amt, "quantity": round(u * GOODS_W[i], 2),
+                        "confidence": "expected",
+                        "note": f"[NICO 2026-09-06] {u:,.0f} {rng} boards. The {CHANNEL['world']*100:.0f}% "
+                                f"going to shops outside Europe cost the factory price only: they never "
+                                f"land here, so there is no duty and no freight on them.",
+                        "_obj": rng})
 
     # ── getting the board to the shop ────────────────────────────────────────
     # Dealers expect a delivered price, so NP7 quotes delivered and NP7 pays the
@@ -191,8 +241,8 @@ for year in (2027, 2028, 2029):
     out_freight = 0.0
     for rng, models in RANGES.items():
         for m in models:
-            u = units[year].get(m, 0) * scale * (1 - DIRECT_SHARE) * EUROPE_SHARE_OF_WHOLESALE
-            out_freight += u * num(M, f"C{[r for r in range(3,19) if M.get(f'A{r}') == m][0]}")
+            u = units[year].get(m, 0) * scale * CHANNEL["europe"]
+            out_freight += u * num(M, f"C{row_of[m]}")
     if out_freight > 0:
         for i, amt in enumerate(spread(round(out_freight, 2), REVENUE_W)):
             if amt == 0: continue
@@ -209,18 +259,20 @@ for year in (2027, 2028, 2029):
     boards = sum(v[0] for v in summary.values())
     old = [l for l in rest("GET", f"fin_plan_lines?select=id,label,amount_net&plan_id=eq.{plan['id']}")
            if ("board" in l["label"].lower() or "outbound freight" in l["label"].lower())
-           and "cost" not in l["label"].lower()
-           and "landed" not in l["label"].lower() and "development" not in l["label"].lower()
+           and "development" not in l["label"].lower()
            and "prototype" not in l["label"].lower() and "sample" not in l["label"].lower()]
     old_rev = sum(float(l["amount_net"]) for l in old)
     if year == 2027:
         print("\n  Shelf price to what NP7 books:\n")
-        print(f"    {'model':16} {'RRP incl':>9} {'source':>14} {'direct':>9} {'wholesale':>10}")
+        print(f"    {'model':16} {'RRP':>7} {'direct':>8} {'EU shop':>9} {'world':>8}   "
+              f"{'costs dir':>10} {'costs EU':>9} {'costs ww':>9}")
         for rng, models in RANGES.items():
             for m in models:
-                if m not in priced_from or not units[2028].get(m) and not units[2027].get(m): continue
-                src, rrp = priced_from[m]
-                print(f"    {m:16} {rrp:>9,.0f} {src:>14} {direct_price[m]:>9,.0f} {wholesale_price[m]:>10,.0f}")
+                if m not in priced_from or (not units[2028].get(m) and not units[2027].get(m)): continue
+                _, rrp = priced_from[m]
+                print(f"    {m:16} {rrp:>7,.0f} {price['direct'][m]:>8,.0f} {price['europe'][m]:>9,.0f} "
+                      f"{price['world'][m]:>8,.0f}   {supply['direct'][m]:>10,.0f} {supply['europe'][m]:>9,.0f} "
+                      f"{supply['world'][m]:>9,.0f}")
     print(f"\n{year}: {boards:,.0f} boards")
     print(f"    was {old_rev:>12,.0f} across {len(old)} lines")
     print(f"    now {board_rev:>12,.0f} across {len(new)} lines   ({board_rev/boards:,.0f} per board)")

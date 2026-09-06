@@ -462,7 +462,12 @@ export function buildBoard(input: {
     if (cat?.pnl_group === "inventory") unitsBought += q;
     else if (cat?.pnl_group === "revenue") unitsSold += q;
   }
-  const sellThrough = unitsBought > 0 ? Math.min(1, unitsSold / unitsBought) : 0;
+  // Whole boards. Spreading 350 units across three channels and twelve months
+  // leaves a hundredth of a unit behind in the rounding, and dividing by that
+  // makes 13 EUR of stock look unsold forever. You cannot sell 0.4 of a board.
+  const sellThrough = unitsBought > 0
+    ? Math.min(1, Math.round(unitsSold) / Math.round(unitsBought))
+    : 0;
 
   const openingBalance = input.openingBalance ?? 0;
   const pnlPlanned = assemblePnl(plannedBucket, openingBalance, sellThrough);
