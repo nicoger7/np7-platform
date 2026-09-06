@@ -350,6 +350,40 @@ export function levelRangeLabel(min?: string | null, max?: string | null): strin
   return lo ?? hi;
 }
 
+/**
+ * Letters that NFD cannot take apart, because they are their own letters rather
+ * than an accented a-z. Left to the rule below they become hyphens, so they get
+ * spelled out here.
+ *
+ * The plain form, not the German digraph: the guide already reads `ringkobing`
+ * and `lindhoft`, so o and u, never oe and ue. The exception is the pair with no
+ * single letter to fall back to. Turkish dotless i is in the list because
+ * Alacati loses its last letter without it.
+ */
+const PLAIN_LETTER: Record<string, string> = {
+  "ø": "o", "æ": "ae", "œ": "oe", "ß": "ss",
+  "đ": "d", "ð": "d", "þ": "th", "ł": "l", "ı": "i",
+};
+
+/**
+ * A spot's slug, which is also the last part of the URL we paste into chats.
+ *
+ * This used to be one `replace` that kept a-z0-9 and hyphenated everything else,
+ * which quietly punched a hole through every accent: Montana Roja came out
+ * `monta-a-roja`, El Medano `el-m-dano`, Eckernforde `eckernf-rder`. The accent
+ * was not dropped, it was promoted to a word break, so the name broke in two.
+ *
+ * Decomposing first separates a letter from its accent, and then the accent is
+ * the only thing removed. Four spot slugs were already damaged when this was
+ * found; the letters above cover the ones decomposition cannot reach.
+ */
 export function slugifySpot(s: string): string {
-  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return s
+    .toLowerCase()
+    .replace(/[øæœßđðþłı]/g, (c) => PLAIN_LETTER[c] ?? c)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
