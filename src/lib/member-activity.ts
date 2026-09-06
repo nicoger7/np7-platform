@@ -92,7 +92,10 @@ async function getSignups(
     // Placeholder logins the platform mints for itself, never a person.
     .filter((u) => !String(u.email ?? "").endsWith("@np7.internal"))
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
-    .slice(0, LIMIT_PER_SOURCE)
+    // No 60-row cap here, unlike every other source. Nico: "all the members that
+    // already registered". There are under a hundred of them and each one
+    // happened exactly once, so the whole membership fits and truncating it
+    // would silently drop the earliest members from their own timeline.
     .map((u) => {
       const c = byUser.get(u.id);
       // Somebody we already knew, rather than a stranger off the website. Five
@@ -128,7 +131,11 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
     await Promise.all([
       getSignups(db).catch(() => [] as ActivityItem[]),
       safe(() => db.from("exp_bookings").select("id, name, created_at, contact_id, contacts(name), exp_experiences(title), notes").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
-      safe(() => db.from("exp_payments").select("id, amount, received_at, created_at, contact_id, booking_id, contacts(name)").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
+      // The booking embed is not decoration: most payment rows carry no contact_id
+      // of their own and are tied to the payer only through the booking, so
+      // without it every one of them renders as "A member". Same embed shape the
+      // add-ons query already uses.
+      safe(() => db.from("exp_payments").select("id, amount, received_at, created_at, contact_id, booking_id, contacts(name), exp_bookings(contact_id, contacts(name))").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_waiver_signatures").select("id, signed_at, created_at, contact_id, booking_id, contacts(name)").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_booking_addons").select("id, label, requested_at, booking_id, source, exp_bookings(name, contact_id, contacts(name))").not("requested_at", "is", null).order("requested_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_trip_applications").select("id, name, created_at, contact_id").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
@@ -158,7 +165,8 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
   for (const p of (payments.data ?? []) as any[]) {
     push({ id: `payment:${p.id}`, at: p.received_at ?? p.created_at, kind: "trip", action: "Payment recorded",
       subject: p.amount != null ? `€${Number(p.amount).toLocaleString("en-US")}` : null,
-      contactId: p.contact_id, contactName: nameOf(p),
+      contactId: p.contact_id ?? p.exp_bookings?.contact_id ?? null,
+      contactName: nameOf(p) ?? p.exp_bookings?.contacts?.name ?? null,
       href: p.booking_id ? `/admin/bookings/${p.booking_id}?tab=payments` : "/admin/payments" });
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -217,5 +225,25 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
   }
 
   items.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
-  return items.slice(0, limit);
+  const top = items.slice(0, limit);
+
+  /* PUT THE NAMES BACK ON.
+     Several sources carry only a contact id: a proposed spot has submitted_by,
+     a hardware order has contact_id, and an embed that comes back null leaves a
+     booking or a payment nameless too. Those rows rendered as "A member", which
+     is the one thing a feed of who-did-what must not say, and three of them were
+     sitting at the top of the page.
+     One lookup for whatever is still missing, after the slice so it only ever
+     covers rows that will actually be shown. Best-effort like every other
+     source: if it fails the feed keeps its ids and reads as it did before. */
+  const missing = [...new Set(top.filter((i) => !i.contactName && i.contactId).map((i) => i.contactId as string))];
+  if (missing.length) {
+    const { data } = await safe(() => db.from("contacts").select("id, name").in("id", missing));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const names = new Map<string, string | null>((data ?? []).map((c: any) => [c.id as string, (c.name ?? null) as string | null]));
+    for (const i of top) {
+      if (!i.contactName && i.contactId) i.contactName = names.get(i.contactId) ?? null;
+    }
+  }
+  return top;
 }

@@ -67,7 +67,7 @@ export default function MemberActivityPage() {
     <div>
       <div className="mb-5">
         <h1 className="text-2xl font-bold admin-heading mb-1">Member activity</h1>
-        <p className="text-sm admin-muted">What members have been doing — bookings, payments and waivers alongside spotguide contributions.</p>
+        <p className="text-sm admin-muted">Who signed up, and what members have been doing since: bookings, payments and waivers alongside spotguide contributions.</p>
       </div>
 
       <div className="flex items-center gap-1.5 flex-wrap mb-5" role="tablist">
