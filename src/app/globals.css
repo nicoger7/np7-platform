@@ -192,6 +192,131 @@ details[open] > summary .acc-chevron {
   transform: rotate(180deg);
 }
 
+/* ── Spotguide foldouts (.np7-fold) — a pill that unrolls into a card ──
+   Every static panel on a spot card is a flat sand box with a grey uppercase
+   micro-label, so a foldout styled that way read as a heading, not a control.
+   These are the only raised, white, rounded-full rows on the card: raised =
+   you can press it. Opening squares the corners off so the content inside is
+   not fighting a pill edge. */
+.np7-fold {
+  --fa: #00afdb;
+  background: #fff;
+  border: 1px solid #ece3d3;
+  border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(0, 55, 74, 0.04);
+  transition: border-radius .28s cubic-bezier(.22,.61,.36,1), box-shadow .2s ease,
+              border-color .2s ease, transform .18s cubic-bezier(.22,.61,.36,1);
+}
+.np7-fold:not([open]):hover {
+  border-color: #e2d7c2;
+  box-shadow: 0 6px 18px -10px rgba(0, 55, 74, 0.28);
+}
+/* the press lands on the whole pill, not just the text inside it */
+.np7-fold:has(> summary:active) { transform: scale(.99); }
+.np7-fold[open] {
+  border-radius: 20px;
+  border-color: color-mix(in oklab, var(--fa) 26%, #ece3d3);
+  box-shadow: 0 10px 30px -18px rgba(0, 55, 74, 0.35);
+}
+.np7-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .5rem .75rem .5rem .5rem;
+  list-style: none;
+  user-select: none;
+  border-radius: 999px;
+  transition: background-color .18s ease, border-radius .28s cubic-bezier(.22,.61,.36,1);
+}
+.np7-fold > summary::-webkit-details-marker { display: none; }
+.np7-fold > summary:hover { background-color: #fdfaf3; }
+.np7-fold > summary:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--fa) 55%, transparent);
+  outline-offset: 2px;
+}
+.np7-fold[open] > summary { border-radius: 19px 19px 0 0; }
+
+.np7-fold-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--fa) 12%, transparent);
+  color: var(--fa);
+  transition: background-color .2s ease, color .2s ease;
+}
+.np7-fold-icon > svg { width: 1rem; height: 1rem; }
+.np7-fold[open] > summary .np7-fold-icon { background: var(--fa); color: #fff; }
+
+.np7-fold-meta {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f4eee2;
+  color: #a89b84;
+}
+
+.np7-fold-chev {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: #f4eee2;
+  color: #93a0a6;
+  transition: transform .28s cubic-bezier(.22,.61,.36,1), background-color .2s ease, color .2s ease;
+}
+.np7-fold-chev > svg { width: .875rem; height: .875rem; }
+.np7-fold > summary:hover .np7-fold-chev {
+  background: color-mix(in oklab, var(--fa) 14%, transparent);
+  color: var(--fa);
+}
+.np7-fold[open] > summary .np7-fold-chev { transform: rotate(180deg); }
+
+/* inset hairline, iOS-list style, instead of a full-bleed divider */
+.np7-fold-body {
+  margin: 0 .875rem;
+  padding: .875rem 0 1rem;
+  border-top: 1px solid #f4eee2;
+}
+.np7-fold[open] > .np7-fold-body { animation: np7-fold-in .3s cubic-bezier(.22,.61,.36,1) both; }
+@keyframes np7-fold-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .np7-fold, .np7-fold > summary, .np7-fold-icon, .np7-fold-chev { transition: none; }
+  .np7-fold:has(> summary:active) { transform: none; }
+  .np7-fold[open] > .np7-fold-body { animation: none; }
+}
+
+/* On-site confirm chips — a press that feels like a press. */
+.np7-infra-pill {
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease,
+              transform .15s cubic-bezier(.22,.61,.36,1);
+}
+.np7-infra-pill:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(31, 158, 87, 0.55);
+  box-shadow: 0 4px 12px -6px rgba(0, 55, 74, 0.3);
+}
+.np7-infra-pill:active:not(:disabled) { transform: scale(.96); }
+.np7-infra-pill:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--pill-accent, #00afdb) 55%, transparent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .np7-infra-pill { transition: none; }
+  .np7-infra-pill:hover:not(:disabled), .np7-infra-pill:active:not(:disabled) { transform: none; }
+}
+
 /* Tailwind v4's preflight no longer sets a pointer cursor on buttons — restore it
    so every clickable button/role=button (and non-disabled) shows the finger. */
 button:not(:disabled),

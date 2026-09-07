@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BFT_META, MONTH_LABELS, type WindStats } from "@/lib/wind-stats";
+import { BFT_META, MONTH_LABELS, windiestMonth, windySeasonLabel, type WindStats } from "@/lib/wind-stats";
 
 /** Short, rider-friendly name for a model read, from its `source` string. */
 function modelLabel(source: string): string {
@@ -9,22 +9,6 @@ function modelLabel(source: string): string {
   if (s.startsWith("np7")) return "NP7 local";
   if (s.includes("accel") || s.includes("offshore")) return "Offshore flow";
   return "Coastal";
-}
-
-/** Longest contiguous run of windy months on the 12-month circle → "Jun–Sep". */
-function seasonLabel(windy: number[]): string | null {
-  if (windy.length === 0) return null;
-  if (windy.length >= 11) return "Year-round";
-  const set = new Set(windy);
-  let bestStart = windy[0], bestLen = 0;
-  for (const s of windy) {
-    if (set.has((s - 2 + 12) % 12 + 1)) continue; // not a run start
-    let len = 0, cur = s;
-    while (set.has(cur)) { len++; cur = (cur % 12) + 1; }
-    if (len > bestLen) { bestLen = len; bestStart = s; }
-  }
-  const end = ((bestStart - 1 + bestLen - 1) % 12) + 1;
-  return bestLen === 1 ? MONTH_LABELS[bestStart - 1] : `${MONTH_LABELS[bestStart - 1]}–${MONTH_LABELS[end - 1]}`;
 }
 
 /**
@@ -40,15 +24,11 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
   const [model, setModel] = useState<"main" | "alt">("main");
   const view = model === "alt" && stats.alt ? stats.alt : stats;
   const H = compact ? 130 : 176;
-  const season = seasonLabel(view.summary?.windyMonths ?? []);
+  const season = windySeasonLabel(view.summary?.windyMonths ?? []);
   const warm = view.summary?.warmestMonth;
-  // Single windiest month — most planing wind (4+ Bft, tie-break 3+). Derived
-  // live so it works even for stats cached before this was added.
-  const windiest = (() => {
-    let best = -1, m: number | null = null;
-    for (const x of view.months) { const s = (x.pct["4"] ?? 0) * 100 + (x.pct["3"] ?? 0); if (s > best) { best = s; m = x.m; } }
-    return m;
-  })();
+  // Single windiest month — derived live so it works even for stats cached
+  // before this was added.
+  const windiest = windiestMonth(view.months);
 
   const bands = (m: WindStats["months"][number]) => {
     const p = (b: number) => m.pct[String(b)] ?? 0;

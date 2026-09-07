@@ -41,17 +41,28 @@ export async function POST(request: NextRequest) {
   const level = levels[0] ?? (target === "spot" && LEVELS.includes(body.level) ? body.level : null);
   const conditions = target === "spot" && Array.isArray(body.conditions)
     ? body.conditions.filter((c: string) => CONDITIONS.some((x) => x.key === c)) : [];
-  const infrastructure = target === "spot" && Array.isArray(body.infrastructure)
-    ? body.infrastructure.filter((t: string) => (INFRASTRUCTURE_TAGS as readonly string[]).includes(t)) : [];
+  const infraSent: string[] = target === "spot" && Array.isArray(body.infrastructure)
+    ? body.infrastructure.filter((t: unknown) => typeof t === "string") : [];
+  const inVocab = (t: string) => (INFRASTRUCTURE_TAGS as readonly string[]).includes(t);
   const wind_window = asWindWindow(body.wind_window); // {} for destinations (no body.wind_window)
 
-  const hasAnyInput = Object.keys(ratings).length > 0 || levels.length > 0 || !!level || conditions.length > 0 || infrastructure.length > 0 || (target === "spot" && windWindowHasValue(wind_window));
+  const hasAnyInput = Object.keys(ratings).length > 0 || levels.length > 0 || !!level || conditions.length > 0 || infraSent.length > 0 || (target === "spot" && windWindowHasValue(wind_window));
   if (!hasAnyInput) return NextResponse.json({ error: "Add at least one rating or fact." }, { status: 400 });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const table = target === "spot" ? "spot_ratings" : "destination_ratings";
   const fk = target === "spot" ? "spot_id" : "destination_id";
+
+  // A facility is allowed if it's in the shared vocab OR already on the spot's
+  // own list — the on-site chips let riders confirm NP7's free-form tags, and
+  // this form sends the member's tags straight back on their next update.
+  let infrastructure = infraSent.filter(inVocab);
+  if (infrastructure.length !== infraSent.length) {
+    const { data: sp } = await db.from("spots").select("infrastructure").eq("id", id).maybeSingle();
+    const own: string[] = Array.isArray(sp?.infrastructure) ? sp.infrastructure : [];
+    infrastructure = infraSent.filter((t) => inVocab(t) || own.includes(t));
+  }
 
   const row: Record<string, unknown> = { [fk]: id, contact_id: user.contactId, ratings, comment, updated_at: new Date().toISOString() };
   if (target === "spot") { row.level = level; row.levels = levels; row.conditions = conditions; row.wind_window = wind_window; row.infrastructure = infrastructure; }

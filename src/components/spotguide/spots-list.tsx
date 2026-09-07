@@ -15,6 +15,9 @@ import { WindStatsChart } from "./wind-stats-chart";
 import { SpotPhotos } from "./spot-photos";
 import { SpotContribute } from "./spot-contribute";
 import { SuggestEdit } from "./suggest-edit";
+import { Foldout, FoldIconStats } from "./foldout";
+import { InfraPills } from "./infra-pills";
+import { windStatsTeaser } from "@/lib/wind-stats";
 
 /** Foldable list of a destination's spots. Collapsed = name + key chips +
     score; expanded = photo, wind rose, ratings, forecast, infrastructure. */
@@ -171,27 +174,23 @@ export function SpotsList({ spots: published, accent = "#00afdb", focus }: { spo
                   </div>
                 )}
 
-                {(spot.memberLevel.raters > 0 || spot.memberConditions.raters > 0 || spot.memberInfra.raters > 0) && (
+                {(spot.memberLevel.raters > 0 || spot.memberConditions.raters > 0) && (
                   <div className="rounded-xl border border-[#f0e9da] p-4 space-y-1.5">
                     <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac]">Members say</div>
                     {spot.memberLevel.label && <p className="text-[13.5px] text-[#5a6b72]"><span className="font-semibold">Level:</span> <span className="text-[#00374a] font-bold">{spot.memberLevel.label}</span> <span className="text-[#9aa6ac]">({spot.memberLevel.raters})</span></p>}
                     {spot.memberConditions.shares.length > 0 && <p className="text-[13.5px] text-[#5a6b72]"><span className="font-semibold">Conditions:</span> {spot.memberConditions.shares.map((s) => `${s.pct}% ${s.label.toLowerCase()}`).join(" · ")}</p>}
-                    {spot.memberInfra.shares.length > 0 && <p className="text-[13.5px] text-[#5a6b72]"><span className="font-semibold">On site:</span> {spot.memberInfra.shares.map((s) => `${s.tag} (${s.count})`).join(" · ")}</p>}
                   </div>
                 )}
 
                 {spot.wind_stats && (
-                  /* folded by default — the spot card stays scannable; one tap opens the full climatology */
-                  <details className="group/stats rounded-xl bg-white border border-[#f0e9da] [&_summary::-webkit-details-marker]:hidden">
-                    <summary className="flex items-center justify-between gap-3 p-4 cursor-pointer list-none select-none">
-                      <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac]">Wind statistics <span className="text-[#c6b89d]">· modeled</span></span>
-                      <svg className="w-4 h-4 text-[#c0ccd0] transition-transform group-open/stats:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-                    </summary>
-                    <div className="px-4 pb-4">
-                      <WindStatsChart stats={spot.wind_stats} />
-                      <p className="mt-2 text-[11.5px] text-[#9aa6ac] leading-snug">Modeled from Open-Meteo climatology at the pin — a guide, not measured on site.</p>
-                    </div>
-                  </details>
+                  /* folded by default — the spot card stays scannable; the row
+                     already answers "when is it windy here", one tap opens the
+                     full climatology behind that answer */
+                  <Foldout icon={FoldIconStats} label="Wind statistics" meta="Modeled"
+                    value={windStatsTeaser(spot.wind_stats) ?? undefined} accent={accent}>
+                    <WindStatsChart stats={spot.wind_stats} accent={accent} />
+                    <p className="mt-2 text-[11.5px] text-[#9aa6ac] leading-snug">Modeled from Open-Meteo climatology at the pin — a guide, not measured on site.</p>
+                  </Foldout>
                 )}
 
                 <ForecastPanel spotId={spot.id} np7Models={spot.np7_forecast_models} tally={spot.forecast} accent={accent} />
@@ -210,12 +209,7 @@ export function SpotsList({ spots: published, accent = "#00afdb", focus }: { spo
                   </div>
                 )}
 
-                {spot.infrastructure.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac] mr-1">On site</span>
-                    {spot.infrastructure.map((t) => <span key={t} className="text-[12px] font-semibold text-[#5a6b72] bg-[#f3ede0] rounded-full px-2.5 py-1">{t}</span>)}
-                  </div>
-                )}
+                <InfraPills spotId={spot.id} tags={spot.infrastructure} member={spot.memberInfra} accent={accent} />
 
                 {/* Contribute — the one clearly-separated input zone */}
                 <SpotContribute spotId={spot.id} accent={accent} np7Ratings={spot.np7_ratings} />

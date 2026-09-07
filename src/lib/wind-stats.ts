@@ -86,6 +86,49 @@ export function destinationWindFacts(stats: WindStats | null | undefined): { pro
   };
 }
 
+/** Longest contiguous run of windy months on the 12-month circle → "Jun–Sep".
+ *  Short labels — used by the chart's summary chip and by the folded card, so
+ *  both say the same thing about the same data. */
+export function windySeasonLabel(windy: number[]): string | null {
+  if (windy.length === 0) return null;
+  if (windy.length >= 11) return "Year-round";
+  const set = new Set(windy);
+  let bestStart = windy[0], bestLen = 0;
+  for (const s of windy) {
+    if (set.has((s - 2 + 12) % 12 + 1)) continue; // not a run start
+    let len = 0, cur = s;
+    while (set.has(cur)) { len++; cur = (cur % 12) + 1; }
+    if (len > bestLen) { bestLen = len; bestStart = s; }
+  }
+  const end = ((bestStart - 1 + bestLen - 1) % 12) + 1;
+  return bestLen === 1 ? MONTH_LABELS[bestStart - 1] : `${MONTH_LABELS[bestStart - 1]}–${MONTH_LABELS[end - 1]}`;
+}
+
+/** The single windiest month — most planing wind (4+ Bft, tie-break 3+). */
+export function windiestMonth(months: WindStatsMonth[]): number | null {
+  let best = -1, m: number | null = null;
+  for (const x of months) {
+    const score = (x.pct["4"] ?? 0) * 100 + (x.pct["3"] ?? 0);
+    if (score > best) { best = score; m = x.m; }
+  }
+  return m;
+}
+
+/** One line answering "when is it windy here?" — the payoff a rider gets from
+ *  the wind-statistics row while it is still folded shut. Falls back to the
+ *  windiest single month for spots that never clear the windy-month bar. */
+export function windStatsTeaser(stats: WindStats | null | undefined): string | null {
+  if (!stats?.months?.length) return null;
+  const season = windySeasonLabel(stats.summary?.windyMonths ?? []);
+  if (season) return season === "Year-round" ? "Windy year-round" : `Windy ${season}`;
+  const m = windiestMonth(stats.months);
+  if (m == null) return null;
+  const avg = stats.months.find((x) => x.m === m)?.avgWind;
+  return Number.isFinite(avg)
+    ? `Windiest ${MONTH_LABELS[m - 1]} · ${Math.round(avg as number)} kn`
+    : `Windiest ${MONTH_LABELS[m - 1]}`;
+}
+
 export type WindStatsMonth = {
   m: number;                       // 1–12
   pct: Record<string, number>;     // { "3": 83, "4": 58, … } — cumulative % ≥ that Bft

@@ -2,6 +2,7 @@
 
 import { forecastLabel, forecastModel, type ForecastTally } from "@/lib/spotguide";
 import { ForecastVoter } from "./raters";
+import { Foldout, FoldIconWind } from "./foldout";
 
 /**
  * "Best forecast here." NP7's recommended model(s) + the crowd vote rendered
@@ -15,20 +16,12 @@ export function ForecastPanel({ spotId, np7Models, tally, accent = "#00afdb" }: 
   // Folded by default (like the wind statistics): the summary line already
   // carries the answer — NP7's pick or the crowd favourite — so most riders
   // never need to open it; the vote UI is one tap away.
+  const voted = np7Models.length > 0 || tally.length > 0;
   const teaser = np7Models.length
     ? `NP7 rides ${np7Models.map((id) => forecastLabel(id)).join(" + ")}`
     : top ? `Riders trust ${top.label}` : "No votes yet — be the first";
   return (
-    <details className="group/fc rounded-xl bg-[#fdfaf3] border border-[#f0e9da] [&_summary::-webkit-details-marker]:hidden">
-      <summary className="flex items-center justify-between gap-3 p-4 cursor-pointer list-none select-none">
-        <span className="min-w-0 flex items-baseline gap-2.5 truncate">
-          <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.1em] text-[#9aa6ac]">Best forecast here</span>
-          <span className="truncate text-[12px] font-semibold text-[#6a7a80]">{teaser}</span>
-        </span>
-        <svg className="shrink-0 w-4 h-4 text-[#c0ccd0] transition-transform group-open/fc:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-      </summary>
-      <div className="px-4 pb-4">
-
+    <Foldout icon={FoldIconWind} label="Best forecast here" value={teaser} valueCta={!voted} accent={accent}>
       {np7Models.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 mb-3">
           <span className="text-[11px] font-black uppercase tracking-[0.12em] px-1.5 py-0.5 rounded" style={{ backgroundColor: `${accent}1a`, color: accent }}>NP7</span>
@@ -61,7 +54,6 @@ export function ForecastPanel({ spotId, np7Models, tally, accent = "#00afdb" }: 
 
       {/* vote right where the result shows — your pick is ticked, tap to change */}
       <ForecastVoter spotId={spotId} accent={accent} />
-      </div>
-    </details>
+    </Foldout>
   );
 }

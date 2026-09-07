@@ -331,9 +331,12 @@ export function infraTally(rows: { infrastructure?: string[] | null }[]): { shar
     raters++;
     for (const x of xs) counts[x] = (counts[x] ?? 0) + 1;
   }
-  const shares = (INFRASTRUCTURE_TAGS as readonly string[])
-    .map((t) => ({ tag: t, count: counts[t] ?? 0, pct: raters ? Math.round(((counts[t] ?? 0) / raters) * 100) : 0 }))
-    .filter((s) => s.count > 0).sort((a, b) => b.count - a.count);
+  // Every tag that was actually reported — NOT just the shared vocab. NP7 types
+  // free-form facilities in admin ("Hotel on site", "Café") and riders can
+  // confirm those chips too; filtering to the vocab dropped their votes.
+  const shares = Object.keys(counts)
+    .map((t) => ({ tag: t, count: counts[t], pct: raters ? Math.round((counts[t] / raters) * 100) : 0 }))
+    .filter((s) => s.count > 0).sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
   return { shares, raters };
 }
 

@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { AuthModal } from "@/components/shared/auth-modal";
 import { hasAuthCookie } from "@/lib/has-auth-cookie";
-import type { RatingSummary, ForecastTally } from "@/lib/spotguide";
+import type { RatingSummary, ForecastTally, InfraShare } from "@/lib/spotguide";
 import type { PublicSpot } from "@/lib/spotguide-data";
 
 export type SpotFacts = { ratings: Record<string, number>; levels: string[]; conditions: string[]; infrastructure: string[]; wind_window: Record<string, string> };
@@ -20,6 +20,8 @@ type Ctx = {
   needAuth: (mode?: "login" | "register") => void;
   saveSpot: (spotId: string, facts: SpotFacts) => Promise<boolean>;
   voteForecast: (spotId: string, model: string) => Promise<ForecastTally[] | null>;
+  /** One-tap confirm of a single on-site facility. Returns the fresh tally. */
+  toggleInfra: (spotId: string, tag: string) => Promise<{ shares: InfraShare[]; raters: number } | null>;
   saveDest: (ratings: Record<string, number>) => Promise<RatingSummary | null>;
 };
 
@@ -82,6 +84,12 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
     setMineSpots((m) => ({ ...m, [spotId]: { ...m[spotId], model: j.mine } }));
     return j.tally as ForecastTally[];
   };
+  const toggleInfra = async (spotId: string, tag: string) => {
+    const j = await post("/api/portal/spotguide/infra", { spotId, tag });
+    if (!j) return null;
+    setMineSpots((m) => ({ ...m, [spotId]: { ...m[spotId], infrastructure: j.mine as string[] } }));
+    return j.tally as { shares: InfraShare[]; raters: number };
+  };
   const saveDest = async (ratings: Record<string, number>) => {
     const j = await post("/api/portal/spotguide/rate", { target: "destination", id: destId, ratings });
     if (!j) return null;
@@ -93,7 +101,7 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
   };
 
   return (
-    <SpotguideCtx.Provider value={{ loggedIn, mineDest, mineSpot: (id) => mineSpots[id], pendingSpots, needAuth, saveSpot, voteForecast, saveDest }}>
+    <SpotguideCtx.Provider value={{ loggedIn, mineDest, mineSpot: (id) => mineSpots[id], pendingSpots, needAuth, saveSpot, voteForecast, toggleInfra, saveDest }}>
       {children}
       {auth && (
         <AuthModal
