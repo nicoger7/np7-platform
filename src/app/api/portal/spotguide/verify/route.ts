@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
-  const { data: spot } = await db.from("spots").select("id, destination_id, submitted_by, verification, source").eq("id", spotId).maybeSingle();
+  const { data: spot } = await db.from("spots").select("id, destination_id, submitted_by, verification, source, auto_review").eq("id", spotId).maybeSingle();
   if (!spot) return NextResponse.json({ error: "Spot not found." }, { status: 404 });
   if (spot.submitted_by === user.contactId) return NextResponse.json({ error: "You can't verify your own spot." }, { status: 403 });
 
@@ -73,6 +73,27 @@ export async function POST(request: NextRequest) {
       await publishDestinationIfEarned(db, spot.destination_id); // rider place goes live off its first verified spot
 
     }
+  } else if (kind === "flag" && spot.auto_review && spot.verification === "community") {
+    /*
+     * ONE FLAG UNDOES A MACHINE.
+     *
+     * This branch used to require verification === "pending", which meant an
+     * auto-published spot could not be flagged down at all: the automatic
+     * decision outranked every rider who looked at it afterwards. Publishing was
+     * automatic, so un-publishing is too, and it takes one person rather than
+     * three, because the cost of being wrong here is only the wait the spot
+     * would have had anyway.
+     *
+     * Back to pending, not hidden. It rejoins the normal ladder and three riders
+     * can still carry it. What does not come back is this member's ability to
+     * auto-publish again: G5 counts reversed rows, forever.
+     */
+    await db.from("spots").update({ verification: "pending", updated_at: new Date().toISOString() }).eq("id", spotId);
+    verification = "pending";
+    await db.from("spot_auto_publish")
+      .update({ reversed_at: new Date().toISOString(), reversed_by: user.contactId, reason: note })
+      .eq("spot_id", spotId).is("reversed_at", null)
+      .then(() => {}, () => {});
   } else if (kind === "flag" && spot.verification === "pending") {
     // Enough members say it's wrong → pull it from the public queue for NP7 review
     // (mirrors photo moderation). It's not deleted — admin decides.
