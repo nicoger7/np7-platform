@@ -12,6 +12,7 @@ const BK_PRIORITY: Record<string, number> = {
 };
 import { PackageComponentsEditor } from "@/components/package-components-editor";
 import { EditionMemoriesUploader } from "@/components/edition-memories-uploader";
+import { MarketingReleasePanel } from "@/components/admin/marketing-release-panel";
 import { ContactPicker, ContactLite } from "@/components/contact-picker";
 import { EditionCrewLevels } from "@/components/admin/edition-crew-levels";
 import { BookingDetailPane } from "../../bookings/[id]/page";
@@ -78,6 +79,10 @@ const EDITION_BK_COLUMNS: { key: string; label: string; width: string; always?: 
   // Off by default: only wanted when you're ordering shirts, but then you want
   // it on the overview rather than opening 19 bookings one at a time.
   { key: "tshirt", label: "T-shirt", width: "80px", off: true },
+  // Off by default like the shirt column: only wanted when you are choosing
+  // photos for a campaign, and then you want it for the whole week at once
+  // rather than opening every booking.
+  { key: "ads", label: "Ads OK", width: "70px", off: true },
   { key: "price", label: "Price", width: "90px" },
   { key: "paid", label: "Paid", width: "60px" },
 ];
@@ -195,6 +200,9 @@ interface Booking {
   notes?: string | null;
   downpayment_received: boolean;
   final_payment_received: boolean;
+  /** Migration 232: this guest allowed NP7 to use their likeness publicly.
+      Generated in the database from the consent dates, never written directly. */
+  may_use_in_marketing?: boolean;
   /** derived from the ledger by the API — the ✓ / ½ / — indicator */
   paid_state?: "none" | "part" | "full";
   total_paid?: number;
@@ -745,6 +753,7 @@ export default function EditionDetailPage({
 
   useEffect(() => {
     if (tab === "bookings") { loadBookings(); loadPackages(); }
+    if (tab === "memories") loadBookings(); // the release panel needs them
     if (tab === "arrivals") { loadBookings(); loadRooms(); }
     if (tab === "packages") { loadPackages(); loadBookings(); loadCapacity(); }
     if (tab === "costs") { loadCosts(); loadPnl(); }
@@ -2035,6 +2044,13 @@ export default function EditionDetailPage({
                   {bkShow("dep_time") && <span className="text-xs admin-muted self-center">{bkFlight(b).departureTime || "—"}</span>}
                   {bkShow("dep_flight") && <span className="text-xs admin-muted self-center font-mono truncate">{bkFlight(b).arrivalMode === "own" ? "own way" : (bkFlight(b).departureFlightNo || "—")}</span>}
                   {bkShow("tshirt") && <span className="text-xs admin-muted self-center">{b.contact?.tshirt_size || "—"}</span>}
+                  {bkShow("ads") && (
+                    <span className="self-center">
+                      {b.may_use_in_marketing
+                        ? <span className="text-green-400 text-xs font-medium" title="This guest agreed that NP7 may use their likeness on the site, on social and in paid ads.">✓</span>
+                        : <span className="admin-faint text-xs" title="No permission on file. Their face must not go into an ad.">—</span>}
+                    </span>
+                  )}
                   <span className="text-xs admin-muted self-center">
                     {b.agreed_price ? `€${Number(b.agreed_price).toLocaleString()}` : "—"}
                   </span>
@@ -2298,7 +2314,10 @@ export default function EditionDetailPage({
 
       {/* ── Memories tab ── */}
       {tab === "memories" && (
+        <>
+        <MarketingReleasePanel bookings={bookings} />
         <EditionMemoriesUploader editionId={id} initialVideoUrl={edition.memories_video_url} />
+        </>
       )}
 
       {/* ── Costs tab ── */}
