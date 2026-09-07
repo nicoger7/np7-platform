@@ -781,6 +781,18 @@ export async function getBookingPhotoSharing(bookingId: string): Promise<boolean
   return data.photos_shared !== false;
 }
 
+/** Has this guest allowed NP7 to use their likeness publicly (site, social, ads)?
+    Opt-in, so every uncertainty resolves to NO: missing column, missing row, read
+    error. The sharing flag above may default to true because the worst case is a
+    photo the crew sees; here the worst case is a stranger's face in a paid ad. */
+export async function getBookingMarketingConsent(bookingId: string): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data, error } = await db.from("exp_bookings").select("may_use_in_marketing").eq("id", bookingId).maybeSingle();
+  if (error || !data) return false;
+  return data.may_use_in_marketing === true;
+}
+
 /** The full trip gallery as seen by ONE participant (viewerBookingId), in display order:
     1) the viewer's OWN personal photos (always on top),
     2) the week's shared "Everyone" photos,

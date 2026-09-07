@@ -3,7 +3,8 @@ import { defaultCancellationPolicy } from "@/lib/cancellation-policy";
 import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
-import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing, getBookingPaid, getBookingHotel, getBookingStay, getEditionCoaches, getMemoryDownloadsRemaining, getVideoDownloadsRemaining, getBookingHasReview, getBookingVoucherCredit, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent, getGuidesForBooking } from "@/lib/portal-data";
+import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing,
+  getBookingMarketingConsent, getBookingPaid, getBookingHotel, getBookingStay, getEditionCoaches, getMemoryDownloadsRemaining, getVideoDownloadsRemaining, getBookingHasReview, getBookingVoucherCredit, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent, getGuidesForBooking } from "@/lib/portal-data";
 import { bookingStatus, fmtDates, money, isSecured } from "@/lib/portal-status";
 import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
@@ -12,6 +13,7 @@ import { MemberDocuments } from "@/components/portal/member-documents";
 import { MemberGallery } from "@/components/portal/member-gallery";
 import { TripVideoGrid } from "@/components/portal/trip-video-grid";
 import { PhotoSharingToggle } from "@/components/portal/photo-sharing-toggle";
+import { MarketingConsentToggle } from "@/components/portal/marketing-consent-toggle";
 import { TripAddons } from "@/components/portal/trip-addons";
 import { PaymentPlan } from "@/components/portal/payment-plan";
 import { TripView, type TripTab, type TripTile } from "@/components/portal/trip-view";
@@ -44,7 +46,7 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const [galleryGroups, paid, hotel, stay, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, preTrip, tripVideos, guides, videoDownloadsRemaining, hasReview, voucherCredit] = await Promise.all([
+  const [galleryGroups, paid, hotel, stay, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, marketingConsent, preTrip, tripVideos, guides, videoDownloadsRemaining, hasReview, voucherCredit] = await Promise.all([
     b.edition?.id ? getTripGalleryGroupsForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getBookingPaid(b.id).catch(() => 0),
     getBookingHotel(b.id).catch(() => null),
@@ -56,6 +58,7 @@ export default async function BookingDetail({ params }: Props) {
     b.experience_id ? getExperienceArrivalInfo(b.experience_id).catch(() => null) : Promise.resolve(null),
     b.edition?.id ? getCrewProfiles(b.edition.id, user.contactId).catch(() => ({ going: 0, sharing: 0, profiles: [] })) : Promise.resolve({ going: 0, sharing: 0, profiles: [] }),
     getBookingPhotoSharing(b.id).catch(() => true),
+    getBookingMarketingConsent(b.id).catch(() => false),
     b.experience_id
       ? getPreTripContent(b.experience_id, b.edition?.id ?? null).catch(() => ({ packingList: null, preTripNote: null, program: [] }))
       : Promise.resolve({ packingList: null, preTripNote: null, program: [] }),
@@ -191,6 +194,9 @@ export default async function BookingDetail({ params }: Props) {
       {(photoCount > 0 || tripVideos.length > 0) && (
         <div className="mt-3">
           <PhotoSharingToggle bookingId={b.id} initialShared={photosShared} />
+          <div className="mt-2">
+            <MarketingConsentToggle bookingId={b.id} initialAllowed={marketingConsent} />
+          </div>
         </div>
       )}
     </>
