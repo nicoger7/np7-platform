@@ -8,7 +8,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminGate } from "@/lib/admin-auth";
-import { qontoTransactions, qontoConfigured } from "@/lib/bank/qonto";
+import { jibeTransactions, jibeConfigured } from "@/lib/bank/jibe";
 import { stripeCharges, stripeConfigured } from "@/lib/bank/stripe-feed";
 import { importTransactions, reconcileWithExistingPayments, autoMatchPending } from "@/lib/bank/store";
 import type { SyncResult } from "@/lib/bank/types";
@@ -28,10 +28,12 @@ export async function POST(request: NextRequest) {
 
   const results: SyncResult[] = [];
 
-  if (!only || only === "qonto") {
-    const r: SyncResult = { source: "qonto", fetched: 0, inserted: 0, updated: 0, autoMatched: 0, reconciledExisting: 0, errors: [], configured: qontoConfigured() };
+  if (!only || only === "bank") {
+    // The bank side comes from jibe, which owns the Qonto key. Rows arrive
+    // already deduped by jibe's tx_hash, which we keep as our external_id.
+    const r: SyncResult = { source: "qonto", fetched: 0, inserted: 0, updated: 0, autoMatched: 0, reconciledExisting: 0, errors: [], configured: jibeConfigured() };
     if (r.configured) {
-      const { ok, transactions, error } = await qontoTransactions(since);
+      const { ok, transactions, error } = await jibeTransactions(since);
       r.fetched = transactions.length;
       if (!ok && error) r.errors.push(error);
       if (transactions.length) {
@@ -39,7 +41,7 @@ export async function POST(request: NextRequest) {
         r.inserted = imp.inserted; r.updated = imp.updated; r.errors.push(...imp.errors);
       }
     } else {
-      r.errors.push("QONTO_API_LOGIN / QONTO_API_SECRET are not set.");
+      r.errors.push("JIBE_BASE_URL / JIBE_BRIDGE_TOKEN are not set.");
     }
     results.push(r);
   }

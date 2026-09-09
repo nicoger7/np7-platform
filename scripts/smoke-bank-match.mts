@@ -9,6 +9,7 @@
  *   npx tsx --tsconfig tsconfig.json scripts/smoke-bank-match.mts
  */
 import { suggestForTransaction, autoMatchable, type MatchCandidate, type MatchInput } from "@/lib/bank/match";
+import { normaliseBridgeRow, type BridgeRow } from "@/lib/bank/jibe";
 
 let failed = 0;
 const check = (name: string, ok: boolean, note = "") => {
@@ -121,6 +122,41 @@ const tx = (over: Partial<MatchInput>): MatchInput => ({
   const m = suggestForTransaction(tx({ amount: 750, currency: "USD", reference: "" }), [eur, usd]);
   const eurHit = m.find((s) => s.candidate.documentId === eur.documentId);
   check("paying in the wrong currency is penalised", !eurHit || eurHit.reasons.some((r) => r.includes("came in")));
+}
+
+/* ── 11. The jibe bridge mapping. ──────────────────────────────────────────── */
+const bridge = (over: Partial<BridgeRow> = {}): BridgeRow => ({
+  booking_date: "2026-08-31", value_date: "2026-08-30", amount_cents: 376500, currency: "EUR",
+  counterparty: "David Koehler", counterparty_iban: "DE02120300000000202051",
+  purpose: "NP7-XP-2026-0184", booking_type: "transfer", category: null,
+  match_status: "unmatched", tx_hash: "qonto:tx_9f21", side: "credit", ...over,
+});
+
+{
+  const n = normaliseBridgeRow(bridge())!;
+  check("bridge row keeps jibe's hash as the identity", n.externalId === "qonto:tx_9f21");
+  check("cents become a signed euro amount", n.amount === 3765, String(n.amount));
+  check("the Verwendungszweck lands in reference", n.reference === "NP7-XP-2026-0184");
+  check("an API row is sourced 'qonto'", n.source === "qonto");
+  check("a credit is income", n.kind === "income");
+}
+{
+  const n = normaliseBridgeRow(bridge({ amount_cents: -84000, side: "debit", counterparty: "Sorobon Beach Resort", purpose: "Invoice 4471" }))!;
+  check("a debit is money out and stays negative", n.amount === -840 && n.kind === "expense", String(n.amount));
+}
+{
+  // THE trap: the same card money, arriving a second time as one net credit.
+  const n = normaliseBridgeRow(bridge({ counterparty: "STRIPE PAYMENTS EUROPE LTD", purpose: "STRIPE PAYOUT", amount_cents: 219000 }))!;
+  check("a Stripe payout is never income", n.kind === "payout",
+    "otherwise the whole card volume would count twice");
+}
+{
+  const n = normaliseBridgeRow(bridge({ tx_hash: "a3f9c1e2b4d5", counterparty: "Qonto", purpose: "Qonto Abo", amount_cents: -1900, side: "debit" }))!;
+  check("a CSV-imported row is sourced 'csv'", n.source === "csv");
+  check("the account fee is a fee", n.kind === "fee");
+}
+{
+  check("a row without a hash is dropped", normaliseBridgeRow(bridge({ tx_hash: "" })) === null);
 }
 
 console.log(failed ? `\n${failed} check(s) FAILED` : "\nall checks passed");

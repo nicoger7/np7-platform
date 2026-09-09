@@ -94,7 +94,7 @@ export default function BankPage() {
   const [txs, setTxs] = useState<Tx[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
-  const [sources, setSources] = useState<{ qonto: boolean; stripe: boolean }>({ qonto: false, stripe: false });
+  const [sources, setSources] = useState<{ bank: boolean; stripe: boolean }>({ bank: false, stripe: false });
   const [view, setView] = useState<string>("unmatched");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -114,7 +114,7 @@ export default function BankPage() {
       setTxs(json.transactions ?? []);
       setCandidates(json.candidates ?? []);
       setTotals(json.totals ?? null);
-      setSources(json.sources ?? { qonto: false, stripe: false });
+      setSources(json.sources ?? { bank: false, stripe: false });
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -176,7 +176,7 @@ export default function BankPage() {
     return list.slice(0, 40);
   }, [candidates, pickerQuery]);
 
-  const noSources = !sources.qonto && !sources.stripe;
+  const noSources = !sources.bank && !sources.stripe;
 
   return (
     <div className="fin">
@@ -184,7 +184,7 @@ export default function BankPage() {
         <div>
           <h1 className="fin-hero mb-1">Bank</h1>
           <p className="fin-sub">
-            Real movements from Qonto and Stripe · {totals?.transactions ?? 0} transaction{totals?.transactions === 1 ? "" : "s"}
+            Real movements · bank via jibe, cards from Stripe · {totals?.transactions ?? 0} transaction{totals?.transactions === 1 ? "" : "s"}
           </p>
         </div>
         <button
@@ -200,11 +200,12 @@ export default function BankPage() {
         <div className="fin-card mb-5" style={{ borderColor: "rgba(245,158,11,.4)" }}>
           <div className="fin-label mb-1.5 text-amber-500">No source connected yet</div>
           <p className="text-sm admin-muted leading-relaxed">
-            Set <code className="px-1 rounded bg-black/5">QONTO_API_LOGIN</code> and{" "}
-            <code className="px-1 rounded bg-black/5">QONTO_API_SECRET</code> (Qonto → Settings →
-            Integrations → API), and <code className="px-1 rounded bg-black/5">STRIPE_SECRET_KEY</code>{" "}
-            for the card payments. Everything on this page works the moment they are there —
-            nothing else needs changing.
+            The bank feed comes from <strong>jibe</strong>, the NP7 Windsurfing admin, which already
+            syncs Qonto and keeps the API key. Set{" "}
+            <code className="px-1 rounded bg-black/5">JIBE_BASE_URL</code> and{" "}
+            <code className="px-1 rounded bg-black/5">JIBE_BRIDGE_TOKEN</code> (the same token jibe
+            has), plus <code className="px-1 rounded bg-black/5">STRIPE_SECRET_KEY</code> for the card
+            payments. Everything on this page works the moment they are there.
           </p>
         </div>
       )}
