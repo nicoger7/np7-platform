@@ -131,6 +131,10 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       label: "FINANCE",
       items: [
         { label: "Invoices", href: "/admin/documents", icon: "file" },
+        /* Bank sits between the bill and the booked payment because that is
+           where it belongs: it is the only one of the three that is a fact
+           rather than something we wrote down. */
+        { label: "Bank", href: "/admin/bank", icon: "bank" },
         { label: "Payments", href: "/admin/payments", icon: "receipt" },
         { label: "Experience Costs", href: "/admin/exp-costs", icon: "chartline" },
         { label: "Gift Vouchers", href: "/admin/vouchers", icon: "gift" },
@@ -349,6 +353,13 @@ const icons: Record<string, React.ReactNode> = {
       <path d="M2 8h18a2 2 0 012 2v10" />
       <path d="M2 17h20" />
       <path d="M6 8v9" />
+    </svg>
+  ),
+  bank: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 10 12 4l9 6" />
+      <path d="M4 10v8" /><path d="M9 10v8" /><path d="M15 10v8" /><path d="M20 10v8" />
+      <path d="M2 21h20" />
     </svg>
   ),
   receipt: (
