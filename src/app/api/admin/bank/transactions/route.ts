@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminGate } from "@/lib/admin-auth";
 import { createClient } from "@supabase/supabase-js";
 import { loadCandidates, withSuggestions } from "@/lib/bank/store";
-import { jibeConfigured } from "@/lib/bank/jibe";
+import { adminBridgeConfigured } from "@/lib/bank/admin-bridge";
 import { stripeConfigured } from "@/lib/bank/stripe-feed";
 import type { BankTransactionRow } from "@/lib/bank/types";
 
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     transactions: withSuggestions(rows, candidates),
     totals,
-    sources: { bank: jibeConfigured(), stripe: stripeConfigured() },
+    sources: { bank: adminBridgeConfigured(), stripe: stripeConfigured() },
     // The manual picker searches this list — every invoice still owed money.
     candidates: candidates.map((c) => ({
       documentId: c.documentId,

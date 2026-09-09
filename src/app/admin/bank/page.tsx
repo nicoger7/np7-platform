@@ -137,8 +137,6 @@ export default function BankPage() {
       if (!res.ok) throw new Error(json.error || "Sync failed.");
       const parts = (json.results ?? []).map((r: { source: string; fetched: number; inserted: number; configured: boolean; errors: string[] }) =>
         r.configured ? `${r.source}: ${r.inserted} new of ${r.fetched}` : `${r.source}: not configured`);
-      if (json.reconciledExisting) parts.push(`${json.reconciledExisting} tied to payments already booked`);
-      if (json.autoMatched) parts.push(`${json.autoMatched} matched automatically`);
       setNote(parts.join(" · "));
       const errs = (json.results ?? []).flatMap((r: { errors: string[] }) => r.errors);
       if (errs.length) setError(errs.join(" · "));
@@ -184,7 +182,7 @@ export default function BankPage() {
         <div>
           <h1 className="fin-hero mb-1">Bank</h1>
           <p className="fin-sub">
-            Real movements · bank via jibe, cards from Stripe · {totals?.transactions ?? 0} transaction{totals?.transactions === 1 ? "" : "s"}
+            Real movements from the bank and from Stripe · {totals?.transactions ?? 0} transaction{totals?.transactions === 1 ? "" : "s"}
           </p>
         </div>
         <button
@@ -200,9 +198,9 @@ export default function BankPage() {
         <div className="fin-card mb-5" style={{ borderColor: "rgba(245,158,11,.4)" }}>
           <div className="fin-label mb-1.5 text-amber-500">No source connected yet</div>
           <p className="text-sm admin-muted leading-relaxed">
-            The bank feed comes from <strong>jibe</strong>, the NP7 Windsurfing admin, which already
-            syncs Qonto and keeps the API key. Set{" "}
-            <code className="px-1 rounded bg-black/5">JIBE_BASE_URL</code> and{" "}
+            The bank feed comes from the <strong>NP7 Windsurfing admin</strong>{" "}
+            (admin.nicoprien.com), which already syncs Qonto and keeps the API key. Set{" "}
+            <code className="px-1 rounded bg-black/5">NP7_ADMIN_BASE_URL</code> and{" "}
             <code className="px-1 rounded bg-black/5">JIBE_BRIDGE_TOKEN</code> (the same token jibe
             has), plus <code className="px-1 rounded bg-black/5">STRIPE_SECRET_KEY</code> for the card
             payments. Everything on this page works the moment they are there.

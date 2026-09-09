@@ -9,7 +9,7 @@
  *   npx tsx --tsconfig tsconfig.json scripts/smoke-bank-match.mts
  */
 import { suggestForTransaction, autoMatchable, type MatchCandidate, type MatchInput } from "@/lib/bank/match";
-import { normaliseBridgeRow, type BridgeRow } from "@/lib/bank/jibe";
+import { normaliseBridgeRow, type BridgeRow } from "@/lib/bank/admin-bridge";
 
 let failed = 0;
 const check = (name: string, ok: boolean, note = "") => {
@@ -142,7 +142,7 @@ const tx = (over: Partial<MatchInput>): MatchInput => ({
   check("paying in the wrong currency is penalised", !eurHit || eurHit.reasons.some((r) => r.includes("came in")));
 }
 
-/* ── 11. The jibe bridge mapping. ──────────────────────────────────────────── */
+/* ── 11. The admin bridge mapping. ─────────────────────────────────────────── */
 const bridge = (over: Partial<BridgeRow> = {}): BridgeRow => ({
   booking_date: "2026-08-31", value_date: "2026-08-30", amount_cents: 376500, currency: "EUR",
   counterparty: "David Koehler", counterparty_iban: "DE02120300000000202051",
@@ -152,7 +152,7 @@ const bridge = (over: Partial<BridgeRow> = {}): BridgeRow => ({
 
 {
   const n = normaliseBridgeRow(bridge())!;
-  check("bridge row keeps jibe's hash as the identity", n.externalId === "qonto:tx_9f21");
+  check("bridge row keeps the admin's hash as the identity", n.externalId === "qonto:tx_9f21");
   check("cents become a signed euro amount", n.amount === 3765, String(n.amount));
   check("the Verwendungszweck lands in reference", n.reference === "NP7-XP-2026-0184");
   check("an API row is sourced 'qonto'", n.source === "qonto");

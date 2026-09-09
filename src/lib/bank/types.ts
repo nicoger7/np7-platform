@@ -78,10 +78,6 @@ export type SyncResult = {
   /** Rows that were new to us. The rest were already here — re-syncing is safe. */
   inserted: number;
   updated: number;
-  /** Auto-matched to an invoice without anyone deciding. */
-  autoMatched: number;
-  /** Tied back to a payment that was already in the books by hand. */
-  reconciledExisting: number;
   errors: string[];
   configured: boolean;
 };

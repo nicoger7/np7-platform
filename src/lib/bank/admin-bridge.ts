@@ -1,33 +1,39 @@
 /**
- * The bank feed comes from jibe (the NP7 Windsurfing admin), not from Qonto.
+ * The bank feed comes from the NP7 Windsurfing admin, not from Qonto.
  *
- * That system already syncs the Qonto account — it holds the API key, it runs
- * the daily cron, it files the supplier receipts into lexoffice, and it has a
+ * That app (repo "NP7 Windsurfing", live at admin.nicoprien.com, its own
+ * Supabase project) already syncs the Qonto account: it holds the API key, it
+ * runs the daily cron, it files supplier receipts into lexoffice, and it has a
  * CSV importer covering seven German bank formats for anything the API misses.
- * It exposes the finished rows at /api/jibe/bank-transactions specifically for
- * this platform, and says why in its own header: *"Der Qonto-Schluessel bleibt
- * allein im Admin; die Platform holt sich hier die fertig synchronisierten
- * Buchungen mit dem Bridge-Token ab."*
+ * It exposes the finished rows for this platform and says why in its own
+ * header: *"Der Qonto-Schluessel bleibt allein im Admin; die Platform holt
+ * sich hier die fertig synchronisierten Buchungen mit dem Bridge-Token ab."*
  *
  * So the platform does NOT talk to Qonto. Two systems polling one bank account
  * into two databases would be two versions of the truth, with no way to tell
  * which had missed a day — and the whole point of this ledger is that it is the
  * side that cannot drift. One sync, one source, read across.
  *
- * jibe owns money going OUT (supplier invoices, receipts, lexoffice vouchers).
- * This platform owns money coming IN (which guest paid which invoice). Same
- * transactions, opposite questions, and only the credits matter here.
+ * That admin owns money going OUT (supplier invoices, receipts, lexoffice
+ * vouchers). This platform owns money coming IN (which guest paid which
+ * invoice). Same transactions, opposite questions; only the credits matter here.
  *
- * Env: JIBE_BASE_URL + JIBE_BRIDGE_TOKEN.
+ * ⚠ The route is /api/jibe/bank-transactions and the secret is
+ * JIBE_BRIDGE_TOKEN, but **jibe is not that app** — jibe is Nico's OpenClaw
+ * agent, and that namespace is simply where the endpoints it consumes live.
+ * The token name is kept verbatim because it is the same secret on both sides;
+ * only the URL variable is ours to name.
+ *
+ * Env: NP7_ADMIN_BASE_URL + JIBE_BRIDGE_TOKEN.
  */
 import type { BankKind, NormalisedTransaction } from "./types";
 
-export function jibeConfigured(): boolean {
-  return !!(process.env.JIBE_BASE_URL && process.env.JIBE_BRIDGE_TOKEN);
+export function adminBridgeConfigured(): boolean {
+  return !!(process.env.NP7_ADMIN_BASE_URL && process.env.JIBE_BRIDGE_TOKEN);
 }
 
 /** One row exactly as the bridge serves it. Deliberately no `raw` and no
- *  balance — jibe keeps the full Qonto payload and the account state. */
+ *  balance — the admin keeps the full Qonto payload and the account state. */
 export type BridgeRow = {
   booking_date: string;
   value_date: string | null;
@@ -67,14 +73,14 @@ function classify(row: BridgeRow): BankKind {
 export function normaliseBridgeRow(row: BridgeRow): NormalisedTransaction | null {
   if (!row.tx_hash || !row.booking_date) return null;
   return {
-    // jibe's hash carries its origin: "qonto:<transaction_id>" for API rows,
-    // a content hash for anything imported from a CSV there.
+    // The admin's hash carries its origin: "qonto:<transaction_id>" for API
+    // rows, a content hash for anything imported from a CSV there.
     source: row.tx_hash.startsWith("qonto:") ? "qonto" : "csv",
     // The hash IS the identity, on both sides. Our unique index on
-    // (source, external_id) therefore inherits jibe's idempotency for free:
+    // (source, external_id) therefore inherits the admin's idempotency for free:
     // re-reading the bridge can never produce a second copy of a movement.
     externalId: row.tx_hash,
-    // jibe does not say which of its accounts a row came from, and NP7
+    // The bridge does not say which account a row came from, and NP7
     // Experience has one. Left null rather than invented.
     accountRef: null,
     bookedOn: row.booking_date,
@@ -84,8 +90,8 @@ export function normaliseBridgeRow(row: BridgeRow): NormalisedTransaction | null
     currency: (row.currency || "EUR").toUpperCase(),
     counterparty: row.counterparty,
     counterpartyIban: row.counterparty_iban,
-    // jibe's `purpose` is the Verwendungszweck — the field the guest types the
-    // invoice number into, and the reason any of this works.
+    // `purpose` is the Verwendungszweck — the field the guest types the invoice
+    // number into, and the reason any of this works.
     reference: row.purpose,
     label: row.booking_type,
     status: "completed",
@@ -94,15 +100,15 @@ export function normaliseBridgeRow(row: BridgeRow): NormalisedTransaction | null
   };
 }
 
-/** Every transaction jibe knows about since `since`, paged out. */
-export async function jibeTransactions(
+/** Every transaction the admin knows about since `since`, paged out. */
+export async function adminBridgeTransactions(
   since: string,
   maxPages = 40
 ): Promise<{ ok: boolean; transactions: NormalisedTransaction[]; error?: string }> {
-  if (!jibeConfigured()) {
-    return { ok: false, transactions: [], error: "JIBE_BASE_URL / JIBE_BRIDGE_TOKEN are not set." };
+  if (!adminBridgeConfigured()) {
+    return { ok: false, transactions: [], error: "NP7_ADMIN_BASE_URL / JIBE_BRIDGE_TOKEN are not set." };
   }
-  const base = String(process.env.JIBE_BASE_URL).replace(/\/+$/, "");
+  const base = String(process.env.NP7_ADMIN_BASE_URL).replace(/\/+$/, "");
   const out: NormalisedTransaction[] = [];
   let offset = 0;
 
@@ -115,7 +121,7 @@ export async function jibeTransactions(
         cache: "no-store",
       });
     } catch (e) {
-      return { ok: false, transactions: out, error: `Could not reach jibe at ${base}: ${e instanceof Error ? e.message : e}` };
+      return { ok: false, transactions: out, error: `Could not reach the NP7 Windsurfing admin at ${base}: ${e instanceof Error ? e.message : e}` };
     }
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -123,8 +129,8 @@ export async function jibeTransactions(
         ok: false,
         transactions: out,
         error: res.status === 401
-          ? "jibe rejected the bridge token — JIBE_BRIDGE_TOKEN must match the one set in the NP7 Windsurfing admin."
-          : `jibe returned ${res.status}: ${body.slice(0, 160)}`,
+          ? "The admin rejected the bridge token — JIBE_BRIDGE_TOKEN must match the one set in the NP7 Windsurfing admin."
+          : `The admin returned ${res.status}: ${body.slice(0, 160)}`,
       };
     }
     const json = (await res.json().catch(() => ({}))) as {

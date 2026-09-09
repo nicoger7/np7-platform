@@ -1,16 +1,18 @@
 /**
- * POST /api/admin/bank/sync — pull from Qonto and Stripe, then match what is
- * certain.
+ * POST /api/admin/bank/sync — fetch the bank and card movements.
  *
- * Safe to run as often as anyone likes: the unique index on
- * (source, external_id) makes a repeat import a no-op, and auto-matching only
- * books what the matcher is certain about.
+ * IMPORT ONLY. Nothing is booked, no payment row is written, no invoice is
+ * touched: this call makes the ledger show what the bank did, and every match
+ * stays a human click on the page.
+ *
+ * Safe to run as often as anyone likes — the unique index on
+ * (source, external_id) makes a repeat a no-op.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminGate } from "@/lib/admin-auth";
-import { jibeTransactions, jibeConfigured } from "@/lib/bank/jibe";
+import { adminBridgeTransactions, adminBridgeConfigured } from "@/lib/bank/admin-bridge";
 import { stripeCharges, stripeConfigured } from "@/lib/bank/stripe-feed";
-import { importTransactions, reconcileWithExistingPayments, autoMatchPending } from "@/lib/bank/store";
+import { importTransactions } from "@/lib/bank/store";
 import type { SyncResult } from "@/lib/bank/types";
 
 export const maxDuration = 300;
@@ -29,11 +31,11 @@ export async function POST(request: NextRequest) {
   const results: SyncResult[] = [];
 
   if (!only || only === "bank") {
-    // The bank side comes from jibe, which owns the Qonto key. Rows arrive
-    // already deduped by jibe's tx_hash, which we keep as our external_id.
-    const r: SyncResult = { source: "qonto", fetched: 0, inserted: 0, updated: 0, autoMatched: 0, reconciledExisting: 0, errors: [], configured: jibeConfigured() };
+    // The bank side comes from the NP7 Windsurfing admin, which owns the Qonto
+    // key. Rows arrive already deduped by its tx_hash, kept as our external_id.
+    const r: SyncResult = { source: "qonto", fetched: 0, inserted: 0, updated: 0, errors: [], configured: adminBridgeConfigured() };
     if (r.configured) {
-      const { ok, transactions, error } = await jibeTransactions(since);
+      const { ok, transactions, error } = await adminBridgeTransactions(since);
       r.fetched = transactions.length;
       if (!ok && error) r.errors.push(error);
       if (transactions.length) {
@@ -41,13 +43,13 @@ export async function POST(request: NextRequest) {
         r.inserted = imp.inserted; r.updated = imp.updated; r.errors.push(...imp.errors);
       }
     } else {
-      r.errors.push("JIBE_BASE_URL / JIBE_BRIDGE_TOKEN are not set.");
+      r.errors.push("NP7_ADMIN_BASE_URL / JIBE_BRIDGE_TOKEN are not set.");
     }
     results.push(r);
   }
 
   if (!only || only === "stripe") {
-    const r: SyncResult = { source: "stripe", fetched: 0, inserted: 0, updated: 0, autoMatched: 0, reconciledExisting: 0, errors: [], configured: stripeConfigured() };
+    const r: SyncResult = { source: "stripe", fetched: 0, inserted: 0, updated: 0, errors: [], configured: stripeConfigured() };
     if (r.configured) {
       const { ok, transactions, error } = await stripeCharges(since);
       r.fetched = transactions.length;
@@ -62,15 +64,15 @@ export async function POST(request: NextRequest) {
     results.push(r);
   }
 
-  // Tie new rows to payments that were already entered by hand BEFORE matching
-  // fresh ones, so the import never writes a second copy of money we booked.
-  const { linked } = await reconcileWithExistingPayments();
-  const { matched, considered } = await autoMatchPending();
-
-  return NextResponse.json({
-    results,
-    reconciledExisting: linked,
-    autoMatched: matched,
-    consideredForMatching: considered,
-  });
+  /*
+   * Syncing IMPORTS, and does nothing else.
+   *
+   * It used to auto-book the certain matches in the same call. Nico's
+   * instruction on 2026-09-09 is explicit — "dont book any payments" — and he
+   * is right that it should not have been the default anyway: a sync is
+   * someone asking to see the bank, not asking to change the books. The
+   * suggestions are computed on read and shown on the page; connecting one is
+   * a deliberate click, and stays that way.
+   */
+  return NextResponse.json({ results });
 }
