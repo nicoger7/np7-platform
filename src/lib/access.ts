@@ -36,6 +36,15 @@ const OWNER_ONLY = [
      or delete planned lines. Line 5 of this file has always said finance is
      owner-only; it just never said it anywhere the code reads. */
   "/admin/finance", "/api/admin/finance",
+  /* The bank ledger: every movement on the NP7 account, so supplier prices,
+     salaries, the tax office and the platform's own bills, not just guest
+     money. Same omission as /admin/finance above and the R&D routes below —
+     canAccess() falls through to "allowed" for a path nobody registered, so
+     shipping this page without an entry would hand the whole account to every
+     manager-tier member. Granular roles are gated by the `bank` section in the
+     catalogue instead, which is what lets one person be given the bank list
+     without also being given Payments and Documents. */
+  "/admin/bank", "/api/admin/bank",
 ];
 
 export function normalizeLevel(v: unknown): AccessLevel {
@@ -164,6 +173,7 @@ export const SECTIONS: Section[] = [
      above. A menu tidy-up must not become a permission change. */
   { key: "learning", label: "Academy (write staff training)", world: "experience", group: "Team", paths: ["/admin/learning", "/api/admin/learning"] },
   // Experience · Finance
+  { key: "bank", label: "Bank (real transactions)", world: "experience", group: "Finance", paths: ["/admin/bank", "/api/admin/bank"] },
   { key: "payments", label: "Payments", world: "experience", group: "Finance", paths: ["/admin/payments", "/api/admin/payments"] },
   { key: "vouchers", label: "Gift vouchers", world: "experience", group: "Finance", paths: ["/admin/vouchers", "/api/admin/vouchers"] },
   { key: "exp_costs", label: "Experience costs", world: "experience", group: "Finance", paths: ["/admin/exp-costs", "/api/admin/exp-costs", "/api/admin/hours-cost"] },
@@ -262,6 +272,9 @@ export const SECTION_EXPOSES: Record<string, FieldKey[]> = {
   bookings: ["money", "costs", "contact_pii"],
   contacts: ["contact_pii"],
   members: ["contact_pii", "money"],
+  // The bank shows guest money AND what NP7 pays out — supplier invoices,
+  // salaries, the tax office — so it exposes both groups, not just "money".
+  bank: ["money", "costs"],
   payments: ["money"],
   exp_costs: ["money", "costs"],
   vendors: ["costs"],
