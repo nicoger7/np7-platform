@@ -47,14 +47,24 @@ export async function importTransactions(
   const admin = db();
   const errors: string[] = [];
 
-  const { data: existing, error: exErr } = await admin
-    .from("bank_transactions")
-    .select("id, source, external_id, status")
-    .in("external_id", rows.map((r) => r.externalId));
-  if (exErr) errors.push(`Reading existing transactions: ${exErr.message}`);
-
+  /* Which of these do we already have?
+   *
+   * Chunked, because `.in()` becomes a query STRING: a first import is 290
+   * ids in one URL, and that request simply fails — which it did, silently
+   * enough that only the unique index stopped 290 duplicate rows. The index
+   * is the real guarantee (see the upsert below); this lookup only exists to
+   * tell "new" from "already had it" in the report, and to spot a pending row
+   * that has since settled. */
   const seen = new Map<string, { id: string; status: string }>();
-  for (const e of existing ?? []) seen.set(`${e.source}:${e.external_id}`, { id: e.id, status: e.status });
+  for (let i = 0; i < rows.length; i += 100) {
+    const ids = rows.slice(i, i + 100).map((r) => r.externalId);
+    const { data: existing, error: exErr } = await admin
+      .from("bank_transactions")
+      .select("id, source, external_id, status")
+      .in("external_id", ids);
+    if (exErr) { errors.push(`Reading existing transactions: ${exErr.message}`); continue; }
+    for (const e of existing ?? []) seen.set(`${e.source}:${e.external_id}`, { id: e.id, status: e.status });
+  }
 
   const toInsert = rows.filter((r) => !seen.has(`${r.source}:${r.externalId}`));
   const pendingNowSettled = rows.filter((r) => {
@@ -82,11 +92,15 @@ export async function importTransactions(
       kind: r.kind,
       raw: r.raw,
     }));
-    const { error, count } = await admin
+    /* Upsert-ignore rather than insert, so the unique index is what actually
+       enforces "once", not the lookup above. A re-sync then costs nothing and
+       cannot fail, however the read went. */
+    const { data: ins, error } = await admin
       .from("bank_transactions")
-      .insert(chunk, { count: "exact" });
-    if (error) errors.push(`Inserting ${chunk.length} rows: ${error.message}`);
-    else inserted += count ?? chunk.length;
+      .upsert(chunk, { onConflict: "source,external_id", ignoreDuplicates: true })
+      .select("id");
+    if (error) errors.push(`Importing ${chunk.length} rows: ${error.message}`);
+    else inserted += ins?.length ?? 0;
   }
 
   let updated = 0;

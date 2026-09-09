@@ -111,6 +111,10 @@ export function suggestForTransaction(tx: MatchInput, candidates: MatchCandidate
 
     let score = 0;
     let identified = false;
+    /* Does anything about this transaction point at a PERSON — as opposed to
+       merely fitting an amount? Set by the reference, our own metadata, the
+       payer's name, their email, a known IBAN. Never by money. */
+    let identitySignal = false;
     const reasons: string[] = [];
 
     // ── 1. The reference. What the whole scheme is built on. ────────────────
@@ -118,6 +122,7 @@ export function suggestForTransaction(tx: MatchInput, candidates: MatchCandidate
     if (num && ref && ref.includes(num)) {
       score += 100;
       identified = true;
+      identitySignal = true;
       reasons.push(`Quotes invoice ${c.invoiceNumber}`);
     } else if (num.length >= 4 && ref) {
       // A guest who types only the tail of the number ("0184") still gives us
@@ -125,6 +130,7 @@ export function suggestForTransaction(tx: MatchInput, candidates: MatchCandidate
       const tail = num.slice(-4);
       if (/\d{4}/.test(tail) && new RegExp(`(^|[^0-9])${tail}([^0-9]|$)`).test(ref)) {
         score += 25;
+        identitySignal = true;
         reasons.push(`Reference contains ${tail}`);
       }
     }
@@ -133,10 +139,12 @@ export function suggestForTransaction(tx: MatchInput, candidates: MatchCandidate
     if (c.bookingId && refRaw.includes(c.bookingId.toLowerCase())) {
       score += 95;
       identified = true;
+      identitySignal = true;
       reasons.push("Stripe metadata names this booking");
     } else if (c.contactId && refRaw.includes(c.contactId.toLowerCase())) {
       score += 80;
       identified = true;
+      identitySignal = true;
       reasons.push("Stripe metadata names this guest");
     }
 
@@ -148,20 +156,24 @@ export function suggestForTransaction(tx: MatchInput, candidates: MatchCandidate
     );
     if (overlap >= 0.99) {
       score += 45;
+      identitySignal = true;
       reasons.push(`Paid by ${c.guestName}`);
     } else if (overlap >= 0.5) {
       score += 28;
+      identitySignal = true;
       reasons.push(`Payer name resembles ${c.guestName}`);
     }
     if (c.guestEmail && refRaw.includes(c.guestEmail.toLowerCase())) {
       score += 40;
       identified = true;
+      identitySignal = true;
       reasons.push("Payer email matches the guest");
     }
 
     // ── 4. An IBAN that has paid for this guest before. ──────────────────────
     if (iban && (c.knownIbans ?? []).some((k) => squash(k) === iban)) {
       score += 55;
+      identitySignal = true;
       reasons.push("This IBAN has paid for them before");
     }
 
@@ -193,6 +205,19 @@ export function suggestForTransaction(tx: MatchInput, candidates: MatchCandidate
       reasons.push(`Invoice is in ${c.currency}, the money came in ${tx.currency}`);
     }
 
+    /*
+     * No identity signal, no suggestion. This is the difference between a
+     * useful page and a misleading one.
+     *
+     * Without it, every credit found some invoice its amount could be a part
+     * payment of: a Google Ads refund, a Qonto rebate, a tax refund from the
+     * Finanzamt and a DJI invoice were all proposed against the same guest,
+     * because 900 EUR is plausibly "part of" 4,250 EUR. Putting a person's
+     * name next to a transaction that has nothing to do with them is worse
+     * than saying nothing, and it teaches whoever reads this page to stop
+     * trusting the column.
+     */
+    if (!identitySignal) continue;
     if (score <= 10) continue;
     scored.push({
       candidate: c,
@@ -201,6 +226,28 @@ export function suggestForTransaction(tx: MatchInput, candidates: MatchCandidate
       identified,
       confidence: identified ? "exact" : score >= 80 ? "strong" : "possible",
     });
+  }
+
+  /*
+   * One fallback, for the case where the amount really does say something:
+   * when nothing names anyone AND exactly one open invoice is owed precisely
+   * this figure, that uniqueness is itself the signal. Two invoices at the
+   * same price cancel it out, which is the Bonaire case and the reason this
+   * is a fallback rather than a rule.
+   */
+  if (!scored.length) {
+    const exact = candidates.filter(
+      (c) => c.remaining > 0.01 && (Math.abs(c.remaining - amount) < 0.01 || Math.abs(c.invoiced - amount) < 0.01)
+    );
+    if (exact.length === 1) {
+      scored.push({
+        candidate: exact[0],
+        score: 40,
+        reasons: ["The only open invoice for exactly this amount"],
+        identified: false,
+        confidence: "possible",
+      });
+    }
   }
 
   return scored.sort((a, b) => b.score - a.score).slice(0, 5);

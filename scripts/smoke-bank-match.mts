@@ -54,9 +54,27 @@ const tx = (over: Partial<MatchInput>): MatchInput => ({
   const many = Array.from({ length: 11 }, (_, i) =>
     inv({ documentId: `doc-${i}`, invoiceNumber: `NP7-XP-2026-01${80 + i}`, guestName: `Guest ${i}`, contactId: `c${i}` }));
   const m = suggestForTransaction(tx({ amount: 2445, reference: "Bonaire Anzahlung", counterparty: "J MEIJER" }), many);
-  check("eleven guests owe the same €2,445 → still suggests", m.length > 0);
-  check("…but NEVER books one automatically", autoMatchable(m, 2445) === null,
+  check("eleven guests owe €2,445 and the payer matches none → offers nobody", m.length === 0,
+    "naming one of eleven at random is worse than saying 'no idea'");
+  check("…and NEVER books one automatically", autoMatchable(m, 2445) === null,
     "this is the €6,210-style error the whole design exists to prevent");
+}
+{
+  // The real noise case from the first live run: a Google Ads refund was
+  // proposed against a guest purely because 746.15 is "part of" 4,250.
+  const guests = [inv({ guestName: "Peter ten Veldhuis", remaining: 4250, invoiceNumber: "PF-SCXP-2026-47B040-FIN" })];
+  const m = suggestForTransaction(tx({ amount: 746.15, counterparty: "Google Ireland Limited", reference: null }), guests);
+  check("a supplier refund is matched to nobody", m.length === 0,
+    "amount alone must never put a person's name on a transaction");
+}
+{
+  // But when exactly ONE invoice is owed precisely this figure, that
+  // uniqueness is itself worth saying.
+  const only = [inv({ remaining: 1234.56, guestName: "Solo Guest" }), inv({ documentId: "d2", remaining: 999, guestName: "Other" })];
+  const m = suggestForTransaction(tx({ amount: 1234.56, counterparty: "SOME COMPANY BV" }), only);
+  check("a uniquely-matching amount is still offered", m.length === 1 && m[0].confidence === "possible",
+    m[0]?.reasons.join(" · "));
+  check("…but not auto-booked, because nothing named the guest", autoMatchable(m, 1234.56) === null);
 }
 
 /* ── 3. Name plus exact amount is strong, not certain. ─────────────────────── */
