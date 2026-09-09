@@ -730,9 +730,15 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   if (isProforma && !invoiceNumber) {
     const stage = proformaMilestone === "final" ? "FIN" : proformaMilestone === "deposit" ? "DEP" : "DP";
     invoiceNumber = `PF-${company.invoice_prefix || "INV"}-${year}-${bookingId.replace(/-/g, "").slice(0, 6).toUpperCase()}-${stage}`;
-  } else if (isInvoice && !isProforma && !invoiceNumber) {
+  }
+  // The number this call took off the gapless counter, if any — a reused or
+  // pro-forma reference costs the sequence nothing and is left null, so the
+  // recovery below never invents a void row for a number that was not spent.
+  let burnedNumber: string | null = null;
+  if (isInvoice && !isProforma && !invoiceNumber) {
     const seq = await allocateInvoiceNumber(division, year);
     invoiceNumber = formatInvoiceNumber(company.invoice_prefix, year, seq);
+    burnedNumber = invoiceNumber;
   }
 
   // 3. Build InvoiceData for template
@@ -793,156 +799,195 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
     ...(isProforma ? { milestone: proformaMilestone } : {}),
   };
 
-  // 4. Render PDF
-  const element = buildInvoiceDocument(invoiceData);
-  // React.createElement is already used inside buildInvoiceDocument; wrap in a
-  // plain React.createElement call to satisfy renderToBuffer's type expectation.
-  const pdfBuffer = await renderToBuffer(element as React.ReactElement<ReactPDF.DocumentProps>);
-
-  // 5. Upload to Storage
-  const admin = getDb();
-  const fileSlug = invoiceNumber
-    ? invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, "_")
-    : type;
-  const filePath = `${division}/${bookingId}/${fileSlug}.pdf`;
-
-  const { error: uploadError } = await admin.storage
-    .from("documents")
-    .upload(filePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
-
-  if (uploadError) {
-    // Storage bucket may not exist pre-migration / before bucket creation
-    throw new Error(`Failed to upload PDF to storage: ${uploadError.message}`);
-  }
-
-  // 6. The amount was decided before the PDF was rendered — see above. It is
-  // deliberately NOT recomputed here, so the row and the paper cannot drift.
-
-  // 7. Insert documents row
-  const docRow = {
-    booking_id: bookingId,
-    contact_id: booking.contact_id,
-    bill_to_contact_id: billToId,
-    division,
-    type,
-    invoice_number: invoiceNumber,
-    title: isInvoice
-      ? `${
-          type === "proforma_invoice"
-            ? "Pro-forma Invoice (Payment Request)"
-            : type === "deposit_invoice"
-            ? "Deposit Invoice"
-            : type === "downpayment_invoice"
-            ? "Down-Payment Invoice"
-            : type === "addon_invoice"
-            ? "Add-on Invoice"
-            // A 1–2 day clinic is bought outright, so "Final Invoice" reads as
-            // the last of several instalments that never existed. It is simply
-            // the invoice.
-            : ed?.kind === "event"
-            ? "Invoice"
-            : "Final Invoice"
-        } – ${exp.title}${ed?.label ? " · " + ed.label : ""}`
-      : `Booking Confirmation – ${exp.title}${ed?.label ? " · " + ed.label : ""}`,
-    file_path: filePath,
-    amount,
-    currency,
-    status: "issued",
-    issued_at: new Date().toISOString(),
-    // The pro-forma's deadline drives recon's "what's due next" + the promote
-    // step knows which milestone it stands in for.
-    ...(isProforma ? { due_date: proformaDue } : {}),
-    meta: {
-      booking_id: bookingId,
-      experience_title: exp.title,
-      edition_label: ed?.label ?? null,
-      package_name: pkg?.name ?? null,
-      ...(isProforma ? { milestone: proformaMilestone } : {}),
-      // An amount set by hand carries its justification and what the formula
-      // would have produced, so the deviation is legible years later.
-      ...(overrideAmount != null
-        ? { amount_set_by_hand: true, amount_reason: String(input.amountReason).trim(), amount_calculated: calculatedAmount }
-        : {}),
-    },
-  };
-
-  // Update-in-place for an existing pro-forma (resync after an add-on change) —
-  // its PDF was just re-uploaded above (upsert); refresh amount/due/meta. New
-  // documents are inserted.
   /*
-   * A FINAL invoice economically contains every confirmed, still-unstamped
-   * add-on — its amount is total − received − other invoices, and the add-ons
-   * are inside that total. But only the addon_invoice path ever wrote
-   * invoiced_in, so rows billed inside a final stayed unstamped and the
-   * "Add-on invoice" button could bill the same nights a SECOND time on a
-   * fresh gapless number. Stamp them with the final's id; pay-direct rows are
-   * the supplier's money and stay out.
+   * Everything from here on can fail — a font that will not load, a Storage
+   * bucket that rejects the upload, a constraint on the insert — and by this
+   * point the gapless counter has already moved. `allocateInvoiceNumber` is
+   * `security definer` and runs outside this transaction, so nothing rolls it
+   * back: the number is spent whatever happens next.
+   *
+   * A spent number with no row is an unexplained hole in a §14 UStG sequence.
+   * Invisible while the books live in this system; a question from the
+   * Steuerberater once they live in lexoffice. So on any failure, write the
+   * number down as VOID with the reason, then rethrow. The sequence keeps its
+   * shape, /admin/documents shows what happened, and the caller still sees the
+   * error it would have seen.
    */
-  async function stampFinalAddons(docId: string) {
-    if (type !== "final_invoice") return;
-    await admin.from("exp_booking_addons")
-      .update({ invoiced_in: docId })
-      .eq("booking_id", bookingId)
-      .eq("status", "confirmed")
-      .is("invoiced_in", null)
-      .gt("price", 0)
-      .or("payment_mode.is.null,payment_mode.eq.np7");
-  }
+  try {
+    // 4. Render PDF
+    const element = buildInvoiceDocument(invoiceData);
+    // React.createElement is already used inside buildInvoiceDocument; wrap in a
+    // plain React.createElement call to satisfy renderToBuffer's type expectation.
+    const pdfBuffer = await renderToBuffer(element as React.ReactElement<ReactPDF.DocumentProps>);
 
-  if (reuseRow) {
-    const { data: updated, error: updErr } = await admin
+    // 5. Upload to Storage
+    const admin = getDb();
+    const fileSlug = invoiceNumber
+      ? invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, "_")
+      : type;
+    const filePath = `${division}/${bookingId}/${fileSlug}.pdf`;
+
+    const { error: uploadError } = await admin.storage
       .from("documents")
-      .update({ amount, title: docRow.title, meta: docRow.meta })
-      .eq("id", reuseRow.id)
-      .select()
-      .single();
-    if (updErr) throw new Error(`Failed to re-issue ${reuseRow.invoice_number}: ${updErr.message}`);
-    await stampFinalAddons(reuseRow.id);
-    return Object.assign(updated as DocumentRow, { pdf: pdfBuffer });
-  }
+      .upload(filePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
 
-  if (existingProforma) {
-    const { data: updated, error: updErr } = await admin
-      .from("documents")
-      .update({ amount, due_date: proformaDue ?? null, title: docRow.title, meta: docRow.meta, issued_at: docRow.issued_at })
-      .eq("id", existingProforma.id)
-      .select()
-      .single();
-    if (updErr) throw new Error(`Failed to update pro-forma: ${updErr.message}`);
-    return Object.assign(updated as DocumentRow, { pdf: pdfBuffer });
-  }
-
-  const { data: inserted, error: insertError } = await admin
-    .from("documents")
-    .insert(docRow)
-    .select()
-    .single();
-
-  if (insertError) {
-    if (insertError.code === "42P01" || insertError.message?.includes("does not exist")) {
-      throw new Error("Migration 021 not applied: documents table missing.");
+    if (uploadError) {
+      // Storage bucket may not exist pre-migration / before bucket creation
+      throw new Error(`Failed to upload PDF to storage: ${uploadError.message}`);
     }
-    throw new Error(`Failed to insert document row: ${insertError.message}`);
+
+    // 6. The amount was decided before the PDF was rendered — see above. It is
+    // deliberately NOT recomputed here, so the row and the paper cannot drift.
+
+    // 7. Insert documents row
+    const docRow = {
+      booking_id: bookingId,
+      contact_id: booking.contact_id,
+      bill_to_contact_id: billToId,
+      division,
+      type,
+      invoice_number: invoiceNumber,
+      title: isInvoice
+        ? `${
+            type === "proforma_invoice"
+              ? "Pro-forma Invoice (Payment Request)"
+              : type === "deposit_invoice"
+              ? "Deposit Invoice"
+              : type === "downpayment_invoice"
+              ? "Down-Payment Invoice"
+              : type === "addon_invoice"
+              ? "Add-on Invoice"
+              // A 1–2 day clinic is bought outright, so "Final Invoice" reads as
+              // the last of several instalments that never existed. It is simply
+              // the invoice.
+              : ed?.kind === "event"
+              ? "Invoice"
+              : "Final Invoice"
+          } – ${exp.title}${ed?.label ? " · " + ed.label : ""}`
+        : `Booking Confirmation – ${exp.title}${ed?.label ? " · " + ed.label : ""}`,
+      file_path: filePath,
+      amount,
+      currency,
+      status: "issued",
+      issued_at: new Date().toISOString(),
+      // The pro-forma's deadline drives recon's "what's due next" + the promote
+      // step knows which milestone it stands in for.
+      ...(isProforma ? { due_date: proformaDue } : {}),
+      meta: {
+        booking_id: bookingId,
+        experience_title: exp.title,
+        edition_label: ed?.label ?? null,
+        package_name: pkg?.name ?? null,
+        ...(isProforma ? { milestone: proformaMilestone } : {}),
+        // An amount set by hand carries its justification and what the formula
+        // would have produced, so the deviation is legible years later.
+        ...(overrideAmount != null
+          ? { amount_set_by_hand: true, amount_reason: String(input.amountReason).trim(), amount_calculated: calculatedAmount }
+          : {}),
+      },
+    };
+
+    // Update-in-place for an existing pro-forma (resync after an add-on change) —
+    // its PDF was just re-uploaded above (upsert); refresh amount/due/meta. New
+    // documents are inserted.
+    /*
+     * A FINAL invoice economically contains every confirmed, still-unstamped
+     * add-on — its amount is total − received − other invoices, and the add-ons
+     * are inside that total. But only the addon_invoice path ever wrote
+     * invoiced_in, so rows billed inside a final stayed unstamped and the
+     * "Add-on invoice" button could bill the same nights a SECOND time on a
+     * fresh gapless number. Stamp them with the final's id; pay-direct rows are
+     * the supplier's money and stay out.
+     */
+    async function stampFinalAddons(docId: string) {
+      if (type !== "final_invoice") return;
+      await admin.from("exp_booking_addons")
+        .update({ invoiced_in: docId })
+        .eq("booking_id", bookingId)
+        .eq("status", "confirmed")
+        .is("invoiced_in", null)
+        .gt("price", 0)
+        .or("payment_mode.is.null,payment_mode.eq.np7");
+    }
+
+    if (reuseRow) {
+      const { data: updated, error: updErr } = await admin
+        .from("documents")
+        .update({ amount, title: docRow.title, meta: docRow.meta })
+        .eq("id", reuseRow.id)
+        .select()
+        .single();
+      if (updErr) throw new Error(`Failed to re-issue ${reuseRow.invoice_number}: ${updErr.message}`);
+      await stampFinalAddons(reuseRow.id);
+      return Object.assign(updated as DocumentRow, { pdf: pdfBuffer });
+    }
+
+    if (existingProforma) {
+      const { data: updated, error: updErr } = await admin
+        .from("documents")
+        .update({ amount, due_date: proformaDue ?? null, title: docRow.title, meta: docRow.meta, issued_at: docRow.issued_at })
+        .eq("id", existingProforma.id)
+        .select()
+        .single();
+      if (updErr) throw new Error(`Failed to update pro-forma: ${updErr.message}`);
+      return Object.assign(updated as DocumentRow, { pdf: pdfBuffer });
+    }
+
+    const { data: inserted, error: insertError } = await admin
+      .from("documents")
+      .insert(docRow)
+      .select()
+      .single();
+
+    if (insertError) {
+      if (insertError.code === "42P01" || insertError.message?.includes("does not exist")) {
+        throw new Error("Migration 021 not applied: documents table missing.");
+      }
+      throw new Error(`Failed to insert document row: ${insertError.message}`);
+    }
+
+    // Stamp the billed add-on rows with this invoice — the double-billing lock.
+    // Voiding the document releases them (documents PATCH route).
+    if (type === "addon_invoice" && billedAddons.length) {
+      await admin.from("exp_booking_addons")
+        .update({ invoiced_in: (inserted as DocumentRow).id })
+        .in("id", billedAddons.map((a) => a.id));
+    }
+    await stampFinalAddons((inserted as DocumentRow).id);
+
+    // Money often arrives BEFORE the paper: Sven Heinsohn's final invoice was
+    // issued against a booking that was already settled. Re-run the allocation
+    // now so the new document is not born reading "open".
+    await settleInvoices(bookingId).catch((e) =>
+      console.warn("[invoices] settle after issue failed (non-fatal):", e instanceof Error ? e.message : e));
+
+    // Callers that email the document right away get the buffer for free
+    // (saves a signed-URL download round-trip).
+    return Object.assign(inserted as DocumentRow, { pdf: pdfBuffer });
+  } catch (err) {
+    if (burnedNumber) {
+      const reason = err instanceof Error ? err.message : String(err);
+      // Best-effort by design: if this write fails too, the original error is
+      // still the one worth surfacing, so it is logged and never thrown.
+      const { error: recordErr } = await getDb()
+        .from("documents")
+        .insert({
+          booking_id: bookingId,
+          contact_id: booking.contact_id,
+          division,
+          type,
+          invoice_number: burnedNumber,
+          title: `Voided – ${type.replace(/_/g, " ")} could not be issued`,
+          status: "void",
+          issued_at: new Date().toISOString(),
+          meta: { void_reason: "generation failed after the number was allocated", error: reason },
+        });
+      if (recordErr) {
+        console.error(`[invoices] ${burnedNumber} burned and could NOT be recorded:`, recordErr.message);
+      }
+    }
+    throw err;
   }
-
-  // Stamp the billed add-on rows with this invoice — the double-billing lock.
-  // Voiding the document releases them (documents PATCH route).
-  if (type === "addon_invoice" && billedAddons.length) {
-    await admin.from("exp_booking_addons")
-      .update({ invoiced_in: (inserted as DocumentRow).id })
-      .in("id", billedAddons.map((a) => a.id));
-  }
-  await stampFinalAddons((inserted as DocumentRow).id);
-
-  // Money often arrives BEFORE the paper: Sven Heinsohn's final invoice was
-  // issued against a booking that was already settled. Re-run the allocation
-  // now so the new document is not born reading "open".
-  await settleInvoices(bookingId).catch((e) =>
-    console.warn("[invoices] settle after issue failed (non-fatal):", e instanceof Error ? e.message : e));
-
-  // Callers that email the document right away get the buffer for free
-  // (saves a signed-URL download round-trip).
-  return Object.assign(inserted as DocumentRow, { pdf: pdfBuffer });
 }
 
 // ─── Import type shim ─────────────────────────────────────────────────────────

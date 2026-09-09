@@ -287,11 +287,50 @@ function BuyerBlock({ contact }: { contact: InvoiceData["contact"] }) {
   );
 }
 
+/**
+ * The VAT rate this invoice must bill at — or no invoice at all.
+ *
+ * `company.vat_rate ?? 0` stood in four places, so a company on `standard` VAT
+ * with no rate set printed net = gross, no VAT line and no VAT note: a 0%
+ * invoice on 19% goods, silently, under a real number. Hardware is exactly
+ * that row today (`vat_mode: standard`, `vat_rate: null`), so its first
+ * invoice would have gone out that way. There is no 0% mode — `VatMode` is
+ * margin or standard — so a missing rate is always a half-filled settings
+ * form, never a tax position. Refusing costs someone two minutes; issuing
+ * costs a correction to the Finanzamt.
+ */
+function requireVatRate(company: CompanySettings): number {
+  // Margin scheme (§25 UStG): VAT is inside the margin and never shown
+  // separately, so there is no rate to print and none to demand.
+  if (company.vat_mode === "margin") return 0;
+  const rate = Number(company.vat_rate);
+  if (company.vat_rate == null || !Number.isFinite(rate) || rate <= 0) {
+    throw new Error(
+      `Cannot issue a tax invoice: the ${company.division} company profile is set to standard VAT but carries no VAT rate. ` +
+        `Set it under Settings → Company → VAT before invoicing.`,
+    );
+  }
+  return rate;
+}
+
+/** Called before rendering, so the refusal surfaces as a plain error rather
+    than an exception thrown halfway through a PDF. */
+export function assertVatConfigured(company: CompanySettings): void {
+  requireVatRate(company);
+}
+
 function VatNote({ vatMode, vatRate }: { vatMode: VatMode; vatRate: number | null }) {
   if (vatMode === "margin") {
+    /* §14 Abs. 4 Nr. 10 UStG requires the phrase "Sonderregelung für
+       Reisebüros" itself — the English directive wording alone does not
+       satisfy it, and this is a German invoice from a German GmbH. Print
+       both: the required phrase for the tax office, the translation for the
+       guest, who is usually not German. */
     return (
       <Text style={s.vatNote}>
-        VAT charged under the special scheme for travel agents (Articles 306–310 EU VAT Directive). VAT is not shown separately.
+        Sonderregelung für Reisebüros (§ 25 UStG) — die Umsatzsteuer ist im Preis enthalten und wird nicht gesondert ausgewiesen.
+        {"\n"}
+        Special scheme for travel agents (Articles 306–310 EU VAT Directive). VAT is included in the price and not shown separately.
       </Text>
     );
   }
@@ -478,7 +517,7 @@ function DepositInvoiceLines({ data }: { data: InvoiceData }) {
   const { booking, company, experience, edition } = data;
   const currency = booking.currency || company.currency;
   const isMargin = company.vat_mode === "margin";
-  const vatRate = company.vat_rate ?? 0;
+  const vatRate = requireVatRate(company);
 
   const description = [experience.title, edition?.label].filter(Boolean).join(" · ");
   const packageDesc = booking.packageName ? `Package: ${booking.packageName}` : "";
@@ -550,7 +589,7 @@ function DownpaymentInvoiceLines({ data }: { data: InvoiceData }) {
   const { booking, company, experience, edition } = data;
   const currency = booking.currency || company.currency;
   const isMargin = company.vat_mode === "margin";
-  const vatRate = company.vat_rate ?? 0;
+  const vatRate = requireVatRate(company);
 
   const description = [experience.title, edition?.label].filter(Boolean).join(" · ");
   const packageDesc = booking.packageName ? `Package: ${booking.packageName}` : "";
@@ -626,7 +665,7 @@ function AddonInvoiceLines({ data }: { data: InvoiceData }) {
   const { booking, company, experience, edition } = data;
   const currency = booking.currency || company.currency;
   const isMargin = company.vat_mode === "margin";
-  const vatRate = company.vat_rate ?? 0;
+  const vatRate = requireVatRate(company);
   const items = booking.billedAddons ?? [];
   const totalAmt = data.amountDue ?? items.reduce((n, a) => n + a.price, 0);
   const net = isMargin ? totalAmt : totalAmt / (1 + vatRate / 100);
@@ -683,7 +722,7 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
   const { booking, company, experience, edition } = data;
   const currency = booking.currency || company.currency;
   const isMargin = company.vat_mode === "margin";
-  const vatRate = company.vat_rate ?? 0;
+  const vatRate = requireVatRate(company);
   /**
    * The balance deducts what we have actually RECEIVED.
    *
@@ -872,6 +911,13 @@ export function buildInvoiceDocument(data: InvoiceData): React.ReactElement {
   const currency = data.booking.currency || company.currency;
   const isConfirmation = type === "booking_confirmation";
 
+  // A tax invoice states a VAT position and cannot be built without one. A
+  // pro-forma states a gross amount to transfer (unchanged by the rate) and a
+  // confirmation states nothing, so neither is blocked by a half-filled
+  // company profile.
+  const isTaxInvoice = !isConfirmation && type !== "proforma_invoice";
+  if (isTaxInvoice) assertVatConfigured(company);
+
   return (
     <Document
       title={isConfirmation ? "Booking Confirmation" : `Invoice ${invoiceNumber ?? ""}`}
@@ -899,7 +945,7 @@ export function buildInvoiceDocument(data: InvoiceData): React.ReactElement {
         {isConfirmation && <BookingConfirmation data={data} />}
 
         {/* VAT note for TAX invoices only (a pro-forma isn't one) */}
-        {!isConfirmation && type !== "proforma_invoice" && (
+        {isTaxInvoice && (
           <VatNote vatMode={company.vat_mode} vatRate={company.vat_rate} />
         )}
 
@@ -956,6 +1002,9 @@ export type CreditNoteData = {
 export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElement {
   const { company, invoiceNumber, original } = data;
   const currency = data.currency || company.currency;
+  // A credit note reverses a tax invoice, so it states the same VAT position
+  // and is refused on the same grounds.
+  assertVatConfigured(company);
   const description = [data.experience.title, data.edition?.label].filter(Boolean).join(" · ");
 
   return (
