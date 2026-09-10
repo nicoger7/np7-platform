@@ -285,6 +285,13 @@ export default function DocumentsPage() {
               through the API, so it wants a screen that shows the exact Beleg
               before anything is sent. */}
           <Link
+            href="/admin/documents/margin"
+            className="px-4 py-2 text-sm font-bold rounded-lg transition-colors admin-muted hover:admin-heading"
+            style={{ border: "1px solid var(--admin-border)" }}
+          >
+            Margenermittlung
+          </Link>
+          <Link
             href="/admin/documents/lexoffice"
             className="px-4 py-2 text-sm font-bold rounded-lg transition-colors admin-muted hover:admin-heading"
             style={{ border: "1px solid var(--admin-border)" }}

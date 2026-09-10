@@ -168,13 +168,25 @@ export default function LexofficePage() {
             number, with the PDF attached, and stays unpaid on purpose so the bank matching can find it.
           </p>
         </div>
-        <Link
-          href="/admin/documents"
-          className="px-4 py-2 text-sm font-bold rounded-lg transition-colors admin-muted hover:admin-heading"
-          style={{ border: "1px solid var(--admin-border)" }}
-        >
-          Back to invoices
-        </Link>
+        <div className="flex gap-2">
+          {/* The half lexoffice cannot do. Worth one click away, because the
+              margin record is what the tax practice actually needs and nothing
+              on this page produces it. */}
+          <Link
+            href="/admin/documents/margin"
+            className="px-4 py-2 text-sm font-bold rounded-lg transition-colors admin-muted hover:admin-heading"
+            style={{ border: "1px solid var(--admin-border)" }}
+          >
+            Margenermittlung
+          </Link>
+          <Link
+            href="/admin/documents"
+            className="px-4 py-2 text-sm font-bold rounded-lg transition-colors admin-muted hover:admin-heading"
+            style={{ border: "1px solid var(--admin-border)" }}
+          >
+            Back to invoices
+          </Link>
+        </div>
       </div>
 
       {loadError && (
