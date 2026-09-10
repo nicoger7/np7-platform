@@ -42,6 +42,14 @@
     {
       "path": "/api/cron/campaigns",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/bank-sync",
+      "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/booking-status",
+      "schedule": "15 5 * * *"
     }
   ],
   "regions": [

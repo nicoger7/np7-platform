@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminGate } from "@/lib/admin-auth";
 import { getRequestMember } from "@/lib/admin-auth";
 import { createClient } from "@supabase/supabase-js";
-import { matchToInvoice, unmatch } from "@/lib/bank/store";
+import { allocateTransaction, unmatch, type Allocation } from "@/lib/bank/store";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -34,17 +34,41 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   );
 
   if (action === "match") {
-    const documentId = String(body.documentId ?? "");
-    if (!documentId) return NextResponse.json({ error: "documentId is required." }, { status: 400 });
-    const res = await matchToInvoice({
+    /* One transfer can settle several invoices — a guest pays their balance,
+       not their paperwork. `allocations` is the real shape; a bare documentId
+       is the one-invoice shorthand and means "all of it". */
+    const raw = Array.isArray(body.allocations) ? (body.allocations as unknown[]) : null;
+    let allocations: Allocation[];
+
+    if (raw) {
+      allocations = raw
+        .map((a) => a as { documentId?: unknown; amount?: unknown })
+        .filter((a) => typeof a.documentId === "string" && a.documentId)
+        .map((a) => ({ documentId: String(a.documentId), amount: Number(a.amount) }))
+        .filter((a) => Number.isFinite(a.amount) && a.amount > 0);
+      if (!allocations.length) {
+        return NextResponse.json({ error: "Every allocation needs an invoice and a positive amount." }, { status: 400 });
+      }
+      const seen = new Set(allocations.map((a) => a.documentId));
+      if (seen.size !== allocations.length) {
+        return NextResponse.json({ error: "The same invoice is listed twice." }, { status: 400 });
+      }
+    } else {
+      const documentId = String(body.documentId ?? "");
+      if (!documentId) return NextResponse.json({ error: "documentId is required." }, { status: 400 });
+      const { data: tx } = await admin.from("bank_transactions").select("amount").eq("id", id).maybeSingle();
+      allocations = [{ documentId, amount: Number(tx?.amount ?? 0) }];
+    }
+
+    const res = await allocateTransaction({
       transactionId: id,
-      documentId,
+      allocations,
       by,
       // A suggestion someone clicked is not the same as one nobody looked at.
       confidence: body.fromSuggestion ? "suggested" : "manual",
     });
     if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
-    return NextResponse.json({ ok: true, paymentId: res.paymentId });
+    return NextResponse.json({ ok: true, paymentIds: res.paymentIds, allocated: res.allocated, remaining: res.remaining });
   }
 
   if (action === "unmatch") {

@@ -279,3 +279,73 @@ export function autoMatchable(matches: BankMatch[], amount: number): BankMatch |
   if (amount > best.candidate.remaining + 0.01) return null;
   return best;
 }
+
+/**
+ * One transfer, several invoices.
+ *
+ * Minna Mäntynen sent €6,650 quoting NP7-XP-2026-0043, and that invoice is
+ * only €4,400. The other €2,250 is not a mystery: she has three more open
+ * invoices at €750 each, and 4,400 + 750 + 750 + 750 is exactly what arrived.
+ * Guests pay their balance, not their paperwork.
+ *
+ * A matcher that only ever proposes one invoice makes that look like an
+ * overpayment and leaves a person to work the arithmetic out by hand, four
+ * times, every time. So: when a guest's open invoices contain a combination
+ * that sums to the transfer exactly, propose the whole combination.
+ *
+ * Deliberately strict. Only invoices belonging to ONE guest are combined, and
+ * only an EXACT total counts. A near-miss is not a set; it is a question, and
+ * this returns nothing rather than inviting someone to accept a guess.
+ */
+export type InvoiceSet = {
+  candidates: MatchCandidate[];
+  total: number;
+  guestName: string | null;
+  /** True when it is every open invoice the guest has, which is the common case. */
+  everything: boolean;
+};
+
+const CENTS = (n: number) => Math.round(n * 100);
+
+export function suggestInvoiceSet(tx: MatchInput, candidates: MatchCandidate[]): InvoiceSet | null {
+  const target = CENTS(tx.amount);
+  if (target <= 0) return null;
+
+  // Only guests this transaction actually points at — the same identity rule
+  // as everywhere else. Without it, any four invoices adding up would do.
+  const named = new Set(
+    suggestForTransaction(tx, candidates)
+      .filter((m) => m.identified || m.reasons.some((r) => /Paid by|resembles|IBAN|email/.test(r)))
+      .map((m) => m.candidate.contactId)
+      .filter(Boolean) as string[]
+  );
+  if (!named.size) return null;
+
+  for (const contactId of named) {
+    const mine = candidates.filter((c) => c.contactId === contactId && c.remaining > 0.01);
+    // A single invoice is the ordinary path and is handled above; a set needs
+    // at least two. More than ten is not a person paying their balance.
+    if (mine.length < 2 || mine.length > 10) continue;
+
+    const sumAll = mine.reduce((s, c) => s + CENTS(c.remaining), 0);
+    if (sumAll === target) {
+      return { candidates: mine, total: tx.amount, guestName: mine[0].guestName, everything: true };
+    }
+
+    // Otherwise look for any exact subset. Ten invoices is 1023 combinations,
+    // which is nothing, and the cap above is what keeps it that way.
+    const n = mine.length;
+    let best: MatchCandidate[] | null = null;
+    for (let mask = 1; mask < 1 << n; mask++) {
+      let sum = 0;
+      for (let i = 0; i < n; i++) if (mask & (1 << i)) sum += CENTS(mine[i].remaining);
+      if (sum !== target) continue;
+      const picked = mine.filter((_, i) => mask & (1 << i));
+      if (picked.length < 2) continue;
+      // Prefer the smallest set that works: fewer documents, fewer decisions.
+      if (!best || picked.length < best.length) best = picked;
+    }
+    if (best) return { candidates: best, total: tx.amount, guestName: best[0].guestName, everything: false };
+  }
+  return null;
+}

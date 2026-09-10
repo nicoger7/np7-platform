@@ -399,74 +399,117 @@ function paymentTypeFor(documentType: string | null | undefined): string {
 }
 
 /**
- * Book a transaction against an invoice.
+ * Book a transaction against one or more invoices.
  *
- * If the transaction already answers to a payment — because it was reconciled
- * with a hand-entered row — this ALLOCATES that payment rather than writing a
- * second one. That distinction is the whole reason the two tables are separate.
+ * Several, because guests pay their balance rather than their paperwork.
+ * Minna Mäntynen sent €6,650 in one transfer against four invoices of €4,400,
+ * €750, €750 and €750. A model that allows one invoice per transaction turns
+ * that into an overpayment and four manual entries.
+ *
+ * One exp_payments row is written PER INVOICE, all carrying the same
+ * bank_transaction_id. No new table: reconcileInvoice() already sums payments
+ * per document, so every existing figure on the booking page, the reminder
+ * emails and the edition P&L keeps working untouched. The payments are the
+ * truth about what the transaction settled; the columns on the transaction
+ * itself are a convenience for the ordinary one-invoice case.
+ *
+ * Partial is allowed: allocating €4,400 of a €6,650 transfer leaves €2,250
+ * still to place, and the page says so. Over-allocating is refused, because
+ * money that is not there cannot settle anything.
  */
-export async function matchToInvoice(opts: {
+export type Allocation = { documentId: string; amount: number };
+
+export async function allocateTransaction(opts: {
   transactionId: string;
-  documentId: string;
+  allocations: Allocation[];
   by: string;
   confidence: "auto" | "suggested" | "manual";
-}): Promise<{ ok: true; paymentId: string } | { ok: false; error: string }> {
+}): Promise<{ ok: true; paymentIds: string[]; allocated: number; remaining: number } | { ok: false; error: string }> {
   const admin = db();
 
   const { data: tx } = await admin.from("bank_transactions").select("*").eq("id", opts.transactionId).maybeSingle();
   if (!tx) return { ok: false, error: "No such transaction." };
-  if (tx.ignored_at) return { ok: false, error: "That transaction was set aside — un-ignore it first." };
+  if (tx.ignored_at) return { ok: false, error: "That transaction was set aside. Bring it back first." };
   if (Number(tx.amount) <= 0) return { ok: false, error: "Money going out cannot settle a sales invoice." };
 
-  const { data: doc } = await admin
+  const wanted = opts.allocations.filter((a) => a.documentId && Number(a.amount) > 0);
+  if (!wanted.length) return { ok: false, error: "Nothing to allocate." };
+
+  // What this transaction has already been used for, so a second pass tops up
+  // rather than double-spending it.
+  const { data: existing } = await admin
+    .from("exp_payments")
+    .select("id, amount")
+    .eq("bank_transaction_id", tx.id);
+  const already = round2((existing ?? []).reduce((n, p) => n + (Number(p.amount) || 0), 0));
+
+  const asking = round2(wanted.reduce((n, a) => n + Number(a.amount), 0));
+  if (already + asking > Number(tx.amount) + 0.01) {
+    return {
+      ok: false,
+      error: `That is more than the transaction holds. €${Number(tx.amount).toFixed(2)} arrived, €${already.toFixed(2)} is already allocated, so at most €${round2(Number(tx.amount) - already).toFixed(2)} is left.`,
+    };
+  }
+
+  const { data: docs } = await admin
     .from("documents")
-    .select("id, booking_id, contact_id, type, division, invoice_number")
-    .eq("id", opts.documentId)
-    .maybeSingle();
-  if (!doc) return { ok: false, error: "No such invoice." };
+    .select("id, booking_id, contact_id, type, invoice_number")
+    .in("id", wanted.map((a) => a.documentId));
+  const docById = new Map((docs ?? []).map((d) => [String(d.id), d]));
+  const missing = wanted.find((a) => !docById.has(a.documentId));
+  if (missing) return { ok: false, error: "One of those invoices no longer exists." };
 
-  let paymentId: string;
+  const paymentIds: string[] = [];
+  const bookings = new Set<string>();
 
-  if (tx.payment_id) {
-    const { error } = await admin
-      .from("exp_payments")
-      .update({ document_id: doc.id, unmatched: false })
-      .eq("id", tx.payment_id);
-    if (error) return { ok: false, error: `Allocating the existing payment: ${error.message}` };
-    paymentId = tx.payment_id;
-  } else {
+  for (const a of wanted) {
+    const doc = docById.get(a.documentId)!;
+    if (doc.booking_id) bookings.add(String(doc.booking_id));
+
     const { data: created, error } = await admin
       .from("exp_payments")
       .insert({
         booking_id: doc.booking_id,
         contact_id: doc.contact_id,
         document_id: doc.id,
-        amount: Number(tx.amount),
+        amount: round2(Number(a.amount)),
         type: paymentTypeFor(doc.type),
         direction: "revenue",
         status: "paid",
         method: tx.source === "stripe" ? "stripe" : "bank_transfer",
-        // The reference is the bank's own id, so this payment can always be
-        // walked back to the movement that produced it.
+        // The bank's own id, so this payment can always be walked back to the
+        // movement that produced it. Not unique across a split, on purpose:
+        // these rows ARE one transfer.
         reference: `${tx.source}:${tx.external_id}`,
         date: tx.booked_on,
         received_at: tx.executed_at ?? `${tx.booked_on}T12:00:00Z`,
         unmatched: false,
         bank_transaction_id: tx.id,
-        notes: tx.counterparty ? `Imported from ${tx.source} · paid by ${tx.counterparty}` : `Imported from ${tx.source}`,
+        // Migration 235: this euro is provable, it came off a real movement.
+        provenance: "bank",
+        notes: tx.counterparty
+          ? `From ${tx.source} · paid by ${tx.counterparty}${wanted.length > 1 ? ` · one of ${wanted.length} invoices settled by this transfer` : ""}`
+          : `From ${tx.source}`,
       })
       .select("id")
       .single();
-    if (error || !created) return { ok: false, error: `Booking the payment: ${error?.message ?? "insert failed"}` };
-    paymentId = created.id;
+    if (error || !created) {
+      return { ok: false, error: `Booking against ${doc.invoice_number ?? "that invoice"}: ${error?.message ?? "insert failed"}` };
+    }
+    paymentIds.push(created.id);
   }
+
+  const allocated = round2(already + asking);
+  const fully = allocated + 0.01 >= Number(tx.amount);
 
   const { error: linkErr } = await admin
     .from("bank_transactions")
     .update({
-      payment_id: paymentId,
-      document_id: doc.id,
-      matched_at: new Date().toISOString(),
+      // Only meaningful when one invoice was settled. On a split the payments
+      // carry the truth and these stay null rather than naming one arbitrarily.
+      payment_id: paymentIds.length === 1 && !already ? paymentIds[0] : null,
+      document_id: paymentIds.length === 1 && !already ? wanted[0].documentId : null,
+      matched_at: fully ? new Date().toISOString() : null,
       matched_by: opts.by,
       match_confidence: opts.confidence,
     })
@@ -474,43 +517,64 @@ export async function matchToInvoice(opts: {
   if (linkErr) return { ok: false, error: `Linking the transaction: ${linkErr.message}` };
 
   // Stamp paid_at on whatever this now settles. Non-fatal: the money is booked
-  // either way, and settlement recomputes from scratch on the next run.
-  if (doc.booking_id) {
-    await settle(doc.booking_id).catch((e) =>
+  // either way and settlement recomputes from scratch on the next run.
+  for (const b of bookings) {
+    await settle(b).catch((e) =>
       console.warn("[bank] settle after match failed (non-fatal):", e instanceof Error ? e.message : e));
   }
 
-  return { ok: true, paymentId };
+  return { ok: true, paymentIds, allocated, remaining: round2(Number(tx.amount) - allocated) };
 }
 
-/** Undo a match. The payment this import created goes with it; a payment that
- *  existed beforehand is only un-allocated, never deleted. */
+/** The ordinary one-invoice case, in the old shape. */
+export async function matchToInvoice(opts: {
+  transactionId: string;
+  documentId: string;
+  amount?: number;
+  by: string;
+  confidence: "auto" | "suggested" | "manual";
+}): Promise<{ ok: true; paymentId: string } | { ok: false; error: string }> {
+  const admin = db();
+  let amount = opts.amount;
+  if (amount == null) {
+    const { data: tx } = await admin.from("bank_transactions").select("amount").eq("id", opts.transactionId).maybeSingle();
+    amount = Number(tx?.amount ?? 0);
+  }
+  const res = await allocateTransaction({ ...opts, allocations: [{ documentId: opts.documentId, amount }] });
+  return res.ok ? { ok: true, paymentId: res.paymentIds[0] } : res;
+}
+
+/**
+ * Undo a match, however many invoices it touched.
+ *
+ * Payments this import created are deleted; a payment that existed beforehand
+ * and was merely tied to the transaction is only un-tied, never deleted. The
+ * difference is whether the row carries our own bank reference, which only the
+ * importer writes.
+ */
 export async function unmatch(transactionId: string): Promise<{ ok: boolean; error?: string }> {
   const admin = db();
   const { data: tx } = await admin.from("bank_transactions").select("*").eq("id", transactionId).maybeSingle();
   if (!tx) return { ok: false, error: "No such transaction." };
-  if (!tx.payment_id) return { ok: true };
 
-  const { data: pay } = await admin
+  const { data: pays } = await admin
     .from("exp_payments")
-    .select("id, reference, booking_id, bank_transaction_id")
-    .eq("id", tx.payment_id)
-    .maybeSingle();
+    .select("id, reference, booking_id")
+    .eq("bank_transaction_id", transactionId);
 
-  const bornHere = pay?.reference === `${tx.source}:${tx.external_id}`;
-  if (pay && bornHere) {
-    await admin.from("exp_payments").delete().eq("id", pay.id);
-  } else if (pay) {
-    await admin.from("exp_payments").update({ document_id: null, bank_transaction_id: null }).eq("id", pay.id);
+  const ours = `${tx.source}:${tx.external_id}`;
+  const bookings = new Set<string>();
+  for (const p of pays ?? []) {
+    if (p.booking_id) bookings.add(String(p.booking_id));
+    if (p.reference === ours) await admin.from("exp_payments").delete().eq("id", p.id);
+    else await admin.from("exp_payments").update({ document_id: null, bank_transaction_id: null }).eq("id", p.id);
   }
 
   await admin.from("bank_transactions")
     .update({ payment_id: null, document_id: null, matched_at: null, matched_by: null, match_confidence: null })
     .eq("id", transactionId);
 
-  if (pay?.booking_id) {
-    await settle(pay.booking_id).catch(() => {});
-  }
+  for (const b of bookings) await settle(b).catch(() => {});
   return { ok: true };
 }
 
