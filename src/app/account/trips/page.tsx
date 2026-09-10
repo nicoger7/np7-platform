@@ -8,6 +8,7 @@ import { PortalChrome } from "@/components/portal/portal-chrome";
 import { MemberHomeBanner } from "@/components/portal/member-home-banner";
 import { BrandedTile } from "@/components/experience/branded-tile";
 import { placeFromLocation, flagFromLocation } from "@/lib/experience-tile";
+import { customFlagRules } from "@/lib/flag-store";
 
 export const metadata: Metadata = { title: "My trips — NP7" };
 export const dynamic = "force-dynamic";
@@ -15,9 +16,12 @@ export const dynamic = "force-dynamic";
 export default async function MyTrips() {
   const user = await getPortalUser();
   if (!user) redirect("/account/login");
-  const [bookings, bannerImages] = await Promise.all([
+  const [bookings, bannerImages, flagRules] = await Promise.all([
     getMemberBookings(user.contactId),
     getMemberBannerImages(user.contactId).catch(() => []),
+    // The same admin-managed flags the public tiles use, so a member's own trip
+    // is not the one place still flying the wrong one.
+    customFlagRules(),
   ]);
 
   return (
@@ -56,7 +60,7 @@ export default async function MyTrips() {
                         <BrandedTile
                           photo={b.experience.hero_image}
                           place={placeFromLocation(b.experience.location ?? "").toUpperCase()}
-                          flag={flagFromLocation(b.experience.location ?? "")}
+                          flag={flagFromLocation(b.experience.location ?? "", flagRules)}
                         />
                       ) : (() => { const tile = b.edition?.hero_image ?? b.experience?.hero_image; return tile ? (
                         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${tile}')` }} />

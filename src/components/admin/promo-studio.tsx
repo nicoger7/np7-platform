@@ -17,10 +17,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { usePromoFonts } from "@/components/admin/use-promo-fonts";
+import FlagManager, { type CustomFlag } from "@/components/admin/flag-manager";
 import {
   GRADIENT_PRESETS,
   PROMO_FORMATS,
-  PROMO_FLAGS,
   TEXT_KIND_LABELS,
   defaultPromoState,
   promoOrder,
@@ -39,7 +39,7 @@ import {
   measureArtboard,
   screenToArtboard,
 } from "@/lib/promo-pointer";
-import { flagFromLocation, placeFromLocation } from "@/lib/experience-tile";
+import { BUNDLED_FLAGS, flagFromLocation, flagSrc, placeFromLocation, type FlagRule } from "@/lib/experience-tile";
 
 type Coach = { id: string; name: string; cutout_url: string | null };
 type EditionRow = {
@@ -118,6 +118,10 @@ export default function PromoStudio({
   const [, setImgTick] = useState(0); // bumps when an image finishes loading
   const [picker, setPicker] = useState<null | "photo" | "coach" | "logo" | "add" | "add-replace">(null);
   const [coaches, setCoaches] = useState<Coach[]>([]);
+  /** Flags the team added themselves (migration 234). Loaded here so the picker
+   *  and the edition prefill agree about what a flag is. */
+  const [customFlags, setCustomFlags] = useState<CustomFlag[]>([]);
+  const [flagManager, setFlagManager] = useState(false);
   const [editions, setEditions] = useState<EditionRow[]>([]);
   const [designId, setDesignId] = useState<string | null>(initialId);
   const [saving, setSaving] = useState(false);
@@ -194,6 +198,13 @@ export default function PromoStudio({
       .catch(() => {});
   }, [coaches.length]);
 
+  const loadFlags = useCallback(() => {
+    fetch("/api/admin/promo/flags")
+      .then((r) => r.json())
+      .then((d) => setCustomFlags(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, []);
+
   const loadEditions = useCallback(() => {
     if (editions.length) return;
     fetch("/api/admin/editions")
@@ -204,7 +215,22 @@ export default function PromoStudio({
 
   useEffect(() => {
     loadCoaches();
-  }, [loadCoaches]);
+    loadFlags();
+  }, [loadCoaches, loadFlags]);
+
+  /** Both flag sets as one list, custom first — what the picker offers and what
+   *  the prefill matches against. */
+  const flagRules: FlagRule[] = useMemo(
+    () => customFlags.map((f) => ({ code: f.code, name: f.name, src: f.src, match: f.keywords ?? [] })),
+    [customFlags],
+  );
+  const flagOptions = useMemo(
+    () => [
+      ...flagRules.map((f) => ({ key: `c-${f.code}`, name: f.name, src: flagSrc(f) })),
+      ...BUNDLED_FLAGS.map((f) => ({ key: f.code, name: f.name, src: flagSrc(f.code) })),
+    ],
+    [flagRules],
+  );
 
   // "New from an experience" opens the editor with the edition menu already
   // down (see the `menu` initial value), so the prefill has ONE implementation
@@ -328,7 +354,7 @@ export default function PromoStudio({
     const placeText = words.length >= 2 ? `${words[0]}\n${words.slice(1).join(" ")}` : place;
     const dates = dateRange(ed.date_start, ed.date_end);
     const sym = CURRENCY[ed.currency || ""] ?? "€";
-    const flag = flagFromLocation(location);
+    const flag = flagFromLocation(location, flagRules);
     let coach: Coach | null = null;
     try {
       const links = await fetch(`/api/admin/editions/${ed.id}/coaches`).then((r) => r.json());
@@ -342,7 +368,7 @@ export default function PromoStudio({
     patch((s) => {
       const photo = ed.hero_image || exp?.hero_image;
       if (photo) s.photo.src = photo;
-      s.flag.src = flag ? `/flags/${flag.code}.svg` : s.flag.src;
+      s.flag.src = flag ? flagSrc(flag) : s.flag.src;
       if (coach?.cutout_url) {
         s.coach.src = coach.cutout_url;
         const wt = s.texts.find((t) => t.id === "with");
@@ -1322,12 +1348,23 @@ export default function PromoStudio({
                 <>
                   <select
                     value={state.flag.src ?? ""}
-                    onChange={(e) => patch((s) => ((s.flag.src = e.target.value || null), s))}
-                    className="bg-transparent border border-white/30 rounded px-1 py-0.5"
+                    onChange={(e) => {
+                      // The last entry is a door, not a flag.
+                      if (e.target.value === "__manage") { setFlagManager(true); return; }
+                      patch((s) => ((s.flag.src = e.target.value || null), s));
+                    }}
+                    className="bg-transparent border border-white/30 rounded px-1 py-0.5 max-w-40"
                   >
-                    {PROMO_FLAGS.map((f) => (
-                      <option key={f.code} value={`/flags/${f.code}.svg`} className="text-black">{f.name}</option>
+                    {/* A design saved with a flag that has since been retired
+                        still has to show what it is set to, or the dropdown
+                        would silently read as something else. */}
+                    {state.flag.src && !flagOptions.some((f) => f.src === state.flag.src) && (
+                      <option value={state.flag.src} className="text-black">Current flag</option>
+                    )}
+                    {flagOptions.map((f) => (
+                      <option key={f.key} value={f.src} className="text-black">{f.name}</option>
                     ))}
+                    <option value="__manage" className="text-black">Manage flags…</option>
                   </select>
                   <Mini label="opacity" min={5} max={100} value={Math.round(state.flag.opacity * 100)} onChange={(v) => patch((s) => ((s.flag.opacity = v / 100), s), "sl-op")} />
                   <Mini label="rotate" min={-45} max={45} value={state.flag.rotate} onChange={(v) => patch((s) => ((s.flag.rotate = v), s), "sl-rot")} />
@@ -1428,6 +1465,14 @@ export default function PromoStudio({
       <p className="pt-2 text-[11px]" style={{ color: "var(--admin-text-muted,#666)" }}>
         Click = select · drag = move · corners = size · edges = stretch X/Y · double-click text = edit · ⌫ = hide · arrows = nudge · alt = ignore snapping · *stars* = gold accent in the details/partner lines
       </p>
+
+      {flagManager && (
+        <FlagManager
+          flags={customFlags}
+          onClose={() => setFlagManager(false)}
+          onChanged={loadFlags}
+        />
+      )}
 
       {/* image picker */}
       {picker && (

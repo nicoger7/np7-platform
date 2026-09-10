@@ -2,7 +2,8 @@ import { supabase } from "@/lib/supabase";
 import { availabilityFor } from "@/lib/availability";
 import { activeLaunch } from "@/lib/launch-price";
 import { resolveTierPct, bestAdvantage, type TierPerkRule } from "@/lib/tier-perks";
-import type { TilePlacement } from "@/lib/experience-tile";
+import { flagFromLocation, type TilePlacement } from "@/lib/experience-tile";
+import { customFlagRules } from "@/lib/flag-store";
 import type { ExpCard } from "@/components/experience/upcoming-experiences";
 
 /**
@@ -214,6 +215,10 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
   // Card data for the month-filtered grid. `months` = every upcoming edition's
   // YYYY-MM, so the month chips reflect exactly what's bookable.
   const today = new Date().toISOString().slice(0, 10);
+  // One read for the whole grid, on the server. /experience is ISR, so this
+  // happens once an hour and not once a visitor; the member home is dynamic and
+  // leans on the store's own short cache.
+  const flagRules = await customFlagRules();
   const cards: ExpCard[] = experiences.map((exp) => {
     // 1) the week's assigned HEAD COACH → 2) a name typed in the edition's
     // free-text coaches field → 3) the library's head coach.
@@ -229,6 +234,7 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
       location: exp.location,
       description: exp.description,
       hero_image: exp.hero_image,
+      flag: flagFromLocation(exp.location, flagRules),
       // no upcoming edition → no price (avoids showing a stale price from a
       // finished trip; the tile reads "Dates coming soon" instead)
       // The cheapest package you can actually buy — not exp_experiences.price,

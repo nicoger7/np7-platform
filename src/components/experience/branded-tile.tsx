@@ -110,7 +110,8 @@ export function BrandedTile({
       {flag && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={flagSrc(flag.code)}
+          /* the whole flag, not just its code: an admin-added one carries its own image */
+          src={flagSrc(flag)}
           alt=""
           aria-hidden
           className="pointer-events-none absolute h-[135%] object-cover"

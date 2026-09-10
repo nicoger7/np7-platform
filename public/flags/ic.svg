@@ -1,0 +1,5 @@
+<!-- Canary Islands, civil flag: three equal vertical bands, white / blue /
+     yellow, no coat of arms. Colours are the ones prescribed since 2005
+     (Pantone 3005 = rgb 7,104,169 and Pantone 7406 = rgb 255,204,0).
+     IC is the code ISO 3166-1 reserves for the islands. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 6 3"><path fill="#fff" d="M0 0h2v3H0z"/><path fill="#0768A9" d="M2 0h2v3H2z"/><path fill="#FFCC00" d="M4 0h2v3H4z"/></svg>

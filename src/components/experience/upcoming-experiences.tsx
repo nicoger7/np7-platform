@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Reveal } from "./reveal";
 import { BrandedTile } from "./branded-tile";
-import { placeFromLocation, flagFromLocation, type TilePlacement } from "@/lib/experience-tile";
+import { placeFromLocation, flagFromLocation, type FlagInfo, type TilePlacement } from "@/lib/experience-tile";
 import { cdn } from "@/lib/cdn";
 
 const SIG_IMG = cdn("hero/windsurf-hero-poster.jpg");
@@ -75,6 +75,16 @@ export type ExpCard = {
   coaches?: { name: string; cutout: string | null }[] | null;
   /** Focal/position overrides for the branded tile (migration 110). */
   placement?: TilePlacement | null;
+  /**
+   * The flag, resolved on the SERVER (lib/experience-cards).
+   *
+   * Custom flags live in a table now (migration 234) and this is a client
+   * component, so working the flag out here would mean a fetch from the
+   * browser on a page that is otherwise static. Undefined on a card built by
+   * something that has not been taught to resolve it, which then falls back to
+   * the bundled keyword list — the old behaviour, exactly.
+   */
+  flag?: FlagInfo | null;
 };
 
 const monthLabel = (ym: string) =>
@@ -162,7 +172,7 @@ export function ExpTileCardCompact({ exp }: { exp: ExpCard }) {
           <BrandedTile
             photo={exp.hero_image}
             place={placeFromLocation(exp.location).toUpperCase()}
-            flag={flagFromLocation(exp.location)}
+            flag={exp.flag ?? flagFromLocation(exp.location)}
             placement={exp.placement}
           />
         ) : (
@@ -208,7 +218,7 @@ export function ExpTileCard({ exp }: { exp: ExpCard }) {
             <BrandedTile
               photo={exp.hero_image}
               place={placeFromLocation(exp.location).toUpperCase()}
-              flag={flagFromLocation(exp.location)}
+              flag={exp.flag ?? flagFromLocation(exp.location)}
               coachName={exp.coachName}
               coachCutout={exp.coachCutout}
               coaches={exp.coaches}

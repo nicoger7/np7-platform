@@ -189,16 +189,13 @@ export function promoOrder(state: PromoState): string[] {
   return stored;
 }
 
-export const PROMO_FLAGS = [
-  { code: "us", name: "USA" },
-  { code: "bq", name: "Bonaire" },
-  { code: "tr", name: "Turkey" },
-  { code: "it", name: "Italy" },
-  { code: "es", name: "Spain" },
-  { code: "se", name: "Sweden" },
-  { code: "mg", name: "Madagascar" },
-  { code: "nl", name: "Netherlands" },
-];
+/*
+ * The flag list used to be repeated here, eight codes and names, beside the
+ * identical list in lib/experience-tile.ts. Two hardcoded lists of the same
+ * thing is how the Canary Islands ended up in one and not the other. The studio
+ * now builds its picker from BUNDLED_FLAGS plus whatever the team has added
+ * (migration 234), so there is one place a flag exists.
+ */
 
 export const NP7_EXPERIENCE_LOGO = "https://media.np-seven.com/logos/np7-experience-logo.png";
 
