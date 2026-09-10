@@ -381,7 +381,7 @@ async function resolveCompanySettings(division: string): Promise<CompanySettings
 
 // ─── Resolve booking data ─────────────────────────────────────────────────────
 
-type ResolvedBooking = {
+export type ResolvedBooking = {
   id: string;
   contact_id: string | null;
   experience_id: string | null;
@@ -470,7 +470,12 @@ async function packageIncludes(packageId: string | null): Promise<string[]> {
 
 // ─── Compute deposit ──────────────────────────────────────────────────────────
 
-function computeDeposit(booking: ResolvedBooking): number {
+/** The deposit that actually applies: edition override, then package, then
+    the €300 default. Exported because the lexoffice Beleg has to name which
+    instalment it is ("Rate 1 von 2"), and that count depends on whether a
+    deposit stage exists at all — a second copy of this rule would drift, and
+    the drift would be a null silently becoming €300. */
+export function computeDeposit(booking: ResolvedBooking): number {
   return (
     booking.exp_editions?.deposit ??
     booking.exp_packages?.deposit ??

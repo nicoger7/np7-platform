@@ -279,14 +279,27 @@ export default function DocumentsPage() {
             {loading ? "Loading…" : `${shown.length} ${view === "invoices" ? "invoice" : "document"}${shown.length !== 1 ? "s" : ""}`}
           </p>
         </div>
-        <button
-          onClick={exportCsv}
-          disabled={shown.length === 0}
-          className="px-4 py-2 text-sm font-bold rounded-lg transition-colors admin-muted hover:admin-heading disabled:opacity-40"
-          style={{ border: "1px solid var(--admin-border)" }}
-        >
-          Export CSV
-        </button>
+        <div className="flex gap-2">
+          {/* Where these invoices go once they are issued. The push is its own
+              page because writing into a set of company books cannot be undone
+              through the API, so it wants a screen that shows the exact Beleg
+              before anything is sent. */}
+          <Link
+            href="/admin/documents/lexoffice"
+            className="px-4 py-2 text-sm font-bold rounded-lg transition-colors admin-muted hover:admin-heading"
+            style={{ border: "1px solid var(--admin-border)" }}
+          >
+            lexoffice
+          </Link>
+          <button
+            onClick={exportCsv}
+            disabled={shown.length === 0}
+            className="px-4 py-2 text-sm font-bold rounded-lg transition-colors admin-muted hover:admin-heading disabled:opacity-40"
+            style={{ border: "1px solid var(--admin-border)" }}
+          >
+            Export CSV
+          </button>
+        </div>
       </div>
 
       {/* Which pile you are looking at */}
