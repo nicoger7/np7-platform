@@ -67,7 +67,7 @@ export async function PATCH(
   const denied = await requireAdminGate();
   if (denied) return denied;
   const { id } = await params;
-  const body: { status?: string } = await request.json();
+  const body: { status?: string; reason?: string } = await request.json();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
@@ -97,12 +97,41 @@ export async function PATCH(
    */
   if (body.status === "void") {
     const { data: doc } = await db
-      .from("documents").select("sent_at, type, invoice_number").eq("id", id).maybeSingle();
+      .from("documents").select("sent_at, type, invoice_number, meta").eq("id", id).maybeSingle();
     const isTax = doc && !["proforma_invoice", "booking_confirmation"].includes(String(doc.type));
     if (doc?.sent_at && isTax) {
       return NextResponse.json({
         error: `${doc.invoice_number ?? "This invoice"} has already been sent to the customer, so voiding it here would change nothing on their side. Issue a Storno instead — "Storno…" on this invoice.`,
       }, { status: 409 });
+    }
+
+    /*
+     * A cancelled tax-invoice number has to say why, in writing, on the row.
+     *
+     * The gapless sequence is kept precisely so it can be read back, and today
+     * it cannot be: NP7-XP-2026-0003, 0004 and 0005 are three cancelled
+     * €4,595 finals on one Alaçatı booking, 0033 and 0034 two more on another,
+     * and not one of them carries a sentence explaining itself. They were
+     * duplicates pressed minutes apart and replaced immediately — perfectly
+     * ordinary — but nothing in the books says so, and "it was wrong" is not
+     * an answer to give a Steuerberater a year from now.
+     *
+     * A pro-forma is exempt: voiding one is routine bookkeeping (a payment
+     * request replaced by the invoice it turned into) and promote.ts does it
+     * automatically on every payment, with its own superseded_reason.
+     */
+    if (isTax) {
+      const reason = String(body.reason ?? "").trim();
+      if (!reason) {
+        return NextResponse.json({
+          error: `Say why ${doc.invoice_number ?? "this invoice"} is being cancelled. The number stays in the sequence, so the reason has to stay with it.`,
+        }, { status: 400 });
+      }
+      updates.meta = {
+        ...((doc.meta ?? {}) as Record<string, unknown>),
+        void_reason: reason,
+        voided_at: new Date().toISOString(),
+      };
     }
   }
 

@@ -380,13 +380,22 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     setGenerating(null);
   }
 
-  async function voidDocument(docId: string) {
-    if (!confirm("Void this document?")) return;
+  async function voidDocument(docId: string, isTax: boolean) {
+    // A cancelled tax-invoice number keeps its place in the sequence, so it has
+    // to carry the sentence that explains it. A pro-forma does not: cancelling
+    // one is routine, and the payment flow does it by itself all day.
+    let reason: string | null = null;
+    if (isTax) {
+      reason = prompt("Why is this invoice being cancelled? The number stays in the sequence, so the reason stays with it.");
+      if (!reason || !reason.trim()) return;
+    } else if (!confirm("Void this document?")) {
+      return;
+    }
     setGenError(null);
     const res = await fetch(`/api/admin/documents/${docId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "void" }),
+      body: JSON.stringify({ status: "void", ...(reason ? { reason: reason.trim() } : {}) }),
     });
     if (res.ok) fetchDocuments();
     else {
@@ -2270,7 +2279,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                         {doc.sent_at ? "Resend" : "Send"}
                       </button>
                     )}
-                    {!doc.readOnly && doc.status !== "void" && ["deposit_invoice", "downpayment_invoice", "final_invoice"].includes(doc.type) && (
+                    {!doc.readOnly && doc.status !== "void" && ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice"].includes(doc.type) && (
                       <button
                         onClick={() => setCreditFor(doc)}
                         title="Issue a Storno (full) or credit note (partial) correcting this invoice"
@@ -2279,12 +2288,20 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                         Storno…
                       </button>
                     )}
-                    {!doc.readOnly && doc.status !== "void" && (
+                    {/* Cancelling a tax invoice is only honest while nobody has
+                        it: once sent, the customer holds a valid invoice and a
+                        flag flipped here reaches nobody — that is Storno's job.
+                        The button says which of the two this row is. */}
+                    {!doc.readOnly && doc.status !== "void" &&
+                      !(doc.sent_at && !["proforma_invoice", "booking_confirmation"].includes(doc.type)) && (
                       <button
-                        onClick={() => voidDocument(doc.id)}
+                        onClick={() => voidDocument(doc.id, !["proforma_invoice", "booking_confirmation"].includes(doc.type))}
+                        title={["proforma_invoice", "booking_confirmation"].includes(doc.type)
+                          ? "Void this document"
+                          : "Cancel this invoice number — only for paper that was never sent. Sent invoices need a Storno."}
                         className="text-xs text-red-400/50 hover:text-red-400 transition-colors"
                       >
-                        Void
+                        {["proforma_invoice", "booking_confirmation"].includes(doc.type) ? "Void" : "Cancel unsent…"}
                       </button>
                     )}
                   </div>

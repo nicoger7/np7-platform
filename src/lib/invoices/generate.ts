@@ -1033,10 +1033,17 @@ export async function generateCreditNote(input: CreditNoteInput): Promise<Docume
   const o = orig as DocumentRow;
   if (o.booking_id !== input.bookingId) throw new Error("That invoice belongs to a different booking.");
   if (o.status !== "issued") throw new Error("Only an issued invoice can be corrected.");
-  if (!["deposit_invoice", "downpayment_invoice", "final_invoice"].includes(o.type)) {
+  /*
+   * An add-on invoice belongs in this list, and leaving it out left a real
+   * hole. NP7-XP-2026-0015 (€810, Marc Vos) is an add-on invoice with a number
+   * off the same gapless counter and the same §14 obligations as any other —
+   * yet the only correction it had was Void, which stops working the moment it
+   * has been sent. That is exactly the case a Storno exists for.
+   */
+  if (!["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice"].includes(o.type)) {
     throw new Error(o.type === "proforma_invoice"
       ? "A pro-forma is a payment request, not a tax invoice — void or re-issue it, no Storno needed."
-      : "Only tax invoices (deposit / down-payment / final) can be corrected with a credit note.");
+      : "Only tax invoices (deposit / down-payment / final / add-on) can be corrected with a credit note.");
   }
   if (!o.invoice_number) throw new Error("The original invoice has no number — cannot reference it.");
 
@@ -1116,5 +1123,16 @@ export async function generateCreditNote(input: CreditNoteInput): Promise<Docume
   };
   const { data: inserted, error: insErr } = await db.from("documents").insert(docRow).select("*").single();
   if (insErr) throw new Error(`Failed to save the credit note: ${insErr.message}`);
+
+  /*
+   * A fully reversed add-on invoice makes its nights billable again — the same
+   * release the void path does. Only on a FULL Storno: a partial credit still
+   * leaves part of those add-ons invoiced, and an un-stamped row would be billed
+   * a second time on the next add-on invoice.
+   */
+  if (full && o.type === "addon_invoice") {
+    await db.from("exp_booking_addons").update({ invoiced_in: null }).eq("invoiced_in", o.id);
+  }
+
   return inserted as DocumentRow;
 }

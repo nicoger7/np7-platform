@@ -18,6 +18,8 @@ interface DocumentRow {
   issued_at: string;
   paid_at: string | null;
   due_date: string | null;
+  sent_at: string | null;
+  meta: Record<string, unknown> | null;
   signedUrl: string | null;
   // joined
   booking_name?: string | null;
@@ -48,6 +50,26 @@ const TAX_TYPES: DocumentType[] = [
 const isProforma = (d: DocumentRow) =>
   d.type === "proforma_invoice" || String(d.invoice_number ?? "").startsWith("PF-");
 const isTaxInvoice = (d: DocumentRow) => TAX_TYPES.includes(d.type) && !isProforma(d);
+
+/**
+ * Void and Storno are not two words for one act, and the page has to stop
+ * offering them as if they were.
+ *
+ * VOID says this document never counted. That is true of a pro-forma, which is
+ * a payment request and is replaced as a matter of course, and of a tax invoice
+ * nobody ever received — a Fehldruck. The row keeps its number and reads
+ * cancelled, so the §14 sequence still has no holes.
+ *
+ * STORNO says an invoice that DID count is being reversed. It is its own
+ * document with its own number from the same counter, and the customer gets it,
+ * because they are holding the original in their own books. Once an invoice has
+ * been sent, this is the only honest correction, and generateCreditNote already
+ * writes it.
+ */
+const isTaxCorrectable = (d: DocumentRow) =>
+  isTaxInvoice(d) && d.type !== "credit_note" && d.status !== "void";
+/** A tax invoice that can still be written off as a Fehldruck: never sent. */
+const isCancellableTax = (d: DocumentRow) => isTaxCorrectable(d) && !d.sent_at;
 
 type View = "invoices" | "proforma" | "all";
 
@@ -212,18 +234,36 @@ export default function DocumentsPage() {
     URL.revokeObjectURL(url);
   }
 
-  async function handleVoid(id: string) {
-    if (!confirm("Void this document? This cannot be undone.")) return;
-    const res = await fetch(`/api/admin/documents/${id}`, {
+  /**
+   * Cancel a document that never left the house.
+   *
+   * This is NOT the same act on both kinds of paper, and the page used to offer
+   * it as if it were: one red "Void" on every row, tax invoices included, with
+   * no Storno anywhere in sight. Voiding a pro-forma is routine — the payment
+   * flow does it automatically every time a request turns into an invoice.
+   * Voiding a numbered tax invoice is a Fehldruck, defensible only while nobody
+   * has it, and it has to carry the reason that explains the gap-that-isn't.
+   */
+  async function handleVoid(doc: DocumentRow) {
+    let reason: string | null = null;
+    if (isCancellableTax(doc)) {
+      reason = prompt(
+        `Cancel ${doc.invoice_number ?? "this invoice"}?\n\nOnly for an invoice nobody has seen. The number stays in the sequence, so write down why:`
+      );
+      if (!reason || !reason.trim()) return;
+    } else if (!confirm("Void this document? This cannot be undone.")) {
+      return;
+    }
+    const res = await fetch(`/api/admin/documents/${doc.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "void" }),
+      body: JSON.stringify({ status: "void", ...(reason ? { reason: reason.trim() } : {}) }),
     });
     if (res.ok) { fetchDocs(); return; }
     // An invoice already in the customer's hands is refused here and told to
     // use a Storno instead — swallowing that left the button looking broken.
     const j = await res.json().catch(() => ({}));
-    alert(j.error ?? "Couldn't void this document.");
+    alert(j.error ?? "Couldn't cancel this document.");
   }
 
   const inputClass =
@@ -307,7 +347,11 @@ export default function DocumentsPage() {
             { label: "Invoiced", value: formatMoney(totals.issued), sub: `${totals.issuedCount} document${totals.issuedCount !== 1 ? "s" : ""}${totals.creditCount ? ` · ${formatMoney(totals.credited)} credited back` : ""}` },
             { label: "Settled", value: formatMoney(totals.settled), sub: "marked paid" },
             { label: "Still open", value: formatMoney(totals.open), sub: `${totals.openCount} unpaid` },
-            { label: "Cancelled", value: formatMoney(totals.voided), sub: `${totals.voidCount} void — not revenue` },
+            /* Not "cancelled business". These are numbers written off before
+               anyone saw the paper — mostly a button pressed twice — and the
+               figure double-counts the duplicates it is made of. Saying
+               "CANCELLED €33,745.25" made replaced drafts read like lost sales. */
+            { label: "Cancelled numbers", value: formatMoney(totals.voided), sub: `${totals.voidCount} replaced, never revenue` },
           ].map((c) => (
             <div key={c.label} className="rounded-xl px-4 py-3" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
               <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{c.label}</div>
@@ -395,7 +439,18 @@ export default function DocumentsPage() {
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             >
-              <span className={`text-xs font-mono self-center truncate ${doc.status === "void" ? "line-through admin-faint" : "admin-muted"}`}>
+              <span
+                /* A cancelled number has to be able to answer "why is 0004
+                   gone?" without opening a database. Eight of the nine live
+                   cancellations answer it with nothing, because nothing ever
+                   asked; new ones carry the sentence and it shows up here. */
+                title={doc.status === "void"
+                  ? String((doc.meta as { void_reason?: string; superseded_reason?: string } | null)?.void_reason
+                      ?? (doc.meta as { superseded_reason?: string } | null)?.superseded_reason
+                      ?? "Cancelled — no reason recorded")
+                  : undefined}
+                className={`text-xs font-mono self-center truncate ${doc.status === "void" ? "line-through admin-faint" : "admin-muted"}`}
+              >
                 {doc.invoice_number || "—"}
               </span>
               <div className="min-w-0 self-center">
@@ -431,7 +486,7 @@ export default function DocumentsPage() {
                         : "bg-amber-500/15 text-amber-400"
                   }`}
                 >
-                  {doc.status === "void" ? "void" : doc.paid_at ? "paid" : "open"}
+                  {doc.status === "void" ? (isTaxInvoice(doc) ? "cancelled" : "void") : doc.paid_at ? "paid" : "open"}
                 </span>
               </span>
               <div className="self-center flex items-center gap-2">
@@ -445,12 +500,27 @@ export default function DocumentsPage() {
                     PDF
                   </a>
                 )}
-                {doc.status !== "void" && (
+                {/* The correction route for a tax invoice, in the place people
+                    were reaching for Void. The generator lives on the booking,
+                    because a Storno needs a reason and can be partial. */}
+                {isTaxCorrectable(doc) && doc.booking_id && (
+                  <Link
+                    href={`/admin/bookings/${doc.booking_id}?tab=documents`}
+                    title="Issue a Storno (full) or credit note (partial) reversing this invoice"
+                    className="text-xs text-amber-500/70 hover:text-amber-500 transition-colors"
+                  >
+                    Storno…
+                  </Link>
+                )}
+                {doc.status !== "void" && (isCancellableTax(doc) || !isTaxInvoice(doc)) && (
                   <button
-                    onClick={() => handleVoid(doc.id)}
+                    onClick={() => handleVoid(doc)}
+                    title={isTaxInvoice(doc)
+                      ? "Cancel this invoice number — only for paper that was never sent"
+                      : "Void this document"}
                     className="text-xs text-red-400/50 hover:text-red-400 transition-colors"
                   >
-                    Void
+                    {isTaxInvoice(doc) ? "Cancel unsent…" : "Void"}
                   </button>
                 )}
               </div>
