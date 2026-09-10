@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ImagePickerModal from "@/components/image-picker-modal";
-import PromoGallery from "@/components/admin/promo-gallery";
+import { usePromoFonts } from "@/components/admin/use-promo-fonts";
 import {
   GRADIENT_PRESETS,
   PROMO_FORMATS,
@@ -33,7 +33,6 @@ import {
   loadPromoImage,
   promoImageSources,
   type HitBox,
-  type PromoFonts,
 } from "@/lib/promo-render";
 import {
   artboardUnitsPerScreenPx,
@@ -56,7 +55,6 @@ type EditionRow = {
   hero_image: string | null;
   exp_experiences?: { title: string; location: string | null; hero_image: string | null } | null;
 };
-type DesignRow = { id: string; name: string; format: string; state: PromoState; updated_at: string };
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
@@ -92,8 +90,28 @@ const CURRENCY: Record<string, string> = { EUR: "€", USD: "$", GBP: "£" };
 
 // =============================================================================
 
-export default function PromoStudio() {
-  const [state, setState] = useState<PromoState>(defaultPromoState);
+/**
+ * Every prop is optional and the editor still works with none of them — that
+ * is what keeps /promo-preview (a bare mount, outside the admin) alive.
+ * PromoWorkspace passes them all: which design is open, how to get back, and
+ * who to tell when a save changes the wall of tiles behind it.
+ */
+export default function PromoStudio({
+  initialState,
+  initialId = null,
+  openEditionPickerOnMount = false,
+  onBack,
+  onSaved,
+}: {
+  initialState?: PromoState;
+  initialId?: string | null;
+  /** Start with the "From edition" menu already down — how "new from an
+   *  experience" is expressed, rather than as a second prefill code path. */
+  openEditionPickerOnMount?: boolean;
+  onBack?: () => void;
+  onSaved?: () => void;
+} = {}) {
+  const [state, setState] = useState<PromoState>(() => initialState ?? defaultPromoState());
   const [selected, setSelected] = useState<string | null>(null);
   const [editingText, setEditingText] = useState<string | null>(null);
   const [scale, setScale] = useState(0.5);
@@ -101,38 +119,33 @@ export default function PromoStudio() {
   const [picker, setPicker] = useState<null | "photo" | "coach" | "logo" | "add" | "add-replace">(null);
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [editions, setEditions] = useState<EditionRow[]>([]);
-  const [designs, setDesigns] = useState<DesignRow[]>([]);
-  const [designId, setDesignId] = useState<string | null>(null);
+  const [designId, setDesignId] = useState<string | null>(initialId);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [menu, setMenu] = useState<null | "elements" | "edition" | "designs" | "layers">(null);
-  const [gallery, setGallery] = useState(false);
+  const [menu, setMenu] = useState<null | "elements" | "edition" | "layers">(openEditionPickerOnMount ? "edition" : null);
+  /** Whether anything has changed since the last save. Tracked as a flag set by
+   *  the mutators rather than by comparing states: the state carries every
+   *  layer of a poster and diffing it on each render to grey out one button is
+   *  work nobody asked for. */
+  const [dirty, setDirty] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const fitRef = useRef<HTMLDivElement>(null);
   const hitsRef = useRef<HitBox[]>([]);
-  const fontsRef = useRef<PromoFonts>({ anton: "Anton", poppins: "Poppins" });
   const stateRef = useRef(state);
   stateRef.current = state;
 
   const fmt = state.format;
   const { w: W, h: H } = PROMO_FORMATS[fmt];
 
-  // -- fonts: resolve the next/font family names, preload the weights we draw
-  useEffect(() => {
-    const css = getComputedStyle(document.body);
-    const anton = css.getPropertyValue("--font-display").trim() || "Anton";
-    const poppins = css.getPropertyValue("--font-inter").trim() || "Poppins";
-    fontsRef.current = { anton, poppins };
-    const first = (list: string) => list.split(",")[0].trim();
-    const loads = [
-      `400 100px ${first(anton)}`,
-      ...["500", "600", "700", "800"].map((w) => `${w} 100px ${first(poppins)}`),
-      `italic 500 100px ${first(poppins)}`,
-    ].map((f) => document.fonts.load(f).catch(() => []));
-    Promise.all(loads).then(() => setImgTick((t) => t + 1));
-  }, []);
+  // -- fonts: the same resolution the overview's thumbnails use, so a tile and
+  //    the artboard behind it can never be drawn in different faces
+  const { fonts, ready: fontsReady } = usePromoFonts();
+  // Referenced so the re-render that lands when the real faces finish loading
+  // is not mistaken for a value nobody uses: the draw below reads `fonts`, and
+  // a canvas silently keeps whatever face it drew with.
+  void fontsReady;
 
   // -- image preload
   useEffect(() => {
@@ -169,7 +182,7 @@ export default function PromoStudio() {
     canvas.height = H;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    hitsRef.current = drawPromo(ctx, state, fontsRef.current, { skipTextId: editingText });
+    hitsRef.current = drawPromo(ctx, state, fonts, { skipTextId: editingText });
   });
 
   // -- data fetches (lazy)
@@ -189,17 +202,16 @@ export default function PromoStudio() {
       .catch(() => {});
   }, [editions.length]);
 
-  const loadDesigns = useCallback(() => {
-    fetch("/api/admin/promo/designs")
-      .then((r) => r.json())
-      .then((d) => setDesigns(Array.isArray(d) ? d : []))
-      .catch(() => {});
-  }, []);
-
   useEffect(() => {
     loadCoaches();
-    loadDesigns();
-  }, [loadCoaches, loadDesigns]);
+  }, [loadCoaches]);
+
+  // "New from an experience" opens the editor with the edition menu already
+  // down (see the `menu` initial value), so the prefill has ONE implementation
+  // and it is the one that was already there. All this does is fetch the list.
+  useEffect(() => {
+    if (openEditionPickerOnMount) loadEditions();
+  }, [openEditionPickerOnMount, loadEditions]);
 
   const flash = (msg: string) => {
     setNotice(msg);
@@ -230,19 +242,15 @@ export default function PromoStudio() {
       return fn(structuredClone(s));
     });
     setHistTick((t) => t + 1);
+    setDirty(true);
   }, []);
 
-  /** Replace the whole state (load design / reset / prefill) as one undo step. */
-  const replaceState = useCallback((next: PromoState) => {
-    setState((s) => {
-      pastRef.current.push(structuredClone(s));
-      if (pastRef.current.length > 60) pastRef.current.shift();
-      futureRef.current = [];
-      lastKeyRef.current = { key: null, t: 0 };
-      return next;
-    });
-    setHistTick((t) => t + 1);
-  }, []);
+  /*
+   * There used to be a replaceState() here, for loading a design over the one
+   * on screen. Nothing does that any more: the workspace mounts a fresh editor
+   * per design (a new React key), so a design's undo history belongs to that
+   * design and cannot be undone back into somebody else's poster.
+   */
 
   const undo = useCallback(() => {
     setState((s) => {
@@ -253,6 +261,7 @@ export default function PromoStudio() {
       return prev;
     });
     setHistTick((t) => t + 1);
+    setDirty(true);
   }, []);
 
   const redo = useCallback(() => {
@@ -264,6 +273,7 @@ export default function PromoStudio() {
       return next;
     });
     setHistTick((t) => t + 1);
+    setDirty(true);
   }, []);
 
   void histTick; // re-render trigger so the undo/redo buttons enable/disable
@@ -352,6 +362,10 @@ export default function PromoStudio() {
         `${ed.max_spots ? `*${ed.max_spots} spots*` : "*Small group*"}${price ? ` · from *${sym}${price}*` : ""} · coaching all week`
       );
       s.name = ed.label || `${exp?.title ?? "Promo"} ${ed.year}`;
+      // What the overview shows under the name. A poster called "Week II" is
+      // three posters until it also says which trip it belongs to.
+      const trip = exp?.title ? `${exp.title}${ed.year ? ` ${ed.year}` : ""}` : `${ed.year ?? ""}`;
+      s.source = { editionId: ed.id, label: [trip, ed.label].filter(Boolean).join(" · ") || null };
       return s;
     });
     setMenu(null);
@@ -368,22 +382,22 @@ export default function PromoStudio() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "save failed");
       setDesignId(data.id ?? designId);
-      loadDesigns();
-      flash("Saved ✓");
+      setDirty(false);
+      onSaved?.();
+      flash("Saved \u2713");
     } catch (e) {
-      flash(`Save failed: ${e instanceof Error ? e.message : e} — is migration 186 applied?`);
+      flash(`Save failed: ${e instanceof Error ? e.message : e} \u2014 is migration 187 applied?`);
     } finally {
       setSaving(false);
     }
   };
 
-  const loadDesign = (d: DesignRow) => {
-    // normalize designs saved before the gradient layer existed
-    if (!d.state.gradient) d.state.gradient = { ...defaultPromoState().gradient!, visible: false };
-    replaceState(d.state);
-    setDesignId(d.id);
-    setSelected(null);
-    setMenu(null);
+  /** Leave for the overview. Unsaved work is the one thing a back button can
+   *  destroy silently, so it asks first and only when there is something to
+   *  lose. */
+  const goBack = () => {
+    if (dirty && !confirm("Leave without saving? The changes to this graphic will be lost.")) return;
+    onBack?.();
   };
 
   // -- export -----------------------------------------------------------------
@@ -396,7 +410,7 @@ export default function PromoStudio() {
       const off = document.createElement("canvas");
       off.width = w;
       off.height = h;
-      drawPromo(off.getContext("2d")!, s, fontsRef.current);
+      drawPromo(off.getContext("2d")!, s, fonts);
       const blob = await new Promise<Blob | null>((res) => off.toBlob(res, "image/png"));
       if (!blob) continue;
       const a = document.createElement("a");
@@ -908,6 +922,16 @@ export default function PromoStudio() {
     <div className="flex flex-col h-[calc(100vh-120px)] min-h-[560px]" onKeyDown={onKeyDown} tabIndex={0}>
       {/* ── top bar ─────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2 pb-3">
+        {onBack && (
+          <button
+            onClick={goBack}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold"
+            style={{ border: "1px solid var(--admin-border,#ddd)", color: "var(--admin-text,#111)" }}
+            title="Back to all graphics"
+          >
+            ← All graphics
+          </button>
+        )}
         <input
           value={state.name}
           onChange={(e) => patch((s) => ((s.name = e.target.value), s))}
@@ -951,13 +975,12 @@ export default function PromoStudio() {
           </button>
         </div>
 
-        {(["edition", "layers", "elements", "designs"] as const).map((m) => (
+        {(["edition", "layers", "elements"] as const).map((m) => (
           <button
             key={m}
             onClick={() => {
               setMenu(menu === m ? null : m);
               if (m === "edition") loadEditions();
-              if (m === "designs") loadDesigns();
             }}
             className="px-3 py-1.5 rounded-lg text-xs font-bold"
             style={{
@@ -966,12 +989,16 @@ export default function PromoStudio() {
               color: menu === m ? "#fff" : "var(--admin-text,#111)",
             }}
           >
-            {m === "edition" ? "From edition ▾" : m === "layers" ? "Layers ▾" : m === "elements" ? "Elements ▾" : "Designs ▾"}
+            {m === "edition" ? "From edition ▾" : m === "layers" ? "Layers ▾" : "Elements ▾"}
           </button>
         ))}
 
         <div className="flex-1" />
-        {notice && <span className="text-xs font-semibold" style={{ color: "var(--admin-text-muted,#666)" }}>{notice}</span>}
+        {notice
+          ? <span className="text-xs font-semibold" style={{ color: "var(--admin-text-muted,#666)" }}>{notice}</span>
+          /* Said plainly, because the way back is now one click away and the
+             editor is no longer the page you happen to be sitting on. */
+          : dirty && <span className="text-xs font-semibold" style={{ color: "var(--admin-text-muted,#666)" }}>Unsaved changes</span>}
         <button onClick={save} disabled={saving} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white" style={{ background: "var(--admin-accent,#00afdb)" }}>
           {saving ? "Saving…" : designId ? "Save" : "Save as new"}
         </button>
@@ -1190,48 +1217,6 @@ export default function PromoStudio() {
               ))}
             </div>
           )}
-          {menu === "designs" && (
-              <div className="flex flex-col gap-1">
-                <button
-                  onClick={() => { setMenu(null); setGallery(true); }}
-                  className="mb-1 px-2 py-1.5 rounded-lg text-xs font-bold text-white bg-[#00afdb]"
-                >
-                  Browse all graphics ({designs.length})
-                </button>
-                {designs.map((d) => (
-                  <div key={d.id} className="flex items-center gap-2">
-                    <button onClick={() => loadDesign(d)} className="flex-1 text-left px-2 py-1 rounded hover:bg-black/5">
-                      <b>{d.name}</b>{" "}
-                      <span style={{ color: "var(--admin-text-muted,#666)" }}>{new Date(d.updated_at).toLocaleDateString()}</span>
-                    </button>
-                    <button
-                      onClick={async () => {
-                        await fetch(`/api/admin/promo/designs/${d.id}`, { method: "DELETE" });
-                        if (designId === d.id) setDesignId(null);
-                        loadDesigns();
-                      }}
-                      className="text-xs px-2 py-1 rounded hover:bg-black/5"
-                      style={{ color: "var(--admin-text-muted,#666)" }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                {!designs.length && (
-                  <span style={{ color: "var(--admin-text-muted,#666)" }}>No saved designs yet.</span>
-                )}
-                <button
-                  onClick={() => {
-                    replaceState(defaultPromoState());
-                    setDesignId(null);
-                    setMenu(null);
-                  }}
-                  className="text-left px-2 py-1 rounded hover:bg-black/5 font-bold"
-                >
-                  + New from template
-                </button>
-              </div>
-            )}
         </div>
       )}
 
@@ -1443,36 +1428,6 @@ export default function PromoStudio() {
       <p className="pt-2 text-[11px]" style={{ color: "var(--admin-text-muted,#666)" }}>
         Click = select · drag = move · corners = size · edges = stretch X/Y · double-click text = edit · ⌫ = hide · arrows = nudge · alt = ignore snapping · *stars* = gold accent in the details/partner lines
       </p>
-
-      {gallery && (
-        <PromoGallery
-          designs={designs}
-          fonts={fontsRef.current}
-          currentId={designId}
-          onOpen={(d) => { loadDesign(d); setGallery(false); }}
-          onNew={() => { replaceState(defaultPromoState()); setDesignId(null); setGallery(false); }}
-          onClose={() => setGallery(false)}
-          onRename={async (d, name) => {
-            await fetch(`/api/admin/promo/designs/${d.id}`, {
-              method: "PATCH", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name }),
-            }).catch(() => {});
-            loadDesigns();
-          }}
-          onDuplicate={async (d) => {
-            await fetch("/api/admin/promo/designs", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: `${d.name} copy`, format: d.format, state: d.state }),
-            }).catch(() => {});
-            loadDesigns();
-          }}
-          onDelete={async (d) => {
-            await fetch(`/api/admin/promo/designs/${d.id}`, { method: "DELETE" }).catch(() => {});
-            if (designId === d.id) setDesignId(null);
-            loadDesigns();
-          }}
-        />
-      )}
 
       {/* image picker */}
       {picker && (

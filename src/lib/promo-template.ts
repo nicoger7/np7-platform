@@ -152,6 +152,17 @@ export interface PromoState {
   gradient?: GradientLayer;
   /** Free images added from the library. Absent in older saved designs. */
   images?: FreeImageLayer[];
+  /**
+   * Where the content came from, when it came from somewhere.
+   *
+   * The overview needs to say more than a name and a date, and "Bonaire 2027,
+   * Week II" is the thing that actually identifies a poster. It lives in the
+   * state rather than in a column because the state is jsonb and a column is a
+   * migration: this is a label, not a relation, and nothing joins on it.
+   * Absent on designs built from scratch and on everything saved before it
+   * existed, which the overview simply renders as nothing.
+   */
+  source?: { editionId?: string | null; label?: string | null };
   /** Draw order of the movable layers, bottom→top. Photo + washes are always
    *  the base. Older saved designs may lack this — use promoOrder(). */
   order?: string[];

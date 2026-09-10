@@ -1,15 +1,17 @@
 "use client";
 
-import PromoStudio from "@/components/admin/promo-studio";
+import PromoWorkspace from "@/components/admin/promo-workspace";
 
+/**
+ * The heading moved into the workspace: the overview and the editor are two
+ * different rooms and a fixed page title above both of them was a third thing
+ * competing for the same strip of screen. The editor needs every pixel it can
+ * get for the artboard.
+ */
 export default function PromoPage() {
   return (
     <div className="max-w-[1400px]">
-      <h1 className="text-2xl font-bold admin-heading mb-1">Promo Studio</h1>
-      <p className="text-sm mb-4" style={{ color: "var(--admin-text-muted,#666)" }}>
-        Announcement graphics in the NP7 look — edit everything right on the artboard, export 4:5 and 9:16.
-      </p>
-      <PromoStudio />
+      <PromoWorkspace />
     </div>
   );
 }
