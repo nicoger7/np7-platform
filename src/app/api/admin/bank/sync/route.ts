@@ -10,7 +10,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminGate } from "@/lib/admin-auth";
-import { adminBridgeTransactions, adminBridgeConfigured } from "@/lib/bank/admin-bridge";
+import { qontoTransactions, qontoConfigured } from "@/lib/bank/qonto";
 import { stripeCharges, stripeConfigured } from "@/lib/bank/stripe-feed";
 import { importTransactions } from "@/lib/bank/store";
 import type { SyncResult } from "@/lib/bank/types";
@@ -31,11 +31,11 @@ export async function POST(request: NextRequest) {
   const results: SyncResult[] = [];
 
   if (!only || only === "bank") {
-    // The bank side comes from the NP7 Windsurfing admin, which owns the Qonto
-    // key. Rows arrive already deduped by its tx_hash, kept as our external_id.
-    const r: SyncResult = { source: "qonto", fetched: 0, inserted: 0, updated: 0, errors: [], configured: adminBridgeConfigured() };
+    // Straight from Qonto. Deduped on its own transaction_id, so a repeat sync
+    // is a no-op however often anyone presses the button.
+    const r: SyncResult = { source: "qonto", fetched: 0, inserted: 0, updated: 0, errors: [], configured: qontoConfigured() };
     if (r.configured) {
-      const { ok, transactions, error } = await adminBridgeTransactions(since);
+      const { ok, transactions, error } = await qontoTransactions(since);
       r.fetched = transactions.length;
       if (!ok && error) r.errors.push(error);
       if (transactions.length) {
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         r.inserted = imp.inserted; r.updated = imp.updated; r.errors.push(...imp.errors);
       }
     } else {
-      r.errors.push("NP7_ADMIN_BASE_URL / JIBE_BRIDGE_TOKEN are not set.");
+      r.errors.push("QONTO_API_LOGIN / QONTO_API_SECRET are not set.");
     }
     results.push(r);
   }

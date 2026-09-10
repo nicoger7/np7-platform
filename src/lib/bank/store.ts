@@ -284,17 +284,78 @@ export async function loadCandidates(division = "experience"): Promise<MatchCand
   return out;
 }
 
+/**
+ * Invoices that are settled, indexed by number.
+ *
+ * A transaction quoting NP7-XP-2026-0026 gets no suggestion, because that
+ * invoice is paid and correctly not a candidate. Printing "No idea yet" for it
+ * is wrong twice over: the system knows exactly what this money is, and the
+ * row is very likely the SAME payment somebody already keyed in by hand, which
+ * is the one thing worth spotting before it gets booked a second time.
+ */
+export type SettledInvoice = { invoiceNumber: string; guestName: string | null; amount: number };
+
+export async function loadSettledInvoices(division = "experience"): Promise<SettledInvoice[]> {
+  const admin = db();
+  const { data: docs } = await admin
+    .from("documents")
+    .select("id, invoice_number, contact_id, amount, status")
+    .eq("division", division)
+    .not("invoice_number", "is", null);
+  if (!docs?.length) return [];
+
+  const { data: pays } = await admin
+    .from("exp_payments")
+    .select("id, amount, type, direction, status, reference, method, received_at, document_id")
+    .not("document_id", "is", null);
+  const paidByDoc = new Map<string, number>();
+  for (const p of (pays ?? []) as ReconPayment[]) {
+    if (!p.document_id) continue;
+    paidByDoc.set(p.document_id, round2((paidByDoc.get(p.document_id) ?? 0) + paymentInflow(p)));
+  }
+
+  const contactIds = [...new Set(docs.map((d) => d.contact_id).filter(Boolean))] as string[];
+  const contacts = contactIds.length
+    ? (await admin.from("contacts").select("id, name").in("id", contactIds)).data ?? []
+    : [];
+  const nameById = new Map(contacts.map((c) => [String(c.id), String(c.name ?? "")]));
+
+  const out: SettledInvoice[] = [];
+  for (const d of docs) {
+    const invoiced = round2(Number(d.amount) || 0);
+    const paid = paidByDoc.get(d.id) ?? 0;
+    // Void counts as closed too: nothing is owed on it either way.
+    const closed = d.status === "void" || (invoiced > 0 && paid + 0.01 >= invoiced);
+    if (!closed) continue;
+    out.push({
+      invoiceNumber: String(d.invoice_number),
+      guestName: d.contact_id ? nameById.get(String(d.contact_id)) ?? null : null,
+      amount: invoiced,
+    });
+  }
+  return out;
+}
+
 /* ── Suggesting and matching ─────────────────────────────────────────────── */
 
-export type TransactionWithMatches = BankTransactionRow & { suggestions: BankMatch[] };
+export type TransactionWithMatches = BankTransactionRow & {
+  suggestions: BankMatch[];
+  /** Said instead of a suggestion when the answer is known but is not "connect
+      this to an open invoice" — above all, that the invoice is already paid. */
+  note?: string;
+};
+
+const squashRef = (s: string | null | undefined) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
 /** Attach ranked suggestions to a set of transactions. */
 export function withSuggestions(
   txs: BankTransactionRow[],
-  candidates: MatchCandidate[]
+  candidates: MatchCandidate[],
+  settled: SettledInvoice[] = []
 ): TransactionWithMatches[] {
   return txs.map((t) => ({
     ...t,
+    note: noteFor(t, settled),
     suggestions:
       t.payment_id || t.ignored_at || t.amount <= 0 || t.kind !== "income"
         ? []
@@ -310,6 +371,20 @@ export function withSuggestions(
             candidates
           ),
   }));
+}
+
+/** Does this transaction name an invoice that is already closed? */
+function noteFor(t: BankTransactionRow, settled: SettledInvoice[]): string | undefined {
+  if (t.payment_id || t.ignored_at || Number(t.amount) <= 0) return undefined;
+  const ref = squashRef([t.reference, t.label].filter(Boolean).join(" "));
+  if (!ref) return undefined;
+  const hit = settled.find((s) => {
+    const num = squashRef(s.invoiceNumber);
+    return num.length >= 6 && ref.includes(num);
+  });
+  if (!hit) return undefined;
+  const who = hit.guestName ? ` (${hit.guestName})` : "";
+  return `Invoice ${hit.invoiceNumber}${who} is already settled — this is probably the same money, entered by hand.`;
 }
 
 /** Map an invoice type onto the payment type the books use. */

@@ -9,7 +9,7 @@
  *   npx tsx --tsconfig tsconfig.json scripts/smoke-bank-match.mts
  */
 import { suggestForTransaction, autoMatchable, type MatchCandidate, type MatchInput } from "@/lib/bank/match";
-import { normaliseBridgeRow, type BridgeRow } from "@/lib/bank/admin-bridge";
+import { normaliseQonto, type QontoTx } from "@/lib/bank/qonto";
 
 let failed = 0;
 const check = (name: string, ok: boolean, note = "") => {
@@ -142,39 +142,48 @@ const tx = (over: Partial<MatchInput>): MatchInput => ({
   check("paying in the wrong currency is penalised", !eurHit || eurHit.reasons.some((r) => r.includes("came in")));
 }
 
-/* ── 11. The admin bridge mapping. ─────────────────────────────────────────── */
-const bridge = (over: Partial<BridgeRow> = {}): BridgeRow => ({
-  booking_date: "2026-08-31", value_date: "2026-08-30", amount_cents: 376500, currency: "EUR",
-  counterparty: "David Koehler", counterparty_iban: "DE02120300000000202051",
-  purpose: "NP7-XP-2026-0184", booking_type: "transfer", category: null,
-  match_status: "unmatched", tx_hash: "qonto:tx_9f21", side: "credit", ...over,
+/* ── 11. The Qonto mapping. ────────────────────────────────────────────────────
+   Every field here is taken from the client that has actually been running
+   against this account, not from the public docs, which got three of them
+   wrong. These checks are what stops that knowledge being lost again. */
+const qonto = (over: Partial<QontoTx> = {}): QontoTx => ({
+  transaction_id: "tx_9f21", amount_cents: 376500, side: "credit", currency: "EUR",
+  label: "David Koehler", reference: "NP7-XP-2026-0184", note: null,
+  operation_type: "transfer", settled_at: "2026-08-31T09:14:00.000Z",
+  emitted_at: "2026-08-30T18:02:00.000Z", status: "completed",
+  counterparty_iban: "DE02120300000000202051", ...over,
 });
 
 {
-  const n = normaliseBridgeRow(bridge())!;
-  check("bridge row keeps the admin's hash as the identity", n.externalId === "qonto:tx_9f21");
-  check("cents become a signed euro amount", n.amount === 3765, String(n.amount));
-  check("the Verwendungszweck lands in reference", n.reference === "NP7-XP-2026-0184");
-  check("an API row is sourced 'qonto'", n.source === "qonto");
+  const n = normaliseQonto(qonto(), "DE05100101236088979708")!;
+  check("cents plus side become a signed euro amount", n.amount === 3765, String(n.amount));
+  check("the payer's name comes from `label`", n.counterparty === "David Koehler");
+  check("the Verwendungszweck comes from `reference`", n.reference === "NP7-XP-2026-0184");
+  check("settled_at is the booking date", n.bookedOn === "2026-08-31");
   check("a credit is income", n.kind === "income");
 }
 {
-  const n = normaliseBridgeRow(bridge({ amount_cents: -84000, side: "debit", counterparty: "Sorobon Beach Resort", purpose: "Invoice 4471" }))!;
-  check("a debit is money out and stays negative", n.amount === -840 && n.kind === "expense", String(n.amount));
+  const n = normaliseQonto(qonto({ side: "debit", amount_cents: 84000, label: "Sorobon Beach Resort" }), null)!;
+  check("a debit is negative and is money out", n.amount === -840 && n.kind === "expense", String(n.amount));
 }
 {
-  // THE trap: the same card money, arriving a second time as one net credit.
-  const n = normaliseBridgeRow(bridge({ counterparty: "STRIPE PAYMENTS EUROPE LTD", purpose: "STRIPE PAYOUT", amount_cents: 219000 }))!;
+  // THE trap: the same card money arriving a second time as one net credit.
+  const n = normaliseQonto(qonto({ label: "STRIPE PAYMENTS EUROPE LTD", reference: "STRIPE PAYOUT", amount_cents: 219000 }), null)!;
   check("a Stripe payout is never income", n.kind === "payout",
-    "otherwise the whole card volume would count twice");
+    "otherwise the whole card volume counts twice");
 }
 {
-  const n = normaliseBridgeRow(bridge({ tx_hash: "a3f9c1e2b4d5", counterparty: "Qonto", purpose: "Qonto Abo", amount_cents: -1900, side: "debit" }))!;
-  check("a CSV-imported row is sourced 'csv'", n.source === "csv");
+  const n = normaliseQonto(qonto({ operation_type: "qonto_fee", side: "debit", amount_cents: 1900, label: "Qonto" }), null)!;
   check("the account fee is a fee", n.kind === "fee");
 }
 {
-  check("a row without a hash is dropped", normaliseBridgeRow(bridge({ tx_hash: "" })) === null);
+  // A pending card authorisation has no settled_at; emitted_at stands in.
+  const n = normaliseQonto(qonto({ settled_at: null, status: "pending" }), null)!;
+  check("a pending row falls back to emitted_at", n.bookedOn === "2026-08-30" && n.status === "pending");
+}
+{
+  check("a row with no id is dropped", normaliseQonto(qonto({ transaction_id: undefined }), null) === null);
+  check("a row with no date is dropped", normaliseQonto(qonto({ settled_at: null, emitted_at: null }), null) === null);
 }
 
 console.log(failed ? `\n${failed} check(s) FAILED` : "\nall checks passed");

@@ -51,6 +51,9 @@ type Tx = {
   ignored_at: string | null;
   ignored_reason: string | null;
   suggestions: Suggestion[];
+  /** Said when the answer is known but is not "connect this to an open
+      invoice" — above all, that the invoice it names is already paid. */
+  note?: string;
 };
 
 type Candidate = {
@@ -65,8 +68,6 @@ type Candidate = {
   dueDate: string | null;
   bookingId: string | null;
 };
-
-type Totals = { transactions: number; received: number; spent: number; unmatched: number; unmatchedValue: number; matched: number };
 
 const money = (n: number, ccy = "EUR") =>
   `${ccy === "EUR" ? "€" : ccy + " "}${Math.abs(Number(n)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -93,7 +94,7 @@ const KIND_LABEL: Record<string, string> = {
 export default function BankPage() {
   const [txs, setTxs] = useState<Tx[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [totals, setTotals] = useState<Totals | null>(null);
+  const [count, setCount] = useState(0);
   const [sources, setSources] = useState<{ bank: boolean; stripe: boolean }>({ bank: false, stripe: false });
   const [view, setView] = useState<string>("unmatched");
   const [search, setSearch] = useState("");
@@ -113,7 +114,7 @@ export default function BankPage() {
       if (!res.ok) throw new Error(json.error || "Could not load the ledger.");
       setTxs(json.transactions ?? []);
       setCandidates(json.candidates ?? []);
-      setTotals(json.totals ?? null);
+      setCount(json.count ?? 0);
       setSources(json.sources ?? { bank: false, stripe: false });
       setError(null);
     } catch (e) {
@@ -182,7 +183,8 @@ export default function BankPage() {
         <div>
           <h1 className="fin-hero mb-1">Bank</h1>
           <p className="fin-sub">
-            Real movements from the bank and from Stripe · {totals?.transactions ?? 0} transaction{totals?.transactions === 1 ? "" : "s"}
+            Straight from Qonto and Stripe. This is the whole NP7 account, so most of it
+            is not Experience money · {count} shown
           </p>
         </div>
         <button
@@ -198,30 +200,11 @@ export default function BankPage() {
         <div className="fin-card mb-5" style={{ borderColor: "rgba(245,158,11,.4)" }}>
           <div className="fin-label mb-1.5 text-amber-500">No source connected yet</div>
           <p className="text-sm admin-muted leading-relaxed">
-            The bank feed comes from the <strong>NP7 Windsurfing admin</strong>{" "}
-            (admin.nicoprien.com), which already syncs Qonto and keeps the API key. Set{" "}
-            <code className="px-1 rounded bg-black/5">NP7_ADMIN_BASE_URL</code> and{" "}
-            <code className="px-1 rounded bg-black/5">JIBE_BRIDGE_TOKEN</code> (the same token jibe
-            has), plus <code className="px-1 rounded bg-black/5">STRIPE_SECRET_KEY</code> for the card
-            payments. Everything on this page works the moment they are there.
+            Set <code className="px-1 rounded bg-black/5">QONTO_API_LOGIN</code> and{" "}
+            <code className="px-1 rounded bg-black/5">QONTO_API_SECRET</code> (Qonto → Settings →
+            Integrations → API), plus <code className="px-1 rounded bg-black/5">STRIPE_SECRET_KEY</code>{" "}
+            for the card payments. Everything on this page works the moment they are there.
           </p>
-        </div>
-      )}
-
-      {totals && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          {[
-            { label: "Received", value: money(totals.received), tone: "text-green-500" },
-            { label: "Still to match", value: money(totals.unmatchedValue), tone: totals.unmatched ? "text-amber-500" : "admin-muted", sub: `${totals.unmatched} transaction${totals.unmatched === 1 ? "" : "s"}` },
-            { label: "Connected", value: String(totals.matched), tone: "admin-muted", sub: "tied to an invoice" },
-            { label: "Money out", value: money(totals.spent), tone: "text-red-500" },
-          ].map((c) => (
-            <div key={c.label} className="fin-card">
-              <div className="fin-label mb-1.5">{c.label}</div>
-              <div className={`text-[26px] font-semibold tracking-[-.02em] ${c.tone}`}>{c.value}</div>
-              {c.sub && <div className="fin-sub mt-0.5">{c.sub}</div>}
-            </div>
-          ))}
         </div>
       )}
 
@@ -303,6 +286,8 @@ export default function BankPage() {
                             {best.candidate.guestName ?? best.candidate.invoiceNumber ?? "a match"}
                             <span className="admin-faint"> · {best.reasons[0]}</span>
                           </span>
+                        ) : t.note ? (
+                          <span className="admin-muted">{t.note}</span>
                         ) : (
                           <span className="admin-faint">No idea yet</span>
                         )}
