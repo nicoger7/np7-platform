@@ -35,6 +35,11 @@ import {
   type HitBox,
   type PromoFonts,
 } from "@/lib/promo-render";
+import {
+  artboardUnitsPerScreenPx,
+  measureArtboard,
+  screenToArtboard,
+} from "@/lib/promo-pointer";
 import { flagFromLocation, placeFromLocation } from "@/lib/experience-tile";
 
 type Coach = { id: string; name: string; cutout_url: string | null };
@@ -437,7 +442,7 @@ export default function PromoStudio() {
     const real = hitsRef.current.filter((h) => h.id !== "photo");
     const exact = [...real].reverse().find((h) => inside(h.box));
     if (exact) return exact;
-    const grow = Math.max(0, (MIN_HIT_PX / Math.max(scale, 0.05)) / 2);
+    const grow = Math.max(0, (MIN_HIT_PX * perScreenPx()) / 2);
     let best: HitBox | null = null;
     let bestD = Infinity;
     for (const h of real) {
@@ -473,13 +478,29 @@ export default function PromoStudio() {
    * little away from what it grabs, and the gap grows the further you are from
    * the top-left corner. Measuring both ends is self-consistent by
    * construction.
+   *
+   * The measurement itself needs a word of care, which is why it lives in
+   * promo-pointer.ts: the admin shell renders at zoom:1.1 on desktop, and not
+   * every engine reports a zoomed element's rect in the same space the pointer
+   * reports its position in.
    */
   const toCanvas = (e: { clientX: number; clientY: number }) => {
-    const r = wrapRef.current!.getBoundingClientRect();
-    return {
-      x: r.width ? (e.clientX - r.left) * (W / r.width) : 0,
-      y: r.height ? (e.clientY - r.top) * (H / r.height) : 0,
-    };
+    const el = wrapRef.current;
+    if (!el) return { x: 0, y: 0 };
+    const { rect, k } = measureArtboard(el);
+    return screenToArtboard(e, rect, { w: W, h: H }, k);
+  };
+
+  /** How many artboard units one SCREEN pixel is worth right now. Snapping and
+   *  the forgiving hit test are both specified in screen pixels so they feel
+   *  the same at any zoom, and both must convert through the same measurement
+   *  the clicks do — a threshold in a second coordinate space is how you get a
+   *  drag that snaps to a line it was never near. */
+  const perScreenPx = () => {
+    const el = wrapRef.current;
+    if (!el) return 1 / Math.max(scale, 0.05);
+    const { rect, k } = measureArtboard(el);
+    return artboardUnitsPerScreenPx(rect, { w: W, h: H }, k);
   };
 
   const selectedBox = (): { x: number; y: number; w: number; h: number } | null => {
@@ -614,8 +635,7 @@ export default function PromoStudio() {
      * never near. Snapping should confirm what you were already aiming at, not
      * relocate things.
      */
-    const r = wrapRef.current?.getBoundingClientRect();
-    const tol = Math.min(SNAP_PX * (r?.width ? W / r.width : 2), 24);
+    const tol = Math.min(SNAP_PX * perScreenPx(), 24);
     let nextGuides: { v: number[]; h: number[] } = { v: [], h: [] };
     patch((s) => {
       if (d.id === "photo") {
