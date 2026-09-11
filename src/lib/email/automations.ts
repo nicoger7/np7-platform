@@ -81,7 +81,9 @@ export const AUTOMATIONS: Automation[] = [
  * the person best placed to notice — the member — has no way to report it. A
  * switch whose failure mode is silent lockout is not worth having.
  */
-export const CANNOT_DISABLE = new Set(["account_magic_link"]);
+// Both of these ARE how somebody signs in. Switching one off would lock a
+// person out of their own account with no clue why.
+export const CANNOT_DISABLE = new Set(["account_magic_link", "team_invite"]);
 
 /** Whether the automated lifecycle pipeline is switched on (env, server-only). */
 export function lifecycleLive(): boolean {

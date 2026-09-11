@@ -381,6 +381,30 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /*
+   * Joining the team, as against signing into a trip.
+   *
+   * account_magic_link is shared by five flows, four of which are guests
+   * logging into their own booking. Telling those people to bookmark the admin
+   * and set a staff password would be nonsense, so a team invite gets its own
+   * words: where the admin lives, keep the address, and how to swap the link
+   * for a password you actually remember.
+   */
+  team_invite: (v, opts) => ({
+    subject: `Your NP7 admin access`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Your login link for the NP7 admin.",
+      bodyHtml:
+        greet(v) +
+        p(`You have been given access to the NP7 admin. This link signs you straight in, and it expires shortly, so it is worth using while you are at your desk:`) +
+        (v.activationLink ? emailButton("Open the NP7 admin", v.activationLink) : "") +
+        p(`From then on the admin lives at <strong>np-seven.com/admin</strong>. Worth a bookmark, because that is the way back in every time.`) +
+        p(`<strong>Prefer a password?</strong> Open np-seven.com/admin, choose "Forgot password?", and you will be sent a link to set one. After that you can sign in with your email and password instead of waiting for a link.`) +
+        p(`If you were not expecting this, just ignore it and nothing happens.`),
+    }),
+  }),
+
   account_magic_link: (v, opts) => ({
     subject: `Your NP7 login link`,
     html: emailLayout({

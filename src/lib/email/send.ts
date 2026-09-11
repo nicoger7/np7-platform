@@ -51,7 +51,10 @@ type SendResult = { status: "sent" | "failed" | "skipped"; id?: string; error?: 
 // so it's allowed during the soft launch.
 // withdrawal_received is the § 356a BGB acknowledgment — consumer-triggered and
 // legally required, so it must go out even during the soft launch.
-const SOFT_LAUNCH_ALLOWED = new Set(["account_magic_link", "password_reset", "reservation_received", "trip_invite", "group_spot_covered", "voucher_purchased", "voucher_gift", "cancellation_confirmed", "invoice_sent", "payment_shortfall_reminder", "withdrawal_received", "skills_verified"]);
+// team_invite belongs with the other two at the front of this list: it is how a
+// colleague signs in for the first time, not customer lifecycle mail. Left off,
+// the invite silently does nothing wherever EMAIL_LIFECYCLE_LIVE is unset.
+const SOFT_LAUNCH_ALLOWED = new Set(["account_magic_link", "team_invite", "password_reset", "reservation_received", "trip_invite", "group_spot_covered", "voucher_purchased", "voucher_gift", "cancellation_confirmed", "invoice_sent", "payment_shortfall_reminder", "withdrawal_received", "skills_verified"]);
 function lifecycleSuppressed(templateKey: string): boolean {
   const live = process.env.EMAIL_LIFECYCLE_LIVE === "true" || process.env.EMAIL_LIFECYCLE_LIVE === "1";
   return !live && !SOFT_LAUNCH_ALLOWED.has(templateKey);

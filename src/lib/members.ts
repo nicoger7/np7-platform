@@ -64,7 +64,7 @@ export async function ensureMemberAccount(opts: {
  */
 export async function inviteTeamMember(opts: {
   email: string; origin: string; firstName?: string;
-}): Promise<{ sent: boolean; userId?: string }> {
+}): Promise<{ sent: boolean; userId?: string; error?: string }> {
   const admin = createAdminClient();
   const email = opts.email.trim().toLowerCase();
 
@@ -83,13 +83,18 @@ export async function inviteTeamMember(opts: {
   const tokenHash = linkData?.properties?.hashed_token;
   if (error || !tokenHash) return { sent: false, userId };
 
-  await sendEmail({
+  // Report what actually happened. This said `sent: true` whatever sendEmail
+  // returned, so a suppressed or failed send looked like a delivered invite and
+  // the caller told somebody their colleague had been emailed when nobody had.
+  const res = await sendEmail({
     to: email,
-    templateKey: "account_magic_link",
+    // A team invite, not a guest signing into their trip: different words, and
+    // the link lands in the admin rather than the member area.
+    templateKey: "team_invite",
     vars: { firstName: opts.firstName, activationLink: confirmLink(opts.origin, tokenHash, "/admin") },
     contactId: null,
   });
-  return { sent: true, userId };
+  return { sent: res.status === "sent", userId, error: res.error };
 }
 
 /** Generate a login link for an existing member and (optionally) email it. */

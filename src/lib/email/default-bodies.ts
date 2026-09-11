@@ -12,6 +12,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   reservation_received: "You're registered — {{experienceTitle}} 🤙",
   deposit_confirmation: "You're in! 🤙 {{experienceTitle}} is booked",
   account_magic_link: "Your NP7 login link",
+  team_invite: "Your NP7 admin access",
   trip_invite: "{{inviterName}} invited you to {{experienceTitle}} 🌊",
   voucher_purchased: "Your NP7 gift voucher is ready 🎁",
   withdrawal_received: "Eingangsbestätigung — Ihr Widerruf ist eingegangen",
@@ -75,6 +76,9 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("<strong>What's next:</strong> we'll contact you personally within a day or two. The remaining balance is paid later by bank transfer — we'll send the invoice in good time.") +
     P("See you on the water." + SIGN),
 
+  team_invite:
+    "You have been given access to the NP7 admin. The link signs you in; afterwards it lives at "
+    + "np-seven.com/admin, which is worth bookmarking. To set a password instead, use \"Forgot password?\" there.",
   account_magic_link:
     P("Hey {{firstName}} 🤙") +
     P("Here's your secure login link for your NP7 account. It expires shortly, so use it soon:") +

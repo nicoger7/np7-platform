@@ -29,7 +29,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await db.from("team_members").update({ auth_user_id: res.userId }).eq("id", id);
   }
   if (!res.sent) {
-    return NextResponse.json({ error: "Could not send the invite. Check the email + Resend." }, { status: 400 });
+    // Say WHY. This check could never fire before, because inviteTeamMember
+    // always claimed success; now that it reports the truth, the reason is
+    // usually specific and actionable ("soft launch", a bounce, a bad address).
+    return NextResponse.json(
+      { error: res.error ?? "Could not send the invite. Check the email + Resend." },
+      { status: 400 },
+    );
   }
   return NextResponse.json({ ok: true });
 }
