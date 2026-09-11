@@ -39,8 +39,15 @@ for (const r of refuse.sort()) console.log(`    ${r}`);
 
 // ── the things that must never be true ──────────────────────────────────────
 console.log("\n  Assertions\n");
-check("cannot enter the Experience world", !effectiveCanEnterWorld(eff, "experience"));
-check("can enter the Hardware world", effectiveCanEnterWorld(eff, "hardware"));
+// Six worlds exist, not two. Hardware is the only one they may enter.
+const WORLDS_ALL = ["experience", "hardware", "magazine", "knowledge", "product-dev", "analytics"] as const;
+console.log("  Worlds\n");
+for (const w of WORLDS_ALL) {
+  const may = effectiveCanEnterWorld(eff, w as never);
+  console.log(`    ${w.padEnd(14)} ${may ? "CAN ENTER" : "refused"}`);
+  check(`${w} is ${w === "hardware" ? "open" : "closed"}`, may === (w === "hardware"));
+}
+console.log("");
 for (const p of ["/admin/team", "/admin/roles"]) {
   check(`refused ${p}`, !effectiveCanAccess(eff, p));
   check(`cannot write ${p}`, !effectiveCanWrite(eff, p));
