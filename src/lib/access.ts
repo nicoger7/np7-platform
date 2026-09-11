@@ -225,7 +225,11 @@ export const SECTIONS: Section[] = [
   // src/__tests__/access-sections.test.ts now fails if a route that accepts a
   // write method is left unclaimed. Add the path here in the same commit as the
   // route, and the test stays quiet.
-  { key: "finance", label: "Finance & budget", world: "experience", group: "Finance", shared: true, paths: ["/admin/finance", "/api/admin/finance", "/api/admin/roadmap"] },
+  /* The two world-pinned budget routes belong here too. They were claimed by no
+     section at all, and reach fails OPEN on an unclaimed admin path, so every
+     role could open both budgets: a media role with finance:none included. The
+     API refused to hand over figures, but the page should never have opened. */
+  { key: "finance", label: "Finance & budget", world: "experience", group: "Finance", shared: true, paths: ["/admin/finance", "/admin/experience/finance", "/admin/performance/finance", "/api/admin/finance", "/api/admin/roadmap"] },
   { key: "knowledge", label: "Knowledge Base", world: "knowledge", group: "Knowledge", paths: ["/admin/knowledge", "/api/admin/kb"] },
   { key: "tier_perks", label: "Tier perks", world: "experience", group: "Website", paths: ["/admin/perks", "/api/admin/tier-perks"] },
   { key: "templates", label: "Page templates", world: "experience", group: "Website", paths: ["/admin/templates", "/admin/home", "/api/admin/templates", "/api/admin/site-settings"] },
@@ -435,11 +439,28 @@ export function roleSectionLevel(access: RoleAccess, sectionKey: string): Sectio
 }
 
 /** Can this member reach `path`? Shared (section-less) paths are always allowed. */
+/**
+ * The world a path names in itself.
+ *
+ * `shared` lets one section appear in both worlds, which is right for the
+ * budget: each company has one. But it also switched off the world check
+ * entirely, so a Performance-only member could open /admin/experience/finance.
+ * A path that says which company it is about has to be in a world the member
+ * may enter, shared section or not.
+ */
+function worldOfPath(path: string): WorldId | null {
+  if (path.startsWith("/admin/experience/")) return "experience";
+  if (path.startsWith("/admin/performance/") || path.startsWith("/admin/hardware/")) return "hardware";
+  return null;
+}
+
 export function effectiveCanAccess(eff: EffectiveAccess, path: string): boolean {
   if (isPersonalPath(path)) return true; // hours log etc. — always available to any member
   if (eff.kind === "tier") return canAccess(eff.level, path);
   const sec = sectionForPath(path);
   if (!sec) return true;
+  const named = worldOfPath(path);
+  if (named && !eff.access.worlds.includes(named)) return false;
   if (!sec.shared && !eff.access.worlds.includes(sec.world)) return false;
   return roleSectionLevel(eff.access, sec.key) !== "none";
 }
@@ -461,6 +482,8 @@ export function effectiveCanWrite(eff: EffectiveAccess, path: string): boolean {
   if (eff.kind === "tier") return canAccess(eff.level, path);
   const sec = sectionForPath(path);
   if (!sec) return false;
+  const named = worldOfPath(path);
+  if (named && !eff.access.worlds.includes(named)) return false;
   if (!sec.shared && !eff.access.worlds.includes(sec.world)) return false;
   return roleSectionLevel(eff.access, sec.key) === "edit";
 }
@@ -494,6 +517,8 @@ export function effectiveCanEditSection(eff: EffectiveAccess, sectionKey: string
 export function effectiveCanEdit(eff: EffectiveAccess, path: string): boolean {
   if (isPersonalPath(path)) return true; // you can always log your own hours
   if (eff.kind === "tier") return canAccess(eff.level, path);
+  const named = worldOfPath(path);
+  if (named && !eff.access.worlds.includes(named)) return false;
   const sec = sectionForPath(path);
   if (!sec) return true;
   return eff.access.worlds.includes(sec.world) && roleSectionLevel(eff.access, sec.key) === "edit";
