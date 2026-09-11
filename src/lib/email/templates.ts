@@ -397,7 +397,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       preheader: "Your login link for the NP7 admin.",
       bodyHtml:
         greet(v) +
-        p(`You have been given access to the NP7 admin. This link signs you straight in, and it expires shortly, so it is worth using while you are at your desk:`) +
+        p(`You have been given access to the NP7 admin. This link signs you straight in and is good for 24 hours:`) +
         (v.activationLink ? emailButton("Open the NP7 admin", v.activationLink) : "") +
         p(`From then on the admin lives at <strong>np-seven.com/admin</strong>. Worth a bookmark, because that is the way back in every time.`) +
         p(`<strong>Prefer a password?</strong> Open np-seven.com/admin, choose "Forgot password?", and you will be sent a link to set one. After that you can sign in with your email and password instead of waiting for a link.`) +
