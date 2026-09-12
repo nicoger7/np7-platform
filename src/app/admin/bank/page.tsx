@@ -10,9 +10,19 @@
  * is one click. What the system is not sure about it says so, rather than
  * guessing: eleven guests owe €2,445 for the same Bonaire week, and a matcher
  * that picks one on price alone is wrong ten times out of eleven.
+ *
+ * Money OUT asks the mirror question: which cost line did this pay for? A
+ * debit arrives with the expected lines it most likely settles, can be placed
+ * on one or several of them (partial allowed, never more than the debit), and
+ * when no expected line exists a new one is created from the debit itself, in
+ * whatever scope the person chooses, marked unplanned. From then on that cost
+ * is REAL: its actual can be walked back to a movement the bank saw. Nothing
+ * on either side is booked without a click.
  */
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { COST_SCOPES, MARGIN_CLASSES, type CostScope } from "@/lib/finance/costs";
+import { editionOptionLabel } from "@/lib/edition-label";
 
 type Suggestion = {
   candidate: {
@@ -30,6 +40,19 @@ type Suggestion = {
   reasons: string[];
   confidence: "exact" | "strong" | "possible";
 };
+
+type CostSuggestion = {
+  candidate: {
+    costId: string; item: string; scope: CostScope; scopeLabel: string;
+    open: number; estimated: number; state: string; unplanned: boolean; marginClass: string | null;
+  };
+  score: number;
+  reasons: string[];
+  confidence: "strong" | "possible";
+  suggestedAmount: number;
+};
+
+type CostAllocationView = { paymentId: string; costId: string; item: string; scope: CostScope; scopeLabel: string; amount: number };
 
 type Tx = {
   id: string;
@@ -54,6 +77,11 @@ type Tx = {
   /** Said when the answer is known but is not "connect this to an open
       invoice" — above all, that the invoice it names is already paid. */
   note?: string;
+  /** Money out: what the debit is placed on, and what it might be placed on. */
+  costSuggestions: CostSuggestion[];
+  costAllocations: CostAllocationView[];
+  costAllocated: number;
+  costRemaining: number;
 };
 
 type Candidate = {
@@ -69,6 +97,23 @@ type Candidate = {
   bookingId: string | null;
 };
 
+type CostCandidate = {
+  costId: string; item: string; scope: CostScope; scopeLabel: string;
+  editionId: string | null; experienceId: string | null; experienceTitle: string | null;
+  year: number | null; open: number; estimated: number; state: string;
+  marginClass: string | null; unplanned: boolean;
+};
+
+type ScopeTotals = {
+  byScope: Record<CostScope, number>;
+  allocated: number; debits: number; unallocated: number; debitCount: number; unallocatedCount: number;
+};
+
+type ScopeOptions = {
+  experiences: { id: string; title: string }[];
+  editions: { id: string; label: string | null; year: number | null; date_start: string | null; date_end: string | null; experience_id: string }[];
+};
+
 const money = (n: number, ccy = "EUR") =>
   `${ccy === "EUR" ? "€" : ccy + " "}${Math.abs(Number(n)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -82,6 +127,12 @@ const VIEWS = [
   { key: "all", label: "All" },
 ] as const;
 
+const DIRECTIONS = [
+  { key: "", label: "Both ways" },
+  { key: "in", label: "Money in" },
+  { key: "out", label: "Money out" },
+] as const;
+
 const KIND_LABEL: Record<string, string> = {
   income: "Money in",
   expense: "Money out",
@@ -91,12 +142,23 @@ const KIND_LABEL: Record<string, string> = {
   unknown: "Unclassified",
 };
 
+/** A debit that can be a cost. Same rule as isCostDebit() on the server. */
+const costable = (t: Tx) => Number(t.amount) < 0 && !t.ignored_at && (t.kind === "expense" || t.kind === "fee" || t.kind === "unknown");
+
+const emptyNewCost = () => ({
+  item: "", scope: "edition" as CostScope, experience_id: "", edition_id: "", year: "", scope_reason: "", margin_class: "", amount: "",
+});
+
 export default function BankPage() {
   const [txs, setTxs] = useState<Tx[]>([]);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [costCandidates, setCostCandidates] = useState<CostCandidate[]>([]);
+  const [costTotals, setCostTotals] = useState<ScopeTotals | null>(null);
+  const [scopeOptions, setScopeOptions] = useState<ScopeOptions>({ experiences: [], editions: [] });
   const [count, setCount] = useState(0);
   const [sources, setSources] = useState<{ bank: boolean; stripe: boolean }>({ bank: false, stripe: false });
   const [view, setView] = useState<string>("unmatched");
+  const [direction, setDirection] = useState<string>("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -104,16 +166,23 @@ export default function BankPage() {
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [pickerQuery, setPickerQuery] = useState("");
+  const [costQuery, setCostQuery] = useState("");
+  const [allocAmount, setAllocAmount] = useState("");
+  const [showNewCost, setShowNewCost] = useState(false);
+  const [newCost, setNewCost] = useState(emptyNewCost());
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/bank/transactions?view=${view}&q=${encodeURIComponent(search)}`);
+      const res = await fetch(`/api/admin/bank/transactions?view=${view}&direction=${direction}&q=${encodeURIComponent(search)}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Could not load the ledger.");
       setTxs(json.transactions ?? []);
       setCandidates(json.candidates ?? []);
+      setCostCandidates(json.costCandidates ?? []);
+      setCostTotals(json.costTotals ?? null);
+      setScopeOptions(json.scopeOptions ?? { experiences: [], editions: [] });
       setCount(json.count ?? 0);
       setSources(json.sources ?? { bank: false, stripe: false });
       setError(null);
@@ -122,7 +191,7 @@ export default function BankPage() {
     } finally {
       setLoading(false);
     }
-  }, [view, search]);
+  }, [view, direction, search]);
 
   useEffect(() => { const t = setTimeout(load, search ? 300 : 0); return () => clearTimeout(t); }, [load, search]);
 
@@ -159,8 +228,10 @@ export default function BankPage() {
       if (!res.ok) throw new Error(json.error || "That did not work.");
       setError(null);
       await load();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      return false;
     } finally {
       setBusyId(null);
     }
@@ -175,7 +246,59 @@ export default function BankPage() {
     return list.slice(0, 40);
   }, [candidates, pickerQuery]);
 
+  const filteredCostCandidates = useMemo(() => {
+    const q = costQuery.trim().toLowerCase();
+    const list = q
+      ? costCandidates.filter((c) =>
+          [c.item, c.scopeLabel, c.experienceTitle].filter(Boolean).join(" ").toLowerCase().includes(q))
+      : costCandidates;
+    return list.slice(0, 40);
+  }, [costCandidates, costQuery]);
+
+  /* What to allocate when a line is pressed: the typed amount if there is
+     one, else as much of the debit as the line still expects. Never more than
+     the debit holds; the server refuses that too, with the figures. */
+  function allocate(t: Tx, costId: string, open: number, fromSuggestion = false) {
+    const typed = Number(allocAmount);
+    const amount = allocAmount.trim() && Number.isFinite(typed) && typed > 0 ? typed : Math.min(t.costRemaining, open);
+    return act(t.id, { action: "allocate-cost", allocations: [{ costId, amount }], fromSuggestion });
+  }
+
+  async function createCost(t: Tx) {
+    const body = {
+      action: "create-cost",
+      cost: {
+        item: newCost.item,
+        scope: newCost.scope,
+        edition_id: newCost.scope === "edition" ? newCost.edition_id || null : null,
+        experience_id: newCost.scope === "edition" || newCost.scope === "experience_year" ? newCost.experience_id || null : null,
+        year: newCost.scope === "experience_year" || newCost.scope === "year" ? (newCost.year ? Number(newCost.year) : null) : null,
+        scope_reason: newCost.scope === "edition" ? null : newCost.scope_reason || null,
+        margin_class: newCost.margin_class || null,
+      },
+      amount: newCost.amount.trim() ? Number(newCost.amount) : null,
+    };
+    if (await act(t.id, body)) { setShowNewCost(false); setNewCost(emptyNewCost()); }
+  }
+
+  const openRow = (t: Tx) => {
+    const isOpen = openId === t.id;
+    setOpenId(isOpen ? null : t.id);
+    setPickerQuery(""); setCostQuery(""); setAllocAmount(""); setShowNewCost(false);
+    setNewCost({ ...emptyNewCost(), item: t.counterparty ?? "", amount: t.costRemaining > 0 ? String(t.costRemaining) : "" });
+  };
+
   const noSources = !sources.bank && !sources.stripe;
+  const years = useMemo(() => {
+    const now = new Date().getFullYear();
+    const ys = new Set<number>([now - 1, now, now + 1, now + 2]);
+    for (const e of scopeOptions.editions) if (e.year) ys.add(e.year);
+    return [...ys].sort();
+  }, [scopeOptions.editions]);
+  const formEditions = scopeOptions.editions.filter((ed) => !newCost.experience_id || ed.experience_id === newCost.experience_id);
+  const experienceTitle = (id: string) => scopeOptions.experiences.find((x) => x.id === id)?.title ?? null;
+  const input = "admin-input text-sm px-3 py-1.5 rounded-lg w-full";
+  const label = "fin-label mb-1 block";
 
   return (
     <div className="fin">
@@ -208,11 +331,18 @@ export default function BankPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 mb-5">
+      <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="fin-seg inline-flex">
           {VIEWS.map((v) => (
             <button key={v.key} onClick={() => { setView(v.key); setOpenId(null); }} data-on={view === v.key ? "true" : "false"}>
               {v.label}
+            </button>
+          ))}
+        </div>
+        <div className="fin-seg inline-flex">
+          {DIRECTIONS.map((d) => (
+            <button key={d.key} onClick={() => { setDirection(d.key); setOpenId(null); }} data-on={direction === d.key ? "true" : "false"}>
+              {d.label}
             </button>
           ))}
         </div>
@@ -224,6 +354,26 @@ export default function BankPage() {
         />
         <span className="text-xs admin-faint ml-auto">{txs.length} shown</span>
       </div>
+
+      {/* The one total this page is about: not the balance, the work. How much
+          of the money out has been placed on a cost line, and where. */}
+      {costTotals && costTotals.debitCount > 0 && (
+        <p className="text-xs admin-muted mb-5">
+          Money out: {money(costTotals.debits)} across {costTotals.debitCount} debits ·{" "}
+          <span className={costTotals.allocated > 0 ? "text-green-600 font-medium" : ""}>{money(costTotals.allocated)} placed on cost lines</span>
+          {costTotals.allocated > 0 && (
+            <span className="admin-faint">
+              {" "}({COST_SCOPES.map((s) => `${s.short.toLowerCase()} ${money(costTotals.byScope[s.key] ?? 0)}`).join(" · ")})
+            </span>
+          )}
+          {" · "}
+          <span className={costTotals.unallocatedCount > 0 ? "text-amber-600 font-medium" : "text-green-600"}>
+            {costTotals.unallocatedCount > 0
+              ? `${money(costTotals.unallocated)} on ${costTotals.unallocatedCount} debits still unplaced`
+              : "every debit placed"}
+          </span>
+        </p>
+      )}
 
       {note && <div className="mb-4 text-sm admin-muted">{note}</div>}
       {error && <div className="mb-4 text-sm text-red-500">{error}</div>}
@@ -253,11 +403,14 @@ export default function BankPage() {
               {txs.map((t) => {
                 const open = openId === t.id;
                 const best = t.suggestions[0];
+                const bestCost = t.costSuggestions?.[0];
                 const isIncome = t.kind === "income" && Number(t.amount) > 0;
+                const isDebit = Number(t.amount) < 0;
+                const placed = t.costAllocations?.length ?? 0;
                 return (
                   <Fragment key={t.id}>
                     <tr
-                      onClick={() => { setOpenId(open ? null : t.id); setPickerQuery(""); }}
+                      onClick={() => openRow(t)}
                       className="fin-rule fin-row cursor-pointer"
                     >
                       <td className="px-4 py-3 whitespace-nowrap admin-muted">{fmtDate(t.booked_on)}</td>
@@ -279,6 +432,25 @@ export default function BankPage() {
                           <span className="admin-faint">Set aside · {t.ignored_reason}</span>
                         ) : t.document_id ? (
                           <span className="text-green-600 font-medium">Connected</span>
+                        ) : isDebit ? (
+                          placed > 0 ? (
+                            <span>
+                              <span className="text-green-600 font-medium">
+                                {placed === 1 ? t.costAllocations[0].item : `${placed} cost lines`}
+                              </span>
+                              <span className="admin-faint"> · {placed === 1 ? t.costAllocations[0].scopeLabel : money(t.costAllocated)}</span>
+                              {t.costRemaining > 0.01 && <span className="text-amber-600"> · {money(t.costRemaining)} still unplaced</span>}
+                            </span>
+                          ) : !costable(t) ? (
+                            <span className="admin-faint">—</span>
+                          ) : bestCost ? (
+                            <span className={bestCost.confidence === "strong" ? "text-amber-500" : "admin-muted"}>
+                              {bestCost.candidate.item}
+                              <span className="admin-faint"> · {bestCost.candidate.scopeLabel} · {bestCost.reasons[0]}</span>
+                            </span>
+                          ) : (
+                            <span className="admin-faint">No expected line yet</span>
+                          )
                         ) : !isIncome ? (
                           <span className="admin-faint">—</span>
                         ) : best ? (
@@ -317,6 +489,15 @@ export default function BankPage() {
                                   >
                                     Disconnect
                                   </button>
+                                ) : placed > 0 ? (
+                                  <button
+                                    onClick={() => act(t.id, { action: "unallocate-cost" })}
+                                    disabled={busyId === t.id}
+                                    className="px-3 py-1.5 text-xs rounded-lg admin-surface admin-muted disabled:opacity-50"
+                                    style={{ border: "1px solid var(--admin-border)" }}
+                                  >
+                                    Undo all
+                                  </button>
                                 ) : t.ignored_at ? (
                                   <button
                                     onClick={() => act(t.id, { action: "unignore" })}
@@ -329,7 +510,7 @@ export default function BankPage() {
                                 ) : (
                                   <button
                                     onClick={() => {
-                                      const reason = window.prompt("Why is this not a guest payment?");
+                                      const reason = window.prompt(isDebit ? "Why is this not an Experience cost?" : "Why is this not a guest payment?");
                                       if (reason?.trim()) act(t.id, { action: "ignore", reason: reason.trim() });
                                     }}
                                     disabled={busyId === t.id}
@@ -342,6 +523,7 @@ export default function BankPage() {
                               </div>
                             </div>
 
+                            {/* ── Money in: the invoice it settles ── */}
                             {isIncome && !t.document_id && !t.ignored_at && (
                               <>
                                 <div className="fin-label mb-2">Best guesses</div>
@@ -416,6 +598,235 @@ export default function BankPage() {
                                 <Link href="/admin/documents" className="underline">this invoice</Link>
                                 {t.match_confidence === "auto" ? " automatically." : t.match_confidence === "suggested" ? " from a suggestion." : " by hand."}
                               </p>
+                            )}
+
+                            {/* ── Money out: the cost line it paid for ── */}
+                            {isDebit && !t.ignored_at && (
+                              <>
+                                {placed > 0 && (
+                                  <div className="mb-4">
+                                    <div className="fin-label mb-2">Placed on</div>
+                                    <div className="flex flex-col gap-1.5">
+                                      {t.costAllocations.map((a) => (
+                                        <div key={a.paymentId} className="flex flex-wrap items-center gap-3 p-3 rounded-xl" style={{ background: "var(--fin-inset)" }}>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="font-medium truncate">{a.item}</div>
+                                            <div className="fin-sub truncate">
+                                              <span className="px-1.5 py-0.5 mr-1 rounded text-[9px] font-bold uppercase tracking-wide bg-slate-500/15 admin-faint">
+                                                {COST_SCOPES.find((s) => s.key === a.scope)?.short ?? a.scope}
+                                              </span>
+                                              {a.scopeLabel} · <Link href="/admin/exp-costs" className="underline">costs</Link>
+                                            </div>
+                                          </div>
+                                          <span className="font-semibold text-green-600">{money(a.amount)}</span>
+                                          <button
+                                            onClick={() => act(t.id, { action: "unallocate-cost", costId: a.costId })}
+                                            disabled={busyId === t.id}
+                                            className="px-3 py-1.5 text-xs rounded-lg admin-surface admin-muted disabled:opacity-50"
+                                            style={{ border: "1px solid var(--admin-border)" }}
+                                          >
+                                            Undo
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    <p className="text-xs admin-muted mt-2">
+                                      {t.costRemaining > 0.01
+                                        ? `${money(t.costAllocated)} placed · ${money(t.costRemaining)} of this debit still unplaced.`
+                                        : "Fully placed. These lines are now real: their actual can be walked back to this movement."}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {!costable(t) && placed === 0 && (
+                                  <p className="text-sm admin-faint">
+                                    A {KIND_LABEL[t.kind]?.toLowerCase() ?? t.kind} is not a cost. If that is wrong, change its kind first.
+                                  </p>
+                                )}
+
+                                {costable(t) && t.costRemaining > 0.01 && (
+                                  <>
+                                    <div className="flex flex-wrap items-end gap-3 mb-3">
+                                      <div>
+                                        <label className={label}>Amount to place</label>
+                                        <input
+                                          value={allocAmount}
+                                          onChange={(e) => setAllocAmount(e.target.value)}
+                                          placeholder={`blank = what fits, up to ${money(t.costRemaining)}`}
+                                          className="admin-input text-sm px-3 py-1.5 rounded-lg w-64"
+                                          type="number" step="0.01" min="0"
+                                        />
+                                      </div>
+                                      <p className="text-xs admin-faint pb-2">
+                                        Part of a debit may go on one line and the rest on another; more than the debit holds is refused.
+                                      </p>
+                                    </div>
+
+                                    <div className="fin-label mb-2">Best guesses</div>
+                                    {t.costSuggestions?.length ? (
+                                      <div className="flex flex-col gap-2 mb-4">
+                                        {t.costSuggestions.map((s) => (
+                                          <div key={s.candidate.costId} className="flex flex-wrap items-center gap-3 p-3 rounded-xl" style={{ background: "var(--fin-inset)" }}>
+                                            <span
+                                              className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${
+                                                s.confidence === "strong" ? "bg-amber-500/15 text-amber-600" : "bg-slate-500/15 admin-faint"}`}
+                                            >
+                                              {s.confidence}
+                                            </span>
+                                            <div className="min-w-0 flex-1">
+                                              <div className="font-medium truncate">
+                                                {s.candidate.item}
+                                                {s.candidate.unplanned && <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-amber-500/15 text-amber-500">unplanned</span>}
+                                              </div>
+                                              <div className="fin-sub truncate">
+                                                {s.candidate.scopeLabel}
+                                                {" — still expects "}{money(s.candidate.open)}
+                                                {" · "}{s.reasons.join(" · ")}
+                                              </div>
+                                            </div>
+                                            <button
+                                              onClick={() => allocate(t, s.candidate.costId, s.candidate.open, true)}
+                                              disabled={busyId === t.id}
+                                              className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50"
+                                            >
+                                              Place {money(allocAmount.trim() && Number(allocAmount) > 0 ? Number(allocAmount) : s.suggestedAmount)}
+                                            </button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-sm admin-faint mb-4">
+                                        No expected line names this payee or wants exactly this amount. Pick one by hand below, or create the line this debit paid for.
+                                      </p>
+                                    )}
+
+                                    <div className="fin-label mb-2">Or choose the cost line</div>
+                                    <input
+                                      value={costQuery}
+                                      onChange={(e) => setCostQuery(e.target.value)}
+                                      placeholder="Search item, trip, experience…"
+                                      className="admin-input text-sm px-3 py-1.5 rounded-lg w-full sm:w-96 mb-2"
+                                    />
+                                    <div className="max-h-56 overflow-y-auto flex flex-col gap-1 mb-4">
+                                      {filteredCostCandidates.map((c) => (
+                                        <button
+                                          key={c.costId}
+                                          onClick={() => allocate(t, c.costId, c.open)}
+                                          disabled={busyId === t.id}
+                                          className="fin-row text-left px-3 py-2 rounded-lg disabled:opacity-50"
+                                        >
+                                          <span className="font-medium">{c.item}</span>
+                                          <span className="admin-faint"> · {c.scopeLabel} · still expects {money(c.open)}</span>
+                                          {c.state === "hand" && <span className="admin-faint"> · recorded by hand so far</span>}
+                                        </button>
+                                      ))}
+                                      {!filteredCostCandidates.length && (
+                                        <span className="text-sm admin-faint px-3 py-2">No open cost line matches that search.</span>
+                                      )}
+                                    </div>
+
+                                    {/* No expected line: create one from the debit, in the chosen scope. */}
+                                    {!showNewCost ? (
+                                      <button
+                                        onClick={() => setShowNewCost(true)}
+                                        className="px-3 py-1.5 text-xs font-semibold rounded-lg admin-surface"
+                                        style={{ border: "1px solid var(--admin-border)" }}
+                                      >
+                                        No expected line? Create one from this debit
+                                      </button>
+                                    ) : (
+                                      <div className="p-3 rounded-xl" style={{ background: "var(--fin-inset)" }}>
+                                        <div className="fin-label mb-2">New cost line, from this debit</div>
+                                        <p className="text-xs admin-muted mb-3">
+                                          Created as confirmed and marked unplanned, so the expected-versus-real view can say this was never budgeted. One trip is the default; anything broader needs a reason.
+                                        </p>
+                                        <div className="grid sm:grid-cols-3 gap-3 mb-3">
+                                          <div className="sm:col-span-2">
+                                            <label className={label}>Item</label>
+                                            <input className={input} value={newCost.item} onChange={(e) => setNewCost({ ...newCost, item: e.target.value })} />
+                                          </div>
+                                          <div>
+                                            <label className={label}>Amount to place</label>
+                                            <input className={input} type="number" step="0.01" min="0" value={newCost.amount} onChange={(e) => setNewCost({ ...newCost, amount: e.target.value })} placeholder={money(t.costRemaining)} />
+                                          </div>
+                                        </div>
+                                        <label className={label}>Belongs to</label>
+                                        <div className="flex flex-wrap gap-1.5 mb-2">
+                                          {COST_SCOPES.map((s) => (
+                                            <button
+                                              key={s.key}
+                                              type="button"
+                                              onClick={() => setNewCost({
+                                                ...newCost, scope: s.key,
+                                                edition_id: s.key === "edition" ? newCost.edition_id : "",
+                                                year: s.key === "experience_year" || s.key === "year" ? newCost.year || String(new Date(t.booked_on).getFullYear()) : "",
+                                                experience_id: s.key === "year" || s.key === "general" ? "" : newCost.experience_id,
+                                              })}
+                                              className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                                              style={{ border: "1px solid var(--admin-border)", backgroundColor: newCost.scope === s.key ? "var(--admin-accent)" : "transparent", color: newCost.scope === s.key ? "var(--admin-accent-contrast)" : undefined }}
+                                            >
+                                              {s.label}
+                                            </button>
+                                          ))}
+                                        </div>
+                                        <p className="text-xs admin-faint mb-3">{COST_SCOPES.find((s) => s.key === newCost.scope)?.blurb}</p>
+                                        <div className="grid sm:grid-cols-3 gap-3 mb-3">
+                                          {(newCost.scope === "edition" || newCost.scope === "experience_year") && (
+                                            <div>
+                                              <label className={label}>Experience{newCost.scope === "edition" ? " (narrows the list)" : ""}</label>
+                                              <select className={input} value={newCost.experience_id} onChange={(e) => setNewCost({ ...newCost, experience_id: e.target.value, edition_id: "" })}>
+                                                <option value="">{newCost.scope === "edition" ? "Any" : "—"}</option>
+                                                {scopeOptions.experiences.map((x) => <option key={x.id} value={x.id}>{x.title}</option>)}
+                                              </select>
+                                            </div>
+                                          )}
+                                          {newCost.scope === "edition" && (
+                                            <div className="sm:col-span-2">
+                                              <label className={label}>Edition</label>
+                                              <select className={input} value={newCost.edition_id} onChange={(e) => { const ed = scopeOptions.editions.find((x) => x.id === e.target.value); setNewCost({ ...newCost, edition_id: e.target.value, experience_id: ed?.experience_id ?? newCost.experience_id }); }}>
+                                                <option value="">Pick the trip…</option>
+                                                {formEditions.map((ed) => <option key={ed.id} value={ed.id}>{editionOptionLabel(ed, newCost.experience_id ? null : experienceTitle(ed.experience_id))}</option>)}
+                                              </select>
+                                            </div>
+                                          )}
+                                          {(newCost.scope === "experience_year" || newCost.scope === "year") && (
+                                            <div>
+                                              <label className={label}>Year</label>
+                                              <select className={input} value={newCost.year} onChange={(e) => setNewCost({ ...newCost, year: e.target.value })}>
+                                                <option value="">—</option>
+                                                {years.map((y) => <option key={y} value={y}>{y}</option>)}
+                                              </select>
+                                            </div>
+                                          )}
+                                          {newCost.scope !== "edition" && (
+                                            <div className="sm:col-span-3">
+                                              <label className={label}>Why not one trip?</label>
+                                              <input className={input} value={newCost.scope_reason} onChange={(e) => setNewCost({ ...newCost, scope_reason: e.target.value })} placeholder="e.g. one flight for the coach covers all three Bonaire weeks" />
+                                            </div>
+                                          )}
+                                          <div>
+                                            <label className={label}>§ 25 bucket</label>
+                                            <select className={input} value={newCost.margin_class} onChange={(e) => setNewCost({ ...newCost, margin_class: e.target.value })}>
+                                              <option value="">Unsorted</option>
+                                              {MARGIN_CLASSES.map((m) => <option key={m.key} value={m.key} disabled={m.key === "travel_input" && newCost.scope === "general"}>{m.label}</option>)}
+                                            </select>
+                                          </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                          <button
+                                            onClick={() => createCost(t)}
+                                            disabled={busyId === t.id || !newCost.item.trim() || (newCost.scope === "edition" && !newCost.edition_id)}
+                                            className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50"
+                                          >
+                                            Create and place
+                                          </button>
+                                          <button onClick={() => setShowNewCost(false)} className="px-3 py-1.5 text-xs rounded-lg admin-muted">Cancel</button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </>
                             )}
                           </div>
                         </td>

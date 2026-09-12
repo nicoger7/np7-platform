@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
   const division = searchParams.get("division") || "experience";
   const view = searchParams.get("view") || "unmatched"; // unmatched | matched | ignored | all
   const kind = searchParams.get("kind");
+  const direction = searchParams.get("direction"); // in | out, by the sign of the amount
   const search = (searchParams.get("q") || "").trim();
   const limit = Math.min(Number(searchParams.get("limit") || 200), 500);
 
@@ -49,6 +50,10 @@ export async function GET(request: NextRequest) {
   else if (view === "ignored") q = q.not("ignored_at", "is", null);
 
   if (kind) q = q.eq("kind", kind);
+  // "Money out" is every debit, whatever kind it was sorted into: an expense,
+  // a fee, an unknown. The page's toggle asks by sign, not by kind.
+  if (direction === "in") q = q.gt("amount", 0);
+  else if (direction === "out") q = q.lt("amount", 0);
   if (search) {
     const like = `%${search}%`;
     q = q.or(`counterparty.ilike.${like},reference.ilike.${like},label.ilike.${like},external_id.ilike.${like}`);
