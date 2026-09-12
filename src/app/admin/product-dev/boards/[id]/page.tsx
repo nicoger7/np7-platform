@@ -9,7 +9,7 @@ import { BoardMeasureGrid, ImportDialog, SeriesSummary } from "@/components/admi
 import { BoardNotes, NoteComposer, SessionBrief } from "@/components/admin/board-notes";
 import { BoardCutouts } from "@/components/admin/board-cutouts";
 import {
-  BOARD_CATEGORIES, BOARD_ORIGINS,
+  BOARD_DISCIPLINES, BOARD_ORIGINS, disciplineLabel,
   type BoardCategory, type BoardOrigin, type BoardPhoto,
   type PdBoard, type PdBoardCutout, type PdBoardNote, type PdBoardPoint, type PdBoardSeries,
 } from "@/lib/board-measurements";
@@ -75,7 +75,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
           <div>
             <h1 className="text-2xl font-bold admin-heading">{d.name}</h1>
             <p className="text-sm admin-muted">
-              {[d.brand, d.year, d.category].filter(Boolean).join(" · ")}
+              {[d.brand, d.year, disciplineLabel(d.category)].filter(Boolean).join(" · ")}
               {" · "}{readings} reading{readings === 1 ? "" : "s"}
               {" · measured from the "}{d.station_origin}
               {d.project && (
@@ -190,9 +190,9 @@ function OverviewTab({ board, onSaved }: { board: Bundle; onSaved: () => void })
           <div><label className={labelClass}>Year</label>
             <input className={inputClass} value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} /></div>
 
-          <div className="sm:col-span-2"><label className={labelClass}>Category</label>
+          <div className="sm:col-span-2"><label className={labelClass}>Discipline</label>
             <select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as BoardCategory })}>
-              {BOARD_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              {BOARD_DISCIPLINES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
             </select></div>
           <div className="sm:col-span-2"><label className={labelClass}>Whose board</label>
             <select className={inputClass} value={form.origin} onChange={(e) => setForm({ ...form, origin: e.target.value as BoardOrigin })}>

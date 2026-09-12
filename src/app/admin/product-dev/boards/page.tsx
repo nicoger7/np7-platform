@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BOARD_CATEGORIES, BOARD_ORIGINS, DEFAULT_STATIONS, type BoardCategory, type BoardOrigin } from "@/lib/board-measurements";
+import { BOARD_DISCIPLINES, BOARD_ORIGINS, DEFAULT_STATIONS, disciplineLabel, type BoardCategory, type BoardOrigin } from "@/lib/board-measurements";
 
 type BoardRow = {
   id: string;
@@ -35,6 +35,7 @@ export default function BoardsPage() {
   const [boards, setBoards] = useState<BoardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [discipline, setDiscipline] = useState<string>("");
   const [showNew, setShowNew] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
@@ -106,8 +107,26 @@ export default function BoardsPage() {
         </button>
       </div>
 
-      <div className="mb-5">
+      <div className="mb-5 flex flex-col gap-3">
         <input className={`${inputClass} max-w-sm`} placeholder="Search by name…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        {/* Discipline pills: only the disciplines that have a board, plus All. */}
+        {boards.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {[{ key: "", label: "All" }, ...BOARD_DISCIPLINES.filter((d) => boards.some((b) => b.category === d.key))].map((d) => {
+              const on = discipline === d.key;
+              const n = d.key ? boards.filter((b) => b.category === d.key).length : boards.length;
+              return (
+                <button key={d.key} onClick={() => setDiscipline(d.key)} aria-pressed={on}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-full transition-colors ${on ? "" : "admin-muted"}`}
+                  style={on
+                    ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }
+                    : { border: "1px solid var(--admin-border)" }}>
+                  {d.label} <span className={on ? "opacity-80" : "admin-faint"}>{n}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {error && (
@@ -132,9 +151,9 @@ export default function BoardsPage() {
               <input className={inputClass} value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} />
             </div>
             <div className="sm:col-span-2">
-              <label className={labelClass}>Category</label>
+              <label className={labelClass}>Discipline *</label>
               <select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as BoardCategory })}>
-                {BOARD_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                {BOARD_DISCIPLINES.map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
               </select>
             </div>
             <div className="sm:col-span-2">
@@ -179,11 +198,11 @@ export default function BoardsPage() {
       ) : (
         <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
           <div className="gap-3 px-5 py-3 admin-surface" style={{ display: "grid", gridTemplateColumns: GRID, borderBottom: "1px solid var(--admin-border)" }}>
-            {["Board", "Category", "Whose", "Volume", "Readings", "Measured", ""].map((h, i) => (
+            {["Board", "Discipline", "Whose", "Volume", "Readings", "Measured", ""].map((h, i) => (
               <span key={i} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
             ))}
           </div>
-          {boards.map((b) => (
+          {boards.filter((b) => !discipline || b.category === discipline).map((b) => (
             <div key={b.id} className="gap-3 px-5 py-3 transition-colors group"
               style={{ display: "grid", gridTemplateColumns: GRID, borderBottom: "1px solid var(--admin-border)" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
@@ -194,7 +213,7 @@ export default function BoardsPage() {
                   <span className="block text-[11px] admin-faint truncate">{[b.brand, b.year].filter(Boolean).join(" · ")}</span>
                 )}
               </Link>
-              <span className="text-xs admin-muted self-center">{b.category}</span>
+              <span className="text-xs admin-muted self-center">{disciplineLabel(b.category)}</span>
               <span className={`text-xs self-center ${ORIGIN_COLOR[b.origin] ?? "admin-muted"}`}>
                 {BOARD_ORIGINS.find((o) => o.key === b.origin)?.label.replace(/^Our /, "").replace(/ board$/, "") ?? b.origin}
               </span>

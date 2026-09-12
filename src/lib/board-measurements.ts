@@ -107,8 +107,31 @@ export const BOARD_METRICS: BoardMetric[] = [
 export const BOARD_METRIC_BY_KEY: Record<string, BoardMetric> =
   Object.fromEntries(BOARD_METRICS.map((m) => [m.key, m]));
 
-export const BOARD_CATEGORIES = ["slalom", "freerace", "freeride", "wave", "freestyle", "foil", "formula", "sup", "other"] as const;
-export type BoardCategory = (typeof BOARD_CATEGORIES)[number];
+/**
+ * The discipline — "the first thing anybody asks of a board". Stored in the
+ * `category` column (migration 241 widened its check constraint); the UI says
+ * Discipline everywhere. Order here is the order in the filter pills.
+ */
+export const BOARD_DISCIPLINES = [
+  { key: "slalom", label: "Slalom" },
+  { key: "freerace", label: "Freerace" },
+  { key: "freeride", label: "Freeride" },
+  { key: "freewave", label: "Freewave" },
+  { key: "wave", label: "Wave" },
+  { key: "freestyle", label: "Freestyle" },
+  { key: "race", label: "Race" },
+  { key: "speed", label: "Speed" },
+  { key: "formula", label: "Formula" },
+  { key: "foil", label: "Windfoil" },
+  { key: "wingfoil", label: "Wingfoil" },
+  { key: "sup", label: "SUP" },
+  { key: "other", label: "Other" },
+] as const;
+export const BOARD_CATEGORIES = BOARD_DISCIPLINES.map((d) => d.key) as unknown as readonly BoardCategory[];
+export type BoardCategory = (typeof BOARD_DISCIPLINES)[number]["key"];
+export function disciplineLabel(key: string | null | undefined): string {
+  return BOARD_DISCIPLINES.find((d) => d.key === key)?.label ?? (key ?? "—");
+}
 
 export const BOARD_ORIGINS = [
   { key: "own", label: "Our production board" },
