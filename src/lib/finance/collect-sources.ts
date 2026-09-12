@@ -72,16 +72,23 @@ export async function collectSources(
   let stranded = { count: 0, amount: 0 };
 
   if (entity.division === "experience") {
-    const [costsRes, edsRes, paysRes] = await Promise.all([
-      db.from("exp_costs").select("id,item,estimated_amount,actual_amount,status,date,edition_id"),
+    const [costsRes, edsRes, paysRes, cpaRes] = await Promise.all([
+      db.from("exp_costs").select("id,item,estimated_amount,actual_amount,status,date,edition_id,scope,year"),
       db.from("exp_editions").select("id,date_start"),
       db.from("exp_payments").select("id,amount,date,received_at,direction,status,vendor_id,experience_id"),
+      // Real money attached to a line (migration 057, bank debits via 240)
+      // outranks a typed actual, as it does in the P&L and the margin record.
+      db.from("exp_cost_payment_allocations").select("cost_id,amount"),
     ]);
     const editionStart = new Map<string, string>(
       ((edsRes.data ?? []) as { id: string; date_start: string | null }[])
         .filter((e) => e.date_start).map((e) => [e.id, e.date_start as string]),
     );
-    facts.push(...factsFromExpCosts(costsRes.data ?? [], editionStart, year));
+    const attached = new Map<string, number>();
+    for (const a of ((cpaRes.data ?? []) as { cost_id: string; amount: number | string | null }[])) {
+      attached.set(a.cost_id, (attached.get(a.cost_id) ?? 0) + (Number(a.amount) || 0));
+    }
+    facts.push(...factsFromExpCosts(costsRes.data ?? [], editionStart, year, attached));
     facts.push(...factsFromExpPayments(paysRes.data ?? [], year));
     stranded = undatedExpCosts(costsRes.data ?? [], editionStart);
     consulted.push("exp_costs", "exp_payments");

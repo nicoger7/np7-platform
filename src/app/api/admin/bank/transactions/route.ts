@@ -1,15 +1,21 @@
 /**
  * GET /api/admin/bank/transactions — the ledger, with a suggestion attached to
- * every unmatched credit.
+ * every unmatched credit AND to every unplaced debit.
  *
  * Suggestions are computed on read rather than stored, on purpose: the ranking
- * depends on what is still owed, and that changes every time anyone books a
- * payment. A stored suggestion would be stale the moment it mattered.
+ * depends on what is still owed (income) or still expected (costs), and that
+ * changes every time anyone books a payment. A stored suggestion would be
+ * stale the moment it mattered.
+ *
+ * Money in is matched to invoices (store.ts, unchanged). Money out is
+ * allocated to cost lines (bank/costs.ts): the same shape, the other
+ * direction, and neither side is ever booked without a click.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminGate } from "@/lib/admin-auth";
 import { createClient } from "@supabase/supabase-js";
 import { loadCandidates, loadSettledInvoices, withSuggestions } from "@/lib/bank/store";
+import { loadCostCandidates, costAllocationsForTransactions, scopeTotals, withCostSuggestions, isCostDebit } from "@/lib/bank/costs";
 import { qontoConfigured } from "@/lib/bank/qonto";
 import { stripeConfigured } from "@/lib/bank/stripe-feed";
 import type { BankTransactionRow } from "@/lib/bank/types";
@@ -62,24 +68,36 @@ export async function GET(request: NextRequest) {
   // load them whenever anything on this page could be matched by hand. The
   // settled index answers the other case: a transfer quoting an invoice that
   // is already paid.
-  const [candidates, settled] = await Promise.all([
+  const debitIds = rows.filter((t) => Number(t.amount) < 0).map((t) => t.id);
+  const anyDebit = rows.some((t) => isCostDebit(t));
+  const [candidates, settled, costCandidates, placed, costTotals] = await Promise.all([
     loadCandidates(division),
     loadSettledInvoices(division),
+    anyDebit ? loadCostCandidates() : Promise.resolve([]),
+    costAllocationsForTransactions(debitIds),
+    scopeTotals(division),
+  ]);
+
+  // What the "new cost from this debit" form can point at. Kept here so the
+  // page needs no grant beyond the bank section to fill its own picker.
+  const [{ data: experiences }, { data: editions }] = await Promise.all([
+    admin.from("exp_experiences").select("id, title").is("archived_at", null).order("title"),
+    admin.from("exp_editions").select("id, label, year, date_start, date_end, experience_id").is("archived_at", null).order("date_start", { ascending: false }),
   ]);
 
   /*
-   * No totals.
+   * No headline totals.
    *
    * There were four summary cards: received, still to match, connected, money
    * out. Nico killed them on sight and he is right. This is ONE Qonto account
    * carrying every NP7 business, so "Received EUR 188,311.28" answers a
    * question nobody asked, and answers it wrongly on a page that says
-   * Experience at the top. Two of the four were printing the same figure
-   * anyway, because nothing is connected yet. A total is worth showing only
-   * when the set it sums is the set the reader has in mind, and here it is not.
+   * Experience at the top. The one figure that IS this page's question is how
+   * much of the money out has been placed on a cost line, and by scope; that
+   * is `costTotals`, and it is about the work, not the balance.
    */
   return NextResponse.json({
-    transactions: withSuggestions(rows, candidates, settled),
+    transactions: withCostSuggestions(withSuggestions(rows, candidates, settled), costCandidates, placed),
     count: rows.length,
     sources: { bank: qontoConfigured(), stripe: stripeConfigured() },
     // The manual picker searches this list — every invoice still owed money.
@@ -95,5 +113,16 @@ export async function GET(request: NextRequest) {
       dueDate: c.dueDate,
       bookingId: c.bookingId,
     })),
+    // The cost picker searches this one — every line that still expects money.
+    costCandidates: costCandidates
+      .filter((c) => c.open > 0.01)
+      .map((c) => ({
+        costId: c.costId, item: c.item, scope: c.scope, scopeLabel: c.scopeLabel,
+        editionId: c.editionId, experienceId: c.experienceId, experienceTitle: c.experienceTitle,
+        year: c.year, open: c.open, estimated: c.estimated, state: c.state,
+        marginClass: c.marginClass, unplanned: c.unplanned,
+      })),
+    costTotals,
+    scopeOptions: { experiences: experiences ?? [], editions: editions ?? [] },
   });
 }

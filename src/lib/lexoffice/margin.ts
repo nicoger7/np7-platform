@@ -119,6 +119,14 @@ export type MarginRecord = {
     negativeMarge: number;
     unclassifiedCosts: number;
     provisionalTrips: number;
+    /**
+     * Travel inputs that sit on an experience_year or year scope and were
+     * never split onto trips (migration 240). They belong to SOME trip in
+     * this window and to no row above, so they are named here rather than
+     * dropped: a Reisevorleistung left out makes a margin too big.
+     */
+    unassignedTravelInput: number;
+    unassignedTravelInputCount: number;
   };
 };
 
@@ -131,7 +139,11 @@ export type MarginRecord = {
  * the trip actually happens. An EU trip taxes earlier, on receipt of payment,
  * which is a different question and a reason the territory column matters.
  */
-export async function buildMarginRecord(from: string, to: string): Promise<MarginRecord> {
+export async function buildMarginRecord(
+  from: string,
+  to: string,
+  opts: { keepEmpty?: boolean } = {},
+): Promise<MarginRecord> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
@@ -234,7 +246,7 @@ export async function buildMarginRecord(from: string, to: string): Promise<Margi
   }
 
   // ── Costs, by § 25 bucket, allocated to trips ───────────────────────────────
-  const costs = await costsByEdition(db, editionIds);
+  const costs = await costBucketsByEdition(db, editionIds);
 
   // ── One row per trip ────────────────────────────────────────────────────────
   const trips: MarginTrip[] = editions.map((e) => {
@@ -332,9 +344,14 @@ export async function buildMarginRecord(from: string, to: string): Promise<Margi
      reader to check each one before realising there was nothing there. Anything
      with a single euro or a single traveller on it stays, including a trip that
      was cancelled after money had been spent. */
-  const kept = trips.filter(
-    (t) => t.travellers > 0 || t.entgelt !== 0 || t.received !== 0 || t.reisevorleistungen !== 0 || t.unclassified !== 0 || t.ownService !== 0,
-  );
+  const kept = opts.keepEmpty
+    ? trips
+    : trips.filter(
+        (t) => t.travellers > 0 || t.entgelt !== 0 || t.received !== 0 || t.reisevorleistungen !== 0 || t.unclassified !== 0 || t.ownService !== 0,
+      );
+
+  // ── Travel inputs on a broader scope that reached no trip ──────────────────
+  const unassigned = await unassignedTravelInputs(db, from, to);
 
   const sum = (f: (t: MarginTrip) => number) => r2(kept.reduce((s, t) => s + f(t), 0));
   return {
@@ -352,8 +369,65 @@ export async function buildMarginRecord(from: string, to: string): Promise<Margi
       negativeMarge: sum((t) => (t.bruttomarge < 0 ? t.bruttomarge : 0)),
       unclassifiedCosts: sum((t) => t.unclassified),
       provisionalTrips: kept.filter((t) => t.provisional).length,
+      unassignedTravelInput: unassigned.amount,
+      unassignedTravelInputCount: unassigned.count,
     },
   };
+}
+
+/**
+ * The one row of the record for one trip, whether or not it has a euro on it
+ * yet. For the consequence panel on the costs page, which wants to say what a
+ * cost will do to a trip that may still be empty.
+ */
+export async function buildEditionMargin(editionId: string): Promise<MarginTrip | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data: ed } = await db.from("exp_editions").select("id, date_start, date_end").eq("id", editionId).maybeSingle();
+  const day: string | null = ed?.date_end ?? ed?.date_start ?? null;
+  if (!day) return null;
+  const rec = await buildMarginRecord(day, day, { keepEmpty: true });
+  return rec.trips.find((t) => t.editionId === editionId) ?? null;
+}
+
+/**
+ * Reisevorleistungen that belong to an experience_year or year scope in this
+ * window and were never split by % onto trips. Valued by the same rule as
+ * everything else (attached money, then the typed actual, then the estimate).
+ * A general cost cannot be a travel input at all, the database refuses it.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function unassignedTravelInputs(db: any, from: string, to: string): Promise<{ amount: number; count: number }> {
+  const y1 = Number(from.slice(0, 4));
+  const y2 = Number(to.slice(0, 4));
+  const { data: rows } = await db
+    .from("exp_costs")
+    .select("id, scope, year, status, actual_amount, estimated_amount")
+    .eq("margin_class", "travel_input")
+    .neq("scope", "edition")
+    .neq("status", "cancelled");
+  type Row = { id: string; scope: string; year: number | null; actual_amount: number | null; estimated_amount: number | null };
+  const list = ((rows ?? []) as Row[]).filter((r) => r.year != null && r.year >= y1 && r.year <= y2);
+  if (!list.length) return { amount: 0, count: 0 };
+  const ids = list.map((r) => r.id);
+  const [{ data: splits }, { data: cpa }] = await Promise.all([
+    db.from("exp_cost_allocations").select("cost_id").in("cost_id", ids),
+    db.from("exp_cost_payment_allocations").select("cost_id, amount").in("cost_id", ids),
+  ]);
+  const split = new Set(((splits ?? []) as { cost_id: string }[]).map((s) => s.cost_id));
+  const attached = new Map<string, number>();
+  for (const a of (cpa ?? []) as { cost_id: string; amount: number | null }[]) {
+    attached.set(a.cost_id, (attached.get(a.cost_id) ?? 0) + (Number(a.amount) || 0));
+  }
+  let amount = 0;
+  let count = 0;
+  for (const r of list) {
+    if (split.has(r.id)) continue;
+    const paid = attached.get(r.id) ?? 0;
+    amount += paid > 0 ? paid : r.actual_amount != null ? Number(r.actual_amount) || 0 : Number(r.estimated_amount) || 0;
+    count += 1;
+  }
+  return { amount: r2(amount), count };
 }
 
 function emptyTotals(): MarginRecord["totals"] {
@@ -361,10 +435,11 @@ function emptyTotals(): MarginRecord["totals"] {
     entgelt: 0, reisevorleistungen: 0, steuerfrei: 0, steuerpflichtigBrutto: 0,
     bemessungsgrundlage: 0, umsatzsteuer: 0, unklarMarge: 0, negativeMarge: 0,
     unclassifiedCosts: 0, provisionalTrips: 0,
+    unassignedTravelInput: 0, unassignedTravelInputCount: 0,
   };
 }
 
-type CostBuckets = {
+export type CostBuckets = {
   travelInput: number;
   travelInputEstimated: number;
   ownService: number;
@@ -388,7 +463,7 @@ const emptyCosts = (): CostBuckets => ({
  * final rather than provisional.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function costsByEdition(db: any, editionIds: string[]): Promise<Map<string, CostBuckets>> {
+export async function costBucketsByEdition(db: any, editionIds: string[]): Promise<Map<string, CostBuckets>> {
   const out = new Map<string, CostBuckets>();
   for (const id of editionIds) out.set(id, emptyCosts());
 
@@ -508,7 +583,10 @@ export function marginRecordCsv(record: MarginRecord): string {
       q(
         "Keine Verrechnung negativer mit positiven Margen (§ 25 Abs. 5). " +
         `Nicht enthalten: ${de(Math.abs(T.negativeMarge))} negative Margen, ` +
-        `${de(T.unklarMarge)} Marge mit ungeklaertem Gebiet.`,
+        `${de(T.unklarMarge)} Marge mit ungeklaertem Gebiet.` +
+        (T.unassignedTravelInputCount
+          ? ` Nicht auf Reisen verteilte Reisevorleistungen: ${de(T.unassignedTravelInput)} (${T.unassignedTravelInputCount} Zeilen), in keiner Marge enthalten.`
+          : ""),
       ),
     ].join(";"),
   );

@@ -90,32 +90,50 @@ export type RawExpCost = {
   id: string; item: string | null; estimated_amount: number | string | null;
   actual_amount: number | string | null; status: string | null;
   date: string | null; edition_id: string | null;
+  /** Migration 240. Absent on rows read before it, which behave as edition costs. */
+  scope?: string | null;
+  year?: number | null;
 };
+
+/** When a cost happened, or failing that when its trip starts. */
+const costDay = (c: RawExpCost, editionStart: Map<string, string>): string | null =>
+  c.date ?? (c.edition_id ? editionStart.get(c.edition_id) ?? null : null);
 
 /**
  * A trip cost. Estimated until it is invoiced, then actual.
  *
  * The date is the cost's own if it has one and the edition's start if it does
  * not, because a cost belonging to a trip in March is a March cost even when
- * nobody typed a date on it.
+ * nobody typed a date on it. A cost scoped to a year (or to an experience in
+ * a year, migration 240) with no date of its own belongs to that year and to
+ * no month: it is included, undated, rather than filed under January.
  *
- * A cost with neither belongs to no year, so it cannot honestly appear on a
- * year's board and is left out. Left out is not the same as forgotten:
+ * A cost with none of those belongs to no year, so it cannot honestly appear
+ * on a year's board and is left out. Left out is not the same as forgotten:
  * `undatedExpCosts` counts exactly those rows so the page can say how much
  * money is sitting outside every budget instead of letting it evaporate.
+ *
+ * `attached` is Σ of the expense payments attached to each line (migration
+ * 057, and the bank debits of 240). It outranks the typed actual, which is
+ * the rule the edition P&L and the § 25 record already follow; without it the
+ * board was the one reader still ignoring real money.
  */
 export function factsFromExpCosts(
   costs: RawExpCost[],
   editionStart: Map<string, string>,
   year: number,
+  attached?: Map<string, number>,
 ): SourceFact[] {
   const out: SourceFact[] = [];
   for (const c of costs) {
-    const when = c.date ?? (c.edition_id ? editionStart.get(c.edition_id) ?? null : null);
-    if (yearOfIso(when) !== year) continue;
+    if (c.status === "cancelled") continue;
+    const when = costDay(c, editionStart);
+    const inYear = when ? yearOfIso(when) === year : (c.year ?? null) === year;
+    if (!inYear) continue;
 
     const estimated = num(c.estimated_amount);
-    const actual = num(c.actual_amount);
+    const paid = attached?.get(c.id) ?? 0;
+    const actual = paid > 0 ? paid : num(c.actual_amount);
     // Once it is invoiced the estimate is history. Keeping both would count the
     // same trip cost twice in one column pair.
     const committed = actual > 0 ? 0 : estimated;
@@ -140,15 +158,16 @@ export function factsFromExpCosts(
 
 /** Costs that can never reach a budget, because nothing says when they happened.
  *  Reported rather than dropped: this number should be zero, and if it is not,
- *  someone needs to know how much is missing. */
+ *  someone needs to know how much is missing. A cost that knows its year is
+ *  not stranded; it only lacks a month. */
 export function undatedExpCosts(
   costs: RawExpCost[],
   editionStart: Map<string, string>,
 ): { count: number; amount: number } {
   let count = 0, amount = 0;
   for (const c of costs) {
-    const when = c.date ?? (c.edition_id ? editionStart.get(c.edition_id) ?? null : null);
-    if (when) continue;
+    if (c.status === "cancelled") continue;
+    if (costDay(c, editionStart) || c.year) continue;
     const value = num(c.actual_amount) || num(c.estimated_amount);
     if (value === 0) continue;
     count += 1; amount = r2(amount + value);

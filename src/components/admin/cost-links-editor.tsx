@@ -1,28 +1,40 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { mutate, saved } from "@/lib/mutate";
 
 type Edition = { id: string; label: string | null; year: number | null };
-type Pay = { id: string; amount: number; date: string | null; reference: string | null; method: string | null; vendors: { name: string } | null };
+type BankRef = { counterparty: string | null; booked_on: string | null; source: string | null } | null;
+type Pay = {
+  id: string; amount: number; date: string | null; reference: string | null; method: string | null;
+  provenance?: string | null; bank_transaction_id?: string | null;
+  vendors: { name: string } | null; bank_transactions?: BankRef;
+};
 type PayAlloc = { payment_id: string; amount: number; payment: Pay | null };
 type Avail = Pay & { allocated: number; remaining: number };
 type Links = {
-  cost: { id: string; estimated_amount: number | null; actual_amount: number | null };
+  cost: { id: string; estimated_amount: number | null; actual_amount: number | null; scope?: string | null; item?: string };
   editions: Edition[];
   editionAllocs: { edition_id: string; percent: number }[];
   paymentAllocs: PayAlloc[];
   available: Avail[];
   attachedTotal: number;
+  attachedBank?: number;
+  money?: { state: "expected" | "real" | "hand"; value: number; open: number; provenance: string | null };
 };
 
 const eur = (n: number | null | undefined) => (n != null ? `€${Number(n).toLocaleString()}` : "—");
-const fmtDate = (d: string | null) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" }) : "");
+const fmtDate = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" }) : "");
 const input = "w-full px-2.5 py-1.5 admin-input border rounded-lg text-[13px] focus:outline-none focus:border-[var(--admin-accent)]";
 const label = "block text-[10px] font-bold tracking-[0.08em] admin-faint uppercase mb-1.5";
 
 /** Attach actual expense payments to a cost (→ actual), split it across editions
- *  by %, and copy it to another edition. Lives in the cost detail pane. */
+ *  by %, and copy it to another edition. Lives in the cost detail pane.
+ *
+ *  Money that came off the bank ledger arrives here already attached, from the
+ *  Bank page; this editor shows it, tells it apart from a payment somebody
+ *  typed, and lets the typed kind be attached by hand. */
 export function CostLinksEditor({ costId, onChange }: { costId: string; onChange?: () => void }) {
   const [links, setLinks] = useState<Links | null>(null);
   const [attachId, setAttachId] = useState("");
@@ -47,7 +59,13 @@ export function CostLinksEditor({ costId, onChange }: { costId: string; onChange
 
   const avail = links.available.filter((a) => a.remaining > 0.01);
   const selectedAvail = avail.find((a) => a.id === attachId);
-  const payLabel = (p: Pay | null) => p ? `${eur(p.amount)} · ${fmtDate(p.date)}${p.vendors?.name ? " · " + p.vendors.name : ""}${p.reference ? " · " + p.reference : ""}` : "—";
+  const provTag = (p: Pay | null | undefined) =>
+    p?.provenance === "bank" ? "bank" : p?.provenance === "off_bank" ? "off bank" : "typed";
+  const payLabel = (p: Pay | null) => p
+    ? `${eur(p.amount)} · ${fmtDate(p.date)}${p.bank_transactions?.counterparty ? " · " + p.bank_transactions.counterparty : p.vendors?.name ? " · " + p.vendors.name : ""}${p.reference && !p.bank_transaction_id ? " · " + p.reference : ""}`
+    : "—";
+  const bankTotal = links.attachedBank ?? 0;
+  const scope = links.cost.scope ?? "edition";
 
   async function attach() {
     if (!attachId) return;
@@ -95,30 +113,41 @@ export function CostLinksEditor({ costId, onChange }: { costId: string; onChange
 
   return (
     <div className="mt-5 space-y-5 border-t pt-5" style={{ borderColor: "var(--admin-border)" }}>
-      {/* Actual from attached expense payments */}
+      {/* Actual from attached money */}
       <section>
         <div className="flex items-baseline justify-between mb-2">
-          <span className={label}>Actual — from expense payments</span>
-          <span className="text-sm font-bold text-green-400">{eur(links.attachedTotal || null)}{links.attachedTotal > 0 ? "" : ""}</span>
+          <span className={label}>Money attached to this line</span>
+          <span className="text-sm font-bold text-green-400">
+            {eur(links.attachedTotal || null)}
+            {links.attachedTotal > 0 && (
+              <span className="ml-2 text-[11px] font-medium admin-faint">{bankTotal > 0 ? `${eur(bankTotal)} from the bank` : "none of it from the bank"}</span>
+            )}
+          </span>
         </div>
         {links.paymentAllocs.length > 0 ? (
           <div className="space-y-1.5 mb-2">
             {links.paymentAllocs.map((a) => (
               <div key={a.payment_id} className="flex items-center justify-between gap-2 text-[13px] rounded-lg px-3 py-1.5 admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
-                <span className="min-w-0 truncate">{eur(a.amount)} <span className="admin-faint">of {payLabel(a.payment)}</span></span>
+                <span className="min-w-0 truncate">
+                  <span className={`inline-block mr-2 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${provTag(a.payment) === "bank" ? "bg-green-500/15 text-green-500" : "bg-amber-500/15 text-amber-500"}`}>{provTag(a.payment)}</span>
+                  {eur(a.amount)} <span className="admin-faint">of {payLabel(a.payment)}</span>
+                </span>
                 <button onClick={() => detach(a.payment_id)} className="shrink-0 text-[11px] admin-faint hover:text-red-400">Detach</button>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-[12px] admin-faint mb-2">No payments attached yet — the manual Actual field above is used until you attach real expenses.</p>
+          <p className="text-[12px] admin-faint mb-2">
+            Nothing attached yet. Real money comes from the <Link href="/admin/bank" className="underline">Bank</Link>: open the debit there and allocate it to this line.
+            {links.cost.actual_amount != null ? " Until then the Actual typed above is what the P&L uses." : " Until then the estimate is what the P&L uses."}
+          </p>
         )}
         <div className="flex gap-2 items-end">
           <div className="flex-1 min-w-0">
-            <label className={label}>Attach an expense payment</label>
+            <label className={label}>Attach a typed expense payment</label>
             <select className={input} value={attachId} onChange={(e) => { setAttachId(e.target.value); const a = avail.find((x) => x.id === e.target.value); setAttachAmt(a ? String(a.remaining) : ""); }}>
               <option value="">{avail.length ? "Pick a cost payment…" : "No unallocated cost payments"}</option>
-              {avail.map((a) => <option key={a.id} value={a.id}>{payLabel(a)} — {eur(a.remaining)} free</option>)}
+              {avail.map((a) => <option key={a.id} value={a.id}>{payLabel(a)} · {provTag(a)} — {eur(a.remaining)} free</option>)}
             </select>
           </div>
           <div className="w-24">
@@ -130,21 +159,26 @@ export function CostLinksEditor({ costId, onChange }: { costId: string; onChange
       </section>
 
       {/* Split across editions by % */}
-      {links.editions.length > 1 && (
+      {links.editions.length > (scope === "edition" ? 1 : 0) && (
         <section>
           <div className="flex items-baseline justify-between mb-2">
             <span className={label}>Split across editions (%)</span>
             <span className={`text-[12px] font-semibold ${pctTotal > 100 ? "text-red-400" : "admin-faint"}`}>{pctTotal}% allocated{pctTotal > 100 ? " — over 100%!" : ""}</span>
           </div>
+          {scope !== "edition" && (
+            <p className="text-[12px] admin-muted mb-2">
+              This cost is not one trip&apos;s. The split below is the only way it reaches a trip&apos;s P&amp;L or its § 25 record; without one it is counted on no edition.
+            </p>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-2">
             {links.editions.map((ed) => (
               <div key={ed.id} className="flex items-center gap-2">
-                <span className="text-[12px] admin-muted truncate flex-1 min-w-0">{ed.label || ed.year}</span>
+                <span className="text-[12px] admin-muted truncate flex-1 min-w-0">{ed.label || ed.year}{ed.label && ed.year != null && !ed.label.includes(String(ed.year)) ? ` · ${ed.year}` : ""}</span>
                 <input className="w-16 px-2 py-1 admin-input border rounded text-[12px] text-right focus:outline-none focus:border-[var(--admin-accent)]" type="number" min="0" max="100" value={pct[ed.id] ?? ""} onChange={(e) => setPct({ ...pct, [ed.id]: e.target.value })} placeholder="%" />
               </div>
             ))}
           </div>
-          <p className="text-[11px] admin-faint mb-2">Leave all empty to keep it on this cost&apos;s single edition (100%).</p>
+          <p className="text-[11px] admin-faint mb-2">{scope === "edition" ? "Leave all empty to keep it on this cost's single edition (100%)." : "Percentages of this cost. They need not reach 100%; what is left stays unassigned."}</p>
           <button onClick={saveSplit} disabled={busy || pctTotal > 100} className="px-3 py-1.5 admin-surface text-[13px] font-semibold rounded-lg disabled:opacity-40" style={{ border: "1px solid var(--admin-border)" }}>Save split</button>
         </section>
       )}
@@ -156,7 +190,7 @@ export function CostLinksEditor({ costId, onChange }: { costId: string; onChange
           <div className="flex gap-2 items-center mt-1">
             <select className={`${input} flex-1`} value={dupEd} onChange={(e) => setDupEd(e.target.value)}>
               <option value="">Pick an edition…</option>
-              {links.editions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}</option>)}
+              {links.editions.map((ed) => <option key={ed.id} value={ed.id}>{ed.label || ed.year}{ed.label && ed.year != null && !ed.label.includes(String(ed.year)) ? ` · ${ed.year}` : ""}</option>)}
             </select>
             <button onClick={duplicate} disabled={!dupEd || busy} className="px-3 py-1.5 admin-surface text-[13px] font-semibold rounded-lg disabled:opacity-40" style={{ border: "1px solid var(--admin-border)" }}>Copy here</button>
           </div>
