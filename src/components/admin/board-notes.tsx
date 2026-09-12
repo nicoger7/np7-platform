@@ -49,6 +49,7 @@ export function NoteComposer({ board, onSaved, onFile }: {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [guide, setGuide] = useState(false);
 
   async function addText() {
     if (!text.trim()) return;
@@ -86,8 +87,8 @@ export function NoteComposer({ board, onSaved, onFile }: {
 
   return (
     <div>
-      <textarea className={`${inputClass} min-h-[150px] font-mono text-xs`} value={text}
-        placeholder={"Paste a measuring session — metric heading, one station per line — and file it. Anything else becomes a note.\n\nRocker\n0 - 6mm\n5 - 2mm\n10 - 0\n80 - start\n110 - 4.5mm"}
+      <textarea className={`${inputClass} min-h-[110px] font-mono text-xs`} value={text}
+        placeholder={"Paste a measuring session (metric heading, one station per line) and file it. Anything else becomes a note.\n\nRocker\n0 - 6mm\n10 - 0\n80 - start"}
         onChange={(e) => setText(e.target.value)} />
       <div className="flex flex-wrap items-center gap-2 mt-2">
         {onFile && (
@@ -100,105 +101,76 @@ export function NoteComposer({ board, onSaved, onFile }: {
           Save as note
         </button>
         <Recorder onDone={addVoice} disabled={busy} />
+        <button onClick={() => setGuide(!guide)} aria-expanded={guide}
+          className="ml-auto text-[11px] font-semibold admin-muted hover:text-[var(--admin-accent)] px-1">
+          {guide ? "Hide format guide" : "Format guide"}
+        </button>
       </div>
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
-      <p className="mt-3 text-[11px] admin-faint leading-relaxed">
-        Filing shows you what it read before anything is written. Voice notes are kept as audio; type the
-        transcript in afterwards (your phone&apos;s dictation is the quickest way) and file it like any other.
+      <p className="mt-2 text-[11px] admin-faint leading-snug">
+        Filing shows what it read before anything is written. Voice notes stay audio; add the transcript afterwards and file it.
       </p>
+      {guide && <SessionBrief />}
     </div>
   );
 }
 
 /**
- * How to write a session so it files first time. Sits beside the composer on
- * the first page, folded under it on the Notes tab. Everything here is a
- * behaviour of parseMeasurementText, so if the parser changes, change this.
+ * How to write a session so it files first time.
+ *
+ * Folded by default and compact when open: the first version sat beside the
+ * composer as a tall column and doubled the length of the board's first page.
+ * Everything here is a behaviour of parseMeasurementText, so if the parser
+ * changes, change this.
  */
-export function SessionBrief({ folded = false }: { folded?: boolean }) {
-  const body = (
-    <div className="text-[12px] admin-muted leading-relaxed space-y-3">
-      <div>
-        <p className="font-semibold admin-heading mb-1">1 · One metric per block</p>
-        <p>
-          Start a block with the metric name on its own line. Recognised:{" "}
-          <b>Thickness</b>, <b>Width</b> (bottom), <b>Rocker</b>, <b>V</b>, <b>Concave</b> (write <i>double</i> or <i>single</i> in front),{" "}
-          <b>Rail thickness</b>, <b>Rail shape</b>. German works too (Dicke, Breite).
-        </p>
+function Rule({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <div className="text-[11px] admin-muted leading-snug">
+      <span className="font-semibold admin-heading">{n} · {title}.</span> {children}
+    </div>
+  );
+}
+
+export function SessionBrief() {
+  return (
+    <div className="mt-3 pt-3 grid grid-cols-1 md:grid-cols-[1fr_230px] gap-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
+      <div className="space-y-1.5">
+        <Rule n={1} title="One metric per block">
+          Metric name on its own line: <b>Thickness</b>, <b>Width</b>, <b>Rocker</b>, <b>V</b>, <b>Double/Single concave</b>, <b>Rail thickness</b>, <b>Rail shape</b>. German works (Dicke, Breite).
+        </Rule>
+        <Rule n={2} title="One station per line">
+          <code>110 - 4.5mm</code>. Dash optional, <code>81,2cm</code> fine. Stations are <b>cm from the tail</b>. A bare <code>20</code> = still to measure.
+        </Rule>
+        <Rule n={3} title="Tail edge">
+          Read the rocker at <b>0</b> and <b>5</b> too, that is where the tail kick is. Where it starts rising: <code>80 - start</code>.
+        </Rule>
+        <Rule n={4} title="Inverted V">
+          <code>V - inverted</code> in the heading makes the readings inverted; a line <code>Normal V from here</code> flips the rest.
+        </Rule>
+        <Rule n={5} title="Caveats">
+          Brackets after a value are kept as a note on it. A caveat in the heading (<code>alles halbieren</code>) is offered as a tick-box when filing, never applied by itself.
+        </Rule>
+        <Rule n={6} title="Rail shape">
+          A word (hard, tucked, boxy, soft, 50/50, bevel, chined), radius in mm after it if measured.
+        </Rule>
       </div>
-      <div>
-        <p className="font-semibold admin-heading mb-1">2 · One station per line</p>
-        <p>
-          <code>station - value unit</code>, e.g. <code>110 - 4.5mm</code>. The dash is optional, commas as decimals are fine (<code>81,2cm</code>).
-          Stations are <b>cm from the tail</b>. A station on its own (<code>20</code>) is kept as &ldquo;still to measure&rdquo;.
-        </p>
-      </div>
-      <div>
-        <p className="font-semibold admin-heading mb-1">3 · The tail edge</p>
-        <p>
-          The tail kick sits in the last few cm. Read the rocker at <b>0</b> and <b>5</b> off the same straightedge, then 10, 20 and so on.
-          Where the rocker begins to rise, write the word: <code>80 - start</code>.
-        </p>
-      </div>
-      <div>
-        <p className="font-semibold admin-heading mb-1">4 · V and inverted V</p>
-        <p>
-          Put <i>inverted</i> in the heading (<code>V - inverted</code>) and every reading after it is inverted. Where it changes,
-          write a line <code>Normal V from here</code> and the rest is V. Zero is zero either way.
-        </p>
-      </div>
-      <div>
-        <p className="font-semibold admin-heading mb-1">5 · Caveats stay caveats</p>
-        <p>
-          Anything in brackets after a value is kept as a note on that reading: <code>40 2mm (minus the inverted V)</code>.
-          A caveat in the heading, like <code>(alles halbieren)</code>, is offered as a tick-box when you file, never applied on its own.
-        </p>
-      </div>
-      <div>
-        <p className="font-semibold admin-heading mb-1">6 · Rail shape is a word</p>
-        <p>hard, tucked, boxy, soft, 50/50, bevel or chined, with a radius in mm after it if you measured one.</p>
-      </div>
-      <div>
-        <p className="font-semibold admin-heading mb-1">A complete block</p>
-        <pre className="text-[11px] font-mono leading-snug p-3 rounded-lg overflow-x-auto" style={{ backgroundColor: "var(--admin-bg)", border: "1px solid var(--admin-border)" }}>{`Rocker
+      <pre className="text-[10.5px] font-mono leading-snug p-2.5 rounded-lg overflow-auto max-h-[190px]"
+        style={{ backgroundColor: "var(--admin-bg)", border: "1px solid var(--admin-border)" }}>{`Rocker
 0 - 6mm
 5 - 2mm
 10 - 0
-50 - 0
 80 - start
 110 - 4.5mm
-160 - 35mm
 
 V - inverted (alles halbieren)
 10 0.2mm
 80 - 0
 Normal V from here
 90 - 2.9mm
-140 - 25mm
 
 Double concave
 40 2mm (minus the inverted V)
 90 - 1.5mm`}</pre>
-      </div>
-      <p className="admin-faint">
-        Filing always shows the review table first: which metrics it found, every station it read, and what it left alone.
-        Nothing is written until you press Import.
-      </p>
-    </div>
-  );
-
-  if (folded) {
-    return (
-      <details className="mt-4">
-        <summary className="text-xs font-semibold admin-muted cursor-pointer">How to write a session</summary>
-        <div className="mt-3">{body}</div>
-      </details>
-    );
-  }
-  return (
-    <div className="p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)" }}>
-      <h4 className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-3">How to write a session</h4>
-      {body}
     </div>
   );
 }
@@ -212,7 +184,6 @@ export function BoardNotes({ board, notes, onChanged }: { board: PdBoard; notes:
       <div>
         <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-2">New note</h3>
         <NoteComposer key={composerKey} board={board} onSaved={onChanged} onFile={setFileText} />
-        <SessionBrief folded />
       </div>
 
       <div>

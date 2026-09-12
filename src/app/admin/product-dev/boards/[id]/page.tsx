@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { cdnImage, keyUrl } from "@/lib/img";
 import { BoardPlan, BoardReadout } from "@/components/admin/board-plan";
 import { BoardMeasureGrid, ImportDialog, SeriesSummary } from "@/components/admin/board-measure-grid";
-import { BoardNotes, NoteComposer, SessionBrief } from "@/components/admin/board-notes";
+import { BoardNotes, NoteComposer } from "@/components/admin/board-notes";
 import { BoardCutouts } from "@/components/admin/board-cutouts";
 import {
   BOARD_DISCIPLINES, BOARD_ORIGINS, disciplineLabel,
@@ -164,17 +164,10 @@ function OverviewTab({ board, onSaved }: { board: Bundle; onSaved: () => void })
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
-      <div className="max-w-5xl">
-        <div className="mb-8 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-          <h3 className="text-sm font-bold admin-heading mb-1">Enter measurements or a note</h3>
-          <p className="text-[11px] admin-faint mb-3 leading-relaxed">
-            Straight from your notes app. A session in the station format files itself into the Measurements
-            tab after you have checked what it read; everything else lands on the Notes tab.
-          </p>
-          <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-5">
-            <NoteComposer key={composerKey} board={board} onSaved={onSaved} onFile={setFileText} />
-            <SessionBrief />
-          </div>
+      <div className="max-w-3xl">
+        <div className="mb-6 p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+          <h3 className="text-sm font-bold admin-heading mb-2">Enter measurements or a note</h3>
+          <NoteComposer key={composerKey} board={board} onSaved={onSaved} onFile={setFileText} />
         </div>
         {fileText != null && (
           <ImportDialog board={board} initialText={fileText} onClose={() => setFileText(null)}
