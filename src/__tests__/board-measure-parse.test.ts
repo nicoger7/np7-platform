@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseMeasurementText, rockerReadout, riseMarkerStation, zeroCrossing, widestPoint, interpolate, exactValue,
+  parseMeasurementText, rockerReadout, riseMarkerStation, zeroCrossing, widestPoint, interpolate, exactValue, scaleReading,
 } from "@/lib/board-measurements";
 
 /**
@@ -156,6 +156,26 @@ describe("parseMeasurementText", () => {
     expect(byMetric("width").unit).toBe("cm");
     expect(byMetric("rocker").unit).toBe("mm");
     expect(byMetric("thickness").unit).toBe("cm");
+  });
+});
+
+describe("the V method", () => {
+  // Bottom-up, the straightedge can only lie on one face when the centre is
+  // the high point (normal V): those tape readings are 2 × V. Inverted V is a
+  // dish, the edge sits on both rails, the centre gap IS the V. So a 0.5
+  // series scale halves the V readings and leaves the inverted ones alone.
+  it("halves V and leaves inverted V as read", () => {
+    expect(scaleReading("v", 2.9, 0.5)).toBe(1.45);
+    expect(scaleReading("v", -2.1, 0.5)).toBe(-2.1);
+    expect(scaleReading("v", 0, 0.5)).toBe(0);
+  });
+  it("scales an unsigned metric throughout", () => {
+    expect(scaleReading("width", 10, 0.5)).toBe(5);
+    expect(scaleReading("concave", -3, 0.5)).toBe(-1.5);
+  });
+  it("is a no-op at scale 1", () => {
+    expect(scaleReading("v", 2.9, 1)).toBe(2.9);
+    expect(scaleReading("v", 2.9, null)).toBe(2.9);
   });
 });
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  BOARD_METRICS, BOARD_METRIC_BY_KEY, effectiveValue, exactValue, fmtReading, metricUnit, round, riseMarkerStation,
+  BOARD_METRICS, BOARD_METRIC_BY_KEY, effectiveValue, exactValue, fmtReading, methodForScale, metricUnit, round, riseMarkerStation,
   rockerReadout, smoothPath, toMm, widestPoint, zeroCrossing,
   type PdBoard, type PdBoardCutout, type PdBoardPoint, type PdBoardSeries, type SeriesPoints,
 } from "@/lib/board-measurements";
@@ -595,17 +595,20 @@ function SliceReadout({ board, station, points, series }: {
     // already said by "inverted V" in the value, and the series variant is a
     // per-board setting that means nothing at one station. ("×0.5 applied ·
     // read -2.1 · mixed" was the first version, and it earned a "??".)
-    const scaled = s?.scale && s.scale !== 1 && p.value != null;
+    const method = methodForScale(m.key, s?.scale);
+    const scaled = v != null && p.value != null && v !== p.value;
+    const untouched = !scaled && method != null && s?.scale !== 1 && p.value != null;
     const scaleWord = !scaled ? null : s!.scale === 0.5 ? "halved" : s!.scale === 2 ? "doubled" : `×${s!.scale}`;
     const hint = [
-      scaled ? `${scaleWord}, tape read ${Math.abs(p.value as number)}` : null,
+      scaled ? `tape read ${Math.abs(p.value as number)}, ${method ? "tape = 2 × V, halved" : scaleWord}` : null,
+      untouched ? "as read, measured across both rails" : null,
       p.note ?? null,
     ].filter(Boolean).join(" · ");
     return {
       ...base,
       value: v == null ? (p.text_value ?? "—") : fmtReading(m.key, round(v, 3), unit),
       hint: hint || unit,
-      title: scaled && s?.convention ? `Series note: "${s.convention}". Change the scale in the column header on the Measurements tab.` : undefined,
+      title: method ? `${method.label}${s?.convention ? ` Series note: "${s.convention}".` : ""} Change it in the column header on the Measurements tab.` : undefined,
       missing: false,
     };
   });

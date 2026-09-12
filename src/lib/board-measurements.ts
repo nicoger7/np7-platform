@@ -46,6 +46,21 @@ export type BoardMetric = {
   choices?: { key: string; label: string }[];
   /** What the number beside a `choice` pick means. */
   numberLabel?: string;
+  /**
+   * How the tape reading relates to the real number. NP7 measures V by laying
+   * a straightedge across the width on ONE side of the bottom and reading the
+   * gap at the far rail — which is twice the V. The reading is what gets
+   * stored; the method says what to multiply it by. First entry = default.
+   */
+  methods?: { key: string; label: string; short: string; scale: number }[];
+  /**
+   * Which readings the method's scale applies to. For V it is "positive":
+   * bottom-up, the straightedge can only be laid on one face when the centre
+   * is the high point, i.e. normal V — so those tape readings are 2 × V.
+   * Inverted V is a dish, the edge sits on both rails, and the centre gap IS
+   * the V: those readings are never scaled. (Nico, 2026-09-12.)
+   */
+  scaleAppliesTo?: "all" | "positive" | "negative";
   hint?: string;
   /** Drawing colour, consistent between the grid, the legend and the plan. */
   color: string;
@@ -72,7 +87,12 @@ export const BOARD_METRICS: BoardMetric[] = [
       { key: "v", label: "V throughout" },
       { key: "inverted", label: "Inverted throughout" },
     ],
-    hint: "Positive = V: the centreline sits lower than the rails. Negative = inverted V: the rails sit lower. One series through zero, so the crossover station is visible.",
+    methods: [
+      { key: "one_side", label: "V: straightedge laid on one side, gap read at the far rail — the tape shows 2 × V, the tool halves it. Inverted V: edge on both rails, gap at the centre — the actual number, taken as read.", short: "V = tape ÷ 2 · inverted as read", scale: 0.5 },
+      { key: "both_rails", label: "Everything read across both rails at the centre — every tape reading is the actual number.", short: "all as read", scale: 1 },
+    ],
+    scaleAppliesTo: "positive",
+    hint: "Type what the tape says. Positive = V (centreline lower than the rails), negative = inverted V (rails lower). One series through zero, so the crossover station is visible. Only the V readings are halved; inverted V is measured directly.",
   },
   {
     key: "concave", label: "Concave", unit: "mm", kind: "number", color: "#ec4899",
@@ -106,6 +126,17 @@ export const BOARD_METRICS: BoardMetric[] = [
 
 export const BOARD_METRIC_BY_KEY: Record<string, BoardMetric> =
   Object.fromEntries(BOARD_METRICS.map((m) => [m.key, m]));
+
+/** The scale a fresh series of this metric starts with — the catalog's default method. */
+export function defaultScale(metric: string): number {
+  return BOARD_METRIC_BY_KEY[metric]?.methods?.[0]?.scale ?? 1;
+}
+/** The method a series' scale corresponds to, if the metric has methods. */
+export function methodForScale(metric: string, scale: number | null | undefined) {
+  const ms = BOARD_METRIC_BY_KEY[metric]?.methods;
+  if (!ms) return null;
+  return ms.find((m) => m.scale === (scale ?? 1)) ?? null;
+}
 
 /**
  * The discipline — "the first thing anybody asks of a board". Stored in the
@@ -279,12 +310,22 @@ export function toMm(value: number, unit: string): number {
   return value;
 }
 
+/**
+ * A tape reading → the real number, per the metric's rule on which readings
+ * the series scale touches. V with scale 0.5: 2.9 → 1.45, but −2.1 stays −2.1.
+ */
+export function scaleReading(metric: string, value: number | null, scale: number | null | undefined): number | null {
+  if (value == null || scale == null || scale === 1) return value;
+  const applies = BOARD_METRIC_BY_KEY[metric]?.scaleAppliesTo ?? "all";
+  if (applies === "positive" && value <= 0) return value;
+  if (applies === "negative" && value >= 0) return value;
+  return value * scale;
+}
+
 /** The reading as it should be READ, scale applied. Never stored back — the
  *  point row keeps what the tape said. */
-export function effectiveValue(point: Pick<PdBoardPoint, "value">, series?: Pick<PdBoardSeries, "scale"> | null): number | null {
-  if (point.value == null) return null;
-  const scale = series?.scale;
-  return scale == null || scale === 1 ? point.value : point.value * scale;
+export function effectiveValue(point: Pick<PdBoardPoint, "value" | "metric">, series?: Pick<PdBoardSeries, "scale"> | null): number | null {
+  return scaleReading(point.metric, point.value, series?.scale);
 }
 
 /** Format a signed reading with the word its sign means: "2.1 mm inverted V". */

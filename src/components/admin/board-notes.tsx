@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { keyUrl } from "@/lib/img";
 import { ImportDialog } from "@/components/admin/board-measure-grid";
 import {
-  BOARD_METRIC_BY_KEY, fmtReading,
+  BOARD_METRIC_BY_KEY, defaultScale, fmtReading,
   type FiledNote, type ParsedSeries, type PdBoard, type PdBoardNote,
 } from "@/lib/board-measurements";
 
@@ -144,8 +144,9 @@ export function SessionBrief() {
         <Rule n={3} title="Tail edge">
           Read the rocker at <b>0</b> and <b>5</b> too, that is where the tail kick is. Where it starts rising: <code>80 - start</code>.
         </Rule>
-        <Rule n={4} title="Inverted V">
-          <code>V - inverted</code> in the heading makes the readings inverted; a line <code>Normal V from here</code> flips the rest.
+        <Rule n={4} title="V and inverted V">
+          Type what the tape says. V (straightedge on one side, gap at the far rail) is 2 × V on the tape and the tool halves it; inverted V (edge on both rails, gap at the centre) is the real number.
+          <code>V - inverted</code> in the heading starts inverted; <code>Normal V from here</code> flips the rest.
         </Rule>
         <Rule n={5} title="Caveats">
           Brackets after a value are kept as a note on it. A caveat in the heading (<code>alles halbieren</code>) is offered as a tick-box when filing, never applied by itself.
@@ -257,7 +258,7 @@ function NoteCard({ board, note, onChanged }: { board: PdBoard; note: PdBoardNot
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           metric: s.metric,
-          series: { metric: s.metric, unit: s.unit ?? BOARD_METRIC_BY_KEY[s.metric]?.unit, variant: s.variant, convention: s.convention, scale: 1, enabled: true },
+          series: { metric: s.metric, unit: s.unit ?? BOARD_METRIC_BY_KEY[s.metric]?.unit, variant: s.variant, convention: s.convention, scale: defaultScale(s.metric), enabled: true },
           points: s.points.map((p) => ({ station: p.station, value: p.value, text_value: p.text, note: p.note })),
         }),
       });

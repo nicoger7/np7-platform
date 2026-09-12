@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import {
-  BOARD_METRICS, BOARD_METRIC_BY_KEY, describeParse, effectiveValue, fmtReading,
-  metricUnit, parseMeasurementText, round,
+  BOARD_METRICS, BOARD_METRIC_BY_KEY, defaultScale, describeParse, effectiveValue, fmtReading,
+  methodForScale, metricUnit, parseMeasurementText, round, scaleReading,
   type BoardMetric, type ParseResult, type ParsedSeries,
   type PdBoard, type PdBoardPoint, type PdBoardSeries,
 } from "@/lib/board-measurements";
@@ -161,7 +161,7 @@ export function BoardMeasureGrid({ board, series, points, onSaved }: {
     setAddingMetric(false);
     const res = await fetch(`/api/admin/product-dev/boards/${board.id}/measurements`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ metric: key, series: { metric: key, scale: 1, enabled: true }, points: null }),
+      body: JSON.stringify({ metric: key, series: { metric: key, scale: defaultScale(key), enabled: true }, points: null }),
     });
     if (res.ok) onSaved();
   }
@@ -241,9 +241,8 @@ export function BoardMeasureGrid({ board, series, points, onSaved }: {
                     {m.label}
                   </span>
                   <span className="block text-[10px] admin-faint truncate">
-                    {unit}
-                    {s.variant ? ` · ${s.variant}` : ""}
-                    {s.scale && s.scale !== 1 ? ` · ×${s.scale}` : ""}
+                    {m.methods ? `tape reading in ${unit} · ${methodForScale(m.key, s.scale)?.short ?? `×${s.scale}`}` : unit}
+                    {!m.methods && s.scale && s.scale !== 1 ? ` · ×${s.scale}` : ""}
                     {s.convention ? " · ⚑" : ""}
                   </span>
                 </button>
@@ -323,9 +322,11 @@ function MetricCell({ metric, cell, series, onChange, onNote }: {
   metric: BoardMetric; cell: Cell; series: Partial<PdBoardSeries>;
   onChange: (patch: Partial<Cell>) => void; onNote: () => void;
 }) {
-  const scaled = cell.value !== "" && series.scale && series.scale !== 1
-    ? round(Number(cell.value.replace(",", ".")) * series.scale, 3)
-    : null;
+  // The real number under the tape reading, when the series' method changes
+  // it — and only for the readings the method touches (V: positive only).
+  const raw = cell.value === "" ? null : Number(cell.value.replace(",", "."));
+  const eff = raw == null || !Number.isFinite(raw) ? null : scaleReading(metric.key, raw, series.scale);
+  const scaled = eff != null && eff !== raw ? round(eff, 3) : null;
 
   if (metric.kind === "choice") {
     return (
@@ -354,12 +355,15 @@ function MetricCell({ metric, cell, series, onChange, onNote }: {
             else onChange({ value: "", text: raw });
           }}
         />
-        {scaled != null && (
-          <span className="block text-[10px] admin-faint tabular-nums leading-none mt-0.5">= {scaled}</span>
-        )}
-        {metric.signed && cell.value !== "" && Number(cell.value.replace(",", ".")) < 0 && (
-          <span className="block text-[10px] leading-none mt-0.5" style={{ color: metric.color }}>{metric.negativeLabel}</span>
-        )}
+        {scaled != null ? (
+          <span className="block text-[10px] tabular-nums leading-none mt-0.5" style={{ color: metric.color }}>
+            = {fmtReading(metric.key, scaled, series.unit ?? metric.unit)}
+          </span>
+        ) : metric.signed && raw != null && raw < 0 ? (
+          <span className="block text-[10px] leading-none mt-0.5" style={{ color: metric.color }}>
+            {metric.negativeLabel}{metric.methods && series.scale && series.scale !== 1 ? " · as read" : ""}
+          </span>
+        ) : null}
       </div>
       <button onClick={onNote} title="Note" className={`text-xs px-1 self-start mt-1.5 ${cell.note ? "text-[var(--admin-accent)]" : "admin-faint hover:admin-muted opacity-0 group-hover:opacity-100"}`}>✎</button>
     </div>
@@ -399,15 +403,21 @@ function SeriesSettings({ metric, value, onChange, onRemove, onClose }: {
             </select>
           </div>
         )}
-        <div>
+        <div className={metric.methods ? "col-span-2" : ""}>
           <label className={labelClass} title="Readings are stored as read; this is applied when they are shown.">
-            Scale
+            {metric.methods ? "How it was measured" : "Scale"}
           </label>
-          <select className={inputClass} value={String(value.scale ?? 1)} onChange={(e) => onChange({ scale: Number(e.target.value) })}>
-            <option value="1">×1 — as read</option>
-            <option value="0.5">×0.5 — halve them</option>
-            <option value="2">×2 — double them</option>
-          </select>
+          {metric.methods ? (
+            <select className={inputClass} value={String(value.scale ?? 1)} onChange={(e) => onChange({ scale: Number(e.target.value) })}>
+              {metric.methods.map((mm) => <option key={mm.key} value={String(mm.scale)}>{mm.label}</option>)}
+            </select>
+          ) : (
+            <select className={inputClass} value={String(value.scale ?? 1)} onChange={(e) => onChange({ scale: Number(e.target.value) })}>
+              <option value="1">×1 — as read</option>
+              <option value="0.5">×0.5 — halve them</option>
+              <option value="2">×2 — double them</option>
+            </select>
+          )}
         </div>
         <div>
           <label className={labelClass}>Measured against</label>
@@ -494,7 +504,7 @@ export function ImportDialog({ board, onClose, onDone, initialText }: {
           metric: s.metric,
           unit: s.unit ?? BOARD_METRIC_BY_KEY[s.metric]?.unit,
           variant: s.variant,
-          scale: scaleSug && applySuggestion.has(`${s.metric}:scale`) ? Number(scaleSug.value) : 1,
+          scale: scaleSug && applySuggestion.has(`${s.metric}:scale`) ? Number(scaleSug.value) : defaultScale(s.metric),
           relative_to: relSug && applySuggestion.has(`${s.metric}:relative_to`) ? String(relSug.value) : null,
           convention: s.convention,
           enabled: true,
