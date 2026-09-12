@@ -43,7 +43,7 @@ const THEMES: Record<Division, {
     contactEmail: "experience@np-seven.com",
   },
   hardware: {
-    logo: `${LOGOS}/np7-logo.png`, logoLight: `${LOGOS}/np7-logo.png`, logoAlt: "NP7 Hardware", logoW: 92,
+    logo: `${LOGOS}/np7-logo.png`, logoLight: `${LOGOS}/np7-logo.png`, logoAlt: "NP7 Performance", logoW: 92,
     accent: "#c6ff3a", accentText: "#0a0a0c",
     gradient: "linear-gradient(90deg,#c6ff3a 0%,#7bdb1e 50%,#ff2e88 100%)",
     ruleImage: "https://media.np-seven.com/brand/email/np7-rule-hardware.png",
@@ -51,7 +51,7 @@ const THEMES: Record<Division, {
     headerBg: "#0c0c0e", headerFade: "rgba(8,8,12,0.85)",
     footerBg: "#0c0c0e", footerText: "#8d8d8d", footerStrong: "#c6ff3a",
     tagline: "Custom windsurf boards & fins — shaped on the bench, finished by hand.",
-    contactEmail: "hardware@np-seven.com",
+    contactEmail: "performance@np-seven.com",
   },
 };
 
@@ -64,8 +64,12 @@ export const SENDERS: Record<Division, { from: string; replyTo: string }> = {
     replyTo: process.env.EMAIL_REPLY_TO_EXPERIENCE || "experience@np-seven.com",
   },
   hardware: {
-    from: process.env.EMAIL_FROM_HARDWARE || "NP7 Hardware <hardware@np-seven.com>",
-    replyTo: process.env.EMAIL_REPLY_TO_HARDWARE || "hardware@np-seven.com",
+    // performance@ and not hardware@: the GmbH is NP7 Performance, and the old
+    // address had no inbox behind it, so a customer replying to their order
+    // confirmation would have been answered by a bounce. Nothing had fired yet
+    // (the shop is not live), so nobody got one.
+    from: process.env.EMAIL_FROM_HARDWARE || "NP7 Performance <performance@np-seven.com>",
+    replyTo: process.env.EMAIL_REPLY_TO_HARDWARE || "performance@np-seven.com",
   },
 };
 
