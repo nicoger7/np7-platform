@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  BOARD_METRIC_BY_KEY, effectiveValue, exactValue, metricUnit, round, riseMarkerStation,
+  BOARD_METRICS, BOARD_METRIC_BY_KEY, effectiveValue, exactValue, fmtReading, metricUnit, round, riseMarkerStation,
   rockerReadout, smoothPath, toMm, widestPoint, zeroCrossing,
   type PdBoard, type PdBoardCutout, type PdBoardPoint, type PdBoardSeries, type SeriesPoints,
 } from "@/lib/board-measurements";
@@ -162,6 +162,9 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
       {view === "rocker" && (
         <RockerView board={board} rocker={rocker} thickness={thickness} points={points}
           stations={stations} exag={exag} labels={labels} />
+      )}
+      {view === "section" && (
+        <SliceReadout board={board} station={station ?? fullestStation} points={points} series={series} />
       )}
       {view === "section" && (
         <SectionView board={board} series={series}
@@ -554,6 +557,71 @@ function SectionView({ board, series, station, width, vee, concave, thickness, r
         "Nothing is read off a curve here. Pick a station with more readings for a fuller section.",
         board.station_origin === "tail" ? "Looking forward from the tail." : "Looking aft from the nose.",
       ]} />
+    </div>
+  );
+}
+
+// ─── The slice strip: every metric at ONE station ────────────────────────────
+
+/**
+ * The same box as the board readout, for the station the section is showing.
+ *
+ * Exact readings only, in the units they were taken in. A metric that was
+ * measured on the board but not at this station says so, which is different
+ * from one never measured at all — and the hint carries the two things the
+ * bare number hides: a display scale ("×0.5 applied, read 2.1") and the note
+ * written on the tape at that station ("Normal V from here").
+ */
+function SliceReadout({ board, station, points, series }: {
+  board: PdBoard; station: number; points: PdBoardPoint[]; series: PdBoardSeries[];
+}) {
+  const cells = BOARD_METRICS.map((m) => {
+    const s = series.find((x) => x.metric === m.key) ?? null;
+    const p = points.find((x) => x.metric === m.key && x.station === station);
+    const unit = metricUnit(m.key, s);
+    const onBoard = points.some((x) => x.metric === m.key && (x.value != null || x.text_value));
+    const base = { label: m.label, color: m.color };
+
+    if (!p || (p.value == null && !p.text_value)) {
+      return { ...base, value: "—", hint: onBoard ? `not measured at ${station} cm` : "not on this board", missing: true };
+    }
+    if (m.kind === "choice") {
+      const word = m.choices?.find((c) => c.key === p.text_value)?.label ?? p.text_value ?? "—";
+      const hint = [p.value != null ? `${p.value} ${unit} ${m.numberLabel?.toLowerCase() ?? ""}`.trim() : null, p.note].filter(Boolean).join(" · ");
+      return { ...base, value: word, hint: hint || undefined, missing: false };
+    }
+    const v = effectiveValue(p, s);
+    const hint = [
+      s?.scale && s.scale !== 1 && p.value != null ? `×${s.scale} applied · read ${p.value}` : null,
+      s?.variant ?? null,
+      p.note ?? null,
+    ].filter(Boolean).join(" · ");
+    return {
+      ...base,
+      value: v == null ? (p.text_value ?? "—") : fmtReading(m.key, round(v, 3), unit),
+      hint: hint || unit,
+      missing: false,
+    };
+  });
+
+  return (
+    <div className="mb-4">
+      <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1.5">
+        At {station} cm from the {board.station_origin}
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-px rounded-xl overflow-hidden"
+        style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-border)" }}>
+        {cells.map((c) => (
+          <div key={c.label} className="px-3 py-2.5" style={{ backgroundColor: "var(--admin-surface)" }}>
+            <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.08em] admin-faint uppercase">
+              <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: c.color, opacity: c.missing ? 0.35 : 1 }} />
+              <span className="truncate">{c.label}</span>
+            </div>
+            <div className={`text-base font-bold leading-tight ${c.missing ? "admin-faint" : "admin-heading"}`}>{c.value}</div>
+            {c.hint && <div className="text-[10px] admin-faint truncate" title={c.hint}>{c.hint}</div>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
