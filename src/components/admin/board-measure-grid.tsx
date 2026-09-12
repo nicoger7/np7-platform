@@ -440,11 +440,19 @@ function SeriesSettings({ metric, value, onChange, onRemove, onClose }: {
  * than acting on. A one-click import would have to guess at "alles halbieren",
  * and guessing wrong scales a whole series by two.
  */
-function ImportDialog({ board, onClose, onDone }: { board: PdBoard; onClose: () => void; onDone: () => void }) {
-  const [text, setText] = useState("");
-  const [result, setResult] = useState<ParseResult | null>(null);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [applySuggestion, setApplySuggestion] = useState<Set<string>>(new Set());
+export function ImportDialog({ board, onClose, onDone, initialText }: {
+  board: PdBoard; onClose: () => void; onDone: () => void;
+  /** Pre-filled and parsed on open — the Overview composer hands its text in. */
+  initialText?: string;
+}) {
+  const [text, setText] = useState(initialText ?? "");
+  // Text handed in from the composer is read on open: the review table is the
+  // first thing you should see, not a second copy of your own paste.
+  const [result, setResult] = useState<ParseResult | null>(() => (initialText?.trim() ? parseMeasurementText(initialText) : null));
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(result?.series.map((s) => s.metric) ?? []));
+  const [applySuggestion, setApplySuggestion] = useState<Set<string>>(
+    () => new Set(result?.series.flatMap((s) => s.suggestions.map((g) => `${s.metric}:${g.kind}`)) ?? []),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [assistNote, setAssistNote] = useState("");
@@ -509,6 +517,23 @@ function ImportDialog({ board, onClose, onDone }: { board: PdBoard; onClose: () 
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stations: Array.from(newStations).sort((a, b) => a - b) }),
     });
+
+    // The session itself is kept verbatim as a note, already marked "in the
+    // board" — the readings' provenance, and the thing to re-read when a number
+    // looks odd six months on.
+    const created = await fetch(`/api/admin/product-dev/boards/${board.id}/notes`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "text", body: text }),
+    }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    if (created?.id) {
+      await fetch(`/api/admin/product-dev/boards/${board.id}/notes/${created.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "applied",
+          filed: { summary: `Imported ${chosen.length} metric${chosen.length === 1 ? "" : "s"} from this session.`, by: "parser", proposals: chosen, sortedAt: new Date().toISOString() },
+        }),
+      }).catch(() => {});
+    }
     setBusy(false);
     onDone();
   }

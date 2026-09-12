@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { keyUrl } from "@/lib/img";
+import { ImportDialog } from "@/components/admin/board-measure-grid";
 import {
   BOARD_METRIC_BY_KEY, fmtReading,
   type FiledNote, type ParsedSeries, type PdBoard, type PdBoardNote,
@@ -31,7 +32,20 @@ import {
 const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] transition-colors";
 const MAX_SEC = 600;
 
-export function BoardNotes({ board, notes, onChanged }: { board: PdBoard; notes: PdBoardNote[]; onChanged: () => void }) {
+/**
+ * The composer: a box you can type a measuring session into, or anything else.
+ *
+ * Lives on the board's FIRST page as well as here — "it will be the easiest way
+ * to enter stuff" — so it is its own component. Two ways out of it:
+ *   File into the board  → the importer, review table first, then the readings
+ *   Save as note         → the inbox, raw, to sort later
+ */
+export function NoteComposer({ board, onSaved, onFile }: {
+  board: PdBoard;
+  onSaved: () => void;
+  /** When given, the primary button hands the text to the importer. */
+  onFile?: (text: string) => void;
+}) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -44,7 +58,7 @@ export function BoardNotes({ board, notes, onChanged }: { board: PdBoard; notes:
     });
     setBusy(false);
     if (!res.ok) { setError((await res.json().catch(() => ({}))).error ?? "Couldn't save the note."); return; }
-    setText(""); onChanged();
+    setText(""); onSaved();
   }
 
   async function addVoice(blob: Blob, seconds: number) {
@@ -62,29 +76,143 @@ export function BoardNotes({ board, notes, onChanged }: { board: PdBoard; notes:
     });
     setBusy(false);
     if (!res.ok) { setError((await res.json().catch(() => ({}))).error ?? "Couldn't save the note."); return; }
-    onChanged();
+    onSaved();
   }
+
+  const primary = "px-4 py-2 text-xs font-bold rounded-lg disabled:opacity-40";
+  const primaryStyle = { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" };
+  const secondary = "px-3 py-2 text-xs font-semibold admin-muted rounded-lg disabled:opacity-40";
+  const secondaryStyle = { border: "1px solid var(--admin-border)" };
+
+  return (
+    <div>
+      <textarea className={`${inputClass} min-h-[150px] font-mono text-xs`} value={text}
+        placeholder={"Paste a measuring session — metric heading, one station per line — and file it. Anything else becomes a note.\n\nRocker\n0 - 6mm\n5 - 2mm\n10 - 0\n80 - start\n110 - 4.5mm"}
+        onChange={(e) => setText(e.target.value)} />
+      <div className="flex flex-wrap items-center gap-2 mt-2">
+        {onFile && (
+          <button onClick={() => onFile(text)} disabled={!text.trim() || busy} className={primary} style={primaryStyle}>
+            File into the board
+          </button>
+        )}
+        <button onClick={addText} disabled={!text.trim() || busy}
+          className={onFile ? secondary : primary} style={onFile ? secondaryStyle : primaryStyle}>
+          Save as note
+        </button>
+        <Recorder onDone={addVoice} disabled={busy} />
+      </div>
+      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+      <p className="mt-3 text-[11px] admin-faint leading-relaxed">
+        Filing shows you what it read before anything is written. Voice notes are kept as audio; type the
+        transcript in afterwards (your phone&apos;s dictation is the quickest way) and file it like any other.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * How to write a session so it files first time. Sits beside the composer on
+ * the first page, folded under it on the Notes tab. Everything here is a
+ * behaviour of parseMeasurementText, so if the parser changes, change this.
+ */
+export function SessionBrief({ folded = false }: { folded?: boolean }) {
+  const body = (
+    <div className="text-[12px] admin-muted leading-relaxed space-y-3">
+      <div>
+        <p className="font-semibold admin-heading mb-1">1 · One metric per block</p>
+        <p>
+          Start a block with the metric name on its own line. Recognised:{" "}
+          <b>Thickness</b>, <b>Width</b> (bottom), <b>Rocker</b>, <b>V</b>, <b>Concave</b> (write <i>double</i> or <i>single</i> in front),{" "}
+          <b>Rail thickness</b>, <b>Rail shape</b>. German works too (Dicke, Breite).
+        </p>
+      </div>
+      <div>
+        <p className="font-semibold admin-heading mb-1">2 · One station per line</p>
+        <p>
+          <code>station - value unit</code>, e.g. <code>110 - 4.5mm</code>. The dash is optional, commas as decimals are fine (<code>81,2cm</code>).
+          Stations are <b>cm from the tail</b>. A station on its own (<code>20</code>) is kept as &ldquo;still to measure&rdquo;.
+        </p>
+      </div>
+      <div>
+        <p className="font-semibold admin-heading mb-1">3 · The tail edge</p>
+        <p>
+          The tail kick sits in the last few cm. Read the rocker at <b>0</b> and <b>5</b> off the same straightedge, then 10, 20 and so on.
+          Where the rocker begins to rise, write the word: <code>80 - start</code>.
+        </p>
+      </div>
+      <div>
+        <p className="font-semibold admin-heading mb-1">4 · V and inverted V</p>
+        <p>
+          Put <i>inverted</i> in the heading (<code>V - inverted</code>) and every reading after it is inverted. Where it changes,
+          write a line <code>Normal V from here</code> and the rest is V. Zero is zero either way.
+        </p>
+      </div>
+      <div>
+        <p className="font-semibold admin-heading mb-1">5 · Caveats stay caveats</p>
+        <p>
+          Anything in brackets after a value is kept as a note on that reading: <code>40 2mm (minus the inverted V)</code>.
+          A caveat in the heading, like <code>(alles halbieren)</code>, is offered as a tick-box when you file, never applied on its own.
+        </p>
+      </div>
+      <div>
+        <p className="font-semibold admin-heading mb-1">6 · Rail shape is a word</p>
+        <p>hard, tucked, boxy, soft, 50/50, bevel or chined, with a radius in mm after it if you measured one.</p>
+      </div>
+      <div>
+        <p className="font-semibold admin-heading mb-1">A complete block</p>
+        <pre className="text-[11px] font-mono leading-snug p-3 rounded-lg overflow-x-auto" style={{ backgroundColor: "var(--admin-bg)", border: "1px solid var(--admin-border)" }}>{`Rocker
+0 - 6mm
+5 - 2mm
+10 - 0
+50 - 0
+80 - start
+110 - 4.5mm
+160 - 35mm
+
+V - inverted (alles halbieren)
+10 0.2mm
+80 - 0
+Normal V from here
+90 - 2.9mm
+140 - 25mm
+
+Double concave
+40 2mm (minus the inverted V)
+90 - 1.5mm`}</pre>
+      </div>
+      <p className="admin-faint">
+        Filing always shows the review table first: which metrics it found, every station it read, and what it left alone.
+        Nothing is written until you press Import.
+      </p>
+    </div>
+  );
+
+  if (folded) {
+    return (
+      <details className="mt-4">
+        <summary className="text-xs font-semibold admin-muted cursor-pointer">How to write a session</summary>
+        <div className="mt-3">{body}</div>
+      </details>
+    );
+  }
+  return (
+    <div className="p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)" }}>
+      <h4 className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-3">How to write a session</h4>
+      {body}
+    </div>
+  );
+}
+
+export function BoardNotes({ board, notes, onChanged }: { board: PdBoard; notes: PdBoardNote[]; onChanged: () => void }) {
+  const [fileText, setFileText] = useState<string | null>(null);
+  const [composerKey, setComposerKey] = useState(0);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-8">
       <div>
         <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-2">New note</h3>
-        <textarea className={`${inputClass} min-h-[140px] font-mono text-xs`} value={text}
-          placeholder={"Anything. A measuring session in the station format sorts itself:\n\nRocker\n80 - start\n110 - 4.5mm"}
-          onChange={(e) => setText(e.target.value)} />
-        <div className="flex items-center gap-2 mt-2">
-          <button onClick={addText} disabled={!text.trim() || busy}
-            className="px-4 py-2 text-xs font-bold rounded-lg disabled:opacity-40"
-            style={{ backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }}>
-            Save note
-          </button>
-          <Recorder onDone={addVoice} disabled={busy} />
-        </div>
-        {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
-        <p className="mt-4 text-[11px] admin-faint leading-relaxed">
-          Voice notes are kept as audio. Type or paste the transcript into the note afterwards (your phone&apos;s
-          dictation is the quickest way) and it can be sorted like any other.
-        </p>
+        <NoteComposer key={composerKey} board={board} onSaved={onChanged} onFile={setFileText} />
+        <SessionBrief folded />
       </div>
 
       <div>
@@ -101,6 +229,11 @@ export function BoardNotes({ board, notes, onChanged }: { board: PdBoard; notes:
           </div>
         )}
       </div>
+
+      {fileText != null && (
+        <ImportDialog board={board} initialText={fileText} onClose={() => setFileText(null)}
+          onDone={() => { setFileText(null); setComposerKey((k) => k + 1); onChanged(); }} />
+      )}
     </div>
   );
 }

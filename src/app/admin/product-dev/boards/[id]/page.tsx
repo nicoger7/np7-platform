@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cdnImage, keyUrl } from "@/lib/img";
 import { BoardPlan, BoardReadout } from "@/components/admin/board-plan";
-import { BoardMeasureGrid, SeriesSummary } from "@/components/admin/board-measure-grid";
-import { BoardNotes } from "@/components/admin/board-notes";
+import { BoardMeasureGrid, ImportDialog, SeriesSummary } from "@/components/admin/board-measure-grid";
+import { BoardNotes, NoteComposer, SessionBrief } from "@/components/admin/board-notes";
 import { BoardCutouts } from "@/components/admin/board-cutouts";
 import {
   BOARD_CATEGORIES, BOARD_ORIGINS,
@@ -124,6 +124,10 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
 // ─── Overview ────────────────────────────────────────────────────────────────
 
 function OverviewTab({ board, onSaved }: { board: Bundle; onSaved: () => void }) {
+  // The composer sits at the top of the FIRST page: "it will be the easiest
+  // way to enter stuff." The board's details come after it.
+  const [fileText, setFileText] = useState<string | null>(null);
+  const [composerKey, setComposerKey] = useState(0);
   const [form, setForm] = useState({
     name: board.name, brand: board.brand ?? "", model: board.model ?? "",
     year: board.year == null ? "" : String(board.year),
@@ -160,7 +164,24 @@ function OverviewTab({ board, onSaved }: { board: Bundle; onSaved: () => void })
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-8">
-      <div className="max-w-3xl">
+      <div className="max-w-5xl">
+        <div className="mb-8 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+          <h3 className="text-sm font-bold admin-heading mb-1">Enter measurements or a note</h3>
+          <p className="text-[11px] admin-faint mb-3 leading-relaxed">
+            Straight from your notes app. A session in the station format files itself into the Measurements
+            tab after you have checked what it read; everything else lands on the Notes tab.
+          </p>
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-5">
+            <NoteComposer key={composerKey} board={board} onSaved={onSaved} onFile={setFileText} />
+            <SessionBrief />
+          </div>
+        </div>
+        {fileText != null && (
+          <ImportDialog board={board} initialText={fileText} onClose={() => setFileText(null)}
+            onDone={() => { setFileText(null); setComposerKey((k) => k + 1); onSaved(); }} />
+        )}
+
+        <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-3">Board details</h3>
         <div className="grid grid-cols-2 sm:grid-cols-6 gap-4 mb-4">
           <div className="col-span-2 sm:col-span-3"><label className={labelClass}>Name</label>
             <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
