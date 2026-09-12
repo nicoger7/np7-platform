@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BOARD_DISCIPLINES, BOARD_ORIGINS, DEFAULT_STATIONS, disciplineLabel, type BoardCategory, type BoardOrigin } from "@/lib/board-measurements";
+import { BOARD_DISCIPLINES, BOARD_METRICS, BOARD_ORIGINS, DEFAULT_STATIONS, disciplineLabel, type BoardCategory, type BoardOrigin } from "@/lib/board-measurements";
 
 type BoardRow = {
   id: string;
@@ -28,7 +28,7 @@ const ORIGIN_COLOR: Record<BoardOrigin, string> = {
 
 const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
 const labelClass = "block text-xs font-medium admin-muted mb-1";
-const GRID = "1fr 110px 90px 80px 70px 110px 40px";
+const GRID = "1fr 110px 90px 80px 80px 90px 110px 40px";
 
 export default function BoardsPage() {
   const router = useRouter();
@@ -198,7 +198,7 @@ export default function BoardsPage() {
       ) : (
         <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
           <div className="gap-3 px-5 py-3 admin-surface" style={{ display: "grid", gridTemplateColumns: GRID, borderBottom: "1px solid var(--admin-border)" }}>
-            {["Board", "Discipline", "Whose", "Volume", "Readings", "Measured", ""].map((h, i) => (
+            {["Board", "Discipline", "Whose", "Volume", "Readings", "Metrics", "Measured", ""].map((h, i) => (
               <span key={i} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
             ))}
           </div>
@@ -220,7 +220,9 @@ export default function BoardsPage() {
               <span className="text-xs admin-muted self-center">{b.volume_l ? `${b.volume_l} l` : "—"}</span>
               <span className={`text-xs self-center ${b.readings > 0 ? "text-[var(--admin-accent)] font-semibold" : "admin-faint"}`}>
                 {b.readings || "—"}
-                {b.metrics > 0 && <span className="admin-faint font-normal"> / {b.metrics}</span>}
+              </span>
+              <span className="text-xs admin-muted self-center" title={`${b.metrics} of ${BOARD_METRICS.length} measurements have at least one reading`}>
+                {b.metrics > 0 ? `${b.metrics} of ${BOARD_METRICS.length}` : "—"}
               </span>
               <span className="text-xs admin-muted self-center">
                 {b.measured_at ? new Date(b.measured_at).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "2-digit" }) : "—"}
@@ -233,8 +235,8 @@ export default function BoardsPage() {
       )}
 
       <p className="mt-6 text-xs admin-faint max-w-2xl leading-relaxed">
-        Readings counts every number on the board; the figure after the slash is how many of the six
-        measurements it covers. Everything in this section is internal.
+        Readings is every number on the board; Metrics is how many of the {BOARD_METRICS.length} measurements
+        (width, thickness, rocker, V, concave, rail thickness, rail shape) have at least one. Everything in this section is internal.
       </p>
     </div>
   );
