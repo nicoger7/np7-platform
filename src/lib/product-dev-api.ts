@@ -65,6 +65,8 @@ export type CrudConfig = {
   orderBy?: { column: string; ascending?: boolean };
   /** Rows are keyed to a project; the list route filters on it when asked. */
   projectScoped?: boolean;
+  /** Rows may instead be keyed to a board (pd_processes is both — see 238). */
+  boardScoped?: boolean;
   /** Uses `active boolean` instead of `archived_at` (pd_materials). */
   softDeletable?: boolean;
 };
@@ -95,7 +97,7 @@ export const PD_ENTITIES = {
   },
   constructions: {
     table: "pd_constructions",
-    editable: ["project_id", "code", "name", "description", "sort_order", "source_id"],
+    editable: ["project_id", "code", "name", "description", "sort_order", "source_id", "model_name", "hw_product_id"],
     required: ["project_id", "code", "name"],
     projectScoped: true,
     orderBy: { column: "sort_order" },
@@ -116,7 +118,7 @@ export const PD_ENTITIES = {
   },
   layups: {
     table: "pd_layups",
-    editable: ["project_id", "construction_id", "mold_id", "name", "ref", "revision", "superseded_by", "is_reference", "resin_pct_min", "resin_pct_max", "geometry", "files", "photos", "notes", "source_id"],
+    editable: ["project_id", "construction_id", "mold_id", "name", "ref", "revision", "superseded_by", "is_reference", "resin_pct_min", "resin_pct_max", "geometry", "files", "photos", "notes", "source_id", "model_name"],
     required: ["project_id", "construction_id", "mold_id", "name"],
     projectScoped: true,
     select: "*, pd_constructions(id,name,code), pd_molds(id,name,key_dimension_mm)",
@@ -124,9 +126,12 @@ export const PD_ENTITIES = {
   },
   processes: {
     table: "pd_processes",
-    editable: ["project_id", "name", "stage_order", "method", "summary", "construction_id", "source_id"],
-    required: ["project_id", "name", "method"],
+    // Owned by a project OR a board (migration 238), never both — the check
+    // constraint enforces it, so `required` cannot name either one.
+    editable: ["project_id", "board_id", "name", "stage_order", "method", "summary", "construction_id", "source_id"],
+    required: ["name", "method"],
     projectScoped: true,
+    boardScoped: true,
     orderBy: { column: "stage_order" },
   },
   // Sizes are child rows of a project (no archived_at — softDelete falls back
@@ -137,6 +142,31 @@ export const PD_ENTITIES = {
     required: ["project_id", "label"],
     projectScoped: true,
     orderBy: { column: "length_cm" },
+  },
+  // ── Boards (migration 238) ──────────────────────────────────────────────
+  boards: {
+    table: "pd_boards",
+    editable: [
+      "project_id", "name", "brand", "model", "year", "category", "origin",
+      "volume_l", "length_cm", "max_width_cm", "tail_width_cm", "weight_kg",
+      "construction", "fin_box", "station_origin", "station_unit", "stations",
+      "measured_at", "measured_by", "summary", "notes", "photos", "source_id",
+    ],
+    required: ["name"],
+    projectScoped: true,
+    orderBy: { column: "name" },
+  },
+  boardCutouts: {
+    table: "pd_board_cutouts",
+    editable: ["board_id", "kind", "label", "station_from", "station_to", "offset_cm", "mirrored", "width_cm", "depth_mm", "angle_deg", "spec", "notes", "sort_order"],
+    required: ["board_id"],
+    orderBy: { column: "sort_order" },
+  },
+  boardNotes: {
+    table: "pd_board_notes",
+    editable: ["board_id", "kind", "body", "audio_key", "duration_s", "status", "filed"],
+    required: ["board_id"],
+    orderBy: { column: "created_at", ascending: false },
   },
 } as const satisfies Record<string, CrudConfig>;
 
@@ -156,6 +186,10 @@ export async function pdList(cfg: CrudConfig, request: NextRequest): Promise<Nex
   if (cfg.projectScoped) {
     const projectId = sp.get("project_id");
     if (projectId) q = q.eq("project_id", projectId);
+  }
+  if (cfg.boardScoped) {
+    const boardId = sp.get("board_id");
+    if (boardId) q = q.eq("board_id", boardId);
   }
   const search = sp.get("search");
   if (search) q = q.ilike("name", `%${search}%`);

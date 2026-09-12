@@ -210,6 +210,7 @@ const navByEnv: Record<Environment, NavGroup[]> = {
         // check below is a prefix match, so the parent path would stay lit while
         // you're inside the library. /admin/product-dev redirects here.
         { label: "Projects", href: "/admin/product-dev/projects", icon: "flow" },
+        { label: "Boards", href: "/admin/product-dev/boards", icon: "layers" },
         { label: "Media", href: "/admin/product-dev/library", icon: "image" },
       ],
     },

@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { pdDb, pdReplaceChildren } from "@/lib/product-dev-api";
 import { requireAdminGate } from "@/lib/admin-auth";
 const STEP_COLUMNS = [
-  "step_no", "title", "body", "equipment",
+  // `section` groups a run of consecutive steps under a sub-heading; it is a
+  // label on the step, not a table, because it has no properties of its own.
+  "step_no", "section", "hero_photo", "title", "body", "equipment",
   "temp_c_min", "temp_c_max", "pressure_t_min", "pressure_t_max", "duration_min",
   "params", "materials", "critical", "tolerance_target", "tolerance_unit", "tolerance_note",
   "photos", "source_id",

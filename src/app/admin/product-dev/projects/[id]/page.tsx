@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PlyDiagram, PlyFins, PlyLegend, plyTotals } from "@/components/admin/ply-diagram";
 import { LayupBuilder } from "@/components/admin/layup-builder";
+import { BuildProcess } from "@/components/admin/build-process";
 import {
-  groupPliesByStack, plyOrientation, shortMaterialName,
+  groupPliesByStack, plyOrientation, resolveModelName, shortMaterialName,
   GEOMETRY_FIELDS, PD_KINDS, PD_MOLD_KINDS, PD_MOLD_STATUSES, PD_STATUSES,
   type PdConstruction, type PdKind, type PdLayup, type PdMaterial, type PdMold,
   type PdPly, type PdProcess, type PdProcessStep, type PdProject, type PdSize, type PdSource,
@@ -28,6 +29,7 @@ const TABS = [
   { key: "overview", label: "Overview" },
   { key: "tooling", label: "Tooling" },
   { key: "layups", label: "Build sheets" },
+  { key: "building", label: "Building" },
 ] as const;
 
 const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
@@ -134,6 +136,9 @@ export default function ProductDevProjectPage({ params }: { params: Promise<{ id
       {tab === "overview" && <OverviewTab project={d} onSaved={load} />}
       {tab === "tooling" && <ToolingTab bundle={d} onChanged={load} />}
       {tab === "layups" && <LayupsTab bundle={d} onChanged={load} dirtyRef={sheetDirtyRef} />}
+      {tab === "building" && (
+        <BuildProcess owner={{ kind: "project", id: d.id }} processes={d.processes} steps={d.steps} onChanged={load} />
+      )}
     </div>
   );
 }
@@ -220,6 +225,13 @@ function ToolingTab({ bundle, onChanged }: { bundle: Bundle; onChanged: () => vo
     if (res.ok) onChanged(); else setError((await res.json().catch(() => ({}))).error || "Couldn't add that.");
   }
 
+  async function patchConstruction(id: string, patch: Record<string, unknown>) {
+    const res = await fetch(`/api/admin/product-dev/constructions/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    });
+    if (res.ok) onChanged(); else setError((await res.json().catch(() => ({}))).error || "Save failed.");
+  }
+
   async function patchMold(id: string, patch: Record<string, unknown>) {
     const res = await fetch(`/api/admin/product-dev/molds/${id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
@@ -237,8 +249,9 @@ function ToolingTab({ bundle, onChanged }: { bundle: Bundle; onChanged: () => vo
           <button onClick={addConstruction} disabled={busy} className="text-xs admin-muted hover:text-[var(--admin-accent)]">+ Add</button>
         </div>
         <p className="text-xs admin-faint mb-3 leading-relaxed">
-          The commercial variants. Descriptions stay in the supplier&apos;s own words — if no percentage was
-          quoted, none is invented here.
+          The commercial variants — and usually the MODELS: glass and carbon off the same mold are two
+          products. Name the model here and every sheet under this construction inherits it. Descriptions
+          stay in the supplier&apos;s own words — if no percentage was quoted, none is invented here.
         </p>
         <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
           {bundle.constructions.length === 0 ? (
@@ -250,6 +263,14 @@ function ToolingTab({ bundle, onChanged }: { bundle: Bundle; onChanged: () => vo
                 <code className="text-[10px] admin-faint">{c.code}</code>
               </div>
               {c.description && <p className="text-xs admin-muted mt-1">{c.description}</p>}
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="text-[10px] font-bold tracking-[0.08em] uppercase admin-faint shrink-0">Model</span>
+                <input
+                  className="flex-1 bg-transparent text-xs admin-heading focus:outline-none focus:text-[var(--admin-accent)] placeholder:italic"
+                  defaultValue={c.model_name ?? ""} placeholder={`not named — sheets show "${bundle.name}"`}
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v !== (c.model_name ?? "")) patchConstruction(c.id, { model_name: v || null }); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+              </div>
             </div>
           ))}
         </div>
@@ -624,7 +645,7 @@ function BuildSheet({
   const [view, setView] = useSheetView();
   const [draft, setDraft] = useState<DraftPly[]>(plies);
   const [header, setHeader] = useState({
-    name: layup.name, ref: layup.ref ?? "",
+    name: layup.name, ref: layup.ref ?? "", model_name: layup.model_name ?? "",
     resin_pct_min: String(layup.resin_pct_min ?? ""), resin_pct_max: String(layup.resin_pct_max ?? ""),
     is_reference: layup.is_reference,
     geometry: { ...(layup.geometry ?? {}) } as Record<string, string | number | null>,
@@ -670,6 +691,7 @@ function BuildSheet({
           method: "PATCH", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name: header.name, ref: header.ref, is_reference: header.is_reference,
+            model_name: header.model_name.trim() || null,
             resin_pct_min: header.resin_pct_min === "" ? null : Number(header.resin_pct_min),
             resin_pct_max: header.resin_pct_max === "" ? null : Number(header.resin_pct_max),
             geometry: header.geometry,
@@ -700,7 +722,7 @@ function BuildSheet({
   function discard() {
     setDraft(plies);
     setHeader({
-      name: layup.name, ref: layup.ref ?? "",
+      name: layup.name, ref: layup.ref ?? "", model_name: layup.model_name ?? "",
       resin_pct_min: String(layup.resin_pct_min ?? ""), resin_pct_max: String(layup.resin_pct_max ?? ""),
       is_reference: layup.is_reference, geometry: { ...(layup.geometry ?? {}) },
     });
@@ -737,6 +759,23 @@ function BuildSheet({
           <p className="text-xs admin-faint mt-0.5">
             {construction?.name}{mold ? ` · ${mold.name} mm mold` : ""}{layup.ref ? ` · ref ${layup.ref}` : ""}
           </p>
+          {/* Which MODEL this sheet is — the question the sheet's own name (a
+              factory reference) never answered. Resolved most-specific first. */}
+          {editing ? (
+            <input className={`${inputClass} mt-1.5 max-w-sm text-xs`} value={header.model_name}
+              placeholder={`Model — leave empty to inherit "${resolveModelName(null, construction, project).name}"`}
+              onChange={(e) => setHeader({ ...header, model_name: e.target.value })} />
+          ) : (() => {
+            const m = resolveModelName(layup, construction, project);
+            return (
+              <p className="text-xs mt-0.5">
+                <span className="font-semibold admin-heading">Model: {m.name}</span>
+                <span className="admin-faint">
+                  {m.from === "layup" ? " · named on this sheet" : m.from === "construction" ? " · from the construction" : " · not named — falls back to the project"}
+                </span>
+              </p>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2">
           {/* The toggle stays available while editing: Numbers edits the table,
@@ -1103,7 +1142,7 @@ function CompareSheets({
                     {l.name} {l.is_reference && <span className="text-[var(--admin-accent)]">★</span>}
                   </h3>
                   <p className="text-[11px] admin-faint">
-                    {constructionById.get(l.construction_id)?.name} · {moldById.get(l.mold_id)?.name} mm · {plies.length} plies
+                    {resolveModelName(l, constructionById.get(l.construction_id), bundle).name} · {constructionById.get(l.construction_id)?.name} · {moldById.get(l.mold_id)?.name} mm · {plies.length} plies
                   </p>
                 </div>
                 {plies.length === 0

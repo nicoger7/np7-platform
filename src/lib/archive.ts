@@ -55,6 +55,7 @@ export const ARCHIVE_ENTITIES: ArchiveEntity[] = [
   { key: "pd_layups", table: "pd_layups", label: "Build sheet", plural: "Build sheets", titleCol: "name", subtitleCols: ["ref"], section: "pd_knowledge" },
   { key: "pd_processes", table: "pd_processes", label: "Process", plural: "Processes", titleCol: "name", subtitleCols: ["method"], section: "pd_knowledge" },
   { key: "pd_sources", table: "pd_sources", label: "R&D source", plural: "R&D sources", titleCol: "title", subtitleCols: ["kind", "author_name"], section: "pd_knowledge" },
+  { key: "pd_boards", table: "pd_boards", label: "Board", plural: "Boards", titleCol: "name", subtitleCols: ["brand", "category"], href: (id) => `/admin/product-dev/boards/${id}`, section: "pd_boards" },
 ];
 
 export const ARCHIVE_BY_KEY: Record<string, ArchiveEntity> = Object.fromEntries(ARCHIVE_ENTITIES.map((e) => [e.key, e]));

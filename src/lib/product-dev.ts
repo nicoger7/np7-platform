@@ -174,6 +174,9 @@ export type PdConstruction = {
   name: string;
   description: string | null;
   sort_order: number;
+  /** The sellable model this construction IS (migration 238). See resolveModelName. */
+  model_name: string | null;
+  hw_product_id: string | null;
   source_id: string | null;
   created_at: string;
   updated_at: string;
@@ -235,6 +238,8 @@ export type PdLayup = {
   files: PdFile[];
   photos: PdPhoto[];
   notes: string | null;
+  /** Override: this one (mold, construction) pair is its own model (migration 238). */
+  model_name: string | null;
   source_id: string | null;
   created_at: string;
   updated_at: string;
@@ -275,7 +280,9 @@ export type PdSize = {
 
 export type PdProcess = {
   id: string;
-  project_id: string;
+  /** Exactly one of project_id / board_id is set (migration 238 check constraint). */
+  project_id: string | null;
+  board_id: string | null;
   name: string;
   stage_order: number;
   method: (typeof PD_METHODS)[number];
@@ -291,6 +298,10 @@ export type PdProcessStep = {
   id: string;
   process_id: string;
   step_no: number;
+  /** Sub-heading a run of consecutive steps shares (migration 238). */
+  section: string | null;
+  /** Storage key of the one photo shown in the step list. */
+  hero_photo: string | null;
   title: string;
   body: string | null;
   equipment: string | null;
@@ -310,6 +321,28 @@ export type PdProcessStep = {
   created_at: string;
   updated_at: string;
 };
+
+// ─── Which model is this? ────────────────────────────────────────────────────
+
+/**
+ * The sellable model a build sheet belongs to.
+ *
+ * "Is it clear that different lay-up = different model?" — it was not, because
+ * the only product link sat on the project. The answer differs per program, so
+ * it is modelled at both levels and resolved here, most specific first:
+ * a sheet that names its own model, else its construction's model, else the
+ * program. Filling in neither leaves the old behaviour untouched.
+ */
+export function resolveModelName(
+  layup: Pick<PdLayup, "model_name"> | null | undefined,
+  construction: Pick<PdConstruction, "model_name"> | null | undefined,
+  project: Pick<PdProject, "name"> | null | undefined,
+): { name: string; from: "layup" | "construction" | "project" | "none" } {
+  if (layup?.model_name) return { name: layup.model_name, from: "layup" };
+  if (construction?.model_name) return { name: construction.model_name, from: "construction" };
+  if (project?.name) return { name: project.name, from: "project" };
+  return { name: "—", from: "none" };
+}
 
 // ─── Formatting helpers ──────────────────────────────────────────────────────
 

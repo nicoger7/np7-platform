@@ -59,3 +59,18 @@ export function cdnImage(
   // sliver (measured), which is what made thumbnails look "super zoomed".
   return `${transformed}${sep}width=${width}&quality=${quality}&resize=contain`;
 }
+
+/**
+ * A storage KEY → a servable URL.
+ *
+ * The Product Development tables store `key`, never a URL: the rows outlive the
+ * CDN in front of them (this repo has already moved that base once, Supabase →
+ * R2, and the layup photos survived it because they were keys). This is the one
+ * place that resolution happens on the client.
+ */
+export function keyUrl(key: string | null | undefined): string {
+  if (!key) return "";
+  if (/^https?:\/\//i.test(key)) return key; // tolerate a URL that got stored
+  const enc = key.split("/").map(encodeURIComponent).join("/");
+  return R2_CDN ? `${R2_CDN}/${enc}` : `${SUPA_ASSET_BASE}/${enc}`;
+}
