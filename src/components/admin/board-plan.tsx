@@ -580,7 +580,7 @@ function SliceReadout({ board, station, points, series }: {
     const p = points.find((x) => x.metric === m.key && x.station === station);
     const unit = metricUnit(m.key, s);
     const onBoard = points.some((x) => x.metric === m.key && (x.value != null || x.text_value));
-    const base = { label: m.label, color: m.color };
+    const base = { label: m.label, color: m.color, title: undefined as string | undefined };
 
     if (!p || (p.value == null && !p.text_value)) {
       return { ...base, value: "—", hint: onBoard ? `not measured at ${station} cm` : "not on this board", missing: true };
@@ -591,15 +591,21 @@ function SliceReadout({ board, station, points, series }: {
       return { ...base, value: word, hint: hint || undefined, missing: false };
     }
     const v = effectiveValue(p, s);
+    // Plain words, not the mechanics: "halved, tape read 2.1" — the sign is
+    // already said by "inverted V" in the value, and the series variant is a
+    // per-board setting that means nothing at one station. ("×0.5 applied ·
+    // read -2.1 · mixed" was the first version, and it earned a "??".)
+    const scaled = s?.scale && s.scale !== 1 && p.value != null;
+    const scaleWord = !scaled ? null : s!.scale === 0.5 ? "halved" : s!.scale === 2 ? "doubled" : `×${s!.scale}`;
     const hint = [
-      s?.scale && s.scale !== 1 && p.value != null ? `×${s.scale} applied · read ${p.value}` : null,
-      s?.variant ?? null,
+      scaled ? `${scaleWord}, tape read ${Math.abs(p.value as number)}` : null,
       p.note ?? null,
     ].filter(Boolean).join(" · ");
     return {
       ...base,
       value: v == null ? (p.text_value ?? "—") : fmtReading(m.key, round(v, 3), unit),
       hint: hint || unit,
+      title: scaled && s?.convention ? `Series note: "${s.convention}". Change the scale in the column header on the Measurements tab.` : undefined,
       missing: false,
     };
   });
@@ -618,7 +624,7 @@ function SliceReadout({ board, station, points, series }: {
               <span className="truncate">{c.label}</span>
             </div>
             <div className={`text-base font-bold leading-tight ${c.missing ? "admin-faint" : "admin-heading"}`}>{c.value}</div>
-            {c.hint && <div className="text-[10px] admin-faint truncate" title={c.hint}>{c.hint}</div>}
+            {c.hint && <div className="text-[10px] admin-faint truncate" title={c.title ?? c.hint}>{c.hint}</div>}
           </div>
         ))}
       </div>
