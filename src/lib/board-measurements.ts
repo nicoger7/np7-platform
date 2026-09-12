@@ -133,8 +133,14 @@ export type CutoutKind = (typeof CUTOUT_KINDS)[number]["key"];
 export const CUTOUT_BY_KIND: Record<string, (typeof CUTOUT_KINDS)[number]> =
   Object.fromEntries(CUTOUT_KINDS.map((c) => [c.key, c]));
 
-/** The station grid a new board starts with — every 10 cm from the tail. */
-export const DEFAULT_STATIONS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 140, 160, 180];
+/**
+ * The station grid a new board starts with — every 10 cm from the tail, plus
+ * 0 and 5. The two tail-edge rows are the reason this is not simply a range:
+ * the tail kick lives in the last few centimetres behind the fin, and a grid
+ * that starts at 10 quietly never asks for it. Nico's first session started
+ * at 10, read zero there, and the readout could only say "—".
+ */
+export const DEFAULT_STATIONS = [0, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 140, 160, 180];
 
 // ─── Row types ───────────────────────────────────────────────────────────────
 
@@ -288,6 +294,9 @@ export type RockerReadout = {
    *  written down, otherwise the last zero reading. */
   riseFrom: number | null;
   riseFromMarker: boolean;
+  /** The tail-most station that has a reading. A tail kick sits in the last
+   *  few cm, so "no kick" only means something if this is at (or near) 0. */
+  tailEdgeStation: number | null;
 };
 
 /** A word reading that marks where the rocker begins: "80 - start". */
@@ -315,7 +324,7 @@ export function riseMarkerStation(points: Pick<PdBoardPoint, "metric" | "station
  */
 export function rockerReadout(pts: SeriesPoints, stationOrigin: "tail" | "nose", marker?: number | null): RockerReadout {
   if (!pts.length) {
-    return { scoop: null, tailKick: null, flatFrom: null, flatTo: null, riseFrom: marker ?? null, riseFromMarker: marker != null };
+    return { scoop: null, tailKick: null, flatFrom: null, flatTo: null, riseFrom: marker ?? null, riseFromMarker: marker != null, tailEdgeStation: null };
   }
   const flat = pts.filter((p) => p.value === 0);
   const low = pts[0];
@@ -331,6 +340,7 @@ export function rockerReadout(pts: SeriesPoints, stationOrigin: "tail" | "nose",
     flatTo,
     riseFrom: marker ?? flatTo,
     riseFromMarker: marker != null,
+    tailEdgeStation: tailEnd.station,
   };
 }
 
@@ -391,6 +401,19 @@ function monotoneTangents(xs: number[], ys: number[]): number[] {
     }
   }
   return m;
+}
+
+/**
+ * The reading AT a station, or null. No interpolation, no clamping.
+ *
+ * The cross-section uses this and only this. Between two readings a curve is
+ * an honest guess; a single thickness reading stretched along the whole board
+ * is not, and that is exactly what an interpolating lookup produced on the
+ * first board (13.8 cm of deck drawn at a station where nothing was measured).
+ */
+export function exactValue(pts: SeriesPoints, station: number): number | null {
+  const hit = pts.find((p) => p.station === station);
+  return hit ? hit.value : null;
 }
 
 /** Sample the monotone curve through `pts` at `x`. Clamps outside the data —

@@ -17,7 +17,6 @@ type BoardRow = {
   measured_at: string | null;
   readings: number;
   metrics: number;
-  processes: number;
 };
 
 const ORIGIN_COLOR: Record<BoardOrigin, string> = {
@@ -98,7 +97,7 @@ export default function BoardsPage() {
         <div>
           <h1 className="text-2xl font-bold admin-heading mb-1">Boards</h1>
           <p className="text-sm admin-muted">
-            {boards.length} board{boards.length !== 1 ? "s" : ""} · measurements, 2D plans, cut-outs and the build
+            {boards.length} board{boards.length !== 1 ? "s" : ""} · measurements, 2D plans and cut-outs
           </p>
         </div>
         <button onClick={() => setShowNew(!showNew)}

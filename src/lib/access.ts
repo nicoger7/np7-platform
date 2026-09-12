@@ -200,9 +200,8 @@ export const SECTIONS: Section[] = [
   { key: "pd_library", label: "R&D media", world: "product-dev", group: "Product Dev", paths: ["/admin/product-dev/library", "/api/admin/product-dev/media"] },
   // Boards (migration 238): shape measurements of our own prototypes and of
   // competitor boards. Its own section so a role can be given the shape data
-  // without the layup sheets, or the other way round. The step editor on a
-  // board's Building tab writes through /api/admin/product-dev/processes,
-  // which stays under pd_knowledge — so editing a board's build needs both.
+  // without the layup sheets, or the other way round. The building process
+  // lives on the PROJECT (pd_knowledge), never on a measured board.
   { key: "pd_boards", label: "Board measurements", world: "product-dev", group: "Product Dev", paths: ["/admin/product-dev/boards", "/api/admin/product-dev/boards"] },
   // Analytics
   { key: "member_activity", label: "Member activity", world: "experience", group: "Operations", paths: ["/admin/member-activity", "/api/admin/member-activity"] },

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  parseMeasurementText, rockerReadout, riseMarkerStation, zeroCrossing, widestPoint, interpolate,
+  parseMeasurementText, rockerReadout, riseMarkerStation, zeroCrossing, widestPoint, interpolate, exactValue,
 } from "@/lib/board-measurements";
 
 /**
@@ -185,6 +185,23 @@ describe("readouts", () => {
     expect(r.riseFromMarker).toBe(true);
   });
 
+  it("says the tail edge was never measured rather than 'no kick'", () => {
+    // The FMX session starts at 10 cm. A kick behind the fin lives in the
+    // last few cm, so "tail kick —" must mean "not measured", not "zero".
+    const r = rockerReadout(pts("rocker"), "tail");
+    expect(r.tailKick).toBeNull();
+    expect(r.tailEdgeStation).toBe(10);
+  });
+
+  it("reports a tail kick once the tail edge has a reading", () => {
+    const withEdge = [{ station: 0, value: 6 }, { station: 5, value: 2 }, ...pts("rocker")];
+    const r = rockerReadout(withEdge, "tail");
+    expect(r.tailKick).toEqual({ station: 0, value: 6 });
+    expect(r.tailEdgeStation).toBe(0);
+    // The scoop is still the nose end, unaffected.
+    expect(r.scoop).toEqual({ station: 160, value: 35 });
+  });
+
   it("finds the V crossover", () => {
     expect(zeroCrossing(pts("v"))).toBe(80);
   });
@@ -201,6 +218,15 @@ describe("readouts", () => {
       expect(y).toBeLessThanOrEqual(82.0001);
       expect(y).toBeGreaterThanOrEqual(81.6999);
     }
+  });
+
+  it("gives the section nothing at a station that was not measured", () => {
+    // Thickness was read once, at 90. The section at 60 must get null, not
+    // 13.8 cm — a single reading stretched along the board is invented shape.
+    expect(exactValue(pts("thickness"), 90)).toBe(13.8);
+    expect(exactValue(pts("thickness"), 60)).toBeNull();
+    expect(exactValue(pts("concave"), 60)).toBeNull();
+    expect(exactValue(pts("v"), 60)).toBe(-2);
   });
 
   it("clamps rather than extrapolating past the last reading", () => {

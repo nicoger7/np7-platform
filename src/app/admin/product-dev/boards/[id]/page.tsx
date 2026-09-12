@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { cdnImage, keyUrl } from "@/lib/img";
 import { BoardPlan, BoardReadout } from "@/components/admin/board-plan";
 import { BoardMeasureGrid, SeriesSummary } from "@/components/admin/board-measure-grid";
-import { BuildProcess } from "@/components/admin/build-process";
 import { BoardNotes } from "@/components/admin/board-notes";
 import { BoardCutouts } from "@/components/admin/board-cutouts";
 import {
@@ -14,15 +13,12 @@ import {
   type BoardCategory, type BoardOrigin, type BoardPhoto,
   type PdBoard, type PdBoardCutout, type PdBoardNote, type PdBoardPoint, type PdBoardSeries,
 } from "@/lib/board-measurements";
-import type { PdProcess, PdProcessStep } from "@/lib/product-dev";
 
 type Bundle = PdBoard & {
   series: PdBoardSeries[];
   points: PdBoardPoint[];
   cutouts: PdBoardCutout[];
   note_rows: PdBoardNote[];
-  processes: PdProcess[];
-  steps: PdProcessStep[];
   project: { id: string; name: string; kind: string } | null;
 };
 
@@ -31,7 +27,6 @@ const TABS = [
   { key: "measurements", label: "Measurements" },
   { key: "plan", label: "2D plan" },
   { key: "cutouts", label: "Cut-outs" },
-  { key: "building", label: "Building" },
   { key: "photos", label: "Photos" },
   { key: "notes", label: "Notes" },
 ] as const;
@@ -120,9 +115,6 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
         </>
       )}
       {tab === "cutouts" && <BoardCutouts board={d} cutouts={d.cutouts} onSaved={load} dirtyRef={dirtyRef} />}
-      {tab === "building" && (
-        <BuildProcess owner={{ kind: "board", id: d.id }} processes={d.processes} steps={d.steps} onChanged={load} />
-      )}
       {tab === "photos" && <PhotosTab board={d} onSaved={load} />}
       {tab === "notes" && <BoardNotes board={d} notes={d.note_rows} onChanged={load} />}
     </div>

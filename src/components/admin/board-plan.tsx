@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  BOARD_METRIC_BY_KEY, effectiveValue, interpolate, metricUnit, round, riseMarkerStation,
+  BOARD_METRIC_BY_KEY, effectiveValue, exactValue, metricUnit, round, riseMarkerStation,
   rockerReadout, smoothPath, toMm, widestPoint, zeroCrossing,
   type PdBoard, type PdBoardCutout, type PdBoardPoint, type PdBoardSeries, type SeriesPoints,
 } from "@/lib/board-measurements";
@@ -79,6 +79,24 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
     [points],
   );
 
+  // What the section can draw at each station — shown in the picker so a
+  // thin station is chosen knowingly, and used to default to the fullest one.
+  const coverage = useMemo(() => {
+    const has = (pts: SeriesPoints, st: number) => pts.some((p) => p.station === st);
+    return new Map(measuredStations.map((st) => [st, [
+      has(width, st) ? "W" : null, has(vee, st) ? "V" : null,
+      has(concave, st) ? "C" : null, has(thickness, st) ? "T" : null,
+    ].filter(Boolean) as string[]]));
+  }, [measuredStations, width, vee, concave, thickness]);
+  const fullestStation = useMemo(() => {
+    let best: number | null = null, n = -1;
+    for (const st of measuredStations) {
+      const c = coverage.get(st) ?? [];
+      if (c.includes("W") && c.length > n) { best = st; n = c.length; }
+    }
+    return best ?? measuredStations[Math.floor(measuredStations.length / 2)];
+  }, [measuredStations, coverage]);
+
   const anyData = points.some((p) => p.value != null);
 
   if (!anyData) {
@@ -122,10 +140,13 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
         {view === "section" && measuredStations.length > 0 && (
           <label className="flex items-center gap-2 text-xs admin-muted">
             Station
-            <select className="px-2 py-1 admin-input border rounded text-xs" value={station ?? measuredStations[Math.floor(measuredStations.length / 2)]}
+            <select className="px-2 py-1 admin-input border rounded text-xs" value={station ?? fullestStation}
               onChange={(e) => setStation(Number(e.target.value))}>
-              {measuredStations.map((s) => <option key={s} value={s}>{s} cm</option>)}
+              {measuredStations.map((s) => (
+                <option key={s} value={s}>{s} cm · {(coverage.get(s) ?? []).join(" ") || "—"}</option>
+              ))}
             </select>
+            <span className="text-[10px] admin-faint">W width · V · C concave · T thickness</span>
           </label>
         )}
 
@@ -144,7 +165,7 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
       )}
       {view === "section" && (
         <SectionView board={board} series={series}
-          station={station ?? measuredStations[Math.floor(measuredStations.length / 2)]}
+          station={station ?? fullestStation}
           width={width} vee={vee} concave={concave} thickness={thickness} railT={railT} exag={exag} />
       )}
     </div>
@@ -316,11 +337,11 @@ function RockerView({ board, rocker, thickness, points, stations, exag, labels }
   const pxPerCm = (W - PAD * 2) / spanCm;
   const pxPerMm = (pxPerCm / 10) * exag;
 
-  const deck: SeriesPoints = rocker.length && thickness.length
-    ? rocker.map((p) => ({ station: p.station, value: p.value + (interpolate(thickness, p.station) ?? 0) }))
-    : [];
-
-  const maxY = Math.max(10, ...rocker.map((p) => p.value), ...deck.map((p) => p.value));
+  // Height follows the rocker and nothing else. The deck line that used to
+  // ride here was rocker + thickness interpolated along the whole board — on a
+  // board with one thickness reading that is a shape nobody measured, and it
+  // squashed the real curve into the bottom fifth of the chart.
+  const maxY = Math.max(10, ...rocker.map((p) => p.value));
   const H = maxY * pxPerMm + PAD * 2 + 20;
   const base = H - PAD - 20;
 
@@ -347,29 +368,34 @@ function RockerView({ board, rocker, thickness, points, stations, exag, labels }
         {/* The straightedge the readings were taken off. */}
         <line x1={toX(stations.min)} x2={toX(stations.max)} y1={base} y2={base} stroke={INK} strokeWidth={1.2} opacity={0.6} />
 
-        {deck.length > 0 && (
-          <>
-            <path d={smoothPath(deck, toX, toY, 8)} fill="none"
-              stroke={BOARD_METRIC_BY_KEY.thickness.color} strokeWidth={1.6} strokeDasharray="5 3" />
-            <Dots pts={deck} toX={toX} toY={toY} color={BOARD_METRIC_BY_KEY.thickness.color} labels={false} fmt={() => ""} />
-          </>
-        )}
-
         <path d={smoothPath(rocker, toX, toY, 8)} fill="none" stroke={BOARD_METRIC_BY_KEY.rocker.color} strokeWidth={2} />
         <Dots pts={rocker} toX={toX} toY={toY} color={BOARD_METRIC_BY_KEY.rocker.color} labels={labels}
           fmt={(v) => `${round(v, 1)}`} />
 
+        {/* Thickness readings, where they were taken — a tick and a number, not
+            a deck curve. A deck needs thickness at the same stations as the
+            rocker; where that exists it is on the cross-section. */}
+        {thickness.map((p) => (
+          <g key={`t${p.station}`}>
+            <line x1={toX(p.station)} x2={toX(p.station)} y1={PAD - 6} y2={PAD + 8}
+              stroke={BOARD_METRIC_BY_KEY.thickness.color} strokeWidth={1.4} />
+            <text x={toX(p.station)} y={PAD - 10} textAnchor="middle" fontSize={8.5} fill={BOARD_METRIC_BY_KEY.thickness.color}>
+              {round(p.value / 10, 1)} cm thick
+            </text>
+          </g>
+        ))}
+
         {r.riseFrom != null && (
           <g>
-            <line x1={toX(r.riseFrom)} x2={toX(r.riseFrom)} y1={toY(0) + 6} y2={PAD}
+            <line x1={toX(r.riseFrom)} x2={toX(r.riseFrom)} y1={toY(0) + 6} y2={PAD + 16}
               stroke={BOARD_METRIC_BY_KEY.rocker.color} strokeWidth={0.9} strokeDasharray="3 3" opacity={0.7} />
-            <text x={toX(r.riseFrom) + 4} y={PAD + 10} fontSize={9} fill={FAINT}>
+            <text x={toX(r.riseFrom) + 4} y={PAD + 26} fontSize={9} fill={FAINT}>
               rise from {r.riseFrom}{r.riseFromMarker ? "" : " (last zero)"}
             </text>
           </g>
         )}
 
-        <text x={W - PAD} y={PAD - 14} textAnchor="end" fontSize={9} fill={FAINT}>
+        <text x={W - PAD} y={H - 6} textAnchor="end" fontSize={9} fill={FAINT}>
           vertical ×{exag} · values in mm
         </text>
       </svg>
@@ -378,11 +404,16 @@ function RockerView({ board, rocker, thickness, points, stations, exag, labels }
         exag === 1
           ? "True scale. At 1:1 a scoop-rocker line is almost a straight line — that is what it actually looks like."
           : `Vertical scale exaggerated ×${exag} so the curve is readable. Horizontal is true scale; the two axes are NOT comparable in this view.`,
+        `The curve runs from ${rocker[0].station} to ${rocker[rocker.length - 1].station} cm, through the readings only. Nothing outside them is drawn.`,
         r.scoop ? `Scoop ${round(r.scoop.value, 1)} mm at station ${r.scoop.station} (the nose end).` : "No scoop measured at the nose end.",
-        r.tailKick ? `Tail kick ${round(r.tailKick.value, 1)} mm at station ${r.tailKick.station}.` : "No tail kick measured — the tail end reads zero.",
-        deck.length
-          ? "The dashed line is the deck: rocker plus the thickness reading at the same station."
-          : "Add thickness readings and the deck line appears above the rocker.",
+        r.tailKick
+          ? `Tail kick ${round(r.tailKick.value, 1)} mm at station ${r.tailKick.station}.`
+          : r.tailEdgeStation != null && r.tailEdgeStation > 0
+            ? `No tail kick recorded: the tail-most reading is at ${r.tailEdgeStation} cm and the kick sits behind that, in the last few cm at the fin. Measure at 0 and 5 cm off the same straightedge.`
+            : "No tail kick: the reading at the tail edge is zero.",
+        thickness.length
+          ? `Thickness was read at ${thickness.map((p) => `${p.station}`).join(", ")} cm — shown as ticks, not as a deck line.`
+          : "No thickness readings.",
       ]} />
     </div>
   );
@@ -391,35 +422,42 @@ function RockerView({ board, rocker, thickness, points, stations, exag, labels }
 // ─── Cross-section ───────────────────────────────────────────────────────────
 
 /**
- * The bottom, rail to rail, at one station.
+ * The bottom, rail to rail, at one station — built ONLY from readings taken at
+ * that exact station.
  *
- * This is the view with the most reconstruction in it, so it states its
- * assumptions in the caption and lists the four numbers it used. The geometry:
+ * Nothing here is interpolated. Every element is drawn if its reading exists
+ * at this station and left out if it does not, and the caption lists both.
+ * The first version read every input off a curve, which meant a thickness
+ * measured once at 90 cm produced a full deck at 60 — a shape nobody measured,
+ * drawn with the same confidence as the ones that were.
  *
- *   reference   a straight line from the centreline to the rail, rising by the
- *               V reading (negative V puts the rail BELOW the centreline, which
- *               is what inverted V is)
- *   concave     a dish cut below that reference — one hump at the centre for a
- *               single, two humps at the quarter points for a double
- *   deck        the thickness reading at the centre, falling to the rail
- *               thickness at the rail when one was measured
+ *   rails       need the width. Without it there is no section at all.
+ *   V line      the rail sits `v` above (V) or below (inverted) the centre.
+ *               Without a V reading the rails are drawn ON the reference plane
+ *               and the caption says their height is unknown.
+ *   concave     a dish cut below the V line — needs V AND concave here.
+ *   deck        needs thickness here; falls to the rail thickness if that was
+ *               read here too, else to the rail point.
  */
 function SectionView({ board, series, station, width, vee, concave, thickness, railT, exag }: {
   board: PdBoard; series: PdBoardSeries[]; station: number;
   width: SeriesPoints; vee: SeriesPoints; concave: SeriesPoints;
   thickness: SeriesPoints; railT: SeriesPoints; exag: number;
 }) {
-  const w = interpolate(width, station);
-  const v = interpolate(vee, station) ?? 0;
-  const c = interpolate(concave, station) ?? 0;
-  const t = interpolate(thickness, station);
-  const rt = interpolate(railT, station);
+  const w = exactValue(width, station);
+  const v = exactValue(vee, station);
+  const c = exactValue(concave, station);
+  const t = exactValue(thickness, station);
+  const rt = exactValue(railT, station);
   const concaveVariant = series.find((s) => s.metric === "concave")?.variant ?? "double";
 
   if (w == null) {
     return (
       <div className="py-12 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>
-        <p className="text-sm admin-faint">No width reading at or around station {station} — the section needs one to know how wide to draw.</p>
+        <p className="text-sm admin-faint max-w-md mx-auto leading-relaxed">
+          No width reading at station {station}. The section needs one to know how wide to draw, and it
+          does not borrow from the neighbouring stations.
+        </p>
       </div>
     );
   }
@@ -430,73 +468,66 @@ function SectionView({ board, series, station, width, vee, concave, thickness, r
   const pxPerMmX = (W - PAD * 2) / (halfMm * 2);
   const pxPerMmY = pxPerMmX * exag;
 
-  const deckTop = t ?? 0;
-  const H = Math.max(180, (deckTop + Math.max(Math.abs(v), Math.abs(c)) + 8) * pxPerMmY + PAD * 2);
+  const railY = v ?? 0;
+  const top = Math.max(t ?? 0, railY + (rt ?? 0), Math.abs(railY), Math.abs(c ?? 0), 6);
+  const H = Math.max(160, top * pxPerMmY + PAD * 2);
   const baseY = H - PAD;
   const cx = W / 2;
   const toX = (mm: number) => cx + mm * pxPerMmX;
   const toY = (mm: number) => baseY - mm * pxPerMmY;
 
-  /** The V reference at |x|, then the dish cut out of it. */
-  function bottomAt(x: number): number {
-    const tt = Math.abs(x) / halfMm;               // 0 at centre, 1 at rail
-    const ref = v * tt;
-    const dish = concaveVariant === "single"
-      ? 1 - tt * tt                                 // deepest at the centre
-      : Math.sin(Math.PI * tt);                     // deepest at the quarter points
-    return ref - c * dish;
-  }
-  function deckAt(x: number): number {
-    if (t == null) return NaN;
-    const tt = Math.abs(x) / halfMm;
-    const railTop = rt != null ? v * 1 + rt : v * 1;     // rail thickness sits on the rail point
-    // Elliptical fall from the centre thickness to the rail — a deck is convex,
-    // and a straight taper would draw a wedge no board has.
-    return t + (railTop - t) * (1 - Math.sqrt(Math.max(0, 1 - tt * tt)));
-  }
-
   const N = 80;
   const xs = Array.from({ length: N + 1 }, (_, i) => -halfMm + (2 * halfMm * i) / N);
-  const bottomPath = xs.map((x, i) => `${i ? "L" : "M"} ${toX(x)} ${toY(bottomAt(x))}`).join(" ");
-  const deckPath = t != null ? xs.map((x, i) => `${i ? "L" : "M"} ${toX(x)} ${toY(deckAt(x))}`).join(" ") : "";
 
-  const used: string[] = [];
-  used.push(`width ${round(w / 10, 1)} cm`);
-  used.push(vee.length ? `V ${round(v, 2)} mm${v < 0 ? " (inverted)" : ""}` : "V not measured here");
-  used.push(concave.length ? `${concaveVariant} concave ${round(c, 2)} mm` : "concave not measured here");
-  used.push(t != null ? `thickness ${round(t / 10, 1)} cm` : "thickness not measured here");
-  if (rt != null) used.push(`rail ${round(rt, 1)} mm`);
+  // Bottom: only with a V reading; the dish only with a concave reading too.
+  const bottomPath = v != null
+    ? xs.map((x, i) => {
+        const tt = Math.abs(x) / halfMm;
+        const ref = v * tt;
+        const dish = c == null ? 0 : c * (concaveVariant === "single" ? 1 - tt * tt : Math.sin(Math.PI * tt));
+        return `${i ? "L" : "M"} ${toX(x)} ${toY(ref - dish)}`;
+      }).join(" ")
+    : "";
 
-  const exactAt = (pts: SeriesPoints) => pts.some((p) => p.station === station);
-  const interpolated = [
-    !exactAt(width) && width.length ? "width" : null,
-    !exactAt(vee) && vee.length ? "V" : null,
-    !exactAt(concave) && concave.length ? "concave" : null,
-    !exactAt(thickness) && thickness.length ? "thickness" : null,
-  ].filter(Boolean) as string[];
+  // Deck: only with a thickness reading here.
+  const deckPath = t != null
+    ? xs.map((x, i) => {
+        const tt = Math.abs(x) / halfMm;
+        const railTop = railY + (rt ?? 0);
+        // Elliptical fall from the centre thickness to the rail — a deck is
+        // convex; a straight taper would draw a wedge no board has.
+        const y = t + (railTop - t) * (1 - Math.sqrt(Math.max(0, 1 - tt * tt)));
+        return `${i ? "L" : "M"} ${toX(x)} ${toY(y)}`;
+      }).join(" ")
+    : "";
+
+  const have: string[] = [`width ${round(w / 10, 1)} cm`];
+  const missing: string[] = [];
+  if (v != null) have.push(`V ${round(v, 2)} mm${v < 0 ? " (inverted)" : ""}`); else missing.push("V");
+  if (c != null) have.push(`${concaveVariant} concave ${round(c, 2)} mm`); else missing.push("concave");
+  if (t != null) have.push(`thickness ${round(t / 10, 1)} cm`); else missing.push("thickness");
+  if (rt != null) have.push(`rail ${round(rt, 1)} mm`); else if (t != null) missing.push("rail thickness");
 
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} {...frame}>
-        {/* Waterline / reference plane */}
         <line x1={PAD / 2} x2={W - PAD / 2} y1={baseY} y2={baseY} stroke={AXIS} strokeWidth={1} />
         <line x1={cx} x2={cx} y1={PAD / 2} y2={baseY + 8} stroke={AXIS} strokeWidth={0.7} strokeDasharray="4 4" />
 
-        {/* The straight V reference the concave is cut out of */}
-        {(v !== 0 || c !== 0) && (
+        {v != null && c != null && (
           <path d={`M ${toX(-halfMm)} ${toY(v)} L ${toX(0)} ${toY(0)} L ${toX(halfMm)} ${toY(v)}`}
             fill="none" stroke={BOARD_METRIC_BY_KEY.v.color} strokeWidth={1} strokeDasharray="4 3" opacity={0.65} />
         )}
-
+        {bottomPath && (
+          <path d={bottomPath} fill="none" stroke={c != null ? BOARD_METRIC_BY_KEY.concave.color : BOARD_METRIC_BY_KEY.v.color} strokeWidth={2.2} />
+        )}
         {deckPath && <path d={deckPath} fill="none" stroke={BOARD_METRIC_BY_KEY.thickness.color} strokeWidth={2} />}
-        <path d={bottomPath} fill="none" stroke={BOARD_METRIC_BY_KEY.concave.color} strokeWidth={2.2} />
 
-        {/* Rails */}
         {[-halfMm, halfMm].map((x) => (
           <g key={x}>
-            <circle cx={toX(x)} cy={toY(v)} r={3} fill={BOARD_METRIC_BY_KEY.rail_thickness.color} />
-            {t != null && (
-              <line x1={toX(x)} x2={toX(x)} y1={toY(v)} y2={toY(deckAt(x))}
+            <circle cx={toX(x)} cy={toY(railY)} r={3} fill={BOARD_METRIC_BY_KEY.rail_thickness.color} />
+            {t != null && rt != null && (
+              <line x1={toX(x)} x2={toX(x)} y1={toY(railY)} y2={toY(railY + rt)}
                 stroke={BOARD_METRIC_BY_KEY.rail_thickness.color} strokeWidth={1.4} />
             )}
           </g>
@@ -508,14 +539,19 @@ function SectionView({ board, series, station, width, vee, concave, thickness, r
         <text x={PAD / 2} y={PAD / 2 + 4} fontSize={9} fill={FAINT}>
           {round(w / 10, 1)} cm bottom width
         </text>
+        {missing.length > 0 && (
+          <text x={cx} y={PAD / 2 + 4} textAnchor="middle" fontSize={9} fill={FAINT}>
+            not measured here: {missing.join(", ")}
+          </text>
+        )}
       </svg>
 
       <Caption lines={[
-        `Reconstructed from: ${used.join(" · ")}.`,
-        interpolated.length
-          ? `Nothing was measured at exactly ${station} cm for ${interpolated.join(", ")} — those are read off the curve between the two nearest readings.`
-          : "Every number in this section was measured at this exact station.",
-        "The dashed green line is the straight V reference; the pink line is the bottom with the concave cut out of it. Width and height are on different scales.",
+        `Measured at ${station} cm: ${have.join(" · ")}.`,
+        missing.length
+          ? `Not measured at ${station} cm, so not drawn: ${missing.join(", ")}.${v == null ? " Without V the rails are placed on the reference plane; their real height is unknown." : ""}`
+          : "Every element of this section was measured at this station.",
+        "Nothing is read off a curve here. Pick a station with more readings for a fuller section.",
         board.station_origin === "tail" ? "Looking forward from the tail." : "Looking aft from the nose.",
       ]} />
     </div>
@@ -536,7 +572,15 @@ export function BoardReadout({ board, series, points }: { board: PdBoard; series
     { label: "Widest bottom", value: wide ? `${round(wide.value / 10, 1)} cm` : "—", hint: wide ? `at ${wide.station} cm` : undefined },
     { label: "Max width", value: board.max_width_cm ? `${board.max_width_cm} cm` : "—", hint: "overall, stated" },
     { label: "Scoop", value: r.scoop ? `${round(r.scoop.value, 1)} mm` : "—", hint: r.scoop ? `at ${r.scoop.station} cm` : "nose end" },
-    { label: "Tail kick", value: r.tailKick ? `${round(r.tailKick.value, 1)} mm` : "—", hint: "tail end" },
+    {
+      label: "Tail kick",
+      value: r.tailKick ? `${round(r.tailKick.value, 1)} mm` : "—",
+      hint: r.tailKick
+        ? `at ${r.tailKick.station} cm`
+        : r.tailEdgeStation != null && r.tailEdgeStation > 0
+          ? `not measured: nothing below ${r.tailEdgeStation} cm`
+          : rocker.length ? "tail edge reads 0" : "no rocker readings",
+    },
     { label: "Rocker starts", value: r.riseFrom != null ? `${r.riseFrom} cm` : "—", hint: r.riseFromMarker ? "marked" : "last zero" },
     { label: "V crossover", value: cross != null ? `${cross} cm` : "—", hint: vee.length ? "inverted → V" : "no V readings" },
   ];
