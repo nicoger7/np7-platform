@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef, use, Fragment, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ContactPicker } from "@/components/contact-picker";
 import { SearchSelect } from "@/components/admin/search-select";
@@ -17,6 +17,18 @@ import { computePaymentPlan, dueUrgency, type MilestoneKind } from "@/lib/paymen
 import { mutate, reportFailure } from "@/lib/mutate";
 import { CancelBookingModal } from "@/components/admin/cancel-booking-modal";
 import { sumReceived, sumExpected, paidState } from "@/lib/payment-totals";
+import {
+  docKind,
+  typeLabel,
+  correctionMeta,
+  correctedMeta,
+  correctionsByOriginal,
+  correctionState,
+  correctionAllowance,
+  nestCorrections,
+  isTaxInvoiceDoc,
+} from "@/lib/invoices/corrections";
+import { CorrectionDialog, type CorrectionMode } from "@/app/admin/documents/correction-dialog";
 
 /**
  * Go back to where you came from — without leaving this page on the history
@@ -34,6 +46,10 @@ function goBack(router: { replace: (href: string) => void }, backHref: string) {
 // into the string. Inside an edition-scoped list that prefix is redundant noise,
 // so strip a leading "CODE - " for display.
 const cleanPackageName = (name: string) => name.replace(/^[A-Za-z0-9]+\s*[-–—]\s*/, "").trim() || name;
+
+type TabKey = "details" | "payments" | "addons" | "rooms" | "documents" | "notes";
+const isTabKey = (t: string | null): t is TabKey =>
+  t === "details" || t === "payments" || t === "addons" || t === "rooms" || t === "documents" || t === "notes";
 
 type GroupInfo = {
   covered_by: { id: string; name: string | null } | null;
@@ -139,6 +155,9 @@ interface BookingDocument {
   sent_at: string | null;
   paid_at: string | null;
   due_date: string | null;
+  created_at?: string | null;
+  /** What corrected this, or what it corrects (see lib/invoices/corrections). */
+  meta?: Record<string, unknown> | null;
   signedUrl: string | null;
   /** Waivers: a signed record, not an issued document — open it, don't act on it. */
   href?: string | null;
@@ -204,18 +223,20 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
    */
   const [dirty, setDirty] = useState(false);
   const [flightsDirty, setFlightsDirty] = useState(false);
-  const [tab, setTab] = useState<"details" | "payments" | "addons" | "rooms" | "documents" | "notes">("details");
-  // Back target — honour ?from= (e.g. opened from a member) so "back" returns to
-  // where you came from, not always the Bookings list.
-  const [backHref, setBackHref] = useState("/admin/bookings");
-  // Deep-link to a tab, e.g. /admin/bookings/:id?tab=addons (from the dashboard).
-  useEffect(() => {
-    const sp = new URLSearchParams(window.location.search);
-    const t = sp.get("tab");
-    if (t === "addons" || t === "payments" || t === "rooms" || t === "documents" || t === "notes") setTab(t);
-    const from = sp.get("from");
-    if (from) setBackHref(from);
-  }, []);
+  /*
+   * Which tab, and where "back" goes. Both come from the URL: a deep link
+   * (/admin/bookings/:id?tab=documents, or the split view's ?id=…&tab=…) and
+   * ?from= for a booking opened from a member. Read on every render rather
+   * than copied into state by an effect, so a pasted link and the list's
+   * "Invoices" shortcut land on the right tab without a flash of Details.
+   * A tab the person clicks wins over the URL from then on.
+   */
+  const searchParams = useSearchParams();
+  const urlTab = searchParams.get("tab");
+  const [tabChoice, setTabChoice] = useState<TabKey | null>(null);
+  const tab: TabKey = tabChoice ?? (isTabKey(urlTab) ? urlTab : "details");
+  const setTab = (t: TabKey) => setTabChoice(t);
+  const backHref = searchParams.get("from") || "/admin/bookings";
 
   // Documents tab state
   const [documents, setDocuments] = useState<BookingDocument[]>([]);
@@ -254,9 +275,10 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   const [contactEdit, setContactEdit] = useState(false);
   const [contactForm, setContactForm] = useState<{ name: string; email: string; phone: string; country: string; level: string; tshirt_size: string; diet_allergies: string }>({ name: "", email: "", phone: "", country: "", level: "", tshirt_size: "", diet_allergies: "" });
   const [cancelOpen, setCancelOpen] = useState(false);
-  // Storno/Gutschrift dialog: which invoice is being corrected
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [creditFor, setCreditFor] = useState<any | null>(null);
+  // Storno / credit-note dialog: which invoice is being corrected, and how.
+  const [correcting, setCorrecting] = useState<{ id: string; mode: CorrectionMode } | null>(null);
+  // Which document is on its way to the guest right now.
+  const [sendingDoc, setSendingDoc] = useState<string | null>(null);
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [rowEdit, setRowEdit] = useState({ amount: "", type: "final", status: "paid", method: "", reference: "" });
   const [contactBusy, setContactBusy] = useState(false);
@@ -625,9 +647,11 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
   async function sendInvoice(docId: string) {
     setGenError(null);
+    setSendingDoc(docId);
     const res = await fetch(`/api/admin/documents/${docId}/send`, { method: "POST" });
     if (res.ok) { await fetchDocuments(); }
     else { const e = await res.json().catch(() => ({})); setGenError(e.error || "Couldn't send the invoice."); }
+    setSendingDoc(null);
   }
 
   async function sendShortfallReminder() {
@@ -917,6 +941,245 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     return { kind: m.kind, label: m.label, amount: m.amount, paid, invoiceIssued, invoiceSent, partialLeft, dueLabel: m.dueLabel, overdue, lastChance };
   });
 
+  // ── Documents tab: the next step, the menu behind it, and the rows ──
+  const byOriginalDocs = correctionsByOriginal(documents);
+  const liveDocs = documents.filter((d) => !d.readOnly && d.status === "issued");
+  // The live, un-reversed tax invoice for a stage. A Storno'd one does not
+  // count: that stage can be invoiced again.
+  const stageInvoice = (kind: MilestoneKind) =>
+    liveDocs.find((d) => d.type === DOC_FOR[kind] && !correctionState(d, byOriginalDocs).reversed);
+  const openProforma = liveDocs.find((d) => d.type === "proforma_invoice");
+  const unsentCorrection = liveDocs.find((d) => d.type === "credit_note" && !d.sent_at);
+  const unsentInvoice = liveDocs.find((d) => isTaxInvoiceDoc(d) && !d.sent_at && !correctionState(d, byOriginalDocs).reversed);
+  const unbilledAddons = booking.addons.filter((a) =>
+    effectiveAddonStatus(a) === "confirmed" && !a.invoiced_in && Number(a.price) > 0 &&
+    ((a as { payment_mode?: string | null }).payment_mode ?? a.exp_components?.payment_mode) !== "direct");
+  const unbilledAddonTotal = unbilledAddons.reduce((s, a) => s + (Number(a.price) || 0), 0);
+  const nextStage = paymentStages.find((s) => !stageInvoice(s.kind));
+
+  /*
+   * The one thing to press. Corrections first (the guest holds the original
+   * and needs the paper that corrects it), then unsent invoices, then the
+   * first stage of the plan nothing documents yet: paid but un-invoiced means
+   * the promotion never happened, otherwise a payment request, or a nudge on
+   * the one already out. Add-ons after the stages, and then nothing.
+   */
+  type NextStep = { text: string; sub?: string; label?: string; run?: () => void };
+  const nextStep: NextStep = (() => {
+    if (unsentCorrection) {
+      return {
+        text: `Send ${typeLabel(unsentCorrection).toLowerCase()} ${unsentCorrection.invoice_number ?? ""} to the guest`,
+        sub: "They hold the original invoice, so they need the document that corrects it.",
+        label: "Send", run: () => sendInvoice(unsentCorrection.id),
+      };
+    }
+    if (unsentInvoice) {
+      return {
+        text: `Send invoice ${unsentInvoice.invoice_number ?? ""} (${formatMoney(unsentInvoice.amount)})`,
+        sub: unsentInvoice.paid_at ? "Settled, but the guest never received the invoice." : "Issued, but not yet with the guest.",
+        label: "Send", run: () => sendInvoice(unsentInvoice.id),
+      };
+    }
+    if (nextStage) {
+      const name = STAGE_NAME[nextStage.kind].toLowerCase();
+      if (nextStage.paid) {
+        return {
+          text: `Issue the ${name} invoice (${formatMoney(nextStage.amount)})`,
+          sub: "The money is in, but no tax invoice documents it yet.",
+          label: `Issue ${name} invoice`, run: () => generateDocument(DOC_FOR[nextStage.kind] as DocumentType),
+        };
+      }
+      if (openProforma) {
+        return openProforma.sent_at
+          ? {
+              text: `Waiting for ${formatMoney(openProforma.amount)} (request sent ${fmtShort(openProforma.sent_at)}${openProforma.due_date ? `, due ${fmtShort(openProforma.due_date)}` : ""})`,
+              sub: "The tax invoice is issued by itself when the money lands.",
+              label: "Resend request", run: () => sendInvoice(openProforma.id),
+            }
+          : {
+              text: `Send the payment request for ${formatMoney(openProforma.amount)}`,
+              sub: "Pro-forma, PDF attached. The tax invoice is issued by itself when the money lands.",
+              label: "Send request", run: () => sendInvoice(openProforma.id),
+            };
+      }
+      return {
+        text: `Request the ${name}: ${formatMoney(nextStage.amount)}`,
+        sub: `A pro-forma payment request${nextStage.dueLabel ? `, ${nextStage.dueLabel.charAt(0).toLowerCase()}${nextStage.dueLabel.slice(1)}` : ""}. The tax invoice is issued by itself when the money lands.`,
+        label: "Create payment request", run: () => generateDocument("proforma_invoice", nextStage.kind),
+      };
+    }
+    if (unbilledAddonTotal > 0) {
+      return {
+        text: `Invoice ${unbilledAddons.length} confirmed add-on${unbilledAddons.length !== 1 ? "s" : ""} (${formatMoney(unbilledAddonTotal)})`,
+        sub: "Confirmed extras no invoice has picked up yet.",
+        label: "Add-on invoice", run: () => generateDocument("addon_invoice"),
+      };
+    }
+    return { text: "Everything is invoiced and sent.", sub: paymentStages.every((s) => s.paid) ? "Fully paid." : "Waiting for payment." };
+  })();
+
+  const moreItems: MenuItem[] = [
+    {
+      label: "Payment request (pro-forma) for the next stage",
+      hint: nextStage ? `${STAGE_NAME[nextStage.kind]} ${formatMoney(nextStage.amount)}` : "Every stage is invoiced",
+      disabled: !nextStage,
+      run: () => generateDocument("proforma_invoice", nextStage?.kind),
+    },
+    {
+      label: "Payment request for the full outstanding amount",
+      hint: `${formatMoney(Math.max(0, bookingTotal - recon.paidTotal))} in one transfer`,
+      run: () => generateDocument("proforma_invoice", "final"),
+    },
+    ...paymentStages.map((s) => {
+      const existing = stageInvoice(s.kind);
+      return {
+        label: `Issue ${STAGE_NAME[s.kind].toLowerCase()} invoice now`,
+        hint: existing ? `Already issued: ${existing.invoice_number ?? "yes"}` : `${formatMoney(s.amount)}, tax invoice before the money lands`,
+        disabled: !!existing,
+        run: () => generateDocument(DOC_FOR[s.kind] as DocumentType),
+      };
+    }),
+    {
+      label: "Add-on invoice",
+      hint: unbilledAddonTotal > 0 ? `${formatMoney(unbilledAddonTotal)} not yet invoiced` : "No un-invoiced add-ons",
+      disabled: unbilledAddonTotal <= 0,
+      run: () => generateDocument("addon_invoice"),
+    },
+    {
+      label: "Set the amount myself…",
+      hint: "An upgrade after a part payment, a price agreed by phone",
+      run: () => setCustomDoc((c) => ({ ...c, open: true })),
+    },
+  ];
+
+  const nestedDocs = nestCorrections(documents.filter((d) => !d.readOnly));
+
+  /** The chip a row wears. The state that matters is sent / paid / open / reversed. */
+  function docChip(doc: BookingDocument, st: ReturnType<typeof correctionState> | null): { text: string; cls: string; title?: string } {
+    const green = "bg-green-500/15 text-green-400";
+    const amber = "bg-amber-500/15 text-amber-400";
+    if (doc.readOnly) return { text: "signed", cls: green };
+    const kind = docKind(doc);
+    if (doc.status === "void") {
+      const m = (doc.meta ?? {}) as { void_reason?: string; superseded_reason?: string };
+      return { text: kind === "proforma" || kind === "confirmation" ? "void" : "cancelled", cls: "bg-red-500/15 text-red-400", title: m.void_reason ?? m.superseded_reason ?? "Cancelled, no reason recorded" };
+    }
+    if (kind === "storno" || kind === "credit") {
+      return doc.sent_at ? { text: `sent ${fmtShort(doc.sent_at)}`, cls: green } : { text: "not sent", cls: amber, title: "The guest has not received this yet" };
+    }
+    if (kind === "confirmation") return { text: "issued", cls: green };
+    if (kind === "proforma") {
+      return doc.sent_at
+        ? { text: `sent ${fmtShort(doc.sent_at)}`, cls: amber, title: doc.due_date ? `Payment due ${fmtShort(doc.due_date)}` : undefined }
+        : { text: "not sent", cls: amber };
+    }
+    if (st?.reversed) {
+      const by = st.credits.find((c) => correctionMeta(c).full === true) ?? st.credits[st.credits.length - 1];
+      return { text: "reversed", cls: "bg-slate-500/15 admin-muted", title: `Reversed by ${by?.invoice_number ?? "a Storno"}` };
+    }
+    const ir = recon.invoices.find((i) => i.invoice.id === doc.id);
+    if (doc.paid_at || ir?.state === "paid" || ir?.state === "overpaid") {
+      return { text: doc.paid_at ? `paid ${fmtShort(doc.paid_at)}` : "paid", cls: green, title: st && st.credited > 0 ? `${formatMoney(st.credited)} credited back since` : undefined };
+    }
+    if (ir?.state === "partial") return { text: `part-paid · ${formatMoney(ir.remaining)} open`, cls: amber };
+    return doc.sent_at ? { text: `sent ${fmtShort(doc.sent_at)} · open`, cls: amber } : { text: "not sent", cls: amber, title: "Issued, but the guest has not received it yet" };
+  }
+
+  /*
+   * One row. The primary action is the sensible next thing (Send if the guest
+   * has not got it, the PDF otherwise); the rare and the destructive (Storno,
+   * credit note, cancelling an unsent number) sit behind the menu, where a
+   * slip of the hand cannot reach them.
+   */
+  function renderDocRow(doc: BookingDocument, child: boolean) {
+    const isTaxLike = !doc.readOnly && !["proforma_invoice", "booking_confirmation"].includes(doc.type);
+    const st = isTaxInvoiceDoc(doc) ? correctionState(doc, byOriginalDocs) : null;
+    const allowance = isTaxInvoiceDoc(doc) && doc.status === "issued" ? correctionAllowance(doc, byOriginalDocs) : null;
+    const chip = docChip(doc, st);
+    const sendable = !doc.readOnly && doc.status !== "void" && doc.type !== "booking_confirmation";
+    // Cancelling is only honest while nobody has the paper, and never under an
+    // invoice a correction already names.
+    const cancellable = !doc.readOnly && doc.status !== "void" && !(doc.sent_at && isTaxLike) && !(st && st.credits.length > 0);
+    const primary: MenuItem | null = doc.readOnly && doc.href ? { label: "Open", href: doc.href }
+      : sendable && !doc.sent_at ? { label: "Send", run: () => sendInvoice(doc.id) }
+      : doc.signedUrl ? { label: "PDF", href: doc.signedUrl } : null;
+    const items: MenuItem[] = [];
+    if (doc.signedUrl && primary?.label !== "PDF") items.push({ label: "PDF", href: doc.signedUrl });
+    if (sendable && doc.sent_at) items.push({ label: "Resend", hint: `Sent ${fmtShort(doc.sent_at)}`, run: () => sendInvoice(doc.id) });
+    if (allowance && !allowance.blocker && allowance.canStorno) {
+      items.push({ label: "Storno…", hint: "Reverse this invoice in full", tone: "warn", run: () => setCorrecting({ id: doc.id, mode: "storno" }) });
+    }
+    if (allowance && !allowance.blocker && allowance.canCredit) {
+      items.push({ label: "Credit note…", hint: `Take an amount off it${allowance.credited ? ` (${formatMoney(allowance.remaining)} left)` : ""}`, tone: "warn", run: () => setCorrecting({ id: doc.id, mode: "credit" }) });
+    }
+    if (cancellable) {
+      items.push({ label: isTaxLike ? "Cancel unsent…" : "Void", hint: isTaxLike ? "Only for paper nobody has seen; the number stays" : undefined, tone: "danger", run: () => voidDocument(doc.id, isTaxLike) });
+    }
+    const cm = correctionMeta(doc);
+    const cd = correctedMeta(doc);
+    const subline = cm.original_invoice_number
+      ? `corrects ${cm.original_invoice_number}${cm.reason ? ` · ${cm.reason}` : ""}`
+      : cd.reversed_by_number && doc.status !== "void"
+        ? `reversed by ${cd.reversed_by_number}`
+        : st && st.credited > 0
+          ? `${formatMoney(st.credited)} credited back${st.credits.map((c) => c.invoice_number).filter(Boolean).length ? ` (${st.credits.map((c) => c.invoice_number).filter(Boolean).join(", ")})` : ""}`
+          : doc.status === "void" ? (chip.title ?? "") : (doc.title ?? "");
+    return (
+      <div
+        key={doc.id}
+        className="grid gap-3 px-5 py-3 transition-colors"
+        style={{
+          gridTemplateColumns: DOC_COLS,
+          borderBottom: "1px solid var(--admin-border)",
+          opacity: doc.status === "void" ? 0.55 : 1,
+          backgroundColor: child ? "var(--fin-inset)" : undefined,
+        }}
+        onMouseEnter={(e) => { if (!child) e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)"; }}
+        onMouseLeave={(e) => { if (!child) e.currentTarget.style.backgroundColor = "transparent"; }}
+      >
+        <span
+          className={`text-xs font-mono self-center truncate ${doc.status === "void" ? "line-through admin-faint" : "admin-muted"}`}
+          title={doc.status === "void" ? chip.title : undefined}
+        >
+          {child && <span className="admin-faint no-underline">↳ </span>}{doc.invoice_number || "—"}
+        </span>
+        <div className="min-w-0 self-center">
+          <div className="text-sm font-medium admin-heading truncate">{doc.readOnly ? (doc.title ?? "Signed record") : typeLabel(doc)}</div>
+          {subline && <div className="text-xs admin-faint truncate" title={subline}>{subline}</div>}
+        </div>
+        <span className={`text-sm font-medium self-center tabular-nums ${Number(doc.amount) < 0 ? "text-red-400" : "admin-heading"}`}>
+          {doc.readOnly ? "—" : formatMoney(doc.amount, doc.currency)}
+        </span>
+        <span className="text-xs admin-faint self-center">{fmtShort(doc.issued_at)}</span>
+        <span className="self-center">
+          <span title={chip.title} className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase whitespace-nowrap ${chip.cls}`}>
+            {chip.text}
+          </span>
+        </span>
+        <div className="self-center flex items-center justify-end gap-2">
+          {primary && (primary.href ? (
+            <a
+              href={primary.href}
+              target={primary.label === "PDF" ? "_blank" : undefined}
+              rel="noopener noreferrer"
+              className="text-xs font-bold text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
+            >
+              {primary.label}
+            </a>
+          ) : (
+            <button
+              onClick={primary.run}
+              disabled={sendingDoc === doc.id}
+              className="px-2.5 py-1 text-xs font-bold rounded-md bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50 transition-colors"
+            >
+              {sendingDoc === doc.id ? "Sending…" : primary.label}
+            </button>
+          ))}
+          <ActionMenu label="⋯" items={items} compact />
+        </div>
+      </div>
+    );
+  }
   const inputClass =
     "w-full px-4 py-2.5 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
   const labelClass = "block text-xs font-medium admin-muted mb-1.5";
@@ -2103,62 +2366,80 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
       {/* ─── Documents Tab ─── */}
       {safeTab === "documents" && (
-        <div className="max-w-[860px]">
-          {/* Generate buttons */}
-          <div className="flex items-center gap-3 mb-4 flex-wrap">
-            <span className="text-xs admin-faint">Generate:</span>
-            {(["proforma_invoice", "deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice", "booking_confirmation"] as const).map((type) => (
-              <button
-                key={type}
-                onClick={() => generateDocument(type)}
-                disabled={generating === type}
-                className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
-              >
-                {generating === type
-                  ? "Generating..."
-                  : type === "proforma_invoice"
-                  ? "Pro-forma (payment request)"
-                  : type === "deposit_invoice"
-                  ? "Deposit Invoice"
-                  : type === "downpayment_invoice"
-                  ? "Down-Payment Invoice"
-                  : type === "final_invoice"
-                  ? "Final Invoice"
-                  : type === "addon_invoice"
-                  ? "Add-on Invoice"
-                  : "Booking Confirmation"}
-              </button>
-            ))}
-            {/* A pro-forma asks for the securing payment by default, which is
-                right for a trip a year out. When the stages have collapsed —
-                the balance falling due weeks after the deposit — one request
-                for everything beats two transfers a fortnight apart. */}
+        <div className="fin max-w-[920px]">
+          {/*
+           * One next step, from the payment plan, and the rest under More.
+           *
+           * This used to be a row of seven equally loud buttons ("Pro-forma",
+           * "Deposit Invoice", "Down-Payment Invoice", "Final Invoice", "Add-on
+           * Invoice", "Booking Confirmation", "Pro-forma full amount"), and the
+           * question every one of them left open was which to press. The plan
+           * already knows: computePaymentPlan and milestoneAmount are the single
+           * source the invoices and the member's page are built from, so the
+           * stage that is due next is the button. A deposit stage that does not
+           * exist (deposit = 0, the NP7 default) is never offered.
+           */}
+          <div className="fin-card mb-4" style={{ padding: "16px 18px" }}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="fin-label">Next step</div>
+                <div className="text-sm admin-heading mt-1">{nextStep.text}</div>
+                {nextStep.sub && <div className="text-xs admin-faint mt-0.5 max-w-[64ch]">{nextStep.sub}</div>}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {nextStep.label && nextStep.run && (
+                  <button
+                    onClick={nextStep.run}
+                    disabled={generating !== null || sendingDoc !== null}
+                    className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-50 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
+                  >
+                    {generating || sendingDoc ? "Working…" : nextStep.label}
+                  </button>
+                )}
+                <ActionMenu label="More…" items={moreItems} />
+              </div>
+            </div>
+            {/* The stages this booking is paid in, and where each one stands. */}
+            {paymentStages.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mt-3 pt-3 fin-rule">
+                {paymentStages.map((s) => (
+                  <span key={s.kind} className="text-xs admin-muted">
+                    <span className="admin-heading font-medium">{STAGE_NAME[s.kind]}</span>{" "}
+                    <span className="tabular-nums">{formatMoney(s.amount)}</span>
+                    <span className="admin-faint"> · {s.paid ? "paid" : s.invoiceIssued ? (s.invoiceSent ? "invoiced, sent" : "invoiced, not sent") : s.overdue ? "overdue" : s.lastChance ? "due soon" : "open"}</span>
+                  </span>
+                ))}
+                <span className="text-xs admin-faint ml-auto tabular-nums">
+                  Trip {formatMoney(bookingTotal)} · paid {formatMoney(recon.paidTotal)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* A booking confirmation is not an invoice and does not belong in
+              the invoice menu. It gets its own quiet button. */}
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <span className="text-xs admin-faint">
+              {docsLoading ? "Loading documents…" : `${documents.filter((d) => !d.readOnly).length} document${documents.filter((d) => !d.readOnly).length !== 1 ? "s" : ""}`}
+            </span>
             <button
-              onClick={() => generateDocument("proforma_invoice", "final")}
-              disabled={generating === "proforma_full"}
-              title="One payment request for everything still outstanding, instead of the securing payment only."
-              className="px-3 py-1.5 admin-surface admin-muted hover:admin-heading text-xs font-bold rounded-lg transition-colors"
+              onClick={() => generateDocument("booking_confirmation")}
+              disabled={generating === "booking_confirmation"}
+              className="px-3 py-1.5 admin-muted hover:admin-heading text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
               style={{ border: "1px solid var(--admin-border)" }}
             >
-              {generating === "proforma_full" ? "Generating..." : "Pro-forma · full amount"}
-            </button>
-            <button
-              onClick={() => setCustomDoc((c) => ({ ...c, open: !c.open }))}
-              className="px-3 py-1.5 admin-muted hover:admin-heading text-xs font-bold rounded-lg transition-colors"
-              style={{ border: "1px dashed var(--admin-border)" }}
-            >
-              Set the amount myself…
+              {generating === "booking_confirmation" ? "Generating…" : "Booking confirmation PDF"}
             </button>
           </div>
 
           {/* The formulas assume stages are invoiced in payment order and that
               the price does not move afterwards. An upgrade after a part payment
               breaks both, and then no calculation can name the money that
-              actually arrived — a person has to. */}
+              actually arrived; a person has to. */}
           {customDoc.open && (
             <div className="rounded-xl p-4 mb-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
               <p className="text-xs admin-faint mb-3 max-w-[70ch]">
-                Use this when the calculated figure cannot describe what was agreed — an upgrade after a part payment,
+                Use this when the calculated figure cannot describe what was agreed: an upgrade after a part payment,
                 a price settled on the phone. The reason is stored on the invoice.
               </p>
               <div className="flex flex-wrap items-end gap-3">
@@ -2169,10 +2450,10 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                     value={customDoc.type}
                     onChange={(e) => setCustomDoc((c) => ({ ...c, type: e.target.value as DocumentType }))}
                   >
-                    <option value="deposit_invoice">Deposit Invoice</option>
-                    <option value="downpayment_invoice">Down-Payment Invoice</option>
-                    <option value="final_invoice">Final Invoice</option>
-                    <option value="addon_invoice">Add-on Invoice</option>
+                    {paymentStages.some((s) => s.kind === "deposit") && <option value="deposit_invoice">Deposit invoice</option>}
+                    <option value="downpayment_invoice">Down-payment invoice</option>
+                    <option value="final_invoice">Final invoice</option>
+                    <option value="addon_invoice">Add-on invoice</option>
                   </select>
                 </div>
                 <div>
@@ -2200,6 +2481,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 >
                   {customDoc.busy ? "Issuing…" : "Issue invoice"}
                 </button>
+                <button onClick={() => setCustomDoc((c) => ({ ...c, open: false }))} className="px-3 py-2 text-xs admin-muted rounded-lg">Close</button>
               </div>
             </div>
           )}
@@ -2218,105 +2500,32 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
               <div
                 className="grid gap-3 px-5 py-3 admin-surface"
-                style={{ gridTemplateColumns: "130px 1fr 100px 90px 64px 64px 130px", borderBottom: "1px solid var(--admin-border)" }}
+                style={{ gridTemplateColumns: DOC_COLS, borderBottom: "1px solid var(--admin-border)" }}
               >
-                {["Invoice #", "Title", "Type", "Amount", "Date", "Status", ""].map((h) => (
-                  <span key={h} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
+                {["Number", "Document", "Amount", "Date", "Status", ""].map((h) => (
+                  <span key={h} className="fin-label">{h}</span>
                 ))}
               </div>
-              {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="grid gap-3 px-5 py-3 transition-colors"
-                  style={{ gridTemplateColumns: "130px 1fr 100px 90px 64px 64px 130px", borderBottom: "1px solid var(--admin-border)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                >
-                  <span className="text-xs font-mono admin-muted self-center truncate">
-                    {doc.invoice_number || "—"}
-                  </span>
-                  <span className="text-sm font-medium admin-heading self-center truncate">
-                    {doc.title || doc.type.replace(/_/g, " ")}
-                  </span>
-                  <span className="text-xs admin-muted self-center capitalize">
-                    {doc.type.replace(/_/g, " ")}
-                  </span>
-                  <span className="text-sm font-medium admin-heading self-center">
-                    {doc.readOnly ? "—" : formatMoney(doc.amount, doc.currency)}
-                  </span>
-                  <span className="text-xs admin-faint self-center">
-                    {new Date(doc.issued_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}
-                  </span>
-                  <span className="self-center">
-                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      doc.status === "void" ? "bg-red-500/15 text-red-400" : "bg-green-500/15 text-green-400"
-                    }`}>
-                      {doc.status}
-                    </span>
-                  </span>
-                  <div className="self-center flex items-center gap-2">
-                    {doc.readOnly && doc.href && (
-                      <a href={doc.href} className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors">
-                        Open
-                      </a>
-                    )}
-                    {doc.signedUrl && (
-                      <a
-                        href={doc.signedUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
-                      >
-                        PDF
-                      </a>
-                    )}
-                    {!doc.readOnly && doc.status !== "void" && doc.type !== "booking_confirmation" && (
-                      <button
-                        onClick={() => sendInvoice(doc.id)}
-                        title={doc.sent_at ? `Sent ${new Date(doc.sent_at).toLocaleDateString("en-GB")}` : "Email this invoice to the customer"}
-                        className="text-xs text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
-                      >
-                        {doc.sent_at ? "Resend" : "Send"}
-                      </button>
-                    )}
-                    {!doc.readOnly && doc.status !== "void" && ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice"].includes(doc.type) && (
-                      <button
-                        onClick={() => setCreditFor(doc)}
-                        title="Issue a Storno (full) or credit note (partial) correcting this invoice"
-                        className="text-xs text-amber-500/70 hover:text-amber-500 transition-colors"
-                      >
-                        Storno…
-                      </button>
-                    )}
-                    {/* Cancelling a tax invoice is only honest while nobody has
-                        it: once sent, the customer holds a valid invoice and a
-                        flag flipped here reaches nobody — that is Storno's job.
-                        The button says which of the two this row is. */}
-                    {!doc.readOnly && doc.status !== "void" &&
-                      !(doc.sent_at && !["proforma_invoice", "booking_confirmation"].includes(doc.type)) && (
-                      <button
-                        onClick={() => voidDocument(doc.id, !["proforma_invoice", "booking_confirmation"].includes(doc.type))}
-                        title={["proforma_invoice", "booking_confirmation"].includes(doc.type)
-                          ? "Void this document"
-                          : "Cancel this invoice number — only for paper that was never sent. Sent invoices need a Storno."}
-                        className="text-xs text-red-400/50 hover:text-red-400 transition-colors"
-                      >
-                        {["proforma_invoice", "booking_confirmation"].includes(doc.type) ? "Void" : "Cancel unsent…"}
-                      </button>
-                    )}
-                  </div>
-                </div>
+              {/* Invoices with their corrections nested beneath them: a Storno
+                  is a line under the invoice it reverses, not a sibling with
+                  a minus sign. Signed records (the waiver) come last. */}
+              {nestedDocs.map(({ doc, children }) => (
+                <Fragment key={doc.id}>
+                  {renderDocRow(doc, false)}
+                  {children.map((c) => renderDocRow(c, true))}
+                </Fragment>
               ))}
+              {documents.filter((d) => d.readOnly).map((d) => renderDocRow(d, false))}
             </div>
           )}
         </div>
       )}
-      {creditFor && (
-        <CreditNoteModal
-          doc={creditFor}
-          bookingId={id}
-          onClose={() => setCreditFor(null)}
-          onDone={() => { setCreditFor(null); fetchDocuments(); }}
+      {correcting && (
+        <CorrectionDialog
+          documentId={correcting.id}
+          initialMode={correcting.mode}
+          onClose={() => setCorrecting(null)}
+          onIssued={() => fetchDocuments()}
         />
       )}
       {cancelOpen && booking && (
@@ -2330,68 +2539,84 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   );
 }
 
-/** Storno/Gutschrift: correct ONE issued invoice — full, or a partial amount.
- *  The heavy rules live server-side; this dialog only asks the two questions
- *  a human must answer (how much, and why). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function CreditNoteModal({ doc, bookingId, onClose, onDone }: { doc: any; bookingId: string; onClose: () => void; onDone: () => void }) {
-  const [mode, setMode] = useState<"full" | "partial">("full");
-  const [amount, setAmount] = useState("");
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
-  const original = Number(doc.amount) || 0;
-  const ready = reason.trim().length >= 3 && (mode === "full" || (Number(amount) > 0 && Number(amount) <= original));
+/** The three stages a trip is paid in, named the way the plan names them. */
+const STAGE_NAME: Record<MilestoneKind, string> = { deposit: "Deposit", downpayment: "Down-payment", final: "Final balance" };
+const DOC_COLS = "150px 1fr 100px 72px 150px 118px";
+const fmtShort = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—";
 
-  async function submit() {
-    setBusy(true); setErr("");
-    const res = await fetch(`/api/admin/bookings/${bookingId}/credit-note`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ documentId: doc.id, amount: mode === "partial" ? Number(amount) : undefined, reason: reason.trim() }),
-    });
-    const j = await res.json().catch(() => ({}));
-    setBusy(false);
-    if (res.ok) { onDone(); alert(`${mode === "full" ? "Storno" : "Credit note"} ${j.document?.invoice_number ?? ""} issued.`); }
-    else setErr(j.error || "Could not create the credit note.");
-  }
+type MenuItem = { label: string; run?: () => void; href?: string; hint?: string; tone?: "warn" | "danger"; disabled?: boolean };
 
+/**
+ * A small menu for the things a row can do but should not shout about.
+ *
+ * "PDF Send Storno… Can unse" was the row before this: every action inline,
+ * equally loud, and the last one truncated. The primary action stays on the
+ * row; the rest live here, with a line under each saying what it does, so a
+ * Storno is a deliberate choice and not the button next to Send.
+ */
+function ActionMenu({ label, items, compact }: { label: string; items: MenuItem[]; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  if (items.length === 0) return null;
+  const tone = (t?: MenuItem["tone"]) => t === "danger" ? "text-red-400" : t === "warn" ? "text-amber-500" : "admin-heading";
   return (
-    <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="w-full max-w-[440px] rounded-2xl p-6" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }} onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-[15px] font-bold admin-heading">Correct invoice {doc.invoice_number}</h3>
-        <p className="text-[12.5px] admin-faint mt-1 mb-4">
-          Issues a numbered correction document referencing this invoice — required once an invoice is out in the world. It doesn&apos;t move money: log the refund under Payments.
-        </p>
-        <div className="space-y-2 mb-4">
-          <label className="flex items-start gap-2.5 cursor-pointer">
-            <input type="radio" checked={mode === "full"} onChange={() => setMode("full")} className="mt-0.5 accent-[var(--admin-accent)]" />
-            <span className="text-[13px] admin-heading">Full Storno
-              <span className="block text-[11.5px] admin-faint">Cancels the whole invoice ({formatMoney(original, doc.currency)}).</span>
-            </span>
-          </label>
-          <label className="flex items-start gap-2.5 cursor-pointer">
-            <input type="radio" checked={mode === "partial"} onChange={() => setMode("partial")} className="mt-0.5 accent-[var(--admin-accent)]" />
-            <span className="text-[13px] admin-heading">Partial credit
-              <span className="block text-[11.5px] admin-faint">e.g. a goodwill reduction — the rest of the invoice stands.</span>
-            </span>
-          </label>
-          {mode === "partial" && (
-            <input type="number" min="0.01" step="0.01" max={original} value={amount} onChange={(e) => setAmount(e.target.value)}
-              placeholder={`Amount (max ${original})`} className="w-full mt-1 px-3 py-2 rounded-lg text-sm admin-input border" style={{ borderColor: "var(--admin-border)" }} />
-          )}
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={compact ? "More actions" : undefined}
+        onClick={() => setOpen((o) => !o)}
+        className={compact
+          ? "w-7 h-7 grid place-items-center rounded-md text-sm admin-muted hover:admin-heading transition-colors"
+          : "px-3 py-2 text-xs font-bold rounded-lg admin-muted hover:admin-heading transition-colors"}
+        style={{ border: "1px solid var(--admin-border)" }}
+      >
+        {label}
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 mt-1 min-w-[230px] max-w-[300px] rounded-xl py-1 z-30 text-left"
+          style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)", boxShadow: "var(--admin-shadow)" }}
+        >
+          {items.map((it, i) => it.href ? (
+            <a
+              key={i}
+              role="menuitem"
+              href={it.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className={`block px-3.5 py-2 text-[13px] hover:bg-[var(--admin-surface-hover)] ${tone(it.tone)}`}
+            >
+              {it.label}
+              {it.hint && <span className="block text-[10.5px] admin-faint">{it.hint}</span>}
+            </a>
+          ) : (
+            <button
+              key={i}
+              role="menuitem"
+              type="button"
+              disabled={it.disabled}
+              onClick={() => { setOpen(false); it.run?.(); }}
+              className={`block w-full text-left px-3.5 py-2 text-[13px] hover:bg-[var(--admin-surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed ${tone(it.tone)}`}
+            >
+              {it.label}
+              {it.hint && <span className="block text-[10.5px] admin-faint font-normal">{it.hint}</span>}
+            </button>
+          ))}
         </div>
-        <label className="block text-[12px] font-bold admin-muted mb-1">Reason — printed on the document</label>
-        <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. goodwill credit — guest could not attend"
-          className="w-full px-3 py-2 rounded-lg text-sm admin-input border" style={{ borderColor: "var(--admin-border)" }} />
-        {err && <p className="text-[12px] text-red-400 mt-2">{err}</p>}
-        <div className="flex justify-end gap-2 mt-5">
-          <button onClick={onClose} className="px-4 py-2 text-sm admin-muted rounded-lg">Cancel</button>
-          <button onClick={submit} disabled={!ready || busy}
-            className="px-4 py-2 bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg disabled:opacity-40">
-            {busy ? "Issuing…" : mode === "full" ? "Issue Storno" : "Issue credit note"}
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -2400,5 +2625,11 @@ function CreditNoteModal({ doc, bookingId, onClose, onDone }: { doc: any; bookin
 // The Bookings list renders the same pane inline (split view) via ?id=.
 export default function BookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  return <BookingDetailPane bookingId={id} />;
+  // The pane reads ?tab= and ?from= with useSearchParams, which wants a
+  // Suspense boundary above it.
+  return (
+    <Suspense fallback={<div className="text-sm admin-faint">Loading...</div>}>
+      <BookingDetailPane bookingId={id} />
+    </Suspense>
+  );
 }

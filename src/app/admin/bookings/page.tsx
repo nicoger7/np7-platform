@@ -447,16 +447,30 @@ function BookingsInner() {
           {sorted.map((b) => (
             <div
               key={b.id}
-              className="grid gap-3 px-5 py-3 transition-colors cursor-pointer"
+              className="group grid gap-3 px-5 py-3 transition-colors cursor-pointer"
               style={{ gridTemplateColumns: gridTemplate, borderBottom: "1px solid var(--admin-border)" }}
               onClick={() => select(b.id)}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             >
               {/* name — required */}
-              <div className="min-w-0">
-                <div className="text-sm font-medium admin-heading truncate">{b.name}</div>
-                {b.contact && <div className="text-xs admin-faint truncate">{b.contact.email}</div>}
+              <div className="min-w-0 flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium admin-heading truncate">{b.name}</div>
+                  {b.contact && <div className="text-xs admin-faint truncate">{b.contact.email}</div>}
+                </div>
+                {/* Straight to the paper. The Storno and credit-note generators
+                    live on the booking's Documents tab; this opens it there
+                    instead of two clicks away on the Details tab. */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); router.push(`/admin/bookings?id=${b.id}&tab=documents`, { scroll: false }); }}
+                  title="Open this booking's invoices, Stornos and credit notes"
+                  className="shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-md admin-faint opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-[var(--admin-text)] transition-opacity"
+                  style={{ border: "1px solid var(--admin-border)" }}
+                >
+                  Invoices
+                </button>
               </div>
               {visibleColumns.has("contact") && (
                 <span className="text-xs admin-muted truncate self-center">{b.contact?.name || "—"}</span>
