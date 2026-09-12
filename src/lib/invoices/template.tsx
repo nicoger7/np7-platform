@@ -979,37 +979,59 @@ export function buildInvoiceDocument(data: InvoiceData): React.ReactElement {
 }
 
 
-// ─── Credit note / Stornorechnung ────────────────────────────────────────────
+// ─── Storno / Rechnungskorrektur ─────────────────────────────────────────────
 
-/** A credit note corrects ONE issued tax invoice — full (Storno) or partial. */
+/**
+ * A correction document for ONE issued tax invoice: full (Stornorechnung) or
+ * partial (Rechnungskorrektur). The engine decides the figures; this only
+ * prints them.
+ */
 export type CreditNoteData = {
   company: CompanySettings;
-  /** The credit note's own sequential number (same gapless circle). */
+  /** The correction's own sequential number (same gapless series as invoices). */
   invoiceNumber: string;
   invoiceDate: string;
-  /** The invoice being corrected — a credit note without one is not compliant. */
-  original: { number: string; date: string; amount: number };
+  /** The invoice being corrected. A correction without one is not compliant. */
+  original: { number: string; date: string | null; amount: number };
   /** Positive figure; the document renders it as a credit (negative). */
   amount: number;
+  /** true = the whole invoice is reversed. */
   full: boolean;
   reason: string;
   currency: string;
+  /** Money the guest had already paid against the original, up to `amount`. */
+  refundDue: number;
   contact: InvoiceData["contact"];
   experience: { title: string };
   edition: InvoiceData["edition"];
 };
 
+/**
+ * What the paper has to say, and in which words.
+ *
+ * The title is the German legal term with its English reading under it:
+ * "Stornorechnung" for a full reversal, "Rechnungskorrektur" for a partial
+ * one. Not "Gutschrift": since 2013 § 14 Abs. 4 Nr. 10 UStG reserves that
+ * word for self-billing (Abrechnungsgutschrift), and a customer-facing title
+ * that reads like one is the § 14c question nobody needs. The reference to
+ * the corrected invoice, by number AND date, is the anchor that makes this a
+ * correction at all (Abschn. 14.11 UStAE); it is printed in bold, in both
+ * languages, above the lines. The § 25 note is the same one the original
+ * carried, because a correction states the tax position it reverses.
+ */
 export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElement {
   const { company, invoiceNumber, original } = data;
   const currency = data.currency || company.currency;
-  // A credit note reverses a tax invoice, so it states the same VAT position
+  // A correction reverses a tax invoice, so it states the same VAT position
   // and is refused on the same grounds.
   assertVatConfigured(company);
   const description = [data.experience.title, data.edition?.label].filter(Boolean).join(" · ");
+  const titleDe = data.full ? "Stornorechnung" : "Rechnungskorrektur";
+  const titleEn = data.full ? "Cancellation invoice" : "Credit note (partial correction)";
 
   return (
     <Document
-      title={`${data.full ? "Cancellation Invoice" : "Credit Note"} ${invoiceNumber}`}
+      title={`${titleDe} ${invoiceNumber}`}
       author={company.legal_name ?? "NP7 GmbH"}
       creator="NP7 Platform"
     >
@@ -1017,11 +1039,12 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
         <View style={s.headerRow}>
           <SellerBlock company={company} />
           <View style={s.docInfoBlock}>
-            <Text style={s.docTitle}>{data.full ? "Cancellation Invoice" : "Credit Note"}</Text>
-            <Text style={s.smallText}>{data.full ? "Storno / full correction" : "Partial correction (Gutschrift)"}</Text>
+            <Text style={s.docTitle}>{titleDe}</Text>
+            <Text style={s.smallText}>{titleEn}</Text>
             <Text style={s.docNumber}>No. {invoiceNumber}</Text>
             <View style={{ marginTop: 8 }}>
               <Text style={s.smallText}>Date: {fmtDate(data.invoiceDate)}</Text>
+              <Text style={s.smallText}>Service period: {servicePeriod(data.edition)}</Text>
             </View>
           </View>
         </View>
@@ -1029,9 +1052,14 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
         <View style={s.divider} />
         <BuyerBlock contact={data.contact} />
 
-        {/* The legally required anchor: WHICH invoice this corrects. */}
-        <Text style={[s.smallText, { marginBottom: 10, fontFamily: "Helvetica-Bold" }]}>
-          This document corrects invoice No. {original.number} dated {fmtDate(original.date)}.
+        {/* The legally required anchor: WHICH invoice this corrects, by number and date. */}
+        <Text style={[s.smallText, { marginBottom: 2, fontFamily: "Helvetica-Bold", color: BRAND_DARK }]}>
+          {data.full ? "Storniert wird" : "Berichtigt wird"} die Rechnung Nr. {original.number} vom {fmtDate(original.date)}
+          {data.full ? " in voller Höhe." : "."}
+        </Text>
+        <Text style={[s.smallText, { marginBottom: 10 }]}>
+          This document {data.full ? "cancels" : "corrects"} invoice No. {original.number} dated {fmtDate(original.date)}
+          {data.full ? " in full" : ""}, original amount {formatMoney(original.amount, currency)}.
         </Text>
 
         <View style={s.tableHeader}>
@@ -1042,8 +1070,9 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
         <View style={s.tableRow}>
           <View style={s.col_desc}>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>
-              {data.full ? "Cancellation" : "Credit"}: {description}
+              {data.full ? "Storno" : "Korrektur"}: {description}
             </Text>
+            <Text style={[s.smallText, { marginTop: 2 }]}>Invoice {original.number}</Text>
             <Text style={[s.smallText, { marginTop: 2 }]}>Reason: {data.reason}</Text>
           </View>
           <Text style={s.col_period}>{servicePeriod(data.edition)}</Text>
@@ -1052,16 +1081,34 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
 
         <View style={s.totalsBox}>
           <View style={s.totalRow}>
-            <Text style={[s.totalLabel, { fontFamily: "Helvetica-Bold" }]}>Total credit</Text>
+            <Text style={[s.totalLabel, { fontFamily: "Helvetica-Bold" }]}>{data.full ? "Storno total" : "Total credited"}</Text>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>−{formatMoney(data.amount, currency)}</Text>
           </View>
+          {!data.full && (
+            <View style={s.totalRow}>
+              <Text style={s.totalLabel}>Invoice {original.number} after correction</Text>
+              <Text>{formatMoney(Math.max(0, original.amount - data.amount), currency)}</Text>
+            </View>
+          )}
         </View>
 
         <VatNote vatMode={company.vat_mode} vatRate={company.vat_rate} />
-        <Text style={s.vatNote}>
-          No payment is due on this document. Any amount already paid against the
-          corrected invoice will be refunded.
-        </Text>
+        {data.refundDue > 0 ? (
+          <Text style={s.vatNote}>
+            Der bereits gezahlte Betrag von {formatMoney(data.refundDue, currency)} wird per Überweisung erstattet.
+            {"\n"}
+            The {formatMoney(data.refundDue, currency)} already paid against invoice {original.number} will be refunded by bank transfer.
+            No payment is due on this document.
+          </Text>
+        ) : (
+          <Text style={s.vatNote}>
+            Auf dieses Dokument ist keine Zahlung fällig.
+            {"\n"}
+            No payment is due on this document. {data.full
+              ? `Invoice ${original.number} is cancelled and nothing remains payable on it.`
+              : `The balance of invoice ${original.number} is reduced accordingly.`}
+          </Text>
+        )}
 
         {company.invoice_footer && (
           <Text style={[s.smallText, { marginTop: 16, color: GREY }]}>{company.invoice_footer}</Text>

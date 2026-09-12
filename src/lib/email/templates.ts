@@ -589,6 +589,42 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /*
+   * A Storno or credit note, sent by hand from the Documents tab.
+   *
+   * Not the invoice mail: that one asks for a bank transfer and a reference,
+   * which is the wrong instruction under a document that owes the guest
+   * money or asks for nothing. `kind` is "storno" (whole invoice reversed) or
+   * "credit" (part of it), `refundAmount` is set only when money is coming
+   * back, and `amount` is the credit as a positive figure.
+   */
+  credit_note_sent: (v, opts) => {
+    const storno = v.kind === "storno";
+    const trip = esc(v.experienceTitle || "your NP7 trip");
+    return {
+      subject: storno
+        ? `Invoice ${v.originalReference || ""} cancelled · ${v.experienceTitle ?? "your NP7 trip"}`.replace(/\s+·/, " ·")
+        : `Corrected invoice for ${v.experienceTitle ?? "your NP7 trip"} · ${v.amount || "credit"} credited`,
+      html: emailLayout({
+        ...opts,
+        preheader: storno ? "Your invoice has been cancelled. The document is attached." : "A correction to your invoice is attached.",
+        bodyHtml:
+          greet(v) +
+          (storno
+            ? p(`Attached is the cancellation invoice <strong>${esc(v.reference || "")}</strong>, which reverses invoice <strong>${esc(v.originalReference || "")}</strong> for <strong>${trip}</strong> in full.`)
+            : p(`Attached is credit note <strong>${esc(v.reference || "")}</strong>, which corrects invoice <strong>${esc(v.originalReference || "")}</strong> for <strong>${trip}</strong> by <strong>${esc(v.amount || "")}</strong>.`)) +
+          (v.reason ? p(`Reason: ${esc(v.reason)}`) : "") +
+          (v.refundAmount
+            ? p(`The <strong>${esc(v.refundAmount)}</strong> you already paid will be refunded to your bank account within a few days. There is nothing you need to do.`)
+            : p(storno
+                ? `Nothing is payable on the cancelled invoice, and nothing is due on this document.`
+                : `The balance of your invoice is reduced by this amount. Nothing is due on this document.`)) +
+          (v.bookingLink ? emailButton("View my booking", v.bookingLink) : "") +
+          p(`Any questions, just reply. Happy to help.<br>Nico &amp; the NP7 team`),
+      }),
+    };
+  },
+
   // Post-payment: the pro-forma got paid → the OFFICIAL tax invoice goes out.
   invoice_after_payment: (v, opts) => ({
     subject: `Payment received 🤙 your invoice for ${v.experienceTitle ?? "your NP7 trip"}`,

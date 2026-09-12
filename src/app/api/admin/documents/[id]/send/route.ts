@@ -24,12 +24,17 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   const { data: doc } = await db
     .from("documents")
-    .select("id, booking_id, contact_id, bill_to_contact_id, file_path, invoice_number, amount, currency, type, division")
+    .select("id, booking_id, contact_id, bill_to_contact_id, file_path, invoice_number, amount, currency, type, division, status, meta")
     .eq("id", id)
     .maybeSingle();
   if (!doc) return NextResponse.json({ error: "Document not found." }, { status: 404 });
   if (doc.type === "booking_confirmation") {
     return NextResponse.json({ error: "Only invoices can be sent from here." }, { status: 400 });
+  }
+  // A cancelled number is written off; mailing it would hand the customer a
+  // document that does not count.
+  if (doc.status === "void") {
+    return NextResponse.json({ error: `${doc.invoice_number ?? "This document"} is cancelled and cannot be sent.` }, { status: 400 });
   }
 
   // Recipient + experience.
@@ -73,23 +78,49 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   }
 
   const currency = doc.currency || "EUR";
-  const amountStr = doc.amount != null
-    ? new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(Number(doc.amount))
-    : "";
+  const money = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
+  const amountStr = doc.amount != null ? money(Math.abs(Number(doc.amount))) : "";
+  const firstName = (contact.name ?? "").split(" ")[0] || "there";
+  const bookingLink = doc.booking_id ? `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/account/bookings/${doc.booking_id}` : "";
 
+  /*
+   * A correction is not an invoice and must not be mailed as one. The invoice
+   * template asks the guest to "pay by bank transfer and quote the
+   * reference", which under a Storno is exactly wrong: nothing is payable,
+   * and money may be coming BACK. It gets its own words, and the amount is
+   * the credit, never the stored negative.
+   */
+  const isCorrection = doc.type === "credit_note";
+  const cm = (doc.meta ?? {}) as { full?: boolean; original_invoice_number?: string; reason?: string; refund_due?: number };
   const res = await sendEmail({
     to: overrideTo ?? contact.email,
-    templateKey: "invoice_sent",
+    templateKey: isCorrection ? "credit_note_sent" : "invoice_sent",
     bookingId: doc.booking_id || undefined,
     division: doc.division || "experience",
     attachments,
-    vars: {
-      firstName: (contact.name ?? "").split(" ")[0] || "there",
-      experienceTitle,
-      amount: amountStr,
-      reference: doc.invoice_number || "",
-      bookingLink: doc.booking_id ? `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/account/bookings/${doc.booking_id}` : "",
-    },
+    // A person pressed Send. The soft-launch hold guards automated mail, not this.
+    manual: true,
+    vars: isCorrection
+      ? {
+          firstName,
+          experienceTitle,
+          amount: amountStr,
+          reference: doc.invoice_number || "",
+          originalReference: cm.original_invoice_number || "",
+          kind: cm.full === true ? "storno" : "credit",
+          reason: cm.reason || "",
+          refundAmount: Number(cm.refund_due) > 0 ? money(Number(cm.refund_due)) : "",
+          bookingLink,
+        }
+      : {
+          firstName,
+          experienceTitle,
+          amount: doc.amount != null
+            ? new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(Number(doc.amount))
+            : "",
+          reference: doc.invoice_number || "",
+          bookingLink,
+        },
   });
 
   // A copy sent somewhere else is not the document reaching its recipient, so

@@ -24,6 +24,8 @@ interface BookingDocument {
   status: string;
   signedUrl: string;
   downloadUrl?: string | null;
+  /** A correction says which invoice it corrects and whether it reverses all of it. */
+  meta?: { full?: boolean; original_invoice_number?: string } | null;
 }
 
 const TYPE_LABELS: Record<DocumentType, string> = {
@@ -78,12 +80,19 @@ export function MemberDocuments({ bookingId }: { bookingId: string }) {
   return (
     <div className="mt-1 pt-3 border-t border-[#f3ede2] space-y-1">
       {docs.map((doc) => {
-        const label = TYPE_LABELS[doc.type] ?? "Document";
+        // A correction is named for what it does: a Storno cancels an invoice,
+        // a credit note reduces one. Both say which invoice, so the guest can
+        // put the two documents next to each other.
+        const label = doc.type === "credit_note"
+          ? (doc.meta?.full ? "Cancellation invoice (Storno)" : "Credit note")
+          : (TYPE_LABELS[doc.type] ?? "Document");
         const invoiceNumber = doc.invoice_number;
         const amountStr = fmtMoney(doc.amount, doc.currency);
         const dateStr = fmtDate(doc.issued_at);
+        const corrects = doc.type === "credit_note" && doc.meta?.original_invoice_number
+          ? `corrects ${doc.meta.original_invoice_number}` : null;
 
-        const sub = [invoiceNumber, amountStr, dateStr].filter(Boolean).join(" · ");
+        const sub = [invoiceNumber, amountStr, dateStr, corrects].filter(Boolean).join(" · ");
 
         return (
           <div key={doc.id} className="flex items-center gap-3 py-2.5">

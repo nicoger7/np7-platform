@@ -13,13 +13,15 @@
 import React from "react";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { createAdminClient } from "@/lib/supabase";
-import { buildInvoiceDocument, type InvoiceData , buildCreditNoteDocument } from "./template";
+import { buildInvoiceDocument, type InvoiceData, buildCreditNoteDocument, assertVatConfigured } from "./template";
 import {
   formatInvoiceNumber,
+  formatMoney,
   type GenerateInput,
   type DocumentRow,
   type CompanySettings,
 } from "./types";
+import { correctionsByOriginal, correctionAllowance, type DocLike } from "./corrections";
 import {
   milestoneAmount,
   addDays,
@@ -229,7 +231,7 @@ export async function settleInvoices(bookingId: string): Promise<void> {
   const db = getDb();
   const [{ data: docs }, { data: pays }] = await Promise.all([
     db.from("documents")
-      .select("id,amount,type,status,paid_at,issued_at,created_at")
+      .select("id,amount,type,status,paid_at,issued_at,created_at,meta")
       .eq("booking_id", bookingId)
       .eq("status", "issued")
       .order("issued_at", { ascending: true })
@@ -239,7 +241,7 @@ export async function settleInvoices(bookingId: string): Promise<void> {
       .eq("booking_id", bookingId),
   ]);
 
-  type Doc = { id: string; amount: number | null; type: string; paid_at: string | null; issued_at: string | null; created_at: string | null };
+  type Doc = { id: string; amount: number | null; type: string; paid_at: string | null; issued_at: string | null; created_at: string | null; meta: Record<string, unknown> | null };
   const all = ((docs ?? []) as Doc[]).filter((d) => BILLABLE_TYPES.includes(d.type));
   const invoices = all.filter((d) => d.type !== "credit_note");
   if (invoices.length === 0) return;
@@ -252,9 +254,30 @@ export async function settleInvoices(bookingId: string): Promise<void> {
    */
   const when = (r: { date?: string | null; received_at?: string | null; created_at?: string | null }) =>
     r.date ?? r.received_at ?? r.created_at ?? null;
-  const credits = all
-    .filter((d) => d.type === "credit_note")
-    .map((d) => ({ at: d.issued_at ?? d.created_at ?? null, amount: Math.abs(Number(d.amount) || 0) }));
+  /*
+   * A correction settles THE INVOICE IT CORRECTS, not the oldest open one.
+   *
+   * It used to be pooled with the transfers and drawn oldest-first, and the
+   * live books show what that does: Dimitri Lagendijk's credit note 0024
+   * (1,495 against final invoice 0018) was applied to his DOWN-PAYMENT
+   * invoice 0017 instead. 0017 has read "paid" since 31 August on a booking
+   * with no payment at all, while 0018, the invoice the credit was written
+   * for, still reads open for its full 2,550. A Storno of the final would
+   * likewise have marked the down-payment paid and left the final "open".
+   *
+   * So a credit is taken off the invoice it names, and only a legacy credit
+   * with no link left falls back to the pool. An invoice reduced to nothing
+   * is reversed, not paid: it needs no money and gets no paid_at.
+   */
+  const creditAgainst = new Map<string, number>();
+  const pooledCredits: { at: string | null; amount: number }[] = [];
+  for (const d of all.filter((x) => x.type === "credit_note")) {
+    const amt = Math.abs(Number(d.amount) || 0);
+    const orig = (d.meta as { original_document_id?: string } | null)?.original_document_id;
+    if (orig && invoices.some((i) => i.id === orig)) creditAgainst.set(orig, round2((creditAgainst.get(orig) ?? 0) + amt));
+    else pooledCredits.push({ at: d.issued_at ?? d.created_at ?? null, amount: amt });
+  }
+  const credits = pooledCredits;
   /*
    * A payment can NAME the invoice it settles (exp_payments.document_id, set
    * from the invoice picker on the booking's payment form). Where someone has
@@ -290,7 +313,13 @@ export async function settleInvoices(bookingId: string): Promise<void> {
   let cursor = 0;
   let pot = 0;
   for (const inv of invoices) {
-    const amt = Number(inv.amount) || 0;
+    // What this invoice still asks for once its own corrections are taken off.
+    const amt = round2(Math.max(0, (Number(inv.amount) || 0) - (creditAgainst.get(inv.id) ?? 0)));
+    if (amt <= 0.005) {
+      // Fully reversed: nothing to settle, and "paid" would be the wrong word.
+      paidAtFor.push(null);
+      continue;
+    }
     const own = assigned.get(inv.id);
     // Directly assigned and enough to cover it — settled, on the day that money
     // landed, and it never touches the shared pot.
@@ -1009,135 +1038,261 @@ declare namespace ReactPDF {
 }
 
 
-// ─── Credit note / Storno ─────────────────────────────────────────────────────
+// ─── Storno / credit note ─────────────────────────────────────────────────────
 
 export type CreditNoteInput = {
-  bookingId: string;
   /** The issued tax invoice being corrected. */
   originalDocumentId: string;
-  /** Omit for a FULL cancellation of the original; set for a partial credit. */
+  /** Optional guard: refuse when the invoice belongs to another booking. */
+  bookingId?: string;
+  /** Omit for a FULL reversal (Storno); set for a partial credit. */
   amount?: number;
-  /** Printed on the document — a correction without a stated reason reads as an error. */
+  /** Printed on the document. A correction without a stated reason reads as an error. */
   reason: string;
 };
 
+export type CreditNoteRow = DocumentRow & {
+  pdf?: Buffer;
+  refund_due: number;
+  full: boolean;
+  original_invoice_number: string;
+};
+
 /**
- * A legally-shaped correction document (§14/§17 UStG logic, margin-scheme
- * aware): its own number from the same gapless circle, a mandatory reference
- * to the original invoice, a negative total, and no payment request. The
- * documents row stores the amount NEGATIVE so `issuedInvoiceTotal` nets it
- * out and the booking's billing state stays truthful.
+ * Correct ONE issued tax invoice with a new, numbered document.
+ *
+ * Full = Stornorechnung, reversing the whole invoice. Partial = Rechnungs-
+ * korrektur, taking an amount off it. Both take the next number from the same
+ * gapless series as the invoices, name the invoice they correct by number and
+ * date, carry the same § 25 wording the original did, and are stored with a
+ * NEGATIVE amount so every total that adds documents nets them out by itself.
+ *
+ * What it refuses, and why:
+ *   - a pro-forma (void it: a payment request is not a tax invoice)
+ *   - a cancelled number (written off, not reversible)
+ *   - an invoice already reversed (an invoice is reversed once)
+ *   - a Storno once part of the invoice has been credited (that is a credit)
+ *   - a credit larger than what is left
+ *   - a second correction being written for the same invoice at the same
+ *     moment (an atomic claim on the original, the way promote.ts claims a
+ *     pro-forma, so two clicks cannot mint two Stornos)
+ *
+ * It never edits the original: its PDF, number and amount stay. The original
+ * only gains a back-link in meta (reversed_by / credited_by), the record of
+ * what corrected it.
  */
-export async function generateCreditNote(input: CreditNoteInput): Promise<DocumentRow> {
+export async function generateCreditNote(input: CreditNoteInput): Promise<CreditNoteRow> {
   const reason = (input.reason ?? "").trim();
-  if (!reason) throw new Error("A credit note needs a reason — it is printed on the document.");
+  if (!reason) throw new Error("A correction needs a reason. It is printed on the document.");
 
   const db = getDb();
   const { data: orig } = await db.from("documents").select("*").eq("id", input.originalDocumentId).maybeSingle();
   if (!orig) throw new Error("Original invoice not found.");
-  const o = orig as DocumentRow;
-  if (o.booking_id !== input.bookingId) throw new Error("That invoice belongs to a different booking.");
-  if (o.status !== "issued") throw new Error("Only an issued invoice can be corrected.");
-  /*
-   * An add-on invoice belongs in this list, and leaving it out left a real
-   * hole. NP7-XP-2026-0015 (€810, Marc Vos) is an add-on invoice with a number
-   * off the same gapless counter and the same §14 obligations as any other —
-   * yet the only correction it had was Void, which stops working the moment it
-   * has been sent. That is exactly the case a Storno exists for.
-   */
-  if (!["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice"].includes(o.type)) {
-    throw new Error(o.type === "proforma_invoice"
-      ? "A pro-forma is a payment request, not a tax invoice — void or re-issue it, no Storno needed."
-      : "Only tax invoices (deposit / down-payment / final / add-on) can be corrected with a credit note.");
-  }
-  if (!o.invoice_number) throw new Error("The original invoice has no number — cannot reference it.");
+  const o = orig as DocumentRow & { sent_at?: string | null; paid_at?: string | null };
+  if (input.bookingId && o.booking_id !== input.bookingId) throw new Error("That invoice belongs to a different booking.");
+  if (!o.booking_id) throw new Error("This invoice is not attached to a booking, so there is nobody to address the correction to.");
+  const bookingId = o.booking_id;
 
+  // The rules, applied to what stands on this booking right now.
+  const { data: siblings } = await db
+    .from("documents")
+    .select("id,type,status,amount,invoice_number,meta,issued_at,created_at")
+    .eq("booking_id", bookingId);
+  const byOriginal = correctionsByOriginal((siblings ?? []) as DocLike[]);
+  const allowance = correctionAllowance(o as DocLike, byOriginal);
+  if (allowance.blocker) throw new Error(allowance.blocker);
   const originalAmount = round2(Number(o.amount) || 0);
-  if (originalAmount <= 0) throw new Error("The original invoice has no positive amount to credit.");
-  const amount = round2(input.amount ?? originalAmount);
-  if (!(amount > 0)) throw new Error("The credit amount must be positive.");
-  if (amount > originalAmount + 0.005) {
-    throw new Error(`The credit (${amount}) cannot exceed the original invoice amount (${originalAmount}).`);
+
+  let amount: number;
+  if (input.amount == null) {
+    if (!allowance.canStorno) {
+      throw new Error(
+        `${formatMoney(allowance.credited)} of ${o.invoice_number} has already been credited. A Storno reverses a whole invoice; credit the remaining ${formatMoney(allowance.remaining)} instead.`,
+      );
+    }
+    amount = originalAmount;
+  } else {
+    amount = round2(Number(input.amount));
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error("The credit amount must be a positive number.");
+    if (!allowance.canCredit) throw new Error(`Nothing is left to credit on ${o.invoice_number}.`);
+    if (amount > allowance.remaining + 0.005) {
+      throw new Error(
+        `Only ${formatMoney(allowance.remaining)} of ${o.invoice_number} is left to credit` +
+          (allowance.credited ? ` (${formatMoney(allowance.credited)} already credited)` : "") + ".",
+      );
+    }
   }
-  // Guard against double-correcting: existing credits against this original.
-  const { data: priorRows } = await db.from("documents").select("amount,meta,status")
-    .eq("booking_id", input.bookingId).eq("type", "credit_note").eq("status", "issued");
-  const priorCredit = round2(((priorRows ?? []) as { amount: number | null; meta: Record<string, unknown> | null }[])
-    .filter((r) => (r.meta as { original_document_id?: string } | null)?.original_document_id === o.id)
-    .reduce((s2, r) => s2 + Math.abs(Number(r.amount) || 0), 0));
-  if (priorCredit + amount > originalAmount + 0.005) {
-    throw new Error(`Already credited ${priorCredit} against this invoice — only ${round2(originalAmount - priorCredit)} left to credit.`);
+  // Crediting the whole of an uncredited invoice IS reversing it, whichever
+  // button was pressed: it gets the Storno title, not a "partial" one.
+  const full = allowance.credited === 0 && Math.abs(amount - originalAmount) < 0.005;
+
+  /*
+   * Money already paid against the original is money the guest is now owed
+   * back. Payments that name the invoice count exactly; otherwise the settle
+   * stamp says whether unassigned money covered it. Nothing is moved here:
+   * refunds leave the bank by hand and are logged under Payments. The figure
+   * is stored so the dialog, the PDF and the finance list can all say it.
+   */
+  const { data: pays } = await db.from("exp_payments").select("amount,type,direction,status,document_id").eq("booking_id", bookingId);
+  const allocated = round2(((pays ?? []) as (PaymentLike & { document_id?: string | null })[])
+    .filter((p) => p.document_id === o.id && isReceived(p))
+    .reduce((s, p) => s + (p.type === "refund" ? -1 : 1) * (Number(p.amount) || 0), 0));
+  const paidAgainst = allocated > 0 ? Math.min(allocated, originalAmount) : o.paid_at ? originalAmount : 0;
+  const refundDue = round2(Math.min(amount, Math.max(0, paidAgainst - allowance.credited)));
+
+  /*
+   * Claim the original before spending a number. Conditioned on no other
+   * correction being in flight (a claim older than two minutes is a crash,
+   * not a colleague, and is taken over). Zero rows back means someone else
+   * holds it: refuse rather than mint a second Storno for one invoice.
+   */
+  const now = new Date().toISOString();
+  const stale = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const { data: claimed } = await db
+    .from("documents")
+    .update({ meta: { ...((o.meta ?? {}) as Record<string, unknown>), correction_pending: now } })
+    .eq("id", o.id)
+    .eq("status", "issued")
+    .or(`meta->>correction_pending.is.null,meta->>correction_pending.lt."${stale}"`)
+    .select("id");
+  if (!claimed || claimed.length === 0) {
+    throw new Error(`A correction of ${o.invoice_number} is already being issued. Give it a moment and refresh.`);
   }
-  const full = Math.abs(amount - originalAmount) < 0.01 && priorCredit === 0;
+  // Re-read before writing, so the release never puts back a meta from before
+  // someone else's write. Always drops the claim; adds the back-link on success.
+  const release = async (extra: Record<string, unknown>) => {
+    const { data: fresh } = await db.from("documents").select("meta").eq("id", o.id).maybeSingle();
+    const meta = { ...((fresh?.meta ?? {}) as Record<string, unknown>), ...extra };
+    delete meta.correction_pending;
+    await db.from("documents").update({ meta }).eq("id", o.id);
+  };
 
   const division = o.division ?? "experience";
-  const [booking, company] = await Promise.all([resolveBooking(input.bookingId), resolveCompanySettings(division)]);
-  // A credit note has to reach whoever the invoice did.
-  const { contact, billToId } = await invoiceRecipient(booking);
-  const year = new Date().getFullYear();
-  const seq = await allocateInvoiceNumber(division, year);
-  const invoiceNumber = formatInvoiceNumber(company.invoice_prefix, year, seq);
-  const currency = o.currency || company.currency || "EUR";
+  let burnedNumber: string | null = null;
+  try {
+    const [booking, company] = await Promise.all([resolveBooking(bookingId), resolveCompanySettings(division)]);
+    // A correction states the same VAT position as the invoice it corrects, so
+    // it is refused on the same grounds. Checked BEFORE a number is spent.
+    assertVatConfigured(company);
+    // A correction has to reach whoever the invoice did.
+    const { contact, billToId } = await invoiceRecipient(booking);
+    const year = new Date().getFullYear();
+    const seq = await allocateInvoiceNumber(division, year);
+    const invoiceNumber = formatInvoiceNumber(company.invoice_prefix, year, seq);
+    burnedNumber = invoiceNumber;
+    const currency = o.currency || company.currency || "EUR";
+    const originalDate = o.issued_at ?? o.created_at;
 
-  const element = buildCreditNoteDocument({
-    company,
-    invoiceNumber,
-    invoiceDate: new Date().toISOString().slice(0, 10),
-    original: { number: o.invoice_number, date: o.issued_at ?? o.created_at, amount: originalAmount },
-    amount,
-    full,
-    reason,
-    currency,
-    contact: {
-      name: contact?.name ?? null,
-      billingAddress: contact?.billing_address ?? null,
-      billingPostalCode: contact?.billing_postal_code ?? null,
-      billingCity: contact?.billing_city ?? null,
-      billingCountry: contact?.billing_country ?? null,
-      email: contact?.email ?? null,
-    },
-    experience: { title: booking.exp_experiences?.title ?? "NP7 Experience" },
-    edition: booking.exp_editions
-      ? { label: booking.exp_editions.label, dateStart: booking.exp_editions.date_start, dateEnd: booking.exp_editions.date_end }
-      : null,
-  });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pdfBuffer = await renderToBuffer(element as any);
+    const element = buildCreditNoteDocument({
+      company,
+      invoiceNumber,
+      invoiceDate: now.slice(0, 10),
+      original: { number: o.invoice_number!, date: originalDate, amount: originalAmount },
+      amount,
+      full,
+      reason,
+      currency,
+      refundDue,
+      contact: {
+        name: contact?.name ?? null,
+        billingAddress: contact?.billing_address ?? null,
+        billingPostalCode: contact?.billing_postal_code ?? null,
+        billingCity: contact?.billing_city ?? null,
+        billingCountry: contact?.billing_country ?? null,
+        email: contact?.email ?? null,
+      },
+      experience: { title: booking.exp_experiences?.title ?? "NP7 Experience" },
+      edition: booking.exp_editions
+        ? { label: booking.exp_editions.label, dateStart: booking.exp_editions.date_start, dateEnd: booking.exp_editions.date_end }
+        : null,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfBuffer = await renderToBuffer(element as any);
 
-  const fileSlug = invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, "_");
-  const filePath = `${division}/${input.bookingId}/${fileSlug}.pdf`;
-  const { error: uploadError } = await db.storage
-    .from("documents").upload(filePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
-  if (uploadError) throw new Error(`Failed to upload PDF to storage: ${uploadError.message}`);
+    const fileSlug = invoiceNumber.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const filePath = `${division}/${bookingId}/${fileSlug}.pdf`;
+    const { error: uploadError } = await db.storage
+      .from("documents").upload(filePath, pdfBuffer, { contentType: "application/pdf", upsert: true });
+    if (uploadError) throw new Error(`Failed to upload PDF to storage: ${uploadError.message}`);
 
-  const docRow = {
-    booking_id: input.bookingId,
-    contact_id: booking.contact_id,
-    bill_to_contact_id: billToId,
-    division,
-    type: "credit_note" as const,
-    invoice_number: invoiceNumber,
-    title: full
-      ? `Cancellation Invoice (Storno) for ${o.invoice_number}`
-      : `Credit Note for ${o.invoice_number}`,
-    file_path: filePath,
-    amount: -amount,
-    currency,
-    status: "issued" as const,
-    meta: { original_document_id: o.id, original_invoice_number: o.invoice_number, reason, full },
-  };
-  const { data: inserted, error: insErr } = await db.from("documents").insert(docRow).select("*").single();
-  if (insErr) throw new Error(`Failed to save the credit note: ${insErr.message}`);
+    const docRow = {
+      booking_id: bookingId,
+      contact_id: booking.contact_id,
+      bill_to_contact_id: billToId,
+      division,
+      type: "credit_note" as const,
+      invoice_number: invoiceNumber,
+      title: full
+        ? `Storno (cancellation invoice) for ${o.invoice_number}`
+        : `Credit note (correction) for ${o.invoice_number}`,
+      file_path: filePath,
+      amount: -amount,
+      currency,
+      status: "issued" as const,
+      issued_at: now,
+      meta: {
+        kind: full ? "storno" : "credit",
+        original_document_id: o.id,
+        original_invoice_number: o.invoice_number,
+        original_issued_at: originalDate,
+        original_type: o.type,
+        reason,
+        full,
+        paid_against: paidAgainst,
+        refund_due: refundDue,
+        // Partial refunds are a judgement case in the accounting plan (§ 12):
+        // they go to the Steuerberater rather than being booked straight
+        // through. lexoffice/push.ts warns on the same flag.
+        needs_tax_review: !full,
+      },
+    };
+    const { data: inserted, error: insErr } = await db.from("documents").insert(docRow).select("*").single();
+    if (insErr) throw new Error(`Failed to save the correction: ${insErr.message}`);
+    const row = inserted as DocumentRow;
 
-  /*
-   * A fully reversed add-on invoice makes its nights billable again — the same
-   * release the void path does. Only on a FULL Storno: a partial credit still
-   * leaves part of those add-ons invoiced, and an un-stamped row would be billed
-   * a second time on the next add-on invoice.
-   */
-  if (full && o.type === "addon_invoice") {
-    await db.from("exp_booking_addons").update({ invoiced_in: null }).eq("invoiced_in", o.id);
+    // The back-link, and the end of the claim.
+    const prevCredited = ((o.meta as { credited_by?: string[] } | null)?.credited_by ?? []).filter(Boolean);
+    await release(full
+      ? { reversed_by: row.id, reversed_by_number: invoiceNumber, reversed_at: now }
+      : { credited_by: [...prevCredited, row.id] });
+
+    /*
+     * A fully reversed add-on invoice makes its nights billable again, the
+     * same release the void path does. Only on a Storno: a partial credit
+     * leaves part of those add-ons invoiced, and an un-stamped row would be
+     * billed a second time on the next add-on invoice.
+     */
+    if (full && o.type === "addon_invoice") {
+      await db.from("exp_booking_addons").update({ invoiced_in: null }).eq("invoiced_in", o.id);
+    }
+
+    // The invoice this corrects asks for less now, or for nothing. Re-run the
+    // allocation so its paid stamp says so, rather than lying until the next
+    // payment happens to land.
+    await settleInvoices(bookingId).catch((e) =>
+      console.warn("[invoices] settle after correction failed (non-fatal):", e instanceof Error ? e.message : e));
+
+    return Object.assign(row, { pdf: pdfBuffer, refund_due: refundDue, full, original_invoice_number: o.invoice_number! });
+  } catch (err) {
+    await release({}).catch(() => {});
+    if (burnedNumber) {
+      // Same recovery as generateDocument: the counter has moved and nothing
+      // rolls it back, so the number is written down as void with the reason,
+      // and the sequence keeps its shape.
+      const message = err instanceof Error ? err.message : String(err);
+      const { error: recordErr } = await db.from("documents").insert({
+        booking_id: bookingId,
+        contact_id: o.contact_id,
+        division,
+        type: "credit_note",
+        invoice_number: burnedNumber,
+        title: `Voided: correction of ${o.invoice_number} could not be issued`,
+        status: "void",
+        issued_at: new Date().toISOString(),
+        meta: { void_reason: "generation failed after the number was allocated", error: message, original_document_id: o.id, original_invoice_number: o.invoice_number },
+      });
+      if (recordErr) console.error(`[invoices] ${burnedNumber} burned and could NOT be recorded:`, recordErr.message);
+    }
+    throw err;
   }
-
-  return inserted as DocumentRow;
 }

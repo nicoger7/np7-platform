@@ -42,6 +42,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   addon_declined: "About your request — {{addonLabel}}",
   voucher_expiry_reminder: "Your NP7 gift voucher runs out on {{redeemByLabel}}",
   invoice_sent: "Your invoice for {{experienceTitle}}{{?amount}} — {{amount}}{{/amount}}",
+  credit_note_sent: "Correction to your invoice {{originalReference}} · {{experienceTitle}}",
   payment_shortfall_reminder: "Almost there — a little left on {{experienceTitle}} 🌊",
   tier_expiry_reminder: "Your {{tierLabel}} status runs out{{?validUntilLabel}} on {{validUntilLabel}}{{/validUntilLabel}}",
   crew_forming: "Your crew for {{experienceTitle}} is coming together 🤙",
@@ -286,6 +287,15 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("Please pay by <strong>bank transfer</strong>{{?reference}} and quote the reference <strong>{{reference}}</strong> so we can match it to your booking straight away{{/reference}}.") +
     BTN("View my booking", "bookingLink") +
     P("Any questions, just reply — happy to help." + SIGN),
+
+  credit_note_sent:
+    P("Hey {{firstName}} 🤙") +
+    P("Attached is <strong>{{reference}}</strong>, which corrects invoice <strong>{{originalReference}}</strong> for <strong>{{experienceTitle}}</strong>{{?amount}} by <strong>{{amount}}</strong>{{/amount}}.") +
+    "{{?reason}}" + P("Reason: {{reason}}") + "{{/reason}}" +
+    "{{?refundAmount}}" + P("The <strong>{{refundAmount}}</strong> you already paid will be refunded to your bank account within a few days. There is nothing you need to do.") + "{{/refundAmount}}" +
+    P("Nothing is due on this document.") +
+    BTN("View my booking", "bookingLink") +
+    P("Any questions, just reply. Happy to help." + SIGN),
 
   payment_shortfall_reminder:
     P("Hey {{firstName}} 🤙") +

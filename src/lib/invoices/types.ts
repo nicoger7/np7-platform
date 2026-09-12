@@ -76,6 +76,13 @@ export type DocumentRow = {
   issued_at: string;
   created_at: string;
   meta: Record<string, unknown>;
+  /** Emailed to the customer (migration 054). */
+  sent_at?: string | null;
+  /** Settled by money, stamped by settleInvoices (migration 054). */
+  paid_at?: string | null;
+  due_date?: string | null;
+  /** Whoever the document is addressed to when that is not the traveller (migration 200). */
+  bill_to_contact_id?: string | null;
 };
 
 /** Input to the document generator. The service resolves booking/contact/edition/settings. */

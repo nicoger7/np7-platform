@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { requireAdminGate } from "@/lib/admin-auth";
+import { settleInvoices } from "@/lib/invoices/generate";
 // Admin routes are gated by middleware; no per-route auth check needed.
 
 type RouteContext = { params: Promise<{ id: string }> };
@@ -95,14 +96,34 @@ export async function PATCH(
    * That generator already exists (generateCreditNote — "Storno…" on the
    * booking's Documents tab). This only stops the wrong door being used.
    */
+  let voidedCorrectionOf: { originalId: string; docId: string } | null = null;
   if (body.status === "void") {
     const { data: doc } = await db
-      .from("documents").select("sent_at, type, invoice_number, meta").eq("id", id).maybeSingle();
+      .from("documents").select("id, sent_at, type, invoice_number, meta, status").eq("id", id).maybeSingle();
     const isTax = doc && !["proforma_invoice", "booking_confirmation"].includes(String(doc.type));
     if (doc?.sent_at && isTax) {
       return NextResponse.json({
-        error: `${doc.invoice_number ?? "This invoice"} has already been sent to the customer, so voiding it here would change nothing on their side. Issue a Storno instead — "Storno…" on this invoice.`,
+        error: doc.type === "credit_note"
+          ? `${doc.invoice_number ?? "This correction"} has already been sent to the customer. A sent correction is not cancelled; if it was wrong, invoice the amount again.`
+          : `${doc.invoice_number ?? "This invoice"} has already been sent to the customer, so voiding it here would change nothing on their side. Issue a Storno instead: "Storno…" on this invoice.`,
       }, { status: 409 });
+    }
+    /*
+     * An invoice that a Storno or credit note stands against cannot be
+     * written off as a Fehldruck: the correction names it, and a cancelled
+     * original would leave that correction pointing at nothing. Cancel the
+     * correction first (if it was never sent) and the invoice is free again.
+     */
+    const corrected = (doc?.meta ?? {}) as { reversed_by?: string; reversed_by_number?: string; credited_by?: string[] };
+    if (doc && isTax && doc.type !== "credit_note" && (corrected.reversed_by || (corrected.credited_by ?? []).length)) {
+      return NextResponse.json({
+        error: `${doc.invoice_number ?? "This invoice"} has been corrected by ${corrected.reversed_by_number ?? "a credit note"}. Cancel that correction first, or leave both standing.`,
+      }, { status: 409 });
+    }
+    // Cancelling an unsent correction frees the invoice it named.
+    const cm = (doc?.meta ?? {}) as { original_document_id?: string };
+    if (doc?.type === "credit_note" && doc.status === "issued" && cm.original_document_id) {
+      voidedCorrectionOf = { originalId: cm.original_document_id, docId: doc.id };
     }
 
     /*
@@ -162,6 +183,20 @@ export async function PATCH(
   // NOT re-stamp — the rows may have been billed elsewhere meanwhile.)
   if (body.status === "void" && data?.type === "addon_invoice") {
     await db.from("exp_booking_addons").update({ invoiced_in: null }).eq("invoiced_in", id);
+  }
+
+  // The original's back-link goes with the cancelled correction, so the
+  // invoice reads uncorrected again and can be corrected properly. Its paid
+  // stamp is recomputed for the same reason.
+  if (voidedCorrectionOf) {
+    const { data: orig } = await db.from("documents").select("id, booking_id, meta").eq("id", voidedCorrectionOf.originalId).maybeSingle();
+    if (orig) {
+      const meta = { ...((orig.meta ?? {}) as Record<string, unknown>) } as { reversed_by?: string; reversed_by_number?: string; reversed_at?: string; credited_by?: string[] };
+      if (meta.reversed_by === voidedCorrectionOf.docId) { delete meta.reversed_by; delete meta.reversed_by_number; delete meta.reversed_at; }
+      if (Array.isArray(meta.credited_by)) meta.credited_by = meta.credited_by.filter((x) => x !== voidedCorrectionOf!.docId);
+      await db.from("documents").update({ meta }).eq("id", orig.id);
+      if (orig.booking_id) await settleInvoices(orig.booking_id).catch(() => {});
+    }
   }
 
   return NextResponse.json(data);
