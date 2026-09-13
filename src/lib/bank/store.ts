@@ -170,7 +170,9 @@ export async function reconcileWithExistingPayments(): Promise<{ linked: number 
         match_confidence: "auto",
       })
       .eq("id", tx.id);
-    await admin.from("exp_payments").update({ bank_transaction_id: tx.id, unmatched: false }).eq("id", hit.id);
+    // Migration 243: a row that names its movement is bank-backed, and the
+    // check on the table now holds the label to the link.
+    await admin.from("exp_payments").update({ bank_transaction_id: tx.id, unmatched: false, provenance: "bank" }).eq("id", hit.id);
     payments.splice(payments.indexOf(hit), 1);
     linked++;
   }
@@ -388,7 +390,7 @@ function noteFor(t: BankTransactionRow, settled: SettledInvoice[]): string | und
 }
 
 /** Map an invoice type onto the payment type the books use. */
-function paymentTypeFor(documentType: string | null | undefined): string {
+export function paymentTypeFor(documentType: string | null | undefined): string {
   switch (documentType) {
     case "deposit_invoice": return "deposit";
     case "downpayment_invoice": return "downpayment";
@@ -567,7 +569,14 @@ export async function unmatch(transactionId: string): Promise<{ ok: boolean; err
   for (const p of pays ?? []) {
     if (p.booking_id) bookings.add(String(p.booking_id));
     if (p.reference === ours) await admin.from("exp_payments").delete().eq("id", p.id);
-    else await admin.from("exp_payments").update({ document_id: null, bank_transaction_id: null }).eq("id", p.id);
+    /* A pre-existing row that was ADOPTED onto this transaction (adopt.ts)
+       goes back to what it was: a hand-typed row, still on its booking and
+       still against its invoice, just no longer provable. The label follows
+       the link off, or the table's check (migration 243) refuses the update.
+       It used to drop document_id here too, which un-settled an invoice the
+       person had assigned deliberately; the transaction link is the only
+       thing an unmatch is about. */
+    else await admin.from("exp_payments").update({ bank_transaction_id: null, provenance: "unverified" }).eq("id", p.id);
   }
 
   await admin.from("bank_transactions")

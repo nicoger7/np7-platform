@@ -79,9 +79,14 @@ export async function loadCostCandidates(): Promise<CostCandidate[]> {
   const byExperience = new Map<string, Set<string>>();
   if (paymentToCost.size) {
     const costById = new Map(rows.map((c) => [c.id, c]));
+    /* The FK is named on purpose. bank_transactions points back at
+       exp_payments through payment_id, so there are two relationships between
+       these tables and a bare `bank_transactions(...)` embed is refused with
+       PGRST201 (probed 2026-09-13). Unhinted, this read silently returned
+       nothing and every payee history below was empty. */
     const { data: pays } = await admin
       .from("exp_payments")
-      .select("id, bank_transactions(counterparty)")
+      .select("id, bank_transactions!exp_payments_bank_transaction_id_fkey(counterparty)")
       .eq("direction", "cost")
       .not("bank_transaction_id", "is", null);
     for (const p of (pays ?? []) as unknown as { id: string; bank_transactions: { counterparty: string | null } | null }[]) {
@@ -519,7 +524,9 @@ export async function unallocateDebit(transactionId: string, costId?: string | n
     if (p.reference === ours) await admin.from("exp_payments").delete().eq("id", p.id);
     else {
       await admin.from("exp_cost_payment_allocations").delete().eq("payment_id", p.id);
-      await admin.from("exp_payments").update({ bank_transaction_id: null }).eq("id", p.id);
+      // Un-tied from the movement means no longer provable; the label follows
+      // the link off (migration 243 refuses a bank label without a link).
+      await admin.from("exp_payments").update({ bank_transaction_id: null, provenance: "unverified" }).eq("id", p.id);
     }
   }
 
