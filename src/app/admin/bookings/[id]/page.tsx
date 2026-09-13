@@ -17,6 +17,8 @@ import { computePaymentPlan, dueUrgency, type MilestoneKind } from "@/lib/paymen
 import { mutate, reportFailure } from "@/lib/mutate";
 import { CancelBookingModal } from "@/components/admin/cancel-booking-modal";
 import { sumReceived, sumExpected, paidState } from "@/lib/payment-totals";
+import type { BookingConnectView } from "@/lib/bank/booking-connect";
+import { OFF_BANK_METHODS, offBankMethodLabel, PROVENANCE_LABEL } from "@/lib/bank/off-bank-methods";
 import {
   docKind,
   typeLabel,
@@ -46,6 +48,25 @@ function goBack(router: { replace: (href: string) => void }, backHref: string) {
 // into the string. Inside an edition-scoped list that prefix is redundant noise,
 // so strip a leading "CODE - " for display.
 const cleanPackageName = (name: string) => name.replace(/^[A-Za-z0-9]+\s*[-–—]\s*/, "").trim() || name;
+
+/* The back-door form. Since 2026-09-13 the booking page types OFF-BANK money
+   only (cash, wired to Surfcenter, offset, other), with a mandatory reason;
+   money the bank can see is connected from the feed instead. */
+const emptyOffBankForm = { amount: "", date: "", method: "cash", reason: "", document_id: "", refund: false, notes: "" };
+
+/** How a row's provenance reads in the table. Bank is the only green one. */
+const PROVENANCE_TONE: Record<string, string> = {
+  bank: "bg-green-500/15 text-green-400",
+  off_bank: "bg-amber-500/15 text-amber-400",
+  unverified: "bg-gray-500/15 text-gray-400",
+  legacy: "bg-slate-500/15 text-slate-400",
+};
+const PROVENANCE_HINT: Record<string, string> = {
+  bank: "A real movement in the bank feed, connected to this booking.",
+  off_bank: "Recorded off the bank, with a reason. Not provable from the feed.",
+  unverified: "Typed by hand since the NP7 GmbH switch and not yet tied to the feed. Decide it on the Payments page.",
+  legacy: "From before NP7 GmbH invoiced. Kept for the balance, out of accounting.",
+};
 
 type TabKey = "details" | "payments" | "addons" | "rooms" | "documents" | "notes";
 const isTabKey = (t: string | null): t is TabKey =>
@@ -105,8 +126,15 @@ interface Payment {
   method: string | null;
   reference: string | null;
   received_at: string | null;
+  date?: string | null;
   notes: string | null;
   document_id: string | null;
+  /** Migrations 235/239: bank · off_bank · unverified · legacy. What the row IS. */
+  provenance?: string | null;
+  off_bank_reason?: string | null;
+  bank_transaction_id?: string | null;
+  /** The movement behind a bank-backed row (attached by /payments GET). */
+  transaction?: { id: string; source: string; external_id: string; booked_on: string; amount: number; counterparty: string | null; reference: string | null } | null;
 }
 
 interface Addon {
@@ -266,7 +294,13 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
   // New payment form
   const [showPaymentForm, setShowPaymentForm] = useState(false);
-  const [paymentForm, setPaymentForm] = useState({ amount: "", type: "downpayment", direction: "revenue", status: "paid", method: "", reference: "", notes: "", document_id: "" });
+  const [paymentForm, setPaymentForm] = useState(emptyOffBankForm);
+  /* The feed, from this booking's side: credits the matcher ties to one of
+     its open invoices, plus every unmatched credit for the search box. Read
+     when the tab opens, re-read after anything is connected. `target` is the
+     invoice a searched credit is connected to. */
+  const [bankConnect, setBankConnect] = useState<{ loading: boolean; view: BookingConnectView | null; query: string; target: string; busy: string | null; error: string | null }>(
+    { loading: true, view: null, query: "", target: "", busy: null, error: null });
   // Group bookings: move a FREE amount of this booking's received money to a
   // sibling booking (mirrored alloc pair) — no fixed percentage.
   const [allocForm, setAllocForm] = useState<{ open: boolean; amount: string; toBookingId: string; busy: boolean; options: { id: string; name: string | null }[] }>({ open: false, amount: "", toBookingId: "", busy: false, options: [] });
@@ -683,9 +717,17 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     else alert(d.error || "Couldn't accept the short payment.");
   }
 
+  /*
+   * The back-door. Records OFF-BANK money only: cash, a transfer that went
+   * to the old Surfcenter account, an offset. It needs a reason, and the row
+   * it writes carries an off-bank badge and that reason wherever it shows.
+   * Money the bank can see is never typed here; it is connected from the
+   * feed, one panel up, so the same euro cannot be written down twice.
+   */
   async function addPayment() {
     const amount = parseAmount(paymentForm.amount);
-    if (amount === null || amount === 0) return;
+    if (amount === null || amount <= 0) return;
+    if (paymentForm.reason.trim().length < 3) { alert("Say why this money will not be in the bank feed. The reason stays on the row."); return; }
     /*
      * Far more than is owed? Say the number out loud before it is money.
      *
@@ -695,7 +737,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
      * would have queried it either. Computed here from the booking rather than
      * read from the render scope, so it cannot drift from what the card shows.
      */
-    if (booking && (paymentForm.direction || "revenue") !== "cost" && amount > 0) {
+    if (booking && !paymentForm.refund) {
       const addons = booking.addons
         .filter((a) => effectiveAddonStatus(a) === "confirmed")
         .reduce((sum, a) => sum + (Number(a.price) || 0), 0);
@@ -710,42 +752,58 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
         if (!confirm(`${line}\n\nRecord it anyway?`)) return;
       }
     }
-    const body = {
-      amount,
-      type: paymentForm.type,
-      direction: paymentForm.direction || "revenue",
-      status: paymentForm.status || "paid",
-      method: paymentForm.method || null,
-      reference: paymentForm.reference || null,
-      received_at: new Date().toISOString(),
-      notes: paymentForm.notes || null,
-      document_id: paymentForm.document_id || null,
-    };
-    // `if (res.ok)` with no else is why this looked "stuck": a 401 from an
-    // expired session, a 403 from a role, a 500 from the insert — every one of
-    // them resolved, skipped the block, and left the form sitting there with
-    // no error and no payment. Money that someone believed they had recorded.
-    let r = await mutate<{ payment: Payment }>(`/api/admin/bookings/${id}/payments`, {
+    // mutate() never lies about a 401/403/400: the form only closes on a row.
+    const r = await mutate<{ payment: Payment }>(`/api/admin/bookings/${id}/payments`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: {
+        amount,
+        date: paymentForm.date || undefined,
+        method: paymentForm.method,
+        reason: paymentForm.reason.trim(),
+        document_id: paymentForm.document_id || null,
+        refund: paymentForm.refund,
+        notes: paymentForm.notes || null,
+      },
     });
-    // A reference that already carries this exact amount is almost always the
-    // same transfer recorded twice — which is how €6,210 of Bonaire money came
-    // to be counted twice. Ask, don't block: a second transfer that genuinely
-    // shares a bank statement line still gets through on the second click.
-    if (!r.ok && r.status === 409) {
-      if (!confirm(`${r.error}\n\nRecord it anyway?`)) return;
-      r = await mutate<{ payment: Payment }>(`/api/admin/bookings/${id}/payments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, confirmDuplicate: true }),
-      });
-    }
     if (!r.ok) return reportFailure(r);
     setBooking((prev) => prev ? { ...prev, payments: [...prev.payments, r.data.payment] } : prev);
     setShowPaymentForm(false);
-    setPaymentForm({ amount: "", type: "downpayment", direction: "revenue", status: "paid", method: "", reference: "", notes: "", document_id: "" });
+    setPaymentForm(emptyOffBankForm);
+    fetchDocuments();
+  }
+
+  /* The rows with the movement behind each bank-backed one, and the feed
+     seen from this booking's side. The read is a plain promise and the state
+     lands in its callback: the tab effect below calls it, and a synchronous
+     setState there would be a cascading render. */
+  function readPaymentsTab() {
+    const json = (r: Response) => (r.ok ? r.json().catch(() => null) : null);
+    return Promise.all([
+      fetch(`/api/admin/bookings/${id}/payments`).then(json),
+      fetch(`/api/admin/bookings/${id}/payments/bank`).then(json),
+    ]);
+  }
+  function applyPaymentsTab([rows, view]: [{ payments?: Payment[] } | null, BookingConnectView | null]) {
+    if (rows?.payments) setBooking((prev) => prev ? { ...prev, payments: rows.payments! } : prev);
+    setBankConnect((s) => {
+      const invoices = view?.invoices ?? [];
+      const target = s.target && invoices.some((i) => i.documentId === s.target) ? s.target : (invoices[0]?.documentId ?? "");
+      return { ...s, loading: false, error: null, view: view ?? null, target };
+    });
+  }
+  const loadPaymentsTab = () => readPaymentsTab().then(applyPaymentsTab);
+
+  /* One click, through the same door the Payments page uses
+     (store.matchToInvoice): the credit becomes a bank-backed payment on this
+     booking against that invoice, and leaves the feed's to-match pile. */
+  async function connectFromBank(transactionId: string, documentId: string, fromSuggestion: boolean) {
+    if (!documentId) { alert("Pick the invoice this money settles."); return; }
+    setBankConnect((s) => ({ ...s, busy: transactionId, error: null }));
+    const r = await mutate(`/api/admin/bookings/${id}/payments/bank`, { method: "POST", body: { transactionId, documentId, fromSuggestion } });
+    if (!r.ok) { setBankConnect((s) => ({ ...s, busy: null, error: r.error })); return; }
+    setBankConnect((s) => ({ ...s, busy: null }));
+    await loadPaymentsTab();
+    fetchDocuments();
   }
 
   async function openAllocForm() {
@@ -838,6 +896,14 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
+  // The Payments tab reads the feed from this booking's side, and the rows
+  // enriched with the movement behind each bank-backed one. Not for a role
+  // whose money is redacted: the tab is hidden for them and the feed is money.
+  useEffect(() => {
+    if (tab === "payments" && booking && !(booking as { money_redacted?: boolean }).money_redacted) readPaymentsTab().then(applyPaymentsTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, booking?.id]);
+
   if (loading) return <div className="text-sm admin-faint">Loading...</div>;
   if (!booking) return <div className="text-sm text-red-400">Booking not found</div>;
 
@@ -901,9 +967,20 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   const recon = reconcileBooking({ total: bookingTotal, invoices: reconInvoices, payments: reconPayments });
   // Open invoices ranked for the amount/reference currently in the payment form.
   const matchSuggestions = suggestInvoices(
-    { amount: Number(paymentForm.amount) || 0, reference: paymentForm.reference },
+    { amount: parsedPayAmount ?? 0, reference: null },
     recon.invoices,
   );
+  // The search over every unmatched credit: payer, reference, id, or the
+  // amount itself. Capped so a bare "e" does not print the whole feed.
+  const creditSearch = (() => {
+    const q = bankConnect.query.trim().toLowerCase();
+    if (!q || !bankConnect.view) return [];
+    const num = parseAmount(q);
+    return bankConnect.view.credits.filter((c) =>
+      [c.counterparty, c.reference, c.label, c.external_id].filter(Boolean).join(" ").toLowerCase().includes(q)
+      || (num !== null && num > 0 && Math.abs(c.held - num) < 0.01)
+    ).slice(0, 20);
+  })();
   const invoiceLabel = (docId: string | null) => {
     if (!docId) return null;
     const d = documents.find((x) => x.id === docId);
@@ -1782,9 +1859,74 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             </div>
           )}
 
-          <div className="flex justify-between items-center mb-4">
-            <div className="text-xs admin-faint">Record a bank transfer, card payment or refund — and tie it to an invoice.</div>
-            <div className="flex items-center gap-2">
+          {/* ── From the bank ──
+              Money the feed can see is connected, never typed. The matcher
+              runs from this booking's side (its open invoices against every
+              unmatched credit) and what it names is one click from booked,
+              through the same door the Payments page uses. */}
+          <div className="rounded-xl admin-surface mb-4 p-4" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">From the bank</div>
+              <button onClick={() => { setBankConnect((st) => ({ ...st, loading: true })); loadPaymentsTab(); }} disabled={bankConnect.loading} className="text-[11px] admin-faint hover:admin-muted transition-colors disabled:opacity-50">
+                {bankConnect.loading ? "Looking…" : "Refresh"}
+              </button>
+            </div>
+            {bankConnect.error && <p className="text-xs text-red-400 mb-2">{bankConnect.error}</p>}
+            {!bankConnect.view ? (
+              <p className="text-xs admin-faint">{bankConnect.loading ? "Reading the feed…" : "The feed could not be read."}</p>
+            ) : bankConnect.view.invoices.length === 0 ? (
+              <p className="text-xs admin-faint">Nothing is owed on an invoice here, so there is nothing to connect money to. Issue one on the Documents tab first.</p>
+            ) : (
+              <>
+                {bankConnect.view.suggestions.length ? (
+                  <div className="flex flex-col gap-1.5 mb-3">
+                    {bankConnect.view.suggestions.map((sg) => (
+                      <div key={`${sg.transaction.id}:${sg.documentId}`} className="flex flex-wrap items-center gap-3 px-3 py-2 rounded-lg" style={{ background: "var(--admin-surface-hover)" }}>
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${sg.confidence === "exact" ? "bg-green-500/15 text-green-400" : sg.confidence === "strong" ? "bg-amber-500/15 text-amber-400" : "bg-gray-500/15 text-gray-400"}`}>{sg.confidence}</span>
+                        <span className="text-sm font-semibold text-green-400 whitespace-nowrap">+€{sg.transaction.held.toLocaleString()}</span>
+                        <span className="text-xs admin-muted min-w-0 flex-1">
+                          <span className="block truncate">{formatDate(sg.transaction.booked_on)} · {sg.transaction.counterparty || sg.transaction.source} · {sg.transaction.reference || sg.transaction.label || "no reference"}</span>
+                          <span className="block text-[11px] admin-faint truncate">→ {sg.invoiceNumber || "invoice"} (€{sg.remaining.toLocaleString()} left) · {sg.reasons.join(" · ")}</span>
+                        </span>
+                        <button onClick={() => connectFromBank(sg.transaction.id, sg.documentId, true)} disabled={bankConnect.busy === sg.transaction.id}
+                          className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg disabled:opacity-50">
+                          {bankConnect.busy === sg.transaction.id ? "Connecting…" : "Connect"}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs admin-faint mb-3">No unmatched credit in the feed names this guest or quotes one of these invoices yet.</p>
+                )}
+                <div className="flex flex-wrap items-center gap-2">
+                  <input className={inputClass + " sm:max-w-xs"} placeholder="Search every unmatched credit: payer, reference, amount…" value={bankConnect.query}
+                    onChange={(e) => setBankConnect((st) => ({ ...st, query: e.target.value }))} />
+                  <select className={inputClass + " sm:max-w-[280px]"} value={bankConnect.target} onChange={(e) => setBankConnect((st) => ({ ...st, target: e.target.value }))} title="The invoice a searched credit is connected to">
+                    {bankConnect.view.invoices.map((i) => <option key={i.documentId} value={i.documentId}>{i.invoiceNumber || "invoice"} · €{i.remaining.toLocaleString()} left</option>)}
+                  </select>
+                </div>
+                {bankConnect.query.trim() && (
+                  <div className="mt-2 max-h-56 overflow-y-auto flex flex-col gap-1">
+                    {creditSearch.map((c) => (
+                      <div key={c.id} className="flex flex-wrap items-center gap-3 px-3 py-1.5 rounded-lg" style={{ background: "var(--admin-surface-hover)" }}>
+                        <span className="text-sm font-semibold text-green-400 whitespace-nowrap">+€{c.held.toLocaleString()}</span>
+                        <span className="text-xs admin-muted min-w-0 flex-1 truncate">{formatDate(c.booked_on)} · {c.counterparty || c.source} · {c.reference || c.label || "no reference"}</span>
+                        <button onClick={() => connectFromBank(c.id, bankConnect.target, false)} disabled={bankConnect.busy === c.id}
+                          className="px-3 py-1 text-xs font-semibold rounded-lg admin-surface disabled:opacity-50" style={{ border: "1px solid var(--admin-border)" }}>
+                          {bankConnect.busy === c.id ? "Connecting…" : "Connect"}
+                        </button>
+                      </div>
+                    ))}
+                    {!creditSearch.length && <span className="text-xs admin-faint px-3 py-1">No unmatched credit matches that.</span>}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="flex justify-between items-center gap-3 mb-4">
+            <div className="text-xs admin-faint">Money the bank can see is connected above. Only money the feed will never show is typed, and it needs a reason.</div>
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={openAllocForm}
                 className="px-3 py-1.5 admin-surface admin-muted hover:admin-heading text-xs font-semibold rounded-lg transition-colors"
@@ -1796,24 +1938,19 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 onClick={() => {
                   const opening = !showPaymentForm;
                   setShowPaymentForm(opening);
-                  // Start from the instalment that is actually due — the open
-                  // invoice the panel already suggests one line below — and only
+                  // Start from the instalment that is actually due, and only
                   // fall back to the whole balance when nothing is invoiced yet.
-                  // Prefilling the full balance while a downpayment invoice is
-                  // open offers a number that matches nothing on the screen.
                   const due = recon.nextDue?.remaining;
                   const suggest = due && due > 0 ? due : outstanding;
                   if (opening && !paymentForm.amount && suggest > 0) {
-                    setPaymentForm((f) => ({
-                      ...f,
-                      amount: String(suggest),
-                      type: totalPaid > 0 ? "final" : f.type,
-                    }));
+                    setPaymentForm((f) => ({ ...f, amount: String(suggest), document_id: f.document_id || recon.nextDue?.invoice.id || "" }));
                   }
                 }}
-                className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg transition-colors"
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-colors"
+                style={{ border: "1px solid rgba(245,158,11,.4)" }}
+                title="Cash, wired to Surfcenter, offset: money the feed will never show"
               >
-                Record Payment
+                Record off-bank payment
               </button>
             </div>
           </div>
@@ -1851,19 +1988,25 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
           )}
 
           {showPaymentForm && (
-            <div className="mb-4 p-4 rounded-xl admin-surface" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="mb-4 p-4 rounded-xl admin-surface" style={{ border: "1px solid rgba(245,158,11,.4)" }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-amber-500/15 text-amber-400">Off-bank</span>
+                <span className="text-xs font-semibold admin-heading">Money the feed will never show</span>
+              </div>
+              <p className="text-[11px] admin-faint mb-3">
+                Cash at the centre, a transfer that landed on the old Surfcenter account, an amount offset against something else.
+                The row is not bank-backed, says so wherever it shows, and carries your reason. A transfer to NP7&apos;s own
+                account is never typed here: connect it from the feed above.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                 <div>
                   <label className={labelClass}>Amount (€) *</label>
                   {/* Text, not type="number": the balance above is printed as
                       "€3.845", and pasting that back into a number input made the
-                      whole field invalid — the browser reports an empty value, so
-                      Add greyed out with nothing to explain it. parseAmount also
-                      stops "3.845" being read as three euros eighty-five. */}
+                      whole field invalid. parseAmount also stops "3.845" being
+                      read as three euros eighty-five. */}
                   <input className={inputClass} type="text" inputMode="decimal" placeholder="3.845 or 3845"
                     value={paymentForm.amount} onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })} />
-                  {/* Say out loud what will be stored — the notation is ambiguous
-                      and a silent misread here is a wrong ledger. */}
                   {paymentForm.amount.trim() !== "" && (
                     parsedPayAmount === null
                       ? <p className="text-[11px] text-amber-500 mt-1">Not a number — try 3845 or 3.845</p>
@@ -1871,42 +2014,17 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                   )}
                 </div>
                 <div>
-                  <label className={labelClass}>Type</label>
-                  <select className={inputClass} value={paymentForm.type} onChange={(e) => setPaymentForm({ ...paymentForm, type: e.target.value })}>
-                    <option value="downpayment">Downpayment</option>
-                    <option value="final">Final</option>
-                    <option value="partial">Partial</option>
-                    <option value="addon">Add-on / service</option>
-                    <option value="refund">Refund</option>
+                  <label className={labelClass}>Arrived on</label>
+                  <input className={inputClass} type="date" value={paymentForm.date} max={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, date: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelClass}>How</label>
+                  <select className={inputClass} value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })}>
+                    {OFF_BANK_METHODS.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className={labelClass}>Direction</label>
-                  <select className={inputClass} value={paymentForm.direction} onChange={(e) => setPaymentForm({ ...paymentForm, direction: e.target.value })}>
-                    <option value="revenue">Revenue</option>
-                    <option value="cost">Cost</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Status</label>
-                  <select className={inputClass} value={paymentForm.status} onChange={(e) => setPaymentForm({ ...paymentForm, status: e.target.value })}>
-                    <option value="pending">Pending</option>
-                    <option value="paid">Paid</option>
-                    <option value="overdue">Overdue</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClass}>Method</label>
-                  <input className={inputClass} value={paymentForm.method} onChange={(e) => setPaymentForm({ ...paymentForm, method: e.target.value })} placeholder="Bank, PayPal..." />
-                </div>
-                <div>
-                  <label className={labelClass}>Reference</label>
-                  <input className={inputClass} value={paymentForm.reference} onChange={(e) => setPaymentForm({ ...paymentForm, reference: e.target.value })} placeholder="Invoice #" />
-                </div>
-              </div>
-              {recon.invoices.length > 0 && (
-                <div className="mb-3">
                   <label className={labelClass}>Apply to invoice</label>
                   <select className={inputClass} value={paymentForm.document_id} onChange={(e) => setPaymentForm({ ...paymentForm, document_id: e.target.value })}>
                     <option value="">— Not assigned —</option>
@@ -1923,12 +2041,28 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                     </button>
                   )}
                 </div>
-              )}
+              </div>
+              <p className="text-[11px] admin-faint -mt-1 mb-3">{OFF_BANK_METHODS.find((m) => m.key === paymentForm.method)?.blurb}</p>
+              <div className="mb-3">
+                <label className={labelClass}>Why is this not in the bank feed? *</label>
+                <input className={inputClass} value={paymentForm.reason} onChange={(e) => setPaymentForm({ ...paymentForm, reason: e.target.value })}
+                  placeholder="e.g. paid cash at the centre on the last day, receipt in the trip folder" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end mb-3">
+                <div>
+                  <label className={labelClass}>Notes</label>
+                  <input className={inputClass} value={paymentForm.notes} onChange={(e) => setPaymentForm({ ...paymentForm, notes: e.target.value })} />
+                </div>
+                <label className={checkboxClass + " pb-2.5"}>
+                  <input type="checkbox" checked={paymentForm.refund} onChange={(e) => setPaymentForm({ ...paymentForm, refund: e.target.checked })} className="accent-[#0aa3c7]" />
+                  This is a refund (money back to the guest)
+                </label>
+              </div>
               <div className="flex gap-2">
-                <button onClick={addPayment} disabled={parsedPayAmount === null || parsedPayAmount === 0}
-                  title={parsedPayAmount === null ? "Type an amount first" : parsedPayAmount === 0 ? "An amount of 0 records nothing" : undefined}
+                <button onClick={addPayment} disabled={parsedPayAmount === null || parsedPayAmount <= 0 || paymentForm.reason.trim().length < 3}
+                  title={parsedPayAmount === null ? "Type an amount first" : parsedPayAmount <= 0 ? "An amount of 0 records nothing" : paymentForm.reason.trim().length < 3 ? "The reason is required" : undefined}
                   className="px-3 py-1.5 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg">
-                  Add
+                  Record off-bank
                 </button>
                 <button onClick={() => setShowPaymentForm(false)} className="px-3 py-1.5 admin-muted text-xs rounded-lg">Cancel</button>
               </div>
@@ -1939,21 +2073,22 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             <div className="py-12 text-center text-sm admin-faint">No payments recorded</div>
           ) : (
             <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-              <div className="grid grid-cols-[100px_84px_80px_120px_84px_1fr_80px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Amount</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Type</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Status</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Invoice</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Method</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Reference</span>
-                <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">Date</span>
+              <div className="grid grid-cols-[100px_84px_80px_120px_96px_1fr_80px] gap-3 px-5 py-3 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+                {["Amount", "Type", "Status", "Invoice", "Source", "Reference", "Date"].map((h) => (
+                  <span key={h} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
+                ))}
               </div>
               {[...booking.payments].sort((a, b) =>
                 // newest first — the latest movement is what you came to check;
                 // undated rows sink to the bottom rather than claim "latest"
                 String(b.received_at ?? "0000").localeCompare(String(a.received_at ?? "0000"))
-              ).map((p) => (
-                <div key={p.id} className="grid grid-cols-[100px_84px_80px_120px_84px_1fr_80px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
+              ).map((p) => {
+                const prov = p.provenance ?? "unverified";
+                const isBank = prov === "bank";
+                const tx = p.transaction ?? null;
+                const isAlloc = /^alloc[#:]/.test(p.reference || "");
+                return (
+                <div key={p.id} className="grid grid-cols-[100px_84px_80px_120px_96px_1fr_80px] gap-3 px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
                   <span className={`text-sm font-medium self-center ${p.type === "refund" || p.direction === "cost" ? "text-red-400" : "text-green-400"}`}>
                     {p.type === "refund" || p.direction === "cost" ? "-" : "+"}€{Number(p.amount).toLocaleString()}
                   </span>
@@ -1971,13 +2106,42 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                       ? <span className="text-[var(--admin-accent)]">{invoiceLabel(p.document_id)}</span>
                       : <span className="admin-faint">—</span>}
                   </span>
-                  <span className="text-xs admin-muted self-center">{p.method || "—"}</span>
-                  <span className="text-xs admin-muted self-center">{p.reference || "—"}</span>
+                  {/* What the row IS. Bank is the only one the feed can prove;
+                      off-bank carries its reason; unverified is a to-do on the
+                      Payments page; legacy is history. */}
+                  <span className="self-center min-w-0">
+                    {isAlloc ? (
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-gray-500/15 text-gray-400" title="Money moved between two bookings, not money arriving">Internal</span>
+                    ) : (
+                      <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${PROVENANCE_TONE[prov] ?? PROVENANCE_TONE.unverified}`}
+                        title={prov === "off_bank" && p.off_bank_reason ? p.off_bank_reason : PROVENANCE_HINT[prov] ?? prov}>
+                        {PROVENANCE_LABEL[prov] ?? prov}
+                      </span>
+                    )}
+                    <span className="block text-[10px] admin-faint mt-0.5 truncate">{prov === "off_bank" ? offBankMethodLabel(p.method) : p.method || "—"}</span>
+                  </span>
+                  <span className="text-xs admin-muted self-center min-w-0">
+                    {isBank && tx ? (
+                      <span className="block truncate" title={`${tx.source}:${tx.external_id}`}>{tx.source} · {formatDate(tx.booked_on)} · {tx.counterparty || "—"}</span>
+                    ) : prov === "off_bank" ? (
+                      <span className="block truncate text-amber-400/90" title={p.off_bank_reason ?? ""}>{p.off_bank_reason || "no reason recorded"}</span>
+                    ) : (
+                      <span className="block truncate">{p.reference || "—"}</span>
+                    )}
+                  </span>
                   <span className="text-xs admin-muted self-center flex items-center gap-1.5">
-                    {formatDate(p.received_at)}
-                    {/^alloc[#:]/.test(p.reference || "") ? (
+                    {formatDate(p.received_at ?? p.date ?? null)}
+                    {isAlloc ? (
                       <button onClick={() => removeAllocation(p.id)} title="Remove allocation (both sides of the pair)"
                         className="w-5 h-5 grid place-items-center rounded text-red-400/70 hover:text-red-400 hover:bg-red-500/10 transition-colors">✕</button>
+                    ) : isBank ? (
+                      /* The bank's amount and date are not ours to edit, and a
+                         bank row is not deleted by hand: disconnecting it on the
+                         Payments page puts the movement back in the pile. */
+                      <Link href="/admin/payments?view=matched" title="A bank movement. To change it, disconnect it on the Payments page."
+                        className="w-5 h-5 grid place-items-center rounded admin-faint hover:text-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/10 transition-colors">
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+                      </Link>
                     ) : (
                       <>
                         <button
@@ -1992,7 +2156,8 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                     )}
                   </span>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
           {editingRow && (

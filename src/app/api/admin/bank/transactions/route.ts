@@ -7,14 +7,18 @@
  * changes every time anyone books a payment. A stored suggestion would be
  * stale the moment it mattered.
  *
- * Money in is matched to invoices (store.ts, unchanged). Money out is
- * allocated to cost lines (bank/costs.ts): the same shape, the other
- * direction, and neither side is ever booked without a click.
+ * Money in is matched to invoices (store.ts). Money out is allocated to cost
+ * lines (bank/costs.ts): the same shape, the other direction, and neither
+ * side is ever booked without a click.
+ *
+ * Since 2026-09-13 this is the first view of /admin/payments; /admin/bank
+ * redirects there. The section is `payments` (access.ts), one grant for the
+ * feed and the booked rows alike.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminGate } from "@/lib/admin-auth";
 import { createClient } from "@supabase/supabase-js";
-import { loadCandidates, loadSettledInvoices, withSuggestions } from "@/lib/bank/store";
+import { loadCandidates, loadSettledInvoices, withSuggestions, invoiceAllocationsForTransactions } from "@/lib/bank/store";
 import { loadCostCandidates, costAllocationsForTransactions, scopeTotals, withCostSuggestions, isCostDebit } from "@/lib/bank/costs";
 import { qontoConfigured } from "@/lib/bank/qonto";
 import { stripeConfigured } from "@/lib/bank/stripe-feed";
@@ -45,8 +49,12 @@ export async function GET(request: NextRequest) {
     .order("booked_on", { ascending: false })
     .limit(limit);
 
-  if (view === "unmatched") q = q.is("payment_id", null).is("ignored_at", null);
-  else if (view === "matched") q = q.not("payment_id", "is", null);
+  /* "Connected" is matched_at OR payment_id. A transfer split over several
+     invoices carries its payments but names none of them on the row
+     (store.allocateTransaction), so payment_id alone left every split in the
+     to-match pile after it was done. */
+  if (view === "unmatched") q = q.is("payment_id", null).is("matched_at", null).is("ignored_at", null);
+  else if (view === "matched") q = q.or("payment_id.not.is.null,matched_at.not.is.null");
   else if (view === "ignored") q = q.not("ignored_at", "is", null);
 
   if (kind) q = q.eq("kind", kind);
@@ -68,23 +76,24 @@ export async function GET(request: NextRequest) {
   }
 
   const rows = (data ?? []) as BankTransactionRow[];
-  // Only the unmatched credits need candidates; skip the work otherwise.
   // Candidates are needed for the suggestions AND for the manual picker, so
   // load them whenever anything on this page could be matched by hand. The
   // settled index answers the other case: a transfer quoting an invoice that
-  // is already paid.
+  // is already paid. The two allocation maps say what a row already did.
   const debitIds = rows.filter((t) => Number(t.amount) < 0).map((t) => t.id);
+  const creditIds = rows.filter((t) => Number(t.amount) > 0).map((t) => t.id);
   const anyDebit = rows.some((t) => isCostDebit(t));
-  const [candidates, settled, costCandidates, placed, costTotals] = await Promise.all([
+  const [candidates, settled, costCandidates, placed, settledBy, costTotals] = await Promise.all([
     loadCandidates(division),
     loadSettledInvoices(division),
     anyDebit ? loadCostCandidates() : Promise.resolve([]),
     costAllocationsForTransactions(debitIds),
+    invoiceAllocationsForTransactions(creditIds),
     scopeTotals(division),
   ]);
 
   // What the "new cost from this debit" form can point at. Kept here so the
-  // page needs no grant beyond the bank section to fill its own picker.
+  // page needs no grant beyond the payments section to fill its own picker.
   const [{ data: experiences }, { data: editions }] = await Promise.all([
     admin.from("exp_experiences").select("id, title").is("archived_at", null).order("title"),
     admin.from("exp_editions").select("id, label, year, date_start, date_end, experience_id").is("archived_at", null).order("date_start", { ascending: false }),
@@ -101,8 +110,19 @@ export async function GET(request: NextRequest) {
    * much of the money out has been placed on a cost line, and by scope; that
    * is `costTotals`, and it is about the work, not the balance.
    */
+  const transactions = withCostSuggestions(withSuggestions(rows, candidates, settled), costCandidates, placed).map((t) => {
+    const s = settledBy.get(t.id) ?? { allocations: [], total: 0 };
+    const credit = Number(t.amount) > 0;
+    return {
+      ...t,
+      invoiceAllocations: s.allocations,
+      invoiceAllocated: s.total,
+      invoiceRemaining: credit ? Math.max(0, Math.round((Number(t.amount) - s.total) * 100) / 100) : 0,
+    };
+  });
+
   return NextResponse.json({
-    transactions: withCostSuggestions(withSuggestions(rows, candidates, settled), costCandidates, placed),
+    transactions,
     count: rows.length,
     sources: { bank: qontoConfigured(), stripe: stripeConfigured() },
     // The manual picker searches this list — every invoice still owed money.

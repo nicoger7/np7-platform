@@ -338,6 +338,79 @@ export async function loadSettledInvoices(division = "experience"): Promise<Sett
   return out;
 }
 
+/* ── What a credit already settled ───────────────────────────────────────── */
+
+export type InvoiceAllocationView = {
+  paymentId: string;
+  amount: number;
+  documentId: string | null;
+  invoiceNumber: string | null;
+  bookingId: string | null;
+  guestName: string | null;
+  /** True for a row that existed before the feed and was adopted onto this
+      movement (adopt.ts), false for one the matcher wrote. */
+  adopted: boolean;
+};
+
+export type CreditAllocations = { allocations: InvoiceAllocationView[]; total: number };
+
+/**
+ * The payments a set of credits produced, by transaction.
+ *
+ * The transaction's own payment_id/document_id columns only describe the
+ * one-invoice case; a transfer split over four invoices carries four payment
+ * rows and null in both columns, and matched_at alone says it is done. The
+ * page reads THIS to say what a credit settled, in either case.
+ */
+export async function invoiceAllocationsForTransactions(txIds: string[]): Promise<Map<string, CreditAllocations>> {
+  const out = new Map<string, CreditAllocations>();
+  if (!txIds.length) return out;
+  const admin = db();
+  type Row = { id: string; amount: number | string | null; document_id: string | null; booking_id: string | null; reference: string | null; bank_transaction_id: string };
+  const rows: Row[] = [];
+  for (let i = 0; i < txIds.length; i += 100) {
+    const { data } = await admin
+      .from("exp_payments")
+      .select("id, amount, document_id, booking_id, reference, bank_transaction_id")
+      .eq("direction", "revenue")
+      .in("bank_transaction_id", txIds.slice(i, i + 100));
+    rows.push(...((data ?? []) as Row[]));
+  }
+  if (!rows.length) return out;
+
+  const docIds = [...new Set(rows.map((r) => r.document_id).filter(Boolean))] as string[];
+  const bookingIds = [...new Set(rows.map((r) => r.booking_id).filter(Boolean))] as string[];
+  const [{ data: docs }, { data: bookings }] = await Promise.all([
+    docIds.length ? admin.from("documents").select("id, invoice_number").in("id", docIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    bookingIds.length ? admin.from("exp_bookings").select("id, name").in("id", bookingIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+  ]);
+  const numberById = new Map((docs ?? []).map((d) => [String(d.id), (d.invoice_number as string | null) ?? null]));
+  const nameById = new Map((bookings ?? []).map((b) => [String(b.id), (b.name as string | null) ?? null]));
+  const txById = new Map<string, { source: string; external_id: string }>();
+  for (let i = 0; i < txIds.length; i += 100) {
+    const { data } = await admin.from("bank_transactions").select("id, source, external_id").in("id", txIds.slice(i, i + 100));
+    for (const t of data ?? []) txById.set(String(t.id), { source: String(t.source), external_id: String(t.external_id) });
+  }
+
+  for (const r of rows) {
+    const cur = out.get(r.bank_transaction_id) ?? { allocations: [], total: 0 };
+    const tx = txById.get(r.bank_transaction_id);
+    const amt = round2(Number(r.amount) || 0);
+    cur.allocations.push({
+      paymentId: r.id,
+      amount: amt,
+      documentId: r.document_id,
+      invoiceNumber: r.document_id ? numberById.get(r.document_id) ?? null : null,
+      bookingId: r.booking_id,
+      guestName: r.booking_id ? nameById.get(r.booking_id) ?? null : null,
+      adopted: !tx || r.reference !== `${tx.source}:${tx.external_id}`,
+    });
+    cur.total = round2(cur.total + amt);
+    out.set(r.bank_transaction_id, cur);
+  }
+  return out;
+}
+
 /* ── Suggesting and matching ─────────────────────────────────────────────── */
 
 export type TransactionWithMatches = BankTransactionRow & {
@@ -359,7 +432,7 @@ export function withSuggestions(
     ...t,
     note: noteFor(t, settled),
     suggestions:
-      t.payment_id || t.ignored_at || t.amount <= 0 || t.kind !== "income"
+      t.payment_id || t.matched_at || t.ignored_at || t.amount <= 0 || t.kind !== "income"
         ? []
         : suggestForTransaction(
             {
@@ -377,7 +450,7 @@ export function withSuggestions(
 
 /** Does this transaction name an invoice that is already closed? */
 function noteFor(t: BankTransactionRow, settled: SettledInvoice[]): string | undefined {
-  if (t.payment_id || t.ignored_at || Number(t.amount) <= 0) return undefined;
+  if (t.payment_id || t.matched_at || t.ignored_at || Number(t.amount) <= 0) return undefined;
   const ref = squashRef([t.reference, t.label].filter(Boolean).join(" "));
   if (!ref) return undefined;
   const hit = settled.find((s) => {
@@ -597,6 +670,7 @@ export async function autoMatchPending(by = "auto-match"): Promise<{ matched: nu
     .from("bank_transactions")
     .select("*")
     .is("payment_id", null)
+    .is("matched_at", null)
     .is("ignored_at", null)
     .eq("kind", "income")
     .gt("amount", 0)

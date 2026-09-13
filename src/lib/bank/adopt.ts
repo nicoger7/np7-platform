@@ -28,6 +28,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { round2 } from "@/lib/reconcile";
 import { paymentTypeFor } from "./store";
+import { OFF_BANK_METHODS, isOffBankMethod, type OffBankMethod } from "./off-bank-methods";
 
 function db() {
   return createClient(
@@ -393,15 +394,7 @@ export async function adoptTransaction(opts: { paymentId: string; transactionId:
 
 // ── Off-bank ─────────────────────────────────────────────────────────────────
 
-export const OFF_BANK_METHODS = [
-  { key: "cash", label: "Cash", blurb: "Paid in hand, at the centre or in person." },
-  { key: "surfcenter", label: "Wired to Surfcenter", blurb: "Landed on the old Surfcenter Experience account, not NP7's." },
-  { key: "offset", label: "Offset", blurb: "Netted against something we owed them, or a credit they held." },
-  { key: "other", label: "Other", blurb: "Anything else the feed will never show. Say what in the reason." },
-] as const;
-export type OffBankMethod = (typeof OFF_BANK_METHODS)[number]["key"];
-
-export const isOffBankMethod = (v: unknown): v is OffBankMethod => OFF_BANK_METHODS.some((m) => m.key === v);
+export { OFF_BANK_METHODS, isOffBankMethod, type OffBankMethod } from "./off-bank-methods";
 
 export type OffBankInput = {
   bookingId?: string | null;
