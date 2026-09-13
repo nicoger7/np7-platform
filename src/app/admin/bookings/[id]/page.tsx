@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, use, Fragment, Suspense } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, use, Fragment, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ContactPicker } from "@/components/contact-picker";
@@ -1177,17 +1178,23 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     // Cancelling is only honest while nobody has the paper, and never under an
     // invoice a correction already names.
     const cancellable = !doc.readOnly && doc.status !== "void" && !(doc.sent_at && isTaxLike) && !(st && st.credits.length > 0);
-    const primary: MenuItem | null = doc.readOnly && doc.href ? { label: "Open", href: doc.href }
-      : sendable && !doc.sent_at ? { label: "Send", run: () => sendInvoice(doc.id) }
-      : doc.signedUrl ? { label: "PDF", href: doc.signedUrl } : null;
+    /* Quick actions sit on the row again, as a small button group: the PDF,
+       Send or Resend, and the one correction the invoice allows right now
+       (Storno while nothing is credited, a credit note otherwise). Only the
+       destructive cancel and the second correction stay behind the menu. */
+    const quick: MenuItem[] = [];
+    if (doc.readOnly && doc.href) quick.push({ label: "Open", href: doc.href });
+    else if (doc.signedUrl) quick.push({ label: "PDF", href: doc.signedUrl });
+    if (sendable) quick.push(doc.sent_at
+      ? { label: "Resend", hint: `Sent ${fmtShort(doc.sent_at)}`, run: () => sendInvoice(doc.id) }
+      : { label: "Send", run: () => sendInvoice(doc.id) });
     const items: MenuItem[] = [];
-    if (doc.signedUrl && primary?.label !== "PDF") items.push({ label: "PDF", href: doc.signedUrl });
-    if (sendable && doc.sent_at) items.push({ label: "Resend", hint: `Sent ${fmtShort(doc.sent_at)}`, run: () => sendInvoice(doc.id) });
     if (allowance && !allowance.blocker && allowance.canStorno) {
-      items.push({ label: "Storno…", hint: "Reverse this invoice in full", tone: "warn", run: () => setCorrecting({ id: doc.id, mode: "storno" }) });
+      quick.push({ label: "Storno…", hint: "Reverse this invoice in full", tone: "warn", run: () => setCorrecting({ id: doc.id, mode: "storno" }) });
     }
     if (allowance && !allowance.blocker && allowance.canCredit) {
-      items.push({ label: "Credit note…", hint: `Take an amount off it${allowance.credited ? ` (${formatMoney(allowance.remaining)} left)` : ""}`, tone: "warn", run: () => setCorrecting({ id: doc.id, mode: "credit" }) });
+      const credit: MenuItem = { label: "Credit note…", hint: `Take an amount off it${allowance.credited ? ` (${formatMoney(allowance.remaining)} left)` : ""}`, tone: "warn", run: () => setCorrecting({ id: doc.id, mode: "credit" }) };
+      if (allowance.canStorno) items.push(credit); else quick.push(credit);
     }
     if (cancellable) {
       items.push({ label: isTaxLike ? "Cancel unsent…" : "Void", hint: isTaxLike ? "Only for paper nobody has seen; the number stays" : undefined, tone: "danger", run: () => voidDocument(doc.id, isTaxLike) });
@@ -1233,25 +1240,23 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             {chip.text}
           </span>
         </span>
-        <div className="self-center flex items-center justify-end gap-2">
-          {primary && (primary.href ? (
-            <a
-              href={primary.href}
-              target={primary.label === "PDF" ? "_blank" : undefined}
-              rel="noopener noreferrer"
-              className="text-xs font-bold text-[#0aa3c7] hover:text-[#0aa3c7]/80 transition-colors"
-            >
-              {primary.label}
-            </a>
-          ) : (
-            <button
-              onClick={primary.run}
-              disabled={sendingDoc === doc.id}
-              className="px-2.5 py-1 text-xs font-bold rounded-md bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50 transition-colors"
-            >
-              {sendingDoc === doc.id ? "Sending…" : primary.label}
-            </button>
-          ))}
+        <div className="self-center flex items-center justify-end gap-1.5">
+          {quick.map((q) => {
+            const accent = q.label === "Send";
+            const cls = accent
+              ? "px-2.5 py-1 text-xs font-bold rounded-md bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50 transition-colors whitespace-nowrap"
+              : `px-2.5 py-1 text-xs font-bold rounded-md transition-colors whitespace-nowrap ${q.tone === "warn" ? "text-amber-500 hover:bg-amber-500/10" : "admin-muted hover:admin-heading hover:bg-[var(--admin-surface-hover)]"}`;
+            const style = accent ? undefined : { border: "1px solid var(--admin-border)" };
+            return q.href ? (
+              <a key={q.label} href={q.href} target="_blank" rel="noopener noreferrer" className={cls} style={style} title={q.hint}>
+                {q.label}
+              </a>
+            ) : (
+              <button key={q.label} onClick={q.run} disabled={sendingDoc === doc.id && (q.label === "Send" || q.label === "Resend")} className={cls} style={style} title={q.hint}>
+                {sendingDoc === doc.id && (q.label === "Send" || q.label === "Resend") ? "Sending…" : q.label}
+              </button>
+            );
+          })}
           <ActionMenu label="⋯" items={items} compact />
         </div>
       </div>
@@ -2706,7 +2711,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
 /** The three stages a trip is paid in, named the way the plan names them. */
 const STAGE_NAME: Record<MilestoneKind, string> = { deposit: "Deposit", downpayment: "Down-payment", final: "Final balance" };
-const DOC_COLS = "150px 1fr 100px 72px 150px 118px";
+const DOC_COLS = "150px 1fr 100px 72px 150px 250px";
 const fmtShort = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—";
 
@@ -2722,20 +2727,86 @@ type MenuItem = { label: string; run?: () => void; href?: string; hint?: string;
  */
 function ActionMenu({ label, items, compact }: { label: string; items: MenuItem[]; compact?: boolean }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  // The menu is rendered into <body>, not into the row: the table card clips
+  // its overflow (rounded corners on desktop, horizontal scroll on mobile),
+  // and a dropdown inside it was cut off after the first item. Fixed
+  // coordinates come from the trigger's rect; any scroll or resize closes
+  // it rather than trying to follow.
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    let top = r.bottom + 4;
+    const h = menuRef.current?.offsetHeight ?? 0;
+    if (h && top + h > window.innerHeight - 8) top = Math.max(8, r.top - 4 - h);
+    setPos({ top, right: Math.max(8, window.innerWidth - r.right) });
+  }, [open, items.length]);
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
+    };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onMove = () => setOpen(false);
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+    window.addEventListener("scroll", onMove, true);
+    window.addEventListener("resize", onMove);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onMove, true);
+      window.removeEventListener("resize", onMove);
+    };
   }, [open]);
   if (items.length === 0) return null;
   const tone = (t?: MenuItem["tone"]) => t === "danger" ? "text-red-400" : t === "warn" ? "text-amber-500" : "admin-heading";
+  const menu = open ? (
+    <div
+      ref={menuRef}
+      role="menu"
+      className="fixed min-w-[230px] max-w-[300px] rounded-xl py-1 z-[70] text-left"
+      style={{
+        top: pos?.top ?? -9999, right: pos?.right ?? 0, visibility: pos ? "visible" : "hidden",
+        backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)", boxShadow: "var(--admin-shadow)",
+      }}
+    >
+      {items.map((it, i) => it.href ? (
+        <a
+          key={i}
+          role="menuitem"
+          href={it.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => setOpen(false)}
+          className={`block px-3.5 py-2 text-[13px] hover:bg-[var(--admin-surface-hover)] ${tone(it.tone)}`}
+        >
+          {it.label}
+          {it.hint && <span className="block text-[10.5px] admin-faint">{it.hint}</span>}
+        </a>
+      ) : (
+        <button
+          key={i}
+          role="menuitem"
+          type="button"
+          disabled={it.disabled}
+          onClick={() => { setOpen(false); it.run?.(); }}
+          className={`block w-full text-left px-3.5 py-2 text-[13px] hover:bg-[var(--admin-surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed ${tone(it.tone)}`}
+        >
+          {it.label}
+          {it.hint && <span className="block text-[10.5px] admin-faint font-normal">{it.hint}</span>}
+        </button>
+      ))}
+    </div>
+  ) : null;
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <button
+        ref={btnRef}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -2748,40 +2819,7 @@ function ActionMenu({ label, items, compact }: { label: string; items: MenuItem[
       >
         {label}
       </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 mt-1 min-w-[230px] max-w-[300px] rounded-xl py-1 z-30 text-left"
-          style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)", boxShadow: "var(--admin-shadow)" }}
-        >
-          {items.map((it, i) => it.href ? (
-            <a
-              key={i}
-              role="menuitem"
-              href={it.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={() => setOpen(false)}
-              className={`block px-3.5 py-2 text-[13px] hover:bg-[var(--admin-surface-hover)] ${tone(it.tone)}`}
-            >
-              {it.label}
-              {it.hint && <span className="block text-[10.5px] admin-faint">{it.hint}</span>}
-            </a>
-          ) : (
-            <button
-              key={i}
-              role="menuitem"
-              type="button"
-              disabled={it.disabled}
-              onClick={() => { setOpen(false); it.run?.(); }}
-              className={`block w-full text-left px-3.5 py-2 text-[13px] hover:bg-[var(--admin-surface-hover)] disabled:opacity-40 disabled:cursor-not-allowed ${tone(it.tone)}`}
-            >
-              {it.label}
-              {it.hint && <span className="block text-[10.5px] admin-faint font-normal">{it.hint}</span>}
-            </button>
-          ))}
-        </div>
-      )}
+      {menu && typeof document !== "undefined" ? createPortal(menu, document.body) : null}
     </div>
   );
 }
