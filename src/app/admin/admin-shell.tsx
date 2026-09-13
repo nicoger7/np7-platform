@@ -131,11 +131,12 @@ const navByEnv: Record<Environment, NavGroup[]> = {
       label: "FINANCE",
       items: [
         { label: "Invoices", href: "/admin/documents", icon: "file" },
-        /* Bank sits between the bill and the booked payment because that is
-           where it belongs: it is the only one of the three that is a fact
-           rather than something we wrote down. */
-        { label: "Bank", href: "/admin/bank", icon: "bank" },
-        { label: "Payments", href: "/admin/payments", icon: "receipt" },
+        /* Payments IS the bank. There were two entries, Bank (the feed) and
+           Payments (rows we wrote down), and the second was where a €6,210
+           double entry came from. Now money is either a movement the bank saw,
+           connected to an invoice, or an off-bank row with a written reason,
+           and both live on one page. /admin/bank still redirects here. */
+        { label: "Payments", href: "/admin/payments", icon: "bank" },
         { label: "Experience Costs", href: "/admin/exp-costs", icon: "chartline" },
         { label: "Gift Vouchers", href: "/admin/vouchers", icon: "gift" },
         { label: "Vendors", href: "/admin/vendors", icon: "truck" },
