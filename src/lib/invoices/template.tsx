@@ -1026,12 +1026,14 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
   // and is refused on the same grounds.
   assertVatConfigured(company);
   const description = [data.experience.title, data.edition?.label].filter(Boolean).join(" · ");
+  // English on the document, the guest is rarely German. The German term is
+  // kept as a one-word subtitle so the tax office recognises the document type.
+  const titleEn = data.full ? "Cancellation invoice" : "Credit note";
   const titleDe = data.full ? "Stornorechnung" : "Rechnungskorrektur";
-  const titleEn = data.full ? "Cancellation invoice" : "Credit note (partial correction)";
 
   return (
     <Document
-      title={`${titleDe} ${invoiceNumber}`}
+      title={`${titleEn} ${invoiceNumber}`}
       author={company.legal_name ?? "NP7 GmbH"}
       creator="NP7 Platform"
     >
@@ -1039,8 +1041,8 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
         <View style={s.headerRow}>
           <SellerBlock company={company} />
           <View style={s.docInfoBlock}>
-            <Text style={s.docTitle}>{titleDe}</Text>
-            <Text style={s.smallText}>{titleEn}</Text>
+            <Text style={s.docTitle}>{titleEn}</Text>
+            <Text style={s.smallText}>{titleDe}</Text>
             <Text style={s.docNumber}>No. {invoiceNumber}</Text>
             <View style={{ marginTop: 8 }}>
               <Text style={s.smallText}>Date: {fmtDate(data.invoiceDate)}</Text>
@@ -1053,11 +1055,7 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
         <BuyerBlock contact={data.contact} />
 
         {/* The legally required anchor: WHICH invoice this corrects, by number and date. */}
-        <Text style={[s.smallText, { marginBottom: 2, fontFamily: "Helvetica-Bold", color: BRAND_DARK }]}>
-          {data.full ? "Storniert wird" : "Berichtigt wird"} die Rechnung Nr. {original.number} vom {fmtDate(original.date)}
-          {data.full ? " in voller Höhe." : "."}
-        </Text>
-        <Text style={[s.smallText, { marginBottom: 10 }]}>
+        <Text style={[s.smallText, { marginBottom: 10, fontFamily: "Helvetica-Bold", color: BRAND_DARK }]}>
           This document {data.full ? "cancels" : "corrects"} invoice No. {original.number} dated {fmtDate(original.date)}
           {data.full ? " in full" : ""}, original amount {formatMoney(original.amount, currency)}.
         </Text>
@@ -1070,7 +1068,7 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
         <View style={s.tableRow}>
           <View style={s.col_desc}>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>
-              {data.full ? "Storno" : "Korrektur"}: {description}
+              {data.full ? "Cancellation" : "Correction"}: {description}
             </Text>
             <Text style={[s.smallText, { marginTop: 2 }]}>Invoice {original.number}</Text>
             <Text style={[s.smallText, { marginTop: 2 }]}>Reason: {data.reason}</Text>
@@ -1081,7 +1079,7 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
 
         <View style={s.totalsBox}>
           <View style={s.totalRow}>
-            <Text style={[s.totalLabel, { fontFamily: "Helvetica-Bold" }]}>{data.full ? "Storno total" : "Total credited"}</Text>
+            <Text style={[s.totalLabel, { fontFamily: "Helvetica-Bold" }]}>{data.full ? "Total cancelled" : "Total credited"}</Text>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>−{formatMoney(data.amount, currency)}</Text>
           </View>
           {!data.full && (
@@ -1095,15 +1093,11 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
         <VatNote vatMode={company.vat_mode} vatRate={company.vat_rate} />
         {data.refundDue > 0 ? (
           <Text style={s.vatNote}>
-            Der bereits gezahlte Betrag von {formatMoney(data.refundDue, currency)} wird per Überweisung erstattet.
-            {"\n"}
             The {formatMoney(data.refundDue, currency)} already paid against invoice {original.number} will be refunded by bank transfer.
             No payment is due on this document.
           </Text>
         ) : (
           <Text style={s.vatNote}>
-            Auf dieses Dokument ist keine Zahlung fällig.
-            {"\n"}
             No payment is due on this document. {data.full
               ? `Invoice ${original.number} is cancelled and nothing remains payable on it.`
               : `The balance of invoice ${original.number} is reduced accordingly.`}
