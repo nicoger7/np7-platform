@@ -41,9 +41,12 @@ const OWNER_ONLY = [
      money. Same omission as /admin/finance above and the R&D routes below —
      canAccess() falls through to "allowed" for a path nobody registered, so
      shipping this page without an entry would hand the whole account to every
-     manager-tier member. Granular roles are gated by the `bank` section in the
-     catalogue instead, which is what lets one person be given the bank list
-     without also being given Payments and Documents. */
+     manager-tier member.
+
+     /admin/bank is a redirect to /admin/payments now (Nico, 2026-09-13: "bank
+     and payments are one thing"), and /api/admin/bank is the feed half of that
+     one page. Both stay listed: the redirect target and the API are owner-only
+     exactly as the page they belong to. */
   "/admin/bank", "/api/admin/bank",
 ];
 
@@ -173,8 +176,17 @@ export const SECTIONS: Section[] = [
      above. A menu tidy-up must not become a permission change. */
   { key: "learning", label: "Academy (write staff training)", world: "experience", group: "Team", paths: ["/admin/learning", "/api/admin/learning"] },
   // Experience · Finance
-  { key: "bank", label: "Bank (real transactions)", world: "experience", group: "Finance", paths: ["/admin/bank", "/api/admin/bank"] },
-  { key: "payments", label: "Payments", world: "experience", group: "Finance", paths: ["/admin/payments", "/api/admin/payments"] },
+  /* ONE section for the money that came in. There were two, `bank` (the feed)
+     and `payments` (the booked rows), and the split was the old world: a page
+     of hand-typed payments beside a page of real movements, with nothing
+     saying which of the first were in the second. Since 2026-09-13 a payment
+     is either a bank movement connected to an invoice or an off-bank row with
+     a written reason, and both live on /admin/payments. A grant on `payments`
+     therefore reaches the feed, its actions, and the booked rows alike; the
+     old /admin/bank path redirects there and its API is the feed half of the
+     same page. A stored role that still says `bank` is folded into this key by
+     normalizeAccess() below and by migration 243. */
+  { key: "payments", label: "Payments (bank feed + booked payments)", world: "experience", group: "Finance", paths: ["/admin/payments", "/admin/bank", "/api/admin/payments", "/api/admin/bank"] },
   { key: "vouchers", label: "Gift vouchers", world: "experience", group: "Finance", paths: ["/admin/vouchers", "/api/admin/vouchers"] },
   { key: "exp_costs", label: "Experience costs", world: "experience", group: "Finance", paths: ["/admin/exp-costs", "/api/admin/exp-costs", "/api/admin/hours-cost"] },
   { key: "vendors", label: "Vendors", world: "experience", group: "Finance", paths: ["/admin/vendors", "/api/admin/vendors"] },
@@ -281,10 +293,9 @@ export const SECTION_EXPOSES: Record<string, FieldKey[]> = {
   bookings: ["money", "costs", "contact_pii"],
   contacts: ["contact_pii"],
   members: ["contact_pii", "money"],
-  // The bank shows guest money AND what NP7 pays out — supplier invoices,
-  // salaries, the tax office — so it exposes both groups, not just "money".
-  bank: ["money", "costs"],
-  payments: ["money"],
+  // The feed shows guest money AND what NP7 pays out — supplier invoices,
+  // salaries, the tax office — so the merged section exposes both groups.
+  payments: ["money", "costs"],
   exp_costs: ["money", "costs"],
   vendors: ["costs"],
   documents: ["money"],
@@ -350,11 +361,21 @@ export function normalizeAccess(raw: unknown): RoleAccess {
     }
   }
 
-  return {
-    worlds,
-    sections: a.sections && typeof a.sections === "object" ? (a.sections as Record<string, SectionLevel>) : {},
-    fields,
-  };
+  const sections: Record<string, SectionLevel> =
+    a.sections && typeof a.sections === "object" ? { ...(a.sections as Record<string, SectionLevel>) } : {};
+  /* `bank` was its own section until 2026-09-13 and is now part of `payments`.
+     A role saved before the merge may still carry the old key; migration 243
+     rewrites the stored rows, and this keeps a row that somehow escaped it
+     meaning what it meant: whoever could see the feed can still see the feed.
+     The higher of the two levels wins, the same rule mergeAccess() uses. */
+  if ("bank" in sections) {
+    const rank: Record<SectionLevel, number> = { none: 0, view: 1, edit: 2 };
+    const legacy = sections.bank ?? "none";
+    if ((rank[legacy] ?? 0) > (rank[sections.payments ?? "none"] ?? 0)) sections.payments = legacy;
+    delete sections.bank;
+  }
+
+  return { worlds, sections, fields };
 }
 
 /** Union several roles into one effective access — so a member can hold a

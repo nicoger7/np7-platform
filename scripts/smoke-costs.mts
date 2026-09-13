@@ -171,9 +171,12 @@ console.log("\n── the gates: every new path is claimed, and exposes money an
     const sec = sectionForPath(p);
     check(`${p} → exp_costs, exposing money + costs`, sec?.key === "exp_costs" && (SECTION_EXPOSES.exp_costs ?? []).includes("money") && (SECTION_EXPOSES.exp_costs ?? []).includes("costs"), sec?.key);
   }
+  // Since 2026-09-13 the feed and the booked payments are ONE section, keyed
+  // `payments` (migration 243); /admin/bank redirects there. The feed paths
+  // must still land on a section that exposes both field groups.
   for (const p of ["/api/admin/bank/transactions", "/api/admin/bank/some-id", "/admin/bank"]) {
     const sec = sectionForPath(p);
-    check(`${p} → bank, exposing money + costs`, sec?.key === "bank" && (SECTION_EXPOSES.bank ?? []).includes("money") && (SECTION_EXPOSES.bank ?? []).includes("costs"), sec?.key);
+    check(`${p} → payments, exposing money + costs`, sec?.key === "payments" && (SECTION_EXPOSES.payments ?? []).includes("money") && (SECTION_EXPOSES.payments ?? []).includes("costs"), sec?.key);
   }
   check("the cost routes stay owner-only for the legacy tiers", isOwnerOnlyPath("/api/admin/exp-costs/classify") && isOwnerOnlyPath("/admin/exp-costs") && isOwnerOnlyPath("/api/admin/bank/x"));
 }
