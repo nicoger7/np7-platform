@@ -85,11 +85,16 @@ export function EditionMailing({ editionId }: { editionId: string }) {
     return n;
   });
 
-  /** Catch-up send for a mail whose window already passed. */
-  async function sendNow(key: string, name: string, guests: number, targets?: string) {
+  /** Hand-send a scheduled mail: the catch-up after a passed window, or an
+   *  early send before the date. Same endpoint, same per-guest dedupe, so the
+   *  nightly job later skips whoever got it here. */
+  async function sendNow(key: string, name: string, guests: number, targets?: string, early?: { dueAt: string | null; daysAway: number | null }) {
+    const g = `${guests} secured guest${guests === 1 ? "" : "s"}`;
     const prompt = targets
       ? `Send "${name}" now to ${guests} guest${guests === 1 ? "" : "s"} — ${targets}?\n\nOnly the guests who qualify right now receive it; anyone who already got it is skipped automatically.`
-      : `Send "${name}" now to ${guests} secured guest${guests === 1 ? "" : "s"}?\n\nIts window has passed, so this is a catch-up. Anyone who already got it is skipped automatically.`;
+      : early
+        ? `Send "${name}" early, to ${g}?\n\nIt is scheduled for ${fmtDay(early.dueAt)}${early.daysAway != null && early.daysAway > 0 ? `, ${early.daysAway} day${early.daysAway === 1 ? "" : "s"} from now` : ""}. Whoever gets it now is skipped by the automatic send; anyone who already got it is skipped too.`
+        : `Send "${name}" now to ${g}?\n\nIts window has passed, so this is a catch-up. Anyone who already got it is skipped automatically.`;
     if (!confirm(prompt)) return;
     setSending(key); setMsg(null);
     try {
@@ -195,7 +200,7 @@ function MailRow({
 }: {
   m: Scheduled; i: number; editionId: string; securedGuests: number; lifecycleLive: boolean;
   isOpen: boolean; onToggle: () => void; sending: string | null;
-  onSendNow: (key: string, name: string, guests: number, targets?: string) => void; onSaved: () => void;
+  onSendNow: (key: string, name: string, guests: number, targets?: string, early?: { dueAt: string | null; daysAway: number | null }) => void; onSaved: () => void;
 }) {
   const gone = m.sent > 0;
   const blocked = m.missing.length > 0;
@@ -236,6 +241,15 @@ function MailRow({
             <button onClick={() => onSendNow(m.key, m.name, securedGuests)} disabled={sending === m.key}
               className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
               {sending === m.key ? "Sending…" : "Send now →"}
+            </button>
+          )}
+          {/* Before the date the same send is available, quieter: the content
+              is ready and sometimes the week needs it sooner (a late change,
+              a guest asking). The nightly job then skips whoever got it. */}
+          {!gone && !past && !blocked && m.whenKind === "date" && securedGuests > 0 && (
+            <button onClick={() => onSendNow(m.key, m.name, securedGuests, undefined, { dueAt: m.dueAt, daysAway: m.daysAway })} disabled={sending === m.key}
+              className="block ml-auto mb-0.5 text-[12px] font-bold admin-muted hover:text-[#0aa3c7] hover:underline disabled:opacity-50">
+              {sending === m.key ? "Sending…" : "Send early →"}
             </button>
           )}
           {/* Condition-driven mail (incl. the switched-OFF ones): a hand-send to
