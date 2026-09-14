@@ -55,6 +55,36 @@ const DIAL_TO_ISO: [string, string][] = [
 /** Longest prefix first, so +351 is Portugal and not "+3" then Spain. */
 const BY_LENGTH = [...DIAL_TO_ISO].sort((a, b) => b[0].length - a[0].length);
 
+/**
+ * Country NAMES, because that is what is actually in the column. `country` is
+ * free text typed by a person or carried over from Notion, and it holds
+ * "Netherlands", "Norway", "Turkey", "Brasil" and "Minnesota, USA". Reading
+ * only two-letter codes threw all of those away and sent the guest to the bank
+ * transfer for no reason: 19 of 111 bookers, measured 2026-09-14.
+ *
+ * Deliberately not a full ISO list. These are the spellings that exist in the
+ * data plus the countries NP7 sells to, and anything unrecognised still falls
+ * through to the dial code and then to "we cannot tell", which is honest.
+ */
+const NAME_TO_ISO: Record<string, string> = {
+  GERMANY: "DE", DEUTSCHLAND: "DE", NETHERLANDS: "NL", "THE NETHERLANDS": "NL",
+  HOLLAND: "NL", NEDERLAND: "NL", BELGIUM: "BE", BELGIE: "BE", BELGIQUE: "BE",
+  AUSTRIA: "AT", OESTERREICH: "AT", POLAND: "PL", POLSKA: "PL",
+  FRANCE: "FR", ITALY: "IT", ITALIA: "IT", SPAIN: "ES", ESPANA: "ES",
+  PORTUGAL: "PT", IRELAND: "IE", DENMARK: "DK", DANMARK: "DK",
+  SWEDEN: "SE", SVERIGE: "SE", NORWAY: "NO", NORGE: "NO", FINLAND: "FI",
+  ICELAND: "IS", ESTONIA: "EE", LATVIA: "LV", LITHUANIA: "LT",
+  CZECHIA: "CZ", "CZECH REPUBLIC": "CZ", SLOVAKIA: "SK", SLOVENIA: "SI",
+  HUNGARY: "HU", ROMANIA: "RO", BULGARIA: "BG", GREECE: "GR", CROATIA: "HR",
+  LUXEMBOURG: "LU", MALTA: "MT", CYPRUS: "CY",
+  SWITZERLAND: "CH", SCHWEIZ: "CH", "UNITED KINGDOM": "GB", UK: "GB",
+  ENGLAND: "GB", SCOTLAND: "GB", WALES: "GB", "GREAT BRITAIN": "GB",
+  "UNITED STATES": "US", "UNITED STATES OF AMERICA": "US", USA: "US",
+  CANADA: "CA", AUSTRALIA: "AU", "NEW ZEALAND": "NZ", BRAZIL: "BR",
+  BRASIL: "BR", TURKEY: "TR", TURKIYE: "TR", BAHRAIN: "BH",
+  "SOUTH AFRICA": "ZA", ISRAEL: "IL", UAE: "AE",
+};
+
 /** The EEA plus the places the card rules treat the same way. */
 const EEA = new Set([
   "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU",
@@ -74,6 +104,15 @@ export function guestCountry(c: {
 }): string | null {
   const named = (c.billingCountry ?? c.country ?? "").trim().toUpperCase();
   if (named.length === 2 && /^[A-Z]{2}$/.test(named)) return named;
+  if (named) {
+    const byName = NAME_TO_ISO[named];
+    if (byName) return byName;
+    // "Minnesota, USA" and the like: take the last comma-separated part, which
+    // is where people put the country when they write an address into a
+    // one-line box.
+    const tail = named.split(",").pop()?.trim() ?? "";
+    if (NAME_TO_ISO[tail]) return NAME_TO_ISO[tail];
+  }
   const phone = (c.phone ?? "").replace(/[^\d+]/g, "");
   if (phone.startsWith("+")) {
     for (const [dial, iso] of BY_LENGTH) if (phone.startsWith(dial)) return iso;
