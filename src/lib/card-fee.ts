@@ -11,7 +11,8 @@
  *   not unlock it; the ban is absolute for those instruments.
  *
  *   Everything else, commercial cards (business, corporate, purchasing: the
- *   IFR's own carve-out, Art. 1(3)(a)), UK cards and cards issued outside the
+ *   IFR's own carve-out, Art. 1(3)(a)), three-party schemes such as American
+ *   Express and Diners (Art. 1(3)(c)), UK cards and cards issued outside the
  *   EEA, may carry a fee under §312a Abs. 4 BGB: a common free
  *   way to pay must exist (the bank transfer) and the fee may not exceed the
  *   cost the card actually causes. That is what KLM does: a card fee on the
@@ -25,11 +26,13 @@
  * Stripe takes its cut of the total. Shared by the admin dialog and the API,
  * which re-derives the fee itself and never trusts the browser's number.
  */
-export type CardRegion = "eea" | "eea_premium" | "uk" | "intl";
+export type CardRegion = "eea" | "amex" | "eea_premium" | "uk" | "intl";
 
 export const CARD_REGIONS: { key: CardRegion; label: string; pct: number; fixed: number; surcharge: boolean; note: string }[] = [
   { key: "eea", label: "Private card issued in the EEA (incl. Gold, Platinum)", pct: 0.015, fixed: 0.25, surcharge: false,
     note: "No fee may be added on a private EEA card, premium or not (§270a BGB). NP7 carries Stripe's cost." },
+  { key: "amex", label: "American Express or Diners", pct: 0.028, fixed: 0.25, surcharge: true,
+    note: "Amex and Diners are three-party schemes, outside the IFR and so outside §270a: a fee is allowed on them, private card or not. Priced at Stripe's premium band; check the first real Amex charge in the dashboard and correct this if it differs." },
   { key: "eea_premium", label: "Business or corporate card, EEA", pct: 0.028, fixed: 0.25, surcharge: true,
     note: "Business, corporate and purchasing cards are outside the ban; the fee is Stripe's 2.8 % + €0.25, at cost. A private Gold or Platinum card is NOT this bucket." },
   { key: "uk", label: "Card issued in the UK", pct: 0.025, fixed: 0.25, surcharge: true,

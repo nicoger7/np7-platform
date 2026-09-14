@@ -20,6 +20,10 @@ describe("card fee", () => {
     expect(fee).toBeGreaterThan(90);
     expect(fee).toBeLessThan(100);
   });
+  it("Amex is surchargeable even as a private card, an EEA Visa is not", () => {
+    expect(cardFee(1000, "amex").fee).toBeGreaterThan(0);
+    expect(cardFee(1000, "eea").fee).toBe(0);
+  });
   it("refuses to price nothing", () => {
     expect(cardFee(0, "intl")).toEqual({ fee: 0, total: 0 });
   });
