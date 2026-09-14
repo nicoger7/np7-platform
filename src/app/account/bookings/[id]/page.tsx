@@ -493,7 +493,16 @@ export default async function BookingDetail({ params }: Props) {
              member paying their securing payment should not be asked for the
              trip. A covered guest and a clinic have their own routes. */
           pay={!isEvent && !b.covered_by_booking_id && dueNow > 0
-            ? <PayNow bookingId={b.id} amount={Math.min(dueNow, Math.max(0, (total ?? 0) - paid))} currency={cur} />
+            ? <PayNow
+                bookingId={b.id}
+                amount={Math.min(dueNow, Math.max(0, (total ?? 0) - paid))}
+                balance={Math.max(0, (total ?? 0) - paid)}
+                refundableUntil={addDays(new Date().toISOString().slice(0, 10), payCfg?.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays)
+                  ? new Date(`${addDays(new Date().toISOString().slice(0, 10), payCfg?.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays)}T00:00:00Z`)
+                      .toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })
+                  : null}
+                currency={cur}
+              />
             : null}
         />
       </div>

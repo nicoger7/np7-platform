@@ -55,9 +55,9 @@ export const DEFAULT_BODIES: Record<string, string> = {
   reservation_received:
     P("Hey {{firstName}} 🤙") +
     P("You're registered for <strong>{{experienceTitle}}</strong> — awesome to have you. Here's how it works from here:") +
-    P("<strong>1. Secure your spot.</strong> Attached are your payment details (pro-forma invoice) — pay the downpayment by bank transfer within the window shown and your place is locked in. Fully refundable for 14 days after you pay.") +
+    P("<strong>1. Secure your spot.</strong> Pay the down-payment in your trip account, straight from your bank in about a minute, or by transfer using the attached payment details. Either way your place is locked in, and it stays fully refundable for 14 days.") +
     P("<strong>2. Plan it with us.</strong> Manage your booking, add extra nights and meet your crew in your trip account.") +
-    P("<strong>3. Pay the balance later</strong> by bank transfer, in good time before the trip.") +
+    P("<strong>3. Pay the balance later</strong>, whenever suits you before the trip. You can pay it early from the same page if you would rather be done with it.") +
     BTN("Secure my spot", "bookingLink") +
     P("Any questions, just reply." + SIGN),
 

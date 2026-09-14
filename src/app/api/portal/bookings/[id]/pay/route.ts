@@ -78,15 +78,39 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (asked > outstanding + 0.01) return bad("That is more than is owed on this booking.");
   if (asked < 1) return bad("That is too small to pay online.");
 
-  // An open link for the same money would let the same balance be paid twice.
+  /*
+   * An open link for the same money could be paid twice, so it has to be dealt
+   * with, but not by refusing the guest. Somebody who opens the checkout, looks
+   * at it and closes the tab is the common case, and telling them to "come back
+   * in a few minutes" locks them out of paying for as long as their own
+   * abandoned session lives. Their previous attempt is simply closed at Stripe
+   * and replaced: a session that has been expired cannot be paid, so there is
+   * nothing left to pay twice.
+   *
+   * A link an ADMIN made is different. Somebody sent that to them deliberately,
+   * possibly with a card fee priced into it, so it is left alone and the guest
+   * is told which one to use and until when.
+   */
   const { data: open } = await db.from("exp_payment_links")
-    .select("amount").eq("booking_id", id).eq("status", "open").gt("expires_at", new Date().toISOString());
-  const spokenFor = r2(((open ?? []) as { amount: number }[]).reduce((n, l) => n + Number(l.amount), 0));
-  if (asked > outstanding - spokenFor + 0.01) {
-    return bad("A payment is already open on this booking. Finish that one, or come back in a few minutes.", 409);
+    .select("id, amount, session_id, created_by, expires_at").eq("booking_id", id)
+    .eq("status", "open").gt("expires_at", new Date().toISOString());
+  const openLinks = (open ?? []) as { id: string; amount: number; session_id: string | null; created_by: string | null; expires_at: string | null }[];
+  for (const l of openLinks.filter((x) => x.created_by === "member")) {
+    if (l.session_id) await expireCheckoutSession(l.session_id).catch(() => {});
+    await db.from("exp_payment_links").update({ status: "cancelled", note: "Replaced when the guest started a new payment" }).eq("id", l.id);
+  }
+  const byAdmin = openLinks.filter((x) => x.created_by !== "member");
+  const spokenFor = r2(byAdmin.reduce((n, l) => n + Number(l.amount), 0));
+  if (spokenFor > 0 && asked > outstanding - spokenFor + 0.01) {
+    const until = byAdmin[0]?.expires_at
+      ? new Date(byAdmin[0].expires_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+      : null;
+    return bad(`We already sent you a payment link for ${asked === spokenFor ? "this" : "€" + spokenFor.toLocaleString("en-GB")}. Please use that one${until ? `, it is good until ${until}` : ""}.`, 409);
   }
 
-  const expiresAt = new Date(Date.now() + 2 * 3600 * 1000);
+  // Half an hour, the shortest Stripe allows. Long enough to pay, short enough
+  // that an abandoned one is gone before anyone wonders about it.
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
   const { data: link, error: insErr } = await db.from("exp_payment_links").insert({
     booking_id: id, contact_id: booking.contact_id,
     amount: asked, fee: 0, total: asked, currency, card_region: "eea",
