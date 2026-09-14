@@ -1,41 +1,46 @@
 /**
  * Which ways to pay a given guest is actually shown.
  *
- * Stripe has two modes. Hand it a list of method names and it shows that list
- * to everybody, wherever they are. Hand it nothing and it picks from the ones
- * enabled on the account using the guest's own location. NP7 needs the first,
- * because the second would let Klarna in, so the country filtering that Stripe
- * would have done has to be done here instead.
+ * Stripe has two modes, and the first attempt at this used the wrong one.
  *
- * It was not, and the bill came in on 14 Sep 2026: a German member pressed Pay
- * and Stripe handed him iDEAL's Dutch page, "Kies je bank", with no German bank
- * on the list. iDEAL is the Netherlands and nowhere else. Stripe renamed it
- * "iDEAL | Wero" while the schemes merge, which is what made it look like it
- * covered Germany; the customer countries did not move.
+ * Name the methods and Stripe shows that exact list to everybody, wherever they
+ * are, because naming them is the same as saying "do not filter". Name nothing
+ * and hand it a dashboard CONFIGURATION instead, and it works out where the
+ * guest is from their connection and shows only what they can finish. It knows
+ * this the moment the page loads, long before any card is typed.
  *
- * The rails are national, so the map is national:
+ * The first attempt named five rails, and the bill came in on 14 Sep 2026: a
+ * German member pressed Pay and was handed iDEAL's Dutch bank list. iDEAL is
+ * the Netherlands and nowhere else. Stripe renamed it "iDEAL | Wero" while the
+ * schemes merge, which is what made it look like it covered Germany. The
+ * customer countries did not move. Wero is its own method (`wero`), customers
+ * in BE, FR and DE, and NP7 has not been granted it yet.
  *
- *   NL          iDEAL            €0.29   the scheme everyone there already uses
- *   BE FR DE    Wero             €0.29   a separate Stripe method, see below
- *   AT          EPS              €0.29
- *   PL          BLIK, P24        €0.29
- *   outside the EEA              card, and the fee is charged on
- *   rest of the EEA             nothing online, the bank transfer stands
+ * So Stripe does the filtering now, from a rails-only configuration. Two things
+ * still live here, because they are NP7's decisions and not Stripe's:
  *
- * On Wero: it is `wero`, not `ideal`, it covers exactly the three countries
- * iDEAL does not, and on 14 Sep 2026 it was still request-access at Stripe.
- * Naming a method the account cannot use makes Stripe reject the whole session,
- * which would take payment away from the guests it is meant to serve, so it
- * stays behind STRIPE_WERO_ENABLED until the account is actually granted it.
+ * 1. Whether to draw a Pay button at all. A guest whose country has no rail
+ *    would open a checkout with nothing on it, so they are better sent to the
+ *    bank transfer already printed on their invoice. Stripe cannot know that
+ *    the transfer exists.
  *
- * On the card: it is deliberately absent inside the EEA. A surcharge on a
- * private EEA card is forbidden (§270a BGB), so NP7 would carry about 1.5 %,
- * roughly €22 on a €1,440 securing payment, against €0.29 for a rail. Nico's
- * rule, and this is his call to make: no card where we carry the fee. Outside
- * the EEA the surcharge is lawful, the fee is added openly, and the webhook
- * refunds it by itself if the card turns out to be an EEA private one after all
- * (the country here is a guess from a dial code, and a guess has to be able to
- * be wrong without costing the guest anything).
+ * 2. Whether a card may be offered. A surcharge on a private EEA card is
+ *    forbidden (§270a BGB), so inside the EEA NP7 would carry about 1.5 %,
+ *    roughly €22 on a €1,440 securing payment, against €0.29 for a rail. Nico's
+ *    call, and he made it: no card where we carry the fee. Outside the EEA the
+ *    surcharge is lawful, the fee goes on its own line, and the webhook refunds
+ *    it by itself if the card turns out to be an EEA private one after all,
+ *    because the country here is inferred and an inference has to be allowed to
+ *    be wrong without costing the guest anything.
+ *
+ * The card is kept OUT by leaving it out of the rails configuration rather than
+ * by excluding it per payment: Apple Pay, Google Pay and Link ride on the card
+ * and Stripe will not let you exclude those per payment, so excluding the card
+ * alone would leak the same 1.5 % through a wallet.
+ *
+ * Wero needs no code change when Stripe grants it. Switch it on in that
+ * configuration and BE, FR and DE start seeing it. The only line to touch here
+ * is the rail list below, which decides whether their button is drawn.
  */
 
 /** The dial codes the booking form offers, as countries. */
@@ -77,35 +82,40 @@ export function guestCountry(c: {
 }
 
 export type OnlineMethods = {
-  /** What to name in `payment_method_types`. Empty means do not offer it. */
-  types: string[];
-  /** True when a card is the method, so a fee may lawfully be added. */
+  /** Their country has a rail: hand Stripe the configuration and let it pick. */
+  rails: boolean;
+  /** No rail, but a card fee is lawful here, so offer the card with the fee. */
   card: boolean;
   /** Said to the guest when nothing is offered, in their words not ours. */
   unavailable: string | null;
 };
 
+/** True when there is any way at all to pay this guest's booking online. */
+export const canPayOnline = (m: OnlineMethods) => m.rails || m.card;
+
 const NOTHING_EEA = "Your bank's instant payment isn't available in your country yet, so a transfer is the way. The details are on your invoice below.";
 const NOTHING_UNKNOWN = "We can't tell which instant payments your country has. A transfer works from anywhere, the details are on your invoice below.";
+
+/**
+ * Countries with a rail in the configuration. Not the method names: Stripe
+ * picks those. Only "is there anything here worth opening a checkout for".
+ * Add BE, FR and DE the day Wero is granted.
+ */
+const HAS_RAIL = new Set(["NL", "AT", "PL"]);
 
 /** What this guest may be shown, given where they are. */
 export function onlineMethodsFor(country: string | null): OnlineMethods {
   const weroLive = process.env.STRIPE_WERO_ENABLED === "true";
-  const none = (why: string) => ({ types: [], card: false, unavailable: why });
-  if (!country) return none(NOTHING_UNKNOWN);
-  switch (country) {
-    case "NL": return { types: ["ideal"], card: false, unavailable: null };
-    case "BE": case "FR": case "DE":
-      return weroLive
-        ? { types: ["wero"], card: false, unavailable: null }
-        : none(NOTHING_EEA);
-    case "AT": return { types: ["eps"], card: false, unavailable: null };
-    case "PL": return { types: ["blik", "p24"], card: false, unavailable: null };
-    default:
-      // Outside the EEA there is no rail worth wiring and the fee is lawful,
-      // so the card is the honest offer. Inside it, the transfer stands.
-      return EEA.has(country)
-        ? none(NOTHING_EEA)
-        : { types: ["card"], card: true, unavailable: null };
+  if (!country) return { rails: false, card: false, unavailable: NOTHING_UNKNOWN };
+  if (HAS_RAIL.has(country) || (weroLive && WERO.has(country))) {
+    return { rails: true, card: false, unavailable: null };
   }
+  // Outside the EEA there is no rail worth wiring and the fee is lawful, so the
+  // card is the honest offer. Inside it, the bank transfer stands.
+  return EEA.has(country)
+    ? { rails: false, card: false, unavailable: NOTHING_EEA }
+    : { rails: false, card: true, unavailable: null };
 }
+
+/** The three countries Wero covers, which are the three iDEAL does not. */
+const WERO = new Set(["BE", "FR", "DE"]);

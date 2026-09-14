@@ -41,8 +41,16 @@ export async function createCheckoutSession(opts: {
   customerEmail?: string;
   metadata: Record<string, string>;
   paymentIntentDescription?: string;
-  /** Restrict how it can be paid, e.g. ["card"] when a card fee is on the bill. */
+  /** Restrict how it can be paid, e.g. ["card"] when a card fee is on the bill.
+   *  Naming types turns OFF Stripe's own country filtering, so prefer the
+   *  configuration below and exclude what you do not want. */
   paymentMethodTypes?: string[];
+  /** Let Stripe choose from a dashboard configuration and filter by where the
+   *  guest actually is. Ignored when paymentMethodTypes is set. */
+  paymentMethodConfiguration?: string;
+  /** Drop specific methods from that configuration for this one payment.
+   *  Cannot remove Apple Pay, Google Pay or Link, which ride with the card. */
+  excludedPaymentMethodTypes?: string[];
   /** Unix seconds; Stripe allows 30 min to 24 h from now. */
   expiresAt?: number;
 }): Promise<{ url: string; id: string } | null> {
@@ -61,6 +69,11 @@ export async function createCheckoutSession(opts: {
     if (l.description) params[`line_items[${i}][price_data][product_data][description]`] = l.description;
   });
   (opts.paymentMethodTypes ?? []).forEach((t, i) => { params[`payment_method_types[${i}]`] = t; });
+  // Stripe refuses both at once: a named list is the opposite of letting it pick.
+  if (!opts.paymentMethodTypes?.length && opts.paymentMethodConfiguration) {
+    params["payment_method_configuration"] = opts.paymentMethodConfiguration;
+  }
+  (opts.excludedPaymentMethodTypes ?? []).forEach((t, i) => { params[`excluded_payment_method_types[${i}]`] = t; });
   if (opts.expiresAt) params["expires_at"] = String(Math.round(opts.expiresAt));
   if (opts.customerEmail) params["customer_email"] = opts.customerEmail;
   if (opts.paymentIntentDescription) params["payment_intent_data[description]"] = opts.paymentIntentDescription;

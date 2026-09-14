@@ -16,7 +16,7 @@ import { MarketingConsentToggle } from "@/components/portal/marketing-consent-to
 import { TripAddons } from "@/components/portal/trip-addons";
 import { PaymentPlan } from "@/components/portal/payment-plan";
 import { PayNow } from "@/components/portal/pay-now";
-import { guestCountry, onlineMethodsFor } from "@/lib/payment-methods";
+import { guestCountry, onlineMethodsFor, canPayOnline } from "@/lib/payment-methods";
 import { TripView, type TripTab, type TripTile } from "@/components/portal/trip-view";
 import { TripHero } from "@/components/portal/trip-hero";
 import { hasFlightDetails } from "@/lib/flights";
@@ -212,7 +212,7 @@ export default async function BookingDetail({ params }: Props) {
   const payMethods = (() => {
     const c = whoRow?.data as { phone?: string | null; country?: string | null; billing_country?: string | null } | null;
     const m = onlineMethodsFor(guestCountry({ billingCountry: c?.billing_country, country: c?.country, phone: c?.phone }));
-    return m.types.length === 0 ? null : { kind: m.card ? "card" as const : "rail" as const };
+    return canPayOnline(m) ? { kind: m.card ? "card" as const : "rail" as const } : null;
   })();
   const whatsNext = tripEnded ? [] : buildWhatsNext({
     now,

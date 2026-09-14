@@ -28,13 +28,16 @@ import { publicOrigin } from "@/lib/public-origin";
 import { sumReceived } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { coveredExtraTotal } from "@/lib/group-booking";
-import { guestCountry, onlineMethodsFor } from "@/lib/payment-methods";
+import { guestCountry, onlineMethodsFor, canPayOnline } from "@/lib/payment-methods";
 import { cardFee } from "@/lib/card-fee";
 
 export const dynamic = "force-dynamic";
 
 const bad = (msg: string, status = 400) => NextResponse.json({ error: msg }, { status });
 const NOTHING = "Please transfer using the details on your invoice below.";
+/** The rails-only payment method configuration: no card, so no wallet can leak
+ *  a card fee through it, and no Klarna. Set in Vercel, not in code. */
+const RAILS_CONFIG = process.env.STRIPE_PMC_RAILS || "";
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -67,7 +70,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     phone: booking.contacts?.phone,
   });
   const methods = onlineMethodsFor(where);
-  if (methods.types.length === 0) return bad(methods.unavailable ?? NOTHING, 409);
+  if (!canPayOnline(methods)) return bad(methods.unavailable ?? NOTHING, 409);
 
   /*
    * What is owed: this booking's price, the confirmed add-ons we bill, AND the
@@ -164,10 +167,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       successUrl: `${origin}/account/bookings/${id}?paid=1#payment`,
       cancelUrl: `${origin}/account/bookings/${id}#payment`,
       customerEmail: booking.contacts?.email ?? undefined,
-      // Only what this guest's country can actually finish. Naming them keeps
-      // Klarna out; the cost of naming them is that Stripe stops filtering by
-      // country, which is the job payment-methods.ts now does.
-      paymentMethodTypes: methods.types,
+      /*
+       * A rail guest gets the configuration and Stripe picks from where they
+       * are. A card guest gets the card named outright, because the fee on the
+       * bill is only lawful on a card and must not be charged on anything else.
+       * If the configuration id is missing the rails are named by hand, which
+       * is worse but still pays: better a Dutch guest sees a few methods they
+       * cannot use than cannot pay at all.
+       */
+      ...(methods.card
+        ? { paymentMethodTypes: ["card"] }
+        : RAILS_CONFIG
+          ? { paymentMethodConfiguration: RAILS_CONFIG, excludedPaymentMethodTypes: ["klarna"] }
+          : { paymentMethodTypes: ["ideal", "bancontact", "eps", "p24", "blik"] }),
       expiresAt: Math.floor(expiresAt.getTime() / 1000),
       metadata: { booking_id: id, kind: "trip_card", link_id: link.id, base_cents: String(Math.round(asked * 100)), fee_cents: String(Math.round(fee * 100)), card_region: region },
       paymentIntentDescription: `NP7 ${title}${edition} · booking ${id.slice(0, 8).toUpperCase()}`,
