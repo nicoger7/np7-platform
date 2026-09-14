@@ -6,22 +6,15 @@
  * guest who would have paid in thirty seconds from their banking app, and it
  * loses NP7 the days between the reminder and the transfer.
  *
- * What it offers is the bank rails plus the card, and Klarna deliberately not.
+ * What it offers depends on where the guest is, and `payment-methods.ts` is
+ * where that is decided and why. The short version: a bank rail if their
+ * country has one, a card if they are outside the EEA where the fee may
+ * lawfully be added, and otherwise nothing, because the bank transfer on their
+ * invoice is better than a page they cannot finish.
  *
- * The rails are the cheap ones: the guest approves in their own bank, the money
- * cannot be pulled back, and it costs cents instead of a percentage. But each
- * is national. iDEAL is Dutch, Bancontact Belgian, EPS Austrian, BLIK and
- * Przelewy24 Polish, and Wero, which Stripe lists under iDEAL, still hands a
- * German the Dutch iDEAL page with no German bank on it (checked 14 Sep 2026
- * on a real checkout). So Germany, the biggest group of NP7 guests, has no
- * cheap instant rail yet, and a card-free list would have been a dead end for
- * them. The card stays until the Stripe bank transfer is wired up, and on a
- * private EEA card NP7 carries Stripe's cost, because a surcharge there is
- * forbidden (§270a BGB) and this page cannot see the card in any case.
- *
- * Klarna is named out: 2.99 % plus consumer credit for a holiday, when the same
- * guest has a card at 1.5 %. Apple Pay and Link ride along with the card and
- * cost the same, so they are welcome.
+ * That last case is not hypothetical. Until today this route named five rails
+ * for everyone, and a German member pressed Pay and was handed iDEAL's Dutch
+ * bank list.
  *
  * The payment is recorded by the same webhook path as that link, through an
  * exp_payment_links row with a zero fee, so a payment made here is dedupe-safe,
@@ -35,10 +28,13 @@ import { publicOrigin } from "@/lib/public-origin";
 import { sumReceived } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { coveredExtraTotal } from "@/lib/group-booking";
+import { guestCountry, onlineMethodsFor } from "@/lib/payment-methods";
+import { cardFee } from "@/lib/card-fee";
 
 export const dynamic = "force-dynamic";
 
 const bad = (msg: string, status = 400) => NextResponse.json({ error: msg }, { status });
+const NOTHING = "Please transfer using the details on your invoice below.";
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -53,7 +49,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { data: booking } = await db.from("exp_bookings")
-    .select("id, contact_id, experience_id, agreed_price, status, covered_by_booking_id, contacts(email), exp_experiences(title,currency,page_template), exp_editions(label,currency)")
+    .select("id, contact_id, experience_id, agreed_price, status, covered_by_booking_id, contacts(email,phone,country,billing_country), exp_experiences(title,currency,page_template), exp_editions(label,currency)")
     .eq("id", id).maybeSingle();
   if (!booking || booking.contact_id !== user.contactId) return bad("Booking not found.", 404);
   if (booking.covered_by_booking_id) return bad("Someone else is paying for this booking.", 409);
@@ -62,6 +58,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (booking.exp_experiences?.page_template === "event") return bad("Use the ticket payment page for this booking.", 409);
   const currency = (booking.exp_editions?.currency as string | null) ?? (booking.exp_experiences?.currency as string | null) ?? "EUR";
   if (currency !== "EUR") return bad("Paying online is EUR only for now; your invoice has our bank details.", 409);
+
+  // Where they are decides what they can be shown. Deciding it here as well as
+  // on the page matters: the page could be stale, and a session created with a
+  // method the guest cannot use is a dead end nobody sees until they are in it.
+  const where = guestCountry({
+    billingCountry: booking.contacts?.billing_country, country: booking.contacts?.country,
+    phone: booking.contacts?.phone,
+  });
+  const methods = onlineMethodsFor(where);
+  if (methods.types.length === 0) return bad(methods.unavailable ?? NOTHING, 409);
 
   /*
    * What is owed: this booking's price, the confirmed add-ons we bill, AND the
@@ -120,9 +126,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   // Half an hour, the shortest Stripe allows. Long enough to pay, short enough
   // that an abandoned one is gone before anyone wonders about it.
   const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+  /*
+   * A card is only ever offered outside the EEA, where the surcharge is lawful,
+   * so a card offer carries the fee and a rail never does. `intl` is the
+   * cautious bucket: if the card turns out cheaper than that the guest is
+   * overcharged, which the webhook's refund catches, and if it turns out to be
+   * an EEA private card the whole fee comes back.
+   */
+  const region = methods.card ? "intl" : "eea";
+  const { fee, total } = methods.card ? cardFee(asked, region) : { fee: 0, total: asked };
   const { data: link, error: insErr } = await db.from("exp_payment_links").insert({
     booking_id: id, contact_id: booking.contact_id,
-    amount: asked, fee: 0, total: asked, currency, card_region: "eea",
+    amount: asked, fee, total, currency, card_region: region,
     status: "open", note: "Paid by the member from their trip page", created_by: "member",
     expires_at: expiresAt.toISOString(),
   }).select("id").single();
@@ -134,23 +149,27 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   let session: { url: string; id: string } | null = null;
   try {
     session = await createCheckoutSession({
-      lines: [{
-        name: `${title}${edition}`,
-        description: asked >= outstanding - 0.01 ? "Everything still owed on your trip." : "Part payment on your trip.",
-        amountCents: Math.round(asked * 100),
-      }],
+      lines: [
+        {
+          name: `${title}${edition}`,
+          description: asked >= outstanding - 0.01 ? "Everything still owed on your trip." : "Part payment on your trip.",
+          amountCents: Math.round(asked * 100),
+        },
+        // Its own line, never folded into the price: the guest sees what the
+        // card costs before they type a number, which is both the decent thing
+        // and what §312a Abs. 4 BGB expects of a surcharge.
+        ...(fee > 0 ? [{ name: "Card payment fee", description: "Only on card. A bank transfer from your invoice is free.", amountCents: Math.round(fee * 100) }] : []),
+      ],
       currency,
       successUrl: `${origin}/account/bookings/${id}?paid=1#payment`,
       cancelUrl: `${origin}/account/bookings/${id}#payment`,
       customerEmail: booking.contacts?.email ?? undefined,
-      // Named explicitly, which is what keeps Klarna out. The cost is that a
-      // named list is not filtered by country, so a German is shown rails they
-      // cannot use alongside the card they can. A payment method configuration
-      // would filter, and is the next step once the bank transfer removes the
-      // reason to keep the card at all.
-      paymentMethodTypes: ["card", "ideal", "bancontact", "eps", "p24", "blik"],
+      // Only what this guest's country can actually finish. Naming them keeps
+      // Klarna out; the cost of naming them is that Stripe stops filtering by
+      // country, which is the job payment-methods.ts now does.
+      paymentMethodTypes: methods.types,
       expiresAt: Math.floor(expiresAt.getTime() / 1000),
-      metadata: { booking_id: id, kind: "trip_card", link_id: link.id, base_cents: String(Math.round(asked * 100)), fee_cents: "0", card_region: "eea" },
+      metadata: { booking_id: id, kind: "trip_card", link_id: link.id, base_cents: String(Math.round(asked * 100)), fee_cents: String(Math.round(fee * 100)), card_region: region },
       paymentIntentDescription: `NP7 ${title}${edition} · booking ${id.slice(0, 8).toUpperCase()}`,
     });
   } catch (e) {
@@ -167,5 +186,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await db.from("exp_payment_links").delete().eq("id", link.id);
     return bad("Could not start the payment. Please try again.", 500);
   }
-  return NextResponse.json({ url: session.url, amount: asked });
+  return NextResponse.json({ url: session.url, amount: asked, fee, total });
 }

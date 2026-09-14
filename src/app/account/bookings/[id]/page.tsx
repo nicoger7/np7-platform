@@ -16,6 +16,7 @@ import { MarketingConsentToggle } from "@/components/portal/marketing-consent-to
 import { TripAddons } from "@/components/portal/trip-addons";
 import { PaymentPlan } from "@/components/portal/payment-plan";
 import { PayNow } from "@/components/portal/pay-now";
+import { guestCountry, onlineMethodsFor } from "@/lib/payment-methods";
 import { TripView, type TripTab, type TripTile } from "@/components/portal/trip-view";
 import { TripHero } from "@/components/portal/trip-hero";
 import { hasFlightDetails } from "@/lib/flights";
@@ -197,12 +198,22 @@ export default async function BookingDetail({ params }: Props) {
 
   // The dated steps a guest keeps asking about — derived from the same
   // schedule the mail cron runs on, so the page and the inbox never disagree.
-  const [timing, companyRow] = await Promise.all([
+  const [timing, companyRow, whoRow] = await Promise.all([
     getSendTiming().catch(() => ({ before: {} as Record<string, number | null | undefined> })),
     // company_settings is newer than database.types.ts — same escape hatch the invoice code uses.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (createAdminClient() as any).from("company_settings").select("email, phone").eq("division", "experience").maybeSingle(),
+    // Where they are, so the Pay button is only offered when their country has
+    // something it can actually finish. The pay route decides this again for
+    // itself; this copy only keeps a dead button off the page.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (createAdminClient() as any).from("contacts").select("phone, country, billing_country").eq("id", user.contactId).maybeSingle(),
   ]);
+  const payMethods = (() => {
+    const c = whoRow?.data as { phone?: string | null; country?: string | null; billing_country?: string | null } | null;
+    const m = onlineMethodsFor(guestCountry({ billingCountry: c?.billing_country, country: c?.country, phone: c?.phone }));
+    return m.types.length === 0 ? null : { kind: m.card ? "card" as const : "rail" as const };
+  })();
   const whatsNext = tripEnded ? [] : buildWhatsNext({
     now,
     start: startsAt,
@@ -502,6 +513,7 @@ export default async function BookingDetail({ params }: Props) {
                       .toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })
                   : null}
                 currency={cur}
+                methods={payMethods}
               />
             : null}
         />

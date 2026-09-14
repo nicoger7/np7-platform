@@ -9,11 +9,12 @@ import { useState } from "react";
  * bank's app or their card, and the money is on the booking before they have
  * closed the tab.
  *
- * What they are offered is decided by Stripe from their own country, so a
- * Dutch rider sees iDEAL and a German sees Wero without anyone choosing. No
- * card fee is ever added here.
+ * What they are offered is decided by their country, in payment-methods.ts,
+ * and the decision is made on the server so this button never opens a checkout
+ * the guest cannot finish. Where their country has no instant rail the button
+ * does not appear at all and the bank transfer below it is the answer.
  */
-export function PayNow({ bookingId, amount, balance, refundableUntil, currency = "EUR", label }: {
+export function PayNow({ bookingId, amount, balance, refundableUntil, currency = "EUR", label, methods }: {
   bookingId: string;
   amount: number;
   /** Everything still owed. When it is more than `amount`, paying the lot is
@@ -26,6 +27,10 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
   currency?: string;
   /** Overrides the default "Pay …" wording, e.g. for a securing payment. */
   label?: string;
+  /** What this guest's country can actually pay with, worked out on the server.
+   *  `null` hides the button: there is no point offering a checkout that ends
+   *  on a bank list the guest is not on. */
+  methods?: { kind: "rail" | "card"; feePct?: number } | null;
 }) {
   const [busy, setBusy] = useState<null | "milestone" | "all">(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +59,10 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
   }
 
   if (!(amount > 0)) return null;
+  // No rail in their country and no lawful way to charge a card fee: the bank
+  // transfer right below this is genuinely the better route, so say nothing.
+  if (methods === null) return null;
+  const isCard = methods?.kind === "card";
 
   return (
     <div className="mt-4">
@@ -79,7 +88,7 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
       </div>
       <p className="text-[12px] text-[#7d8b91] mt-2">
         {refundableUntil ? (all ? <>Either way, the first {fmt(amount)} stays refundable until {refundableUntil}. </> : <>Refundable until {refundableUntil}. </>) : null}
-        Card, or straight from your own bank where your country has it. Or ignore this and transfer from your invoice, both land in the same place.
+        Straight from your own bank: iDEAL, Wero, Bancontact, whichever yours is. Or ignore this and transfer from your invoice, both land in the same place.
       </p>
       {error && <p className="text-[12.5px] text-[#b4472a] mt-2">{error}</p>}
     </div>
