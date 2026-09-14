@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { builtinAccess, normalizeAccess, mergeAccess, effectiveCanSeeField, WORLDS, type RoleAccess } from "@/lib/access";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
 
 type RoleRow = { id: string; name: string; system_key?: string | null; is_system?: boolean; access?: unknown };
 
@@ -45,6 +46,8 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [inviting, setInviting] = useState(false);
+  // One dialog for every admin action that writes to a person (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
   const [invited, setInvited] = useState(false);
   const [roles, setRoles] = useState<RoleRow[]>([]);
 
@@ -72,6 +75,13 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
 
   async function handleInvite() {
     if (!member?.email) { alert("Add an email and Save first, then send the invite."); return; }
+    const go = await askMail({
+      title: `Invite ${member.name || "this colleague"} to the admin`,
+      mail: "Their sign-in link for the NP7 admin",
+      to: { kind: "person", name: member.name, email: member.email },
+      also: "The link is how they sign in the first time, so this one cannot be switched off in Emails.",
+    });
+    if (!go) return;
     setInviting(true);
     const res = await fetch(`/api/admin/team/${id}/invite`, { method: "POST" });
     setInviting(false);
@@ -219,6 +229,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ id: strin
           )}
         </div>
       </div>
+      {mailDialog}
     </div>
   );
 }

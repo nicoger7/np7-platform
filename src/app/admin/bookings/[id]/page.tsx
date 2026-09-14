@@ -17,6 +17,8 @@ import { reconcileBooking, suggestInvoices, type ReconInvoice, type ReconPayment
 import { computePaymentPlan, dueUrgency, type MilestoneKind } from "@/lib/payments";
 import { mutate, reportFailure } from "@/lib/mutate";
 import { CancelBookingModal } from "@/components/admin/cancel-booking-modal";
+import { useMailConfirm, type MailAudience } from "@/components/admin/mail-confirm";
+import { sentLine } from "@/lib/email/mail-warning";
 import { CardLinkDialog } from "@/components/admin/card-link-dialog";
 import { sumReceived, sumExpected, paidState } from "@/lib/payment-totals";
 import type { BookingConnectView } from "@/lib/bank/booking-connect";
@@ -275,6 +277,18 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   const [notes, setNotes] = useState<BookingNote[]>([]);
   const [noteDraft, setNoteDraft] = useState("");
   const [genError, setGenError] = useState<string | null>(null);
+  /* What the last document action actually mailed, and to whom. The Send
+     button used to leave a silent green tick and nothing else. */
+  const [docNote, setDocNote] = useState<string | null>(null);
+  /* Nico's rule, 14 Sep 2026: every admin action that mails a guest asks first
+     and says afterwards what went out. One dialog, so the wording is the same
+     on every button. */
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
+  /* What a payment did BEYOND landing: the real tax invoice it caused, whether
+     the guest was emailed it, the fresh request opened for the rest. All of it
+     used to happen in silence, so nobody knew a click had sent a guest an
+     invoice. */
+  const [paymentsNote, setPaymentsNote] = useState<string | null>(null);
   // "proforma_full" is not a document type — it is the same pro-forma asked for
   // over the whole outstanding amount, and it needs its own spinner.
   const [generating, setGenerating] = useState<DocumentType | "proforma_full" | null>(null);
@@ -616,34 +630,81 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     setBooking((prev) => prev ? { ...prev, addons: prev.addons.filter((a) => a.id !== addonId) } : prev);
   }
 
+  /** The guest, for add-on mail. No address on file means no mail, and the
+   *  dialog has to say so rather than promising one. */
+  const guestAudience = (): MailAudience => ({
+    kind: "person", name: booking?.contacts?.name ?? null, email: booking?.contacts?.email ?? null,
+  });
+
+  /** Only a request the MEMBER made gets a decline mail. An admin tidying up a
+   *  row he typed himself must not fire an email at anyone, so the dialog says
+   *  "no email goes out" for those instead of asking for a reason to send. */
+  const declineMails = (a: Addon | undefined) =>
+    !!a && (a.source === "member" || String(a.notes ?? "").startsWith("member:"));
+
   /** Say no to a member's request — with a reason, which the guest is emailed.
-   *  Deleting the row instead (the × ) erased the ask and told them nothing. */
+   *  Deleting the row instead (the × ) erased the ask and told them nothing.
+   *
+   *  Was a window.prompt: it did warn about the mail, but never named the
+   *  person it would reach, and typed the sentence a guest reads into a browser
+   *  box with no room to see it. */
   async function declineAddon(addonId: string) {
-    const reason = prompt(
-      "Why can't we do this? The guest is emailed this sentence.\n\nE.g. \"The hotel is fully booked those nights.\"",
-      "The hotel has no availability for those nights.",
-    );
-    if (reason === null) return; // cancelled
+    const a = booking?.addons.find((x) => x.id === addonId);
+    const mails = declineMails(a);
+    const go = await askMail({
+      title: `Decline "${a?.label ?? a?.exp_components?.name ?? "this add-on"}"`,
+      mail: "Add-on declined, with your sentence as the reason",
+      to: mails ? guestAudience() : { kind: "none", why: "you added this row yourself, so nobody is waiting on an answer" },
+      reason: mails
+        ? {
+            label: "Why can't we do this? The guest reads this sentence",
+            placeholder: "e.g. The hotel is fully booked those nights.",
+            initial: "The hotel has no availability for those nights.",
+            required: true,
+          }
+        : undefined,
+      confirmLabel: "Decline",
+    });
+    if (!go) return;
     const res = await fetch(`/api/admin/bookings/${id}/addons`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ addon_id: addonId, status: "declined", reason }),
+      body: JSON.stringify({ addon_id: addonId, status: "declined", reason: go.reason }),
     });
     if (res.ok) {
+      const j = await res.json().catch(() => ({}));
       setBooking((prev) => prev ? {
         ...prev,
-        addons: prev.addons.map((a) => a.id === addonId ? { ...a, status: "declined", price: 0 } : a),
+        addons: prev.addons.map((x) => x.id === addonId ? { ...x, status: "declined", price: 0 } : x),
       } : prev);
+      if (j.mail) alert(sentLine(j.mail.sent ? 1 : 0, j.mail.to, j.mail.why));
     } else {
       alert((await res.json().catch(() => ({}))).error || "Could not decline");
     }
   }
 
   async function confirmAddon(addonId: string, complimentary = false) {
+    const a = booking?.addons.find((x) => x.id === addonId);
+    const price = Number(a?.price) || 0;
+    const direct = ((a as { payment_mode?: string | null } | undefined)?.payment_mode ?? a?.exp_components?.payment_mode) === "direct";
+    const go = await askMail({
+      title: `Confirm "${a?.label ?? a?.exp_components?.name ?? "this add-on"}"`,
+      mail: "Add-on confirmed, with what it adds to their balance",
+      to: guestAudience(),
+      also: direct
+        ? "They pay the supplier directly, so nothing is invoiced."
+        : complimentary || price <= 0
+          ? "Nothing is charged for it."
+          : `It adds ${formatMoney(price)} to what they owe.`,
+      confirmLabel: "Confirm and send",
+    });
+    if (!go) return;
     const res = await fetch(`/api/admin/bookings/${id}/addons`, {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ addon_id: addonId, status: "confirmed", complimentary }),
     });
     if (res.ok) {
+      const j = await res.json().catch(() => ({}));
+      if (j.mail) alert(sentLine(j.mail.sent ? 1 : 0, j.mail.to, j.mail.why));
       setBooking((prev) => {
         if (!prev) return prev;
         // customer-confirm of an extra-nights add-on implies hotel-confirmed too
@@ -682,22 +743,64 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     }
   }
 
+  /** Who an invoice goes to. The billing contact wins where there is one: a
+   *  trip bought as a present is invoiced to the buyer, not the traveller.
+   *  Only a fallback for the promotion warning, where no document exists yet;
+   *  a real Send asks the server, which owns the resolution. */
+  function invoiceRecipient(): MailAudience {
+    const c = booking?.billing_contact ?? booking?.contacts ?? null;
+    return { kind: "person", name: c?.name ?? null, email: c?.email ?? null };
+  }
+
   async function sendInvoice(docId: string) {
-    setGenError(null);
+    const doc = documents.find((d) => d.id === docId);
+    const kind = doc ? docKind(doc) : "other";
+    const isCredit = kind === "credit" || kind === "storno";
+    const number = doc?.invoice_number ?? "this document";
+    /* Ask the server who this would reach rather than guessing from the row:
+       it is the same resolution the send uses, so the name in the dialog is
+       the name in the To: line. */
+    const who = await fetch(`/api/admin/documents/${docId}/send`)
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    // Pressing Send mailed a guest with nothing asked at all. It is the most
+    // consequential button on the tab and was the quietest.
+    const go = await askMail({
+      title: doc?.sent_at ? `Send ${number} again` : `Send ${number}`,
+      mail: isCredit
+        ? "Storno / credit note, says what was reversed and never asks for payment"
+        : "Invoice, with the amount and our bank details",
+      to: who ? { kind: "person", name: who.name, email: who.email } : invoiceRecipient(),
+      attachment: `${number}.pdf`,
+      also: doc?.sent_at ? `It already went out on ${fmtShort(doc.sent_at)}.` : null,
+    });
+    if (!go) return;
+
+    setGenError(null); setDocNote(null);
     setSendingDoc(docId);
     const res = await fetch(`/api/admin/documents/${docId}/send`, { method: "POST" });
-    if (res.ok) { await fetchDocuments(); }
-    else { const e = await res.json().catch(() => ({})); setGenError(e.error || "Couldn't send the invoice."); }
+    const j = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setDocNote(sentLine(j.status === "sent" ? 1 : 0, j.sentTo, j.skippedWhy));
+      await fetchDocuments();
+    } else setGenError(j.error || "Couldn't send the invoice.");
     setSendingDoc(null);
   }
 
   async function sendShortfallReminder() {
+    const go = await askMail({
+      title: "Send the shortfall reminder",
+      mail: "A friendly ask for the difference that is still outstanding",
+      to: { kind: "person", name: booking?.contacts?.name ?? null, email: booking?.contacts?.email ?? null },
+    });
+    if (!go) return;
     const res = await fetch(`/api/admin/bookings/${id}/settle`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "remind_shortfall" }),
     });
     const d = await res.json().catch(() => ({}));
-    alert(res.ok ? "Reminder emailed to the customer." : (d.error || "Couldn't send the reminder."));
+    alert(res.ok
+      ? sentLine(d.status === "sent" ? 1 : 0, d.sentTo, d.skippedWhy)
+      : (d.error || "Couldn't send the reminder."));
   }
 
   async function acceptShort() {
@@ -718,6 +821,31 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     const d = await res.json().catch(() => ({}));
     if (res.ok) { setBooking((prev) => prev ? { ...prev, agreed_price: d.agreed_price } : prev); }
     else alert(d.error || "Couldn't accept the short payment.");
+  }
+
+  /**
+   * Ask before money quietly mails an invoice.
+   *
+   * An open pro-forma is a payment request, not a tax invoice. The moment the
+   * money covering it lands, the real invoice is generated with a gapless
+   * number and sent to the guest. Nobody pressing "Record payment" expects to
+   * have written to a customer, so the dialog says so first and the page
+   * prints promotionNote afterwards.
+   *
+   * No open request means this click only records money, so it asks nothing.
+   */
+  async function confirmPromotion(title: string): Promise<boolean> {
+    const open = documents.filter((d) => docKind(d) === "proforma" && d.status === "issued");
+    if (open.length === 0) return true;
+    const go = await askMail({
+      title,
+      mail: "The real invoice, once this money covers the open request",
+      to: invoiceRecipient(),
+      attachment: "the invoice PDF",
+      also: `${open.length === 1 ? "One open payment request" : `${open.length} open payment requests`} on this booking. Only the ones the money actually covers are issued and sent.`,
+      confirmLabel: "Record it",
+    });
+    return !!go;
   }
 
   /*
@@ -755,8 +883,14 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
         if (!confirm(`${line}\n\nRecord it anyway?`)) return;
       }
     }
+    /* Money landing is not only bookkeeping. If an open payment request is
+       covered, promoteProformaIfPaid issues the real tax invoice and EMAILS it
+       to the guest. That was invisible until after the click, which is the
+       thing Nico asked us to stop on 14 Sep 2026. */
+    if (!(await confirmPromotion("Record this payment"))) return;
+
     // mutate() never lies about a 401/403/400: the form only closes on a row.
-    const r = await mutate<{ payment: Payment }>(`/api/admin/bookings/${id}/payments`, {
+    const r = await mutate<{ payment: Payment; promotionNote?: string | null }>(`/api/admin/bookings/${id}/payments`, {
       method: "POST",
       body: {
         amount,
@@ -772,6 +906,9 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     setBooking((prev) => prev ? { ...prev, payments: [...prev.payments, r.data.payment] } : prev);
     setShowPaymentForm(false);
     setPaymentForm(emptyOffBankForm);
+    // Recording €1,435 against an open request also issues the tax invoice and
+    // sends it. Say so on the page rather than leaving it to the guest to tell us.
+    setPaymentsNote(r.data.promotionNote ? `Recorded. ${r.data.promotionNote}` : null);
     fetchDocuments();
   }
 
@@ -801,6 +938,12 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
      booking against that invoice, and leaves the feed's to-match pile. */
   async function connectFromBank(transactionId: string, documentId: string, fromSuggestion: boolean) {
     if (!documentId) { alert("Pick the invoice this money settles."); return; }
+    /* No mail warning here on purpose. Connecting from the feed goes through
+       store.matchToInvoice, which settles and stops: it deliberately does NOT
+       run promoteProformaIfPaid, so nothing is issued and nothing is emailed
+       (see the note in lib/bank/store.ts). Asking about a mail that cannot
+       leave would teach the team to click through the dialogs that matter. */
+    setPaymentsNote(null);
     setBankConnect((s) => ({ ...s, busy: transactionId, error: null }));
     const r = await mutate(`/api/admin/bookings/${id}/payments/bank`, { method: "POST", body: { transactionId, documentId, fromSuggestion } });
     if (!r.ok) { setBankConnect((s) => ({ ...s, busy: null, error: r.error })); return; }
@@ -1028,6 +1171,8 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   // count: that stage can be invoiced again.
   const stageInvoice = (kind: MilestoneKind) =>
     liveDocs.find((d) => d.type === DOC_FOR[kind] && !correctionState(d, byOriginalDocs).reversed);
+  /* The open payment request. Also what the Payments tab checks before
+     warning that money covering it issues the real invoice and mails it. */
   const openProforma = liveDocs.find((d) => d.type === "proforma_invoice");
   const unsentCorrection = liveDocs.find((d) => d.type === "credit_note" && !d.sent_at);
   const unsentInvoice = liveDocs.find((d) => isTaxInvoiceDoc(d) && !d.sent_at && !correctionState(d, byOriginalDocs).reversed);
@@ -1763,6 +1908,15 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       {/* ─── Payments Tab ─── */}
       {safeTab === "payments" && (
         <div className="max-w-[800px]">
+          {/* What the last click did beyond recording money: the invoice it
+              issued, the mail that went to the guest, the request opened for
+              the rest. Stays until the next action on this tab. */}
+          {paymentsNote && (
+            <div className="mb-4 px-4 py-3 rounded-lg text-sm text-green-400" style={{ backgroundColor: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
+              {paymentsNote}
+            </div>
+          )}
+
           {/* How the rest gets collected.
               Only a person knows whether this rider is paying by card, sending
               a transfer, or settling at the centre — and until it was recorded
@@ -2015,6 +2169,15 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                 The row is not bank-backed, says so wherever it shows, and carries your reason. A transfer to NP7&apos;s own
                 account is never typed here: connect it from the feed above.
               </p>
+              {/* Said BEFORE the click, and only where it is true: with a
+                  request open, recording the money that covers it issues the
+                  real invoice and mails it. Without one, nothing extra
+                  happens and this line would be a lie. */}
+              {openProforma && (
+                <p className="text-[11px] text-amber-400 mb-3">
+                  A payment request for €{Number(openProforma.amount ?? 0).toLocaleString()} is open. Money that covers it issues the real invoice and emails it to the guest.
+                </p>
+              )}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                 <div>
                   <label className={labelClass}>Amount (€) *</label>
@@ -2682,6 +2845,14 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
             </div>
           )}
 
+          {/* What the last Send actually did. "Sent to Daniel Rainham", or the
+              reason nothing left. */}
+          {docNote && (
+            <div className="mb-4 px-4 py-3 rounded-lg text-sm text-green-400" style={{ backgroundColor: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
+              {docNote}
+            </div>
+          )}
+
           {genError && (
             <div className="mb-4 px-4 py-3 rounded-lg text-sm text-red-400" style={{ backgroundColor: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
               {genError}
@@ -2740,6 +2911,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
           onConfirm={cancelBooking}
         />
       )}
+      {mailDialog}
     </div>
   );
 }

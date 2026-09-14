@@ -8,6 +8,7 @@ import {
   fmtVoucherMoney,
   type VoucherStatus,
 } from "@/lib/vouchers";
+import { useMailConfirm, type MailAudience } from "@/components/admin/mail-confirm";
 
 type Joined = { id: string; name: string | null; email: string | null } | null;
 
@@ -62,6 +63,10 @@ export default function VouchersPage() {
      A status dropdown does not answer that, and the list only grows. */
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  /* What the last activation actually mailed, and to whom. */
+  const [notice, setNotice] = useState<string | null>(null);
+  // One dialog for every admin action that writes to a guest (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
   const [form, setForm] = useState<FormState | null>(null); // open modal state
   const [formErr, setFormErr] = useState("");
   const [saving, setSaving] = useState(false);
@@ -83,7 +88,29 @@ export default function VouchersPage() {
 
   async function act(id: string, action: "activate" | "cancel") {
     if (action === "cancel" && !confirm("Cancel this voucher? The buyer keeps no claim on the trip.")) return;
-    if (action === "activate" && !confirm("Confirm the bank transfer landed and activate this voucher?\n\nThis starts the 1-year validity clock.")) return;
+    if (action === "activate") {
+      /* The old confirm talked about the bank transfer and the validity clock
+         and never mentioned that activating puts a PDF in up to TWO inboxes,
+         one of them a gift recipient who is not an NP7 customer at all. */
+      const v = vouchers.find((x) => x.id === id);
+      const to: MailAudience[] = [
+        { kind: "person", name: v?.buyer?.name ?? null, email: v?.buyer?.email ?? null },
+      ];
+      if (v?.recipient_email || v?.recipient?.email) {
+        to.push({ kind: "person", name: v?.recipient_name ?? v?.recipient?.name ?? null, email: v?.recipient_email ?? v?.recipient?.email ?? null });
+      }
+      const go = await askMail({
+        title: `Activate voucher ${v?.code ?? ""}`.trim(),
+        mail: to.length > 1
+          ? "The voucher confirmation to the buyer, and the gift itself to the recipient"
+          : "The voucher confirmation",
+        to,
+        attachment: "the printable voucher PDF",
+        also: "Confirms the bank transfer landed and starts the validity clock.",
+        confirmLabel: "Activate and send",
+      });
+      if (!go) return;
+    }
     setBusy(id);
     const res = await fetch(`/api/admin/vouchers/${id}`, {
       method: "PATCH",
@@ -91,9 +118,15 @@ export default function VouchersPage() {
       body: JSON.stringify({ action }),
     });
     setBusy(null);
-    if (res.ok) fetchVouchers();
-    else {
-      const d = await res.json().catch(() => ({}));
+    const d = await res.json().catch(() => ({}));
+    if (res.ok) {
+      // Say who actually got the PDF. A send that dedupes or bounces is not a send.
+      if (action === "activate") {
+        const who: string[] = d.sentTo ?? [];
+        setNotice(who.length ? `Activated. Voucher emailed to ${who.join(" and ")}.` : "Activated. Nothing was emailed.");
+      }
+      fetchVouchers();
+    } else {
       alert(d.error || "Couldn't update the voucher.");
     }
   }
@@ -154,6 +187,12 @@ export default function VouchersPage() {
 
   return (
     <div>
+      {/* What the last activation mailed. Stays until the next action. */}
+      {notice && (
+        <div className="mb-4 px-4 py-3 rounded-lg text-sm text-green-500" style={{ backgroundColor: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}>
+          {notice}
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold admin-heading">Gift Vouchers</h1>
@@ -376,6 +415,7 @@ export default function VouchersPage() {
           </div>
         </div>
       )}
+      {mailDialog}
     </div>
   );
 }

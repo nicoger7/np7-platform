@@ -61,6 +61,9 @@ function PaymentsInner() {
   const initial = params.get("view");
   const [view, setView] = useState<View>(isView(initial) ? initial : "unmatched");
   const [offBankOpen, setOffBankOpen] = useState(false);
+  /* What the last off-bank payment did beyond landing: the real invoice it
+     issued and mailed to the guest, the request opened for the rest. */
+  const [note, setNote] = useState<string | null>(null);
   const [unverifiedCount, setUnverifiedCount] = useState<number | null>(null);
   const [bump, setBump] = useState(0);
 
@@ -117,10 +120,17 @@ function PaymentsInner() {
 
       {offBankOpen && (
         <OffBankForm
-          onDone={() => { setOffBankOpen(false); setBump((n) => n + 1); if (view !== "off_bank") choose("off_bank"); }}
+          onDone={(promotionNote) => {
+            setOffBankOpen(false);
+            setNote(promotionNote ? `Recorded. ${promotionNote}` : null);
+            setBump((n) => n + 1);
+            if (view !== "off_bank") choose("off_bank");
+          }}
           onCancel={() => setOffBankOpen(false)}
         />
       )}
+
+      {note && <div className="mb-4 text-sm text-green-600">{note}</div>}
 
       <div className="flex flex-wrap items-center gap-2 mb-3">
         <div className="fin-seg inline-flex">

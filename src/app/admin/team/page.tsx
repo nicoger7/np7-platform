@@ -6,6 +6,7 @@ import {
   WORLDS, SECTIONS, FIELDS, builtinAccess, normalizeAccess, mergeAccess, normalizeLevel, OWNER_ONLY_SECTIONS,
   type RoleAccess, type WorldId, type SectionLevel, type FieldKey, type AccessLevel,
 } from "@/lib/access";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
 
 /**
  * Team — people-first view of who's on the team and what each person can see
@@ -98,6 +99,8 @@ export default function TeamPage() {
   const [savingAccess, setSavingAccess] = useState(false);
   const [accessErr, setAccessErr] = useState("");
   const [inviteState, setInviteState] = useState<Record<string, "sending" | "sent" | undefined>>({});
+  // One dialog for every admin action that writes to a person (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
   const [showNew, setShowNew] = useState(false);
 
   function load() {
@@ -141,6 +144,15 @@ export default function TeamPage() {
 
   async function sendInvite(m: TeamMember) {
     if (!m.email) return;
+    /* A colleague, not a guest, but the same rule applies: one click was
+       writing to a person with nothing asked (Nico, 14 Sep 2026). */
+    const go = await askMail({
+      title: `Invite ${m.name} to the admin`,
+      mail: "Their sign-in link for the NP7 admin",
+      to: { kind: "person", name: m.name, email: m.email },
+      also: "The link is how they sign in the first time, so this one cannot be switched off in Emails.",
+    });
+    if (!go) return;
     setInviteState((s) => ({ ...s, [m.id]: "sending" }));
     try {
       const res = await fetch(`/api/admin/team/${m.id}/invite`, { method: "POST" });
@@ -350,6 +362,7 @@ export default function TeamPage() {
       {showNew && (
         <NewMemberPanel roles={roles} onClose={() => setShowNew(false)} onCreated={() => { setShowNew(false); load(); }} />
       )}
+      {mailDialog}
     </div>
   );
 }

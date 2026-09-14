@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
+import { sentLine } from "@/lib/email/mail-warning";
 
 // ─── Types (mirroring /api/admin/windcoach-guides) ───────────────────────────
 
@@ -226,6 +228,7 @@ function SendGuideMail({ guideId }: { guideId: string }) {
   const [info, setInfo] = useState<{ recipient: string | null; name: string | null; lastSent: string | null; ready: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
 
   useEffect(() => {
     fetch(`/api/admin/windcoach-guides/${guideId}/send`)
@@ -236,15 +239,23 @@ function SendGuideMail({ guideId }: { guideId: string }) {
 
   async function send() {
     if (!info?.recipient) return;
-    const again = info.lastSent ? `\n\nThis guide was already emailed on ${fmtDate(info.lastSent)} — sending again will be skipped.` : "";
-    if (!confirm(`Email this training guide to ${info.name || info.recipient} (${info.recipient})?${again}`)) return;
+    // Same dialog as every other sender in the admin (Nico, 14 Sep 2026).
+    const go = await askMail({
+      title: "Send the training guide",
+      mail: "Their coach's personal read of their sailing",
+      to: { kind: "person", name: info.name, email: info.recipient },
+      also: info.lastSent
+        ? `It already went out on ${fmtDate(info.lastSent)}, so sending again is skipped.`
+        : null,
+    });
+    if (!go) return;
     setBusy(true);
     setMsg(null);
     try {
       const r = await fetch(`/api/admin/windcoach-guides/${guideId}/send`, { method: "POST" });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || "Could not send");
-      setMsg(j.status === "skipped" ? "Already sent earlier — not sent again" : `Sent to ${j.to} ✓`);
+      setMsg(sentLine(j.status === "sent" ? 1 : 0, j.to, "it already went out earlier"));
       if (j.status === "sent") setInfo((s) => (s ? { ...s, lastSent: new Date().toISOString() } : s));
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Could not send");
@@ -269,6 +280,7 @@ function SendGuideMail({ guideId }: { guideId: string }) {
       {msg
         ? <span className="text-[11px] admin-muted">{msg}</span>
         : info.lastSent && <span className="text-[11px] admin-faint">Emailed {fmtDate(info.lastSent)}</span>}
+      {mailDialog}
     </>
   );
 }

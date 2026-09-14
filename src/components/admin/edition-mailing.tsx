@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { MailReadiness } from "@/components/admin/mail-readiness";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
+import { sentLine } from "@/lib/email/mail-warning";
 
 type Uses = {
   key: "packingList" | "preTripNote" | "whatsappLink";
@@ -73,6 +75,8 @@ export function EditionMailing({ editionId }: { editionId: string }) {
   const [sending, setSending] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
+  // One dialog for every admin action that writes to a guest (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
 
   const load = useCallback(async () => {
     const x = await fetch(`/api/admin/editions/${editionId}/mailing`).then((r) => r.json());
@@ -89,13 +93,19 @@ export function EditionMailing({ editionId }: { editionId: string }) {
    *  early send before the date. Same endpoint, same per-guest dedupe, so the
    *  nightly job later skips whoever got it here. */
   async function sendNow(key: string, name: string, guests: number, targets?: string, early?: { dueAt: string | null; daysAway: number | null }) {
-    const g = `${guests} secured guest${guests === 1 ? "" : "s"}`;
-    const prompt = targets
-      ? `Send "${name}" now to ${guests} guest${guests === 1 ? "" : "s"} — ${targets}?\n\nOnly the guests who qualify right now receive it; anyone who already got it is skipped automatically.`
-      : early
-        ? `Send "${name}" early, to ${g}?\n\nIt is scheduled for ${fmtDay(early.dueAt)}${early.daysAway != null && early.daysAway > 0 ? `, ${early.daysAway} day${early.daysAway === 1 ? "" : "s"} from now` : ""}. Whoever gets it now is skipped by the automatic send; anyone who already got it is skipped too.`
-        : `Send "${name}" now to ${g}?\n\nIts window has passed, so this is a catch-up. Anyone who already got it is skipped automatically.`;
-    if (!confirm(prompt)) return;
+    /* Same dialog as every other sender in the admin. This one already named
+       who and what, which is exactly why its wording became the template. */
+    const go = await askMail({
+      title: early ? `Send "${name}" early` : `Send "${name}" now`,
+      mail: name,
+      to: { kind: "people", count: guests, describe: targets ?? `secured guest${guests === 1 ? "" : "s"}` },
+      also: targets
+        ? "Only the guests who qualify right now receive it. Anyone who already got it is skipped."
+        : early
+          ? `It is scheduled for ${fmtDay(early.dueAt)}${early.daysAway != null && early.daysAway > 0 ? `, ${early.daysAway} day${early.daysAway === 1 ? "" : "s"} from now` : ""}. Whoever gets it now is skipped by the automatic send.`
+          : "Its window has passed, so this is a catch-up. Anyone who already got it is skipped.",
+    });
+    if (!go) return;
     setSending(key); setMsg(null);
     try {
       const r = await fetch(`/api/admin/editions/${editionId}/mailing`, {
@@ -103,7 +113,10 @@ export function EditionMailing({ editionId }: { editionId: string }) {
         body: JSON.stringify({ templateKey: key }),
       });
       const j = await r.json();
-      setMsg(r.ok ? `${name}: sent to ${j.sent}${j.skipped ? `, ${j.skipped} skipped` : ""}.` : (j.error || "Send failed."));
+      // "sent to 0" read like a success. Say what actually happened.
+      setMsg(r.ok
+        ? `${name}: ${sentLine(j.sent, targets ?? "guests", j.skipped ? "everyone eligible already had it" : null)}${j.sent > 0 && j.skipped ? ` ${j.skipped} skipped.` : ""}`
+        : (j.error || "Send failed."));
       if (r.ok) await load();
     } catch { setMsg("Send failed."); }
     finally { setSending(null); }
@@ -183,6 +196,7 @@ export function EditionMailing({ editionId }: { editionId: string }) {
         Every send is logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.
         Wording and on/off switches live in <Link href="/admin/emails" className="text-[#0aa3c7] hover:underline">Emails</Link>.
       </p>
+      {mailDialog}
     </div>
   );
 }

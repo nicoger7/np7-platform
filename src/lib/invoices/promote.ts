@@ -21,6 +21,7 @@ import { sendEmail } from "@/lib/email/send";
 import { nextStepsVars } from "@/lib/email/next-steps";
 import { paymentInflow } from "@/lib/reconcile";
 import { generateDocument, bookingBillingTotals, issuedInvoiceTotal } from "./generate";
+import { emptyPromotion, type PromotedInvoice, type PromotionOutcome } from "./promotion-note";
 import type { DocumentRow } from "./types";
 
 function getDb() {
@@ -28,8 +29,12 @@ function getDb() {
   return createAdminClient() as any;
 }
 
-export async function promoteProformaIfPaid(bookingId: string): Promise<{ promoted: boolean; documentId?: string }> {
+export async function promoteProformaIfPaid(bookingId: string): Promise<PromotionOutcome> {
   const db = getDb();
+
+  /* What this run did, for the admin to be told afterwards. A caller that
+     only wants to know "did anything happen" still reads .promoted. */
+  const outcome = emptyPromotion();
 
   // Total money in (all inflows count; refunds subtract). Constant across the loop.
   const { data: pays } = await db
@@ -41,9 +46,6 @@ export async function promoteProformaIfPaid(bookingId: string): Promise<{ promot
 
   const { data: bk0 } = await db.from("exp_bookings").select("agreed_price").eq("id", bookingId).maybeSingle();
   const agreed = Number(bk0?.agreed_price ?? 0);
-
-  let promotedAny = false;
-  let lastRealId: string | undefined;
 
   // Settle every open pro-forma the cumulative money now covers.
   for (let guard = 0; guard < 5; guard++) {
@@ -93,6 +95,8 @@ export async function promoteProformaIfPaid(bookingId: string): Promise<{ promot
                   superseded_reason: `paid → ${realType} ${alreadyReal[0].invoice_number ?? ""} already issued by hand` },
         })
         .eq("id", pf.id).eq("status", "issued");
+      // Voided, so the report must not go on offering it as an open request.
+      outcome.balanceRequested = null;
       continue; // settle the next open pro-forma, if any
     }
 
@@ -105,6 +109,9 @@ export async function promoteProformaIfPaid(bookingId: string): Promise<{ promot
       .eq("id", pf.id).eq("status", "issued")
       .select("id");
     if (!claimed || claimed.length === 0) break;
+    /* A pay-in-full settles the balance request this run opened one iteration
+       ago, so the report must stop claiming it is still open. */
+    outcome.balanceRequested = null;
 
     /*
      * THE VOID IS ONLY SAFE IF THE INVOICE ACTUALLY ARRIVES.
@@ -134,6 +141,7 @@ export async function promoteProformaIfPaid(bookingId: string): Promise<{ promot
     await db.from("exp_payments").update({ document_id: realId }).eq("booking_id", bookingId).eq("document_id", pf.id);
 
     // Email the real invoice (best-effort; deduped so retries never double-send).
+    const mail: { emailed: boolean; emailedTo: string | null } = { emailed: false, emailedTo: null };
     {
       try {
         const { data: bk } = await db
@@ -149,7 +157,7 @@ export async function promoteProformaIfPaid(bookingId: string): Promise<{ promot
           const amountStr = real.amount != null
             ? new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(Number(real.amount))
             : "";
-          await sendEmail({
+          const sent = await sendEmail({
             to: email,
             templateKey: "invoice_after_payment",
             bookingId,
@@ -173,13 +181,27 @@ export async function promoteProformaIfPaid(bookingId: string): Promise<{ promot
               })),
             },
           });
+          /* Only a real send counts. A second payment write on the same
+             invoice comes back "skipped" from the dedupe, and the page must
+             not tell the team it has just emailed the guest again. */
+          mail.emailed = sent.status === "sent";
+          mail.emailedTo = (bk?.contacts?.name ?? "").trim() || email;
           await db.from("documents").update({ sent_at: new Date().toISOString() }).eq("id", realId).then(() => {}, () => {});
         }
       } catch { /* email is best-effort — the invoice row + PDF exist regardless */ }
     }
 
-    promotedAny = true;
-    lastRealId = realId;
+    const promoted: PromotedInvoice = {
+      documentId: realId,
+      invoiceNumber: real.invoice_number ?? null,
+      amount: real.amount != null ? Number(real.amount) : null,
+      currency: real.currency || "EUR",
+      emailed: mail.emailed,
+      emailedTo: mail.emailedTo,
+    };
+    outcome.invoices.push(promoted);
+    outcome.promoted = true;
+    outcome.documentId = realId;
 
     // After a non-final stage, issue the balance pro-forma so the rider can pay
     // the rest early (add-ons that raised the total land here). If the money
@@ -188,11 +210,15 @@ export async function promoteProformaIfPaid(bookingId: string): Promise<{ promot
     const { outstanding } = await bookingBillingTotals(bookingId, agreed);
     if (outstanding <= 0.01) break;
     try {
-      await generateDocument({ bookingId, type: "proforma_invoice", milestone: "final" });
+      const rest = await generateDocument({ bookingId, type: "proforma_invoice", milestone: "final" });
+      outcome.balanceRequested = {
+        amount: rest.amount != null ? Number(rest.amount) : outstanding,
+        currency: rest.currency || "EUR",
+      };
     } catch { break; }
   }
 
-  return { promoted: promotedAny, documentId: lastRealId };
+  return outcome;
 }
 
 /**

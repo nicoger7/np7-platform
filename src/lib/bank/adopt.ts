@@ -27,6 +27,8 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { round2 } from "@/lib/reconcile";
+/* Type only: the invoice engine stays lazily imported below. */
+import type { PromotionOutcome } from "@/lib/invoices/promotion-note";
 import { paymentTypeFor } from "./store";
 import { OFF_BANK_METHODS, isOffBankMethod, type OffBankMethod } from "./off-bank-methods";
 
@@ -40,16 +42,29 @@ function db() {
 
 /* Server-only modules, loaded lazily so a script that only wants the pure
    suggestion logic does not pull the PDF stack in. */
-export async function afterMoneyLanded(bookingId: string | null | undefined) {
-  if (!bookingId) return;
+
+/**
+ * Everything that follows money landing, and WHAT IT DID.
+ *
+ * Promotion is the loud half: it issues a real tax invoice, emails it to the
+ * guest and opens a request for the rest. The outcome used to be thrown away
+ * here, so the person who clicked never learned that a guest had just been
+ * sent an invoice. It is returned now; a failure still returns null, because
+ * the money is booked either way and no promotion is not an error.
+ */
+export async function afterMoneyLanded(bookingId: string | null | undefined): Promise<PromotionOutcome | null> {
+  if (!bookingId) return null;
   const [{ promoteProformaIfPaid }, { settleInvoices }] = await Promise.all([
     import("@/lib/invoices/promote"),
     import("@/lib/invoices/generate"),
   ]);
-  await promoteProformaIfPaid(bookingId).catch((e) =>
-    console.warn("[payments] proforma promotion failed (non-fatal):", e instanceof Error ? e.message : e));
+  const promotion = await promoteProformaIfPaid(bookingId).catch((e) => {
+    console.warn("[payments] proforma promotion failed (non-fatal):", e instanceof Error ? e.message : e);
+    return null;
+  });
   await settleInvoices(bookingId).catch((e) =>
     console.warn("[payments] settle failed (non-fatal):", e instanceof Error ? e.message : e));
+  return promotion;
 }
 
 /** The reference of a booking-to-booking allocation pair. Not money arriving:
@@ -201,6 +216,8 @@ export type QueueRow = {
   contact_id: string | null;
   document_id: string | null;
   guestName: string | null;
+  /** Where an invoice promoted by adopting this row would be emailed. */
+  guestEmail: string | null;
   invoiceNumber: string | null;
   experienceTitle: string | null;
   /** Why the feed cannot answer this row, when it cannot. */
@@ -260,13 +277,17 @@ export async function loadUnverifiedQueue(division = "experience"): Promise<{ ro
   const [bookingIds, contactIds, docIds, expIds] = [ids("booking_id"), ids("contact_id"), ids("document_id"), ids("experience_id")];
   const [{ data: bookings }, { data: contacts }, { data: docs }, { data: exps }, credits] = await Promise.all([
     bookingIds.length ? admin.from("exp_bookings").select("id, name, contact_id, experience_id").in("id", bookingIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
-    contactIds.length ? admin.from("contacts").select("id, name").in("id", contactIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+    contactIds.length ? admin.from("contacts").select("id, name, email").in("id", contactIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
     docIds.length ? admin.from("documents").select("id, invoice_number").in("id", docIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
     expIds.length ? admin.from("exp_experiences").select("id, title").in("id", expIds) : Promise.resolve({ data: [] as Record<string, unknown>[] }),
     loadUnmatchedCredits(division),
   ]);
   const bookingById = new Map((bookings ?? []).map((b) => [String(b.id), b]));
   const contactById = new Map((contacts ?? []).map((c) => [String(c.id), String(c.name ?? "")]));
+  /* Adopting a row can cover an open payment request, which issues the real
+     invoice and EMAILS it. The queue carries the address so the confirm can
+     name where that mail goes instead of promising one blind. */
+  const contactEmailById = new Map((contacts ?? []).map((c) => [String(c.id), (c.email as string | null) ?? null]));
   const docById = new Map((docs ?? []).map((d) => [String(d.id), String(d.invoice_number ?? "")]));
   const expById = new Map((exps ?? []).map((e) => [String(e.id), String(e.title ?? "")]));
   const creditById = new Map(credits.map((c) => [c.id, c]));
@@ -297,7 +318,8 @@ export async function loadUnverifiedQueue(division = "experience"): Promise<{ ro
       status: (p.status as string | null) ?? null, method: (p.method as string | null) ?? null, reference: like.reference,
       on: like.on, notes: (p.notes as string | null) ?? null,
       booking_id: (p.booking_id as string | null) ?? null, contact_id: contactId, document_id: (p.document_id as string | null) ?? null,
-      guestName, invoiceNumber: like.invoiceNumber,
+      guestName, guestEmail: contactId ? contactEmailById.get(contactId) ?? null : null,
+      invoiceNumber: like.invoiceNumber,
       experienceTitle: experienceId ? expById.get(experienceId) ?? null : null,
       note, suggestions,
     };
@@ -342,7 +364,7 @@ export function adoptCheck(opts: {
  * un-ties the row and hands its label back.
  */
 export async function adoptTransaction(opts: { paymentId: string; transactionId: string; by: string }):
-  Promise<{ ok: true; remaining: number } | { ok: false; error: string }> {
+  Promise<{ ok: true; remaining: number; promotion: PromotionOutcome | null } | { ok: false; error: string }> {
   const admin = db();
   const [{ data: p }, { data: t }] = await Promise.all([
     admin.from("exp_payments").select("id, amount, direction, status, reference, date, received_at, notes, booking_id, document_id, provenance, bank_transaction_id").eq("id", opts.paymentId).maybeSingle(),
@@ -388,8 +410,8 @@ export async function adoptTransaction(opts: { paymentId: string; transactionId:
     .eq("id", t.id);
   if (txErr) return { ok: false, error: `Linking the transaction: ${txErr.message}` };
 
-  await afterMoneyLanded(p.booking_id as string | null);
-  return { ok: true, remaining: verdict.remaining };
+  const promotion = await afterMoneyLanded(p.booking_id as string | null);
+  return { ok: true, remaining: verdict.remaining, promotion };
 }
 
 // ── Off-bank ─────────────────────────────────────────────────────────────────
@@ -443,7 +465,7 @@ export function validateOffBank(input: OffBankInput): { ok: true; row: OffBankRo
  * then lets the invoice engine do what it does for any money landing.
  */
 export async function recordOffBankPayment(input: OffBankInput & { by: string }):
-  Promise<{ ok: true; payment: Record<string, unknown> } | { ok: false; error: string }> {
+  Promise<{ ok: true; payment: Record<string, unknown>; promotion: PromotionOutcome | null } | { ok: false; error: string }> {
   const v = validateOffBank(input);
   if (!v.ok) return v;
   const row = v.row;
@@ -496,8 +518,8 @@ export async function recordOffBankPayment(input: OffBankInput & { by: string })
     .single();
   if (error || !created) return { ok: false, error: `Recording the payment: ${error?.message ?? "insert failed"}` };
 
-  await afterMoneyLanded(bookingId);
-  return { ok: true, payment: created as Record<string, unknown> };
+  const promotion = await afterMoneyLanded(bookingId);
+  return { ok: true, payment: created as Record<string, unknown>, promotion };
 }
 
 /** Say that a hand-typed row is money the feed will never show. */

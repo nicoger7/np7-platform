@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { formatMoney } from "@/lib/invoices/types";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
+import { sentLine } from "@/lib/email/mail-warning";
 
 /**
  * The one place a tax invoice gets corrected.
@@ -89,6 +91,10 @@ export function CorrectionDialog({
   const [err, setErr] = useState<string | null>(null);
   const [issued, setIssued] = useState<IssuedCorrection | null>(null);
   const [sendState, setSendState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  /** What the send actually did, in words. */
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  // One dialog for every admin action that writes to a guest (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
   const [sendErr, setSendErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -140,10 +146,27 @@ export function CorrectionDialog({
 
   async function sendToGuest() {
     if (!issued) return;
+    /* The button says "Send to guest" but never said WHICH guest, and the
+       billing contact is often not the traveller. Ask the server who it
+       resolves to, so the name in the dialog is the name in the To: line. */
+    const who = await fetch(`/api/admin/documents/${issued.id}/send`)
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const go = await askMail({
+      title: `Send ${issued.invoice_number ?? "the correction"}`,
+      mail: "Storno / credit note, says what was reversed and never asks for payment",
+      to: { kind: "person", name: who?.name ?? null, email: who?.email ?? null },
+      attachment: `${issued.invoice_number ?? "credit-note"}.pdf`,
+    });
+    if (!go) return;
     setSendState("sending"); setSendErr(null);
     const res = await fetch(`/api/admin/documents/${issued.id}/send`, { method: "POST" });
     const j = await res.json().catch(() => ({}));
-    if (res.ok) setSendState("sent");
+    if (res.ok) {
+      setSendState("sent");
+      // Say who got it rather than only flipping the button label.
+      setSendErr(null);
+      setSentTo(sentLine(j.status === "sent" ? 1 : 0, j.sentTo, j.skippedWhy));
+    }
     else { setSendState("failed"); setSendErr(j.error || "Could not send it."); }
   }
 
@@ -207,7 +230,7 @@ export function CorrectionDialog({
                 disabled={sendState === "sending" || sendState === "sent"}
                 className="px-4 py-2 text-sm font-bold rounded-lg bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50"
               >
-                {sendState === "sent" ? "Sent to guest" : sendState === "sending" ? "Sending…" : "Send to guest"}
+                {sendState === "sent" ? "Sent" : sendState === "sending" ? "Sending…" : "Send to guest"}
               </button>
               <button onClick={onClose} className="px-4 py-2 text-sm admin-muted rounded-lg">Done</button>
             </div>
@@ -318,7 +341,9 @@ export function CorrectionDialog({
             )}
           </>
         )}
+        {sentTo && <p className="text-[11.5px] text-green-500 mt-2 text-right">{sentTo}</p>}
       </div>
+      {mailDialog}
     </div>
   );
 }

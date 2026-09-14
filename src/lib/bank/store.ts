@@ -662,8 +662,26 @@ export async function allocateTransaction(opts: {
     .eq("id", tx.id);
   if (linkErr) return { ok: false, error: `Linking the transaction: ${linkErr.message}` };
 
-  // Stamp paid_at on whatever this now settles. Non-fatal: the money is booked
-  // either way and settlement recomputes from scratch on the next run.
+  /*
+   * Stamp paid_at on whatever this now settles. Non-fatal: the money is booked
+   * either way and settlement recomputes from scratch on the next run.
+   *
+   * SETTLE ONLY, AND ON PURPOSE UNTIL SOMEBODY DECIDES OTHERWISE. Every other
+   * door money comes through (the off-bank back-door, adopting a hand-typed
+   * row, the Stripe webhook, editing a payment) goes through
+   * bank/adopt.afterMoneyLanded, which also runs promoteProformaIfPaid: it
+   * issues the real tax invoice for a covered payment request and EMAILS it to
+   * the guest. Connecting a transfer here does not, so a request covered from
+   * the feed just stands there. Peter ten Veldhuis is the live case: EUR 6,650
+   * was connected to PF-SCXP-2026-47B040-FIN on 10 September and that request
+   * is still open today.
+   *
+   * Swapping this call for afterMoneyLanded(b) closes the gap, and the return
+   * value would then carry what happened out to the admin (see
+   * invoices/promotion-note). It is left alone here because it starts sending
+   * guests invoices from a button that never sent one, which is Nico's call,
+   * not a refactor.
+   */
   for (const b of bookings) {
     await settle(b).catch((e) =>
       console.warn("[bank] settle after match failed (non-fatal):", e instanceof Error ? e.message : e));

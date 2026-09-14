@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAdminGate, getRequestMember } from "@/lib/admin-auth";
 import { loadUnverifiedQueue, recordOffBankPayment } from "@/lib/bank/adopt";
+import { describePromotion } from "@/lib/invoices/promotion-note";
 
 /* The untyped service client, as the feed's routes use: the generated
    Database types predate provenance / off_bank_reason / bank_transaction_id
@@ -147,5 +148,8 @@ export async function POST(request: NextRequest) {
     by: member?.id ?? "admin",
   });
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
-  return NextResponse.json(res.payment, { status: 201 });
+  /* The row stays the body, as it was. `promotionNote` rides along and says
+     whether recording this money also issued the real tax invoice and emailed
+     it to the guest, which nothing in the admin used to mention. */
+  return NextResponse.json({ ...res.payment, promotionNote: describePromotion(res.promotion) }, { status: 201 });
 }

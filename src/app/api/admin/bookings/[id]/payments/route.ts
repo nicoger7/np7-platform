@@ -16,6 +16,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { NextRequest, after } from "next/server";
 import { requireAdminGate, getRequestMember } from "@/lib/admin-auth";
 import { settleInvoices } from "@/lib/invoices/generate";
+import { describePromotion } from "@/lib/invoices/promotion-note";
 import { recordOffBankPayment } from "@/lib/bank/adopt";
 
 function getServiceClient() {
@@ -83,7 +84,11 @@ export async function POST(
     by: member?.id ?? "admin",
   });
   if (!res.ok) return Response.json({ error: res.error }, { status: 400 });
-  return Response.json({ payment: res.payment });
+  /* Recording money can also issue the real tax invoice and email it to the
+     guest. The page prints promotionNote so the person who clicked learns
+     that, instead of finding out from the guest. Null when nothing else
+     happened, which is the ordinary case. */
+  return Response.json({ payment: res.payment, promotionNote: describePromotion(res.promotion) });
 }
 
 /**

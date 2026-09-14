@@ -93,7 +93,15 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
         bookingLink: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/account/bookings/${id}`,
       },
     });
-    return NextResponse.json({ ok: true, status: res.status, balance });
+    /* Name the recipient back to the page. "Reminder emailed to the customer"
+       was true and useless: it never said which address it left for. */
+    return NextResponse.json({
+      ok: true,
+      status: res.status,
+      balance,
+      sentTo: (bk.contacts?.name ?? "").trim() || email,
+      skippedWhy: res.status === "sent" ? null : res.error ?? null,
+    });
   }
 
   return NextResponse.json({ error: `Unknown action "${body.action ?? ""}".` }, { status: 400 });

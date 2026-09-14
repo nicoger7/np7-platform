@@ -118,7 +118,14 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       // one nudge per rider per day — a second click can't double-send
       dedupeKey: `skills_verified:${id}:${new Date().toISOString().slice(0, 10)}`,
     });
-    return NextResponse.json({ ok: true, sent: res !== null });
+    /* `res` is always an object, so the old `res !== null` reported "sent"
+       even when the daily dedupe had swallowed it and the rider got nothing. */
+    return NextResponse.json({
+      ok: true,
+      sent: res.status === "sent",
+      sentTo: String(contact.name ?? "").trim() || contact.email,
+      skippedWhy: res.status === "sent" ? null : res.error ?? null,
+    });
   }
 
   return NextResponse.json({ error: "Unknown action." }, { status: 400 });

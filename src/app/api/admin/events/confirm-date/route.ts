@@ -14,6 +14,39 @@ import { sendEmail } from "@/lib/email/send";
  */
 const bad = (msg: string, status = 400) => NextResponse.json({ error: msg }, { status });
 
+/**
+ * Who this confirmation would write to, before it writes to them.
+ *
+ * GET ?experienceId=&dateId= → { toPayBalance, refunded }. The confirm dialog
+ * needs the split up front: one click here mails a balance link to everyone who
+ * picked the date AND a refund notice to every standby who did not, and the
+ * editor previously asked "This can't be undone" without saying that two
+ * different mails leave for two different groups.
+ */
+export async function GET(request: NextRequest) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
+  const experienceId = request.nextUrl.searchParams.get("experienceId");
+  const dateId = request.nextUrl.searchParams.get("dateId");
+  if (!experienceId || !dateId) return bad("Missing event or date.");
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data: bookings } = await db
+    .from("exp_bookings")
+    .select("id, event_date_ids, contacts(email)")
+    .eq("experience_id", experienceId).eq("downpayment_received", true).eq("status", "reserved");
+
+  let toPayBalance = 0, refunded = 0;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const b of ((bookings ?? []) as any[])) {
+    if (!b.contacts?.email) continue; // no address, no mail — do not count it as one
+    if (Array.isArray(b.event_date_ids) && b.event_date_ids.includes(dateId)) toPayBalance++;
+    else refunded++;
+  }
+  return NextResponse.json({ toPayBalance, refunded });
+}
+
 export async function POST(request: NextRequest) {
   const denied = await requireAdminGate();
   if (denied) return denied;

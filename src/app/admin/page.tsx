@@ -6,6 +6,8 @@ import { BOOKING_STATUS_LABELS, normalizeBookingStatus } from "@/lib/types";
 import { editionLabel } from "@/lib/edition-label";
 import { useAdminEnv } from "./env-context";
 import { MailGapsBanner } from "@/components/admin/mail-gaps-banner";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
+import { sentLine } from "@/lib/email/mail-warning";
 
 // Each admin world renders its OWN dashboard (Experience ops, Hardware catalog,
 // Magazine editorial, Product Dev placeholder) — numbers never leak across
@@ -404,7 +406,7 @@ interface DashboardData {
   recentEmails: { template_key: string; to_email: string | null; status: string | null; subject: string | null; sent_at: string | null; created_at: string }[];
   overdueTodos: number;
   finance: { openRevenue: number; unmatchedPayments: number } | null;
-  pendingAddons: { id: string; bookingId: string; label: string; price: number | null; bookingName: string; payDirect?: boolean }[];
+  pendingAddons: { id: string; bookingId: string; label: string; price: number | null; bookingName: string; payDirect?: boolean; guestName?: string | null; guestEmail?: string | null }[];
   slim?: boolean;
   photoTasks?: { editionId: string; label: string; total: number; missing: { id: string; name: string }[] }[];
   upcomingMails?: {
@@ -428,6 +430,8 @@ function ExperienceDashboard() {
   const [loading, setLoading] = useState(true);
   const [hideMoney, toggleHideMoney] = useHideMoney();
   const [confirming, setConfirming] = useState<string | null>(null);
+  // One dialog for every admin action that writes to a guest (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
 
   /**
    * Confirm an add-on without leaving the dashboard.
@@ -437,22 +441,32 @@ function ExperienceDashboard() {
    * outcomes differ: a normal add-on gets charged, a pay-direct one is arranged
    * and never invoiced. Same rule as the booking page; disagreeing here would
    * bill a guest for money we never collect.
+   *
+   * The old confirm covered the money and never mentioned that the guest is
+   * written to. Same dialog as the booking page now, so the two cannot drift.
    */
-  async function quickConfirmAddon(a: { id: string; bookingId: string; label: string; bookingName: string; price: number | null; payDirect?: boolean }) {
-    const what = a.payDirect
-      ? `Confirm "${a.label}" for ${a.bookingName}?\n\nThey pay the supplier directly — nothing will be invoiced.`
-      : `Confirm "${a.label}" for ${a.bookingName}?\n\nThis adds ${a.price ? `€${Number(a.price).toLocaleString("en-US")}` : "its price"} to what they owe.`;
-    if (!window.confirm(what)) return;
+  async function quickConfirmAddon(a: DashboardData["pendingAddons"][number]) {
+    const go = await askMail({
+      title: `Confirm "${a.label}" for ${a.bookingName}`,
+      mail: "Add-on confirmed, with what it adds to their balance",
+      to: { kind: "person", name: a.guestName ?? a.bookingName, email: a.guestEmail ?? null },
+      also: a.payDirect
+        ? "They pay the supplier directly, so nothing is invoiced."
+        : `It adds ${a.price ? `€${Number(a.price).toLocaleString("en-US")}` : "its price"} to what they owe.`,
+      confirmLabel: "Confirm and send",
+    });
+    if (!go) return;
     setConfirming(a.id);
     try {
       const res = await fetch(`/api/admin/bookings/${a.bookingId}/addons`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ addon_id: a.id, status: "confirmed", complimentary: !!a.payDirect }),
       });
+      const j = await res.json().catch(() => ({}));
       if (res.ok) {
         setD((prev) => prev ? { ...prev, pendingAddons: prev.pendingAddons.filter((x) => x.id !== a.id) } : prev);
+        if (j.mail) alert(sentLine(j.mail.sent ? 1 : 0, j.mail.to, j.mail.why));
       } else {
-        const j = await res.json().catch(() => ({}));
         alert(j.error || "Couldn't confirm that add-on.");
       }
     } finally { setConfirming(null); }
@@ -711,6 +725,7 @@ function ExperienceDashboard() {
         ]} />
         )}
       </div>
+      {mailDialog}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
+import { sentLine } from "@/lib/email/mail-warning";
 
 /**
  * Photographer/admin uploader for a week's participant photos.
@@ -168,6 +170,8 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   const [remind, setRemind] = useState<{ recipients: number; lastSent: string | null } | null>(null);
   const [remindBusy, setRemindBusy] = useState(false);
   const [remindMsg, setRemindMsg] = useState<string | null>(null);
+  // One dialog for every admin action that writes to a guest (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
   useEffect(() => {
     fetch(`/api/admin/editions/${editionId}/photo-reminder`)
       .then((r) => (r.ok ? r.json() : null))
@@ -176,17 +180,25 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
   }, [editionId]);
   async function sendPhotoReminder() {
     if (!remind || remindBusy) return;
-    const when = remind.lastSent ? `\n\nLast reminder went out ${new Date(remind.lastSent).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}.` : "";
-    if (!confirm(`Email all ${remind.recipients} participants that new photos or videos are in their gallery?${when}`)) return;
+    // Same dialog as every other sender in the admin, so the wording cannot
+    // drift away from the rest (Nico, 14 Sep 2026).
+    const go = await askMail({
+      title: "Tell everyone the photos are up",
+      mail: "Photos are ready, with a link to their gallery",
+      to: { kind: "people", count: remind.recipients, describe: "riders on this trip" },
+      also: remind.lastSent
+        ? `The last reminder went out ${new Date(remind.lastSent).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}. Anyone already reminded today is skipped.`
+        : "Anyone already reminded today is skipped.",
+    });
+    if (!go) return;
     setRemindBusy(true);
     setRemindMsg(null);
     try {
       const res = await fetch(`/api/admin/editions/${editionId}/photo-reminder`, { method: "POST" });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j.error || "Could not send");
-      setRemindMsg(j.sent > 0
-        ? `Sent to ${j.sent} rider${j.sent === 1 ? "" : "s"} ✓${j.skipped ? ` · ${j.skipped} already reminded today` : ""}`
-        : j.skipped ? `Everyone was already reminded today` : `Nothing sent`);
+      setRemindMsg(sentLine(j.sent, "riders", j.skipped ? "everyone was already reminded today" : null)
+        + (j.sent > 0 && j.skipped ? ` ${j.skipped} already reminded today.` : ""));
       setRemind((r) => (r ? { ...r, lastSent: new Date().toISOString() } : r));
     } catch (e) {
       setRemindMsg(e instanceof Error ? e.message : "Could not send");
@@ -1066,6 +1078,7 @@ export function EditionMemoriesUploader({ editionId, initialVideoUrl }: { editio
           )}
         </div>
       )}
+      {mailDialog}
     </div>
   );
 }

@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     db.from("exp_bookings").select("agreed_price").eq("final_payment_received", false).not("status", "in", "(lost,attended,cancelled)"),
     head("exp_payments", (q: any) => q.eq("unmatched", true)),
     // add-ons a member requested and the team hasn't confirmed yet
-    db.from("exp_booking_addons").select("id,booking_id,label,price,exp_bookings(name),exp_components(payment_mode)").eq("status", "requested").order("requested_at", { ascending: false, nullsFirst: false }).limit(20),
+    db.from("exp_booking_addons").select("id,booking_id,label,price,exp_bookings(name,contacts(name,email)),exp_components(payment_mode)").eq("status", "requested").order("requested_at", { ascending: false, nullsFirst: false }).limit(20),
   ]);
 
   const sum = (rows: { agreed_price: number | null }[] | null) =>
@@ -200,6 +200,11 @@ export async function GET(request: NextRequest) {
       id: a.id, bookingId: a.booking_id, label: a.label,
       price: showMoney ? a.price : null,
       bookingName: a.exp_bookings?.name ?? "Booking",
+      // Confirming here emails the guest, so the confirm has to be able to
+      // name them. Without the address it could only promise a mail it might
+      // not be able to send.
+      guestName: a.exp_bookings?.contacts?.name ?? null,
+      guestEmail: a.exp_bookings?.contacts?.email ?? null,
       // Pay-direct add-ons must never be charged — the quick-confirm here has to
       // follow the same rule as the booking page, or it would invoice money we
       // never collect.

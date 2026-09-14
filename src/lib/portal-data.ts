@@ -728,7 +728,11 @@ export async function getMemberProgression(contactId: string): Promise<Progressi
 
 export type CatalogMilestone = { id: string; key: string; label: string; description: string | null; tier: string; rank?: string | null; bonus?: boolean; sort_order: number };
 export type EditionCrewMember = {
-  contactId: string; name: string; self_level: string | null; coach_level: string | null;
+  contactId: string; name: string;
+  /** Where the "email this rider their new skills" button actually writes, so
+   *  the confirmation names the real address instead of guessing at one. */
+  email: string | null;
+  self_level: string | null; coach_level: string | null;
   level_status: string | null; suggested: string | null; reviewed: boolean; achievedIds: string[];
   /** Achieved skills the rider self-logged that a coach hasn't confirmed yet. */
   selfLoggedIds: string[];
@@ -751,7 +755,7 @@ export async function getEditionCrewLevels(editionId: string): Promise<EditionCr
   const contactIds = [...new Set((bookings ?? []).filter((b: any) => !/cancel|lost/i.test(b.status ?? "") && b.contact_id).map((b: any) => b.contact_id))] as string[];
   if (contactIds.length === 0) return { catalog: [], members: [], reviewed: 0, total: 0 };
 
-  const { data: base } = await db.from("contacts").select("id,name,level").in("id", contactIds);
+  const { data: base } = await db.from("contacts").select("id,name,email,level").in("id", contactIds);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const baseBy = new Map((base ?? []).map((c: any) => [c.id, c]));
   const lvl = await db.from("contacts").select("id,self_level,level_status").in("id", contactIds); // 036 tolerant
@@ -780,7 +784,8 @@ export async function getEditionCrewLevels(editionId: string): Promise<EditionCr
     const achievedIds = achBy.get(cid) ?? [];
     const suggested = deriveSuggestedLevel(catalog, new Set(achievedIds));
     return {
-      contactId: cid, name: b.name ?? "—", self_level: l.self_level ?? null, coach_level: b.level ?? null,
+      contactId: cid, name: b.name ?? "—", email: b.email ?? null,
+      self_level: l.self_level ?? null, coach_level: b.level ?? null,
       level_status: l.level_status ?? null, suggested, reviewed: l.level_status === "verified", achievedIds,
       selfLoggedIds: selfBy.get(cid) ?? [],
     };

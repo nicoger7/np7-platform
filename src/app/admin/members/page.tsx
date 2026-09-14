@@ -4,6 +4,8 @@ import { Suspense, useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MemberDetailPane } from "@/components/admin/member-detail-pane";
 import { ColumnToggle, type ColumnDef, loadVisibleColumns } from "@/components/column-toggle";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
+import { sentLine } from "@/lib/email/mail-warning";
 
 // Properties shown on each card in the full-list grid. Toggle them on/off; the
 // more you show, the fewer columns the grid uses so everything stays readable.
@@ -48,6 +50,8 @@ function MembersInner() {
   const [experiences, setExperiences] = useState<{ id: string; title: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string>("");
+  // One dialog for every admin action that writes to a member (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
   const [toast, setToast] = useState("");
 
   // filters
@@ -79,14 +83,33 @@ function MembersInner() {
   }
 
   async function act(action: string, contactId: string, label: string) {
+    /* "Invite to portal" and "Resend link" mail a login link and asked nothing
+       at all. It is the one mail that cannot be switched off, so the only
+       place it can be stopped is here, before the click (Nico, 14 Sep 2026). */
+    if (action === "invite") {
+      const m = all.find((x) => x.id === contactId);
+      const go = await askMail({
+        title: m?.hasAccount ? "Send a fresh login link" : "Invite to the trip portal",
+        mail: "Their personal sign-in link",
+        to: { kind: "person", name: m?.name ?? null, email: m?.email ?? null },
+        also: "The link is how they get into their account, so this one cannot be switched off in Emails.",
+      });
+      if (!go) return;
+    }
     setBusy(contactId + action);
     const res = await fetch("/api/admin/members", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, contactId }),
     });
     setBusy("");
-    if (res.ok) { setToast(label); setTimeout(() => setToast(""), 2500); load(); }
-    else { const j = await res.json().catch(() => ({})); setToast(j.error ?? "Failed"); setTimeout(() => setToast(""), 3000); }
+    const j = await res.json().catch(() => ({}));
+    if (res.ok) {
+      // Say where it went, or why it didn't. A bounced address gets the door
+      // shut on it after two tries and used to still read "Invite sent".
+      setToast(action === "invite" ? sentLine(j.sent ? 1 : 0, j.sentTo, j.skippedWhy) : label);
+      setTimeout(() => setToast(""), 3000); load();
+    }
+    else { setToast(j.error ?? "Failed"); setTimeout(() => setToast(""), 3000); }
   }
 
   const fmtDate = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "never");
@@ -241,6 +264,7 @@ function MembersInner() {
           </section>
         </div>
       )}
+      {mailDialog}
     </div>
   );
 }

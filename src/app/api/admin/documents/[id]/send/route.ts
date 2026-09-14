@@ -6,6 +6,68 @@ import { requireAdminGate } from "@/lib/admin-auth";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+type DocRecipient = { name: string | null; email: string | null } | null;
+
+/**
+ * Who this document would be mailed to.
+ *
+ * The billing contact wins where there is one: a trip bought as a present, or
+ * by a company, is invoiced to the buyer, and sending their invoice to the
+ * traveller would both misfile it and, for a surprise, give the game away.
+ * Uwe Baerenz has no email address at all until his birthday, precisely so
+ * nothing can reach him.
+ *
+ * Shared with the GET below so the confirm dialog names the SAME person the
+ * send will actually write to. A dialog that guessed from the list row would
+ * eventually show one name and mail another.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function resolveRecipient(db: any, doc: any): Promise<{ contact: DocRecipient; experienceTitle: string }> {
+  let contact: DocRecipient = null;
+  let experienceTitle = "";
+  if (doc.bill_to_contact_id) {
+    const { data: c } = await db.from("contacts").select("name,email").eq("id", doc.bill_to_contact_id).maybeSingle();
+    contact = c ?? null;
+  }
+  if (doc.booking_id) {
+    const { data: bk } = await db
+      .from("exp_bookings")
+      .select("id, contacts(name,email), exp_experiences(title)")
+      .eq("id", doc.booking_id)
+      .maybeSingle();
+    contact = contact ?? bk?.contacts ?? null;
+    experienceTitle = bk?.exp_experiences?.title ?? "";
+  }
+  if (!contact?.email && doc.contact_id) {
+    const { data: c } = await db.from("contacts").select("name,email").eq("id", doc.contact_id).maybeSingle();
+    contact = c ?? contact;
+  }
+  return { contact, experienceTitle };
+}
+
+// ─── GET /api/admin/documents/[id]/send ───────────────────────────────────────
+// Who pressing Send would write to, and whether this document may be sent at
+// all. Answers the confirm dialog; sends nothing.
+export async function GET(_request: NextRequest, { params }: RouteContext) {
+  const denied = await requireAdminGate();
+  if (denied) return denied;
+  const { id } = await params;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const { data: doc } = await db
+    .from("documents").select("id, booking_id, contact_id, bill_to_contact_id, invoice_number, type, status, sent_at")
+    .eq("id", id).maybeSingle();
+  if (!doc) return NextResponse.json({ error: "Document not found." }, { status: 404 });
+  const { contact } = await resolveRecipient(db, doc);
+  return NextResponse.json({
+    name: contact?.name ?? null,
+    email: contact?.email ?? null,
+    invoiceNumber: doc.invoice_number ?? null,
+    isCorrection: doc.type === "credit_note",
+    sentAt: doc.sent_at ?? null,
+  });
+}
+
 // ─── POST /api/admin/documents/[id]/send ───────────────────────────────────────
 // Email an invoice (PDF attached) to the booking's customer and stamp documents.sent_at.
 export async function POST(request: NextRequest, { params }: RouteContext) {
@@ -37,32 +99,8 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ error: `${doc.invoice_number ?? "This document"} is cancelled and cannot be sent.` }, { status: 400 });
   }
 
-  // Recipient + experience.
-  //
-  // The billing contact wins where there is one: a trip bought as a present, or
-  // by a company, is invoiced to the buyer, and sending their invoice to the
-  // traveller would both misfile it and — for a surprise — give the game away.
-  // Uwe Baerenz has no email address at all until his birthday, precisely so
-  // nothing can reach him; without this the send would simply fail.
-  let contact: { name?: string | null; email?: string | null } | null = null;
-  let experienceTitle = "";
-  if (doc.bill_to_contact_id) {
-    const { data: c } = await db.from("contacts").select("name,email").eq("id", doc.bill_to_contact_id).maybeSingle();
-    contact = c ?? null;
-  }
-  if (doc.booking_id) {
-    const { data: bk } = await db
-      .from("exp_bookings")
-      .select("id, contacts(name,email), exp_experiences(title)")
-      .eq("id", doc.booking_id)
-      .maybeSingle();
-    contact = contact ?? bk?.contacts ?? null;
-    experienceTitle = bk?.exp_experiences?.title ?? "";
-  }
-  if (!contact?.email && doc.contact_id) {
-    const { data: c } = await db.from("contacts").select("name,email").eq("id", doc.contact_id).maybeSingle();
-    contact = c ?? contact;
-  }
+  // Recipient + experience (see resolveRecipient for who wins).
+  const { contact, experienceTitle } = await resolveRecipient(db, doc);
   if (!contact?.email) {
     return NextResponse.json({ error: "No email on file for this customer." }, { status: 400 });
   }
@@ -135,5 +173,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     () => {},
   );
 
-  return NextResponse.json({ ok: true, status: res.status });
+  /* Who it actually reached, so the page can say "Sent to Daniel Rainham"
+     instead of a silent green tick. `status` is not the same as sent: the
+     send dedupes, and a template switched off in Emails comes back skipped
+     with the reason in `error`. */
+  return NextResponse.json({
+    ok: true,
+    status: res.status,
+    sentTo: (contact.name ?? "").trim() || contact.email,
+    skippedWhy: res.status === "sent" ? null : res.error ?? null,
+  });
 }

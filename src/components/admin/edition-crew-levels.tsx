@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { LEVELS, deriveSuggestedLevel } from "@/lib/member-level";
 import type { EditionCrewLevels, EditionCrewMember } from "@/lib/portal-data";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
+import { sentLine } from "@/lib/email/mail-warning";
 
 /**
  * Per-trip level review, as a master-detail split (matching the members page):
@@ -22,12 +24,32 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
   // manual level override collapsed by default — the level normally derives
   // from the ticked skills, and the always-visible row read as a required step
   const [manualOpen, setManualOpen] = useState<Record<string, boolean>>({});
+  // One dialog for every admin action that writes to a rider (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
 
   useEffect(() => {
     let alive = true;
     (async () => { const r = await fetch(`/api/admin/editions/${editionId}/levels`); const x = await r.json(); if (alive && !x.error) setData(x); })();
     return () => { alive = false; };
   }, [editionId]);
+
+  /** "Your coach signed off new skills" — one rider, one mail, asked first. */
+  async function emailUpdate(m: EditionCrewMember) {
+    const go = await askMail({
+      title: `Tell ${m.name} about their new skills`,
+      mail: "Skills verified, with a link to their progress page",
+      to: { kind: "person", name: m.name, email: m.email },
+      also: "One per rider per day. A second press today sends nothing.",
+    });
+    if (!go) return;
+    const r = await fetch(`/api/admin/members/${m.contactId}/level`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "email_update", editionId }),
+    }).then((x) => x.json()).catch(() => null);
+    setMsg(r?.ok
+      ? sentLine(r.sent ? 1 : 0, r.sentTo, r.skippedWhy ?? "it already went out today")
+      : (r?.error || "Could not send."));
+  }
 
   // optimistic local patch + recompute reviewed count
   function patch(cid: string, p: Partial<EditionCrewMember>) {
@@ -143,7 +165,9 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
             <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "suggested", reviewed: false }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick }); }} className="text-xs px-2.5 py-1.5 rounded disabled:opacity-40" style={formEl} title="Propose this level — the rider sees and accepts it">Suggest</button>
             <button disabled={!pick} onClick={() => { patch(m.contactId, { coach_level: pick, level_status: "verified", reviewed: true }); fire(`/api/admin/members/${m.contactId}/level`, { action: "set_level", level: pick, verify: true }); }} className="text-xs px-2.5 py-1.5 rounded disabled:opacity-40 font-bold" style={{ backgroundColor: "#0aa3c7", color: "#fff" }} title="Set this level as coach-verified, overriding the skill-derived one">Verify</button>
             </>)}
-            <button onClick={async () => { const r = await fetch(`/api/admin/members/${m.contactId}/level`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "email_update", editionId }) }).then((x) => x.json()).catch(() => null); alert(r?.ok ? (r.sent ? "Skill-update email sent." : "Already sent today — nothing new mailed.") : (r?.error || "Could not send.")); }}
+            {/* Mailed a rider on one click with nothing asked. Same dialog as
+                every other sender in the admin now (Nico, 14 Sep 2026). */}
+            <button onClick={() => emailUpdate(m)}
               className="text-xs px-2.5 py-1.5 rounded" style={{ backgroundColor: "rgba(255,196,46,0.18)", color: "#b97608" }}
               title="Email the rider that their coach verified new skills — links to their progress page">✉ Email update</button>
             {catalog.length > 0 && <span className="ml-auto text-xs admin-faint">{m.achievedIds.length}/{catalog.length} skills</span>}
@@ -270,6 +294,7 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
         </>
       )}
       {msg && <p className="text-xs text-amber-400 mt-3">{msg}</p>}
+      {mailDialog}
     </div>
   );
 }

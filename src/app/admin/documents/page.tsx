@@ -18,6 +18,8 @@ import {
   type DocKind,
 } from "@/lib/invoices/corrections";
 import { CorrectionDialog, type CorrectionMode } from "./correction-dialog";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
+import { sentLine } from "@/lib/email/mail-warning";
 
 interface DocumentRow {
   id: string;
@@ -138,6 +140,9 @@ export default function DocumentsPage() {
   const [correcting, setCorrecting] = useState<{ id: string; mode: CorrectionMode } | null>(null);
   const [sending, setSending] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /* Nico's rule, 14 Sep 2026: an admin action that mails a guest asks first
+     and says afterwards what went out. Same dialog as everywhere else. */
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
 
   // Money in, no invoice out. Loaded once — it answers a question about the
   // whole book, not about whatever is filtered on screen.
@@ -251,13 +256,34 @@ export default function DocumentsPage() {
   }
 
   async function handleSend(doc: DocumentRow) {
-    if (doc.sent_at && !confirm(`${doc.invoice_number ?? "This document"} was sent on ${fmtDate(doc.sent_at)}. Send it again?`)) return;
+    const number = doc.invoice_number ?? "This document";
+    /* The old confirm only appeared on a RE-send, and even then talked about
+       dates rather than about writing to a customer. A first send asked
+       nothing at all. Ask the server who it would reach, so the dialog names
+       the same person the To: line will. */
+    const who = await fetch(`/api/admin/documents/${doc.id}/send`)
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const correction = docKind(doc) === "credit" || docKind(doc) === "storno";
+    const go = await askMail({
+      title: doc.sent_at ? `Send ${number} again` : `Send ${number}`,
+      mail: correction
+        ? "Storno / credit note, says what was reversed and never asks for payment"
+        : "Invoice, with the amount and our bank details",
+      to: { kind: "person", name: who?.name ?? doc.contact_name ?? doc.booking_name ?? null, email: who?.email ?? null },
+      attachment: `${doc.invoice_number ?? "invoice"}.pdf`,
+      also: doc.sent_at ? `It already went out on ${fmtDate(doc.sent_at)}.` : null,
+    });
+    if (!go) return;
+
     setSending(doc.id); setNotice(null);
     const res = await fetch(`/api/admin/documents/${doc.id}/send`, { method: "POST" });
     const j = await res.json().catch(() => ({}));
     setSending(null);
-    if (res.ok) { setNotice(`${doc.invoice_number ?? "Document"} sent.`); fetchDocs(); }
-    else setNotice(j.error ?? "Could not send it.");
+    if (res.ok) {
+      // Say who got it. "Document sent." never said where it went.
+      setNotice(`${number}: ${sentLine(j.status === "sent" ? 1 : 0, j.sentTo, j.skippedWhy)}`);
+      fetchDocs();
+    } else setNotice(j.error ?? "Could not send it.");
   }
 
   const inputClass =
@@ -629,6 +655,7 @@ export default function DocumentsPage() {
           onIssued={() => fetchDocs()}
         />
       )}
+      {mailDialog}
     </div>
   );
 }

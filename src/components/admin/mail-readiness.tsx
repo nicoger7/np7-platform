@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
+import { sentLine } from "@/lib/email/mail-warning";
 
 type Item = {
   key: string; label: string; where: string; present: boolean;
@@ -30,6 +32,8 @@ export function MailReadiness({ editionId, onInherited, headless = false }: {
   const [holds, setHolds] = useState<Hold[]>([]);
   const [contentReady, setContentReady] = useState(false);
   const [sending, setSending] = useState(false);
+  // One dialog for every admin action that writes to a guest (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
 
   const loadHolds = () =>
     fetch(`/api/admin/editions/${editionId}/held-mails`)
@@ -43,9 +47,20 @@ export function MailReadiness({ editionId, onInherited, headless = false }: {
 
   async function sendHeld() {
     const late = holds[0]?.daysLate;
-    const msg = `Send ${holds.length} held email${holds.length > 1 ? "s" : ""} now?` +
-      (late ? `\n\nThey are ${late} day${late > 1 ? "s" : ""} later than scheduled — guests get this now rather than when the pipeline intended.` : "");
-    if (!confirm(msg)) return;
+    /* The old confirm counted the emails but never said whose inbox they land
+       in, or which mails they are. Both matter: a held batch can be three
+       different templates going to three different guests. */
+    const names = [...new Set(holds.map((h) => h.label))].join(", ");
+    const go = await askMail({
+      title: `Release ${holds.length} held email${holds.length > 1 ? "s" : ""}`,
+      mail: names || "the held mails",
+      to: { kind: "people", count: holds.length, describe: holds.length === 1 ? "guest on this trip" : "guests on this trip" },
+      also: late
+        ? `They are ${late} day${late > 1 ? "s" : ""} later than scheduled, so guests get this now rather than when the pipeline intended.`
+        : null,
+      confirmLabel: "Send them",
+    });
+    if (!go) return;
     setSending(true);
     const res = await fetch(`/api/admin/editions/${editionId}/held-mails`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -54,7 +69,7 @@ export function MailReadiness({ editionId, onInherited, headless = false }: {
     const j = await res.json().catch(() => ({}));
     setSending(false);
     if (!res.ok) { alert(j.error || "Could not send."); return; }
-    alert(`${j.sent} sent${j.failed ? `, ${j.failed} failed` : ""}.`);
+    alert(`${sentLine(j.sent, "guests")}${j.failed ? ` ${j.failed} failed.` : ""}`);
     loadHolds();
   }
 
@@ -141,6 +156,7 @@ export function MailReadiness({ editionId, onInherited, headless = false }: {
           </div>
         ))}
       </div>
+      {mailDialog}
     </div>
   );
 }

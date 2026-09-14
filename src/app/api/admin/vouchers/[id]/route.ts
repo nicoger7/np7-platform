@@ -101,12 +101,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
   // On payment confirmation, email the printable PDF voucher to the buyer (and the
   // recipient if given). Best-effort + idempotent — never blocks the activation.
+  let sentTo: string[] = [];
   if (action === "activate") {
     const origin = publicOrigin();
-    await sendVoucherIssued(id, origin).catch(() => {});
+    // Who got the PDF rides back with the row: the page says "Sent to Nico
+    // Prien and Lena Ott" rather than leaving an activation that quietly
+    // mailed a gift recipient who is not even an NP7 customer.
+    const out = await sendVoucherIssued(id, origin).catch(() => null);
+    sentTo = out?.sentTo ?? [];
   }
 
-  return NextResponse.json({ ok: true, voucher: data });
+  return NextResponse.json({ ok: true, voucher: data, sentTo });
 }
 
 // ─── DELETE /api/admin/vouchers/[id] ───────────────────────────────────────────

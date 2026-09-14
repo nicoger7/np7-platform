@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { offBankMethodLabel } from "@/lib/bank/off-bank-methods";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
 
 export type BookedView = "unverified" | "off_bank" | "legacy";
 
@@ -33,6 +34,7 @@ type QueueRow = {
   booking_id: string | null;
   document_id: string | null;
   guestName: string | null;
+  guestEmail: string | null;
   invoiceNumber: string | null;
   experienceTitle: string | null;
   note?: string;
@@ -85,8 +87,14 @@ function UnverifiedQueue({ onChanged }: { onChanged: () => void }) {
   const [allocationRows, setAllocationRows] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /* Adopting a row proves money the booking already had, which can cover an
+     open payment request: the real invoice is issued and emailed to the guest
+     on that click. It used to happen with nothing said. */
+  const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [marking, setMarking] = useState<{ id: string; reason: string; method: string } | null>(null);
+  // One dialog for every admin action that writes to a guest (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
 
   const load = useCallback(async () => {
     try {
@@ -106,13 +114,35 @@ function UnverifiedQueue({ onChanged }: { onChanged: () => void }) {
   // effect body.
   useEffect(() => { const t = setTimeout(load, 0); return () => clearTimeout(t); }, [load]);
 
+  /**
+   * Adopting is the one action here that can write to a guest.
+   *
+   * It proves money the booking already had, and money that covers an open
+   * payment request issues the real tax invoice and emails it. Marking a row
+   * off-bank only re-labels it, so that one asks nothing.
+   */
+  async function adopt(r: QueueRow, transactionId: string) {
+    const go = await askMail({
+      title: `Adopt ${r.guestName ?? "this payment"} onto the bank movement`,
+      mail: "The real invoice, if this money covers an open payment request",
+      to: { kind: "person", name: r.guestName, email: r.guestEmail },
+      attachment: "the invoice PDF",
+      also: "No new money is written. If nothing is open on the booking, nothing is emailed either.",
+      confirmLabel: "Adopt it",
+    });
+    if (!go) return;
+    return act(r.id, { action: "adopt", transactionId });
+  }
+
   async function act(id: string, body: Record<string, unknown>) {
     setBusy(id);
+    setNote(null);
     try {
       const res = await fetch(`/api/admin/payments/${id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "That did not work.");
       setError(null);
+      setNote(json.promotionNote ? `Connected. ${json.promotionNote}` : null);
       setMarking(null);
       await load();
       onChanged();
@@ -133,6 +163,7 @@ function UnverifiedQueue({ onChanged }: { onChanged: () => void }) {
         in which case it is marked off-bank with a reason. Nothing here is booked twice and nothing is decided without a click.
         {allocationRows > 0 && ` ${allocationRows} internal allocation row${allocationRows === 1 ? "" : "s"} (money moved between two bookings) ${allocationRows === 1 ? "is" : "are"} not listed: not money arriving.`}
       </p>
+      {note && <div className="mb-4 text-sm text-green-600">{note}</div>}
       {error && <div className="mb-4 text-sm text-red-500">{error}</div>}
       {!rows.length ? (
         <div className="fin-card text-center py-10">
@@ -179,7 +210,7 @@ function UnverifiedQueue({ onChanged }: { onChanged: () => void }) {
                           </div>
                         </div>
                         <button
-                          onClick={() => act(r.id, { action: "adopt", transactionId: s.transactionId })}
+                          onClick={() => adopt(r, s.transactionId)}
                           disabled={busy === r.id}
                           className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50"
                           title="Link this row to the movement. No new money is written."
@@ -244,6 +275,7 @@ function UnverifiedQueue({ onChanged }: { onChanged: () => void }) {
           })}
         </div>
       )}
+      {mailDialog}
     </div>
   );
 }

@@ -20,6 +20,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { settleInvoices } from "@/lib/invoices/generate";
 import { promoteProformaIfPaid } from "@/lib/invoices/promote";
+import { describePromotion } from "@/lib/invoices/promotion-note";
 import { requireAdminGate, getRequestMember } from "@/lib/admin-auth";
 import { adoptTransaction, markOffBank } from "@/lib/bank/adopt";
 
@@ -91,7 +92,10 @@ export async function POST(
     if (!transactionId) return NextResponse.json({ error: "transactionId is required." }, { status: 400 });
     const res = await adoptTransaction({ paymentId: id, transactionId, by: member?.id ?? "admin" });
     if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
-    return NextResponse.json({ ok: true, remaining: res.remaining });
+    /* Adopting proves money the booking already had, and that is enough to
+       cover an open request: the real invoice goes out to the guest on this
+       click. The page says so now. */
+    return NextResponse.json({ ok: true, remaining: res.remaining, promotionNote: describePromotion(res.promotion) });
   }
 
   if (action === "mark-off-bank") {

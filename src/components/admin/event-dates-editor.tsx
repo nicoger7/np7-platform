@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { mutate, saved } from "@/lib/mutate";
+import { useMailConfirm, type MailAudience } from "@/components/admin/mail-confirm";
 
 type Row = { id: string; date_start: string; date_end: string | null; label: string | null; status: string; sort_order: number };
 
@@ -18,6 +19,8 @@ export function EventDatesEditor({ experienceId, mode }: { experienceId: string;
   const [label, setLabel] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  // One dialog for every admin action that writes to a guest (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
 
   const load = () => fetch(`/api/admin/event-dates?experienceId=${experienceId}`).then((r) => r.json()).then((d) => setRows(Array.isArray(d) ? d : [])).finally(() => setLoading(false));
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [experienceId]);
@@ -41,7 +44,26 @@ export function EventDatesEditor({ experienceId, mode }: { experienceId: string;
     load();
   }
   async function confirm(id: string, human: string) {
-    if (!window.confirm(`Confirm "${human}"? Riders who picked it will be asked to pay the balance; everyone else gets the standby refund. This can't be undone.`)) return;
+    /* One click here writes to TWO groups with two different mails, and the
+       old confirm described the money without ever saying an email leaves.
+       The counts come from the server so the dialog names real people, not
+       "riders who picked it". */
+    const split = await fetch(`/api/admin/events/confirm-date?experienceId=${experienceId}&dateId=${id}`)
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const toPay = Number(split?.toPayBalance ?? 0);
+    const refund = Number(split?.refunded ?? 0);
+    const to: MailAudience[] = [];
+    if (toPay > 0) to.push({ kind: "people", count: toPay, describe: "riders who picked this date, a pay-balance link" });
+    if (refund > 0) to.push({ kind: "people", count: refund, describe: "standbys on the other dates, a refund notice" });
+    if (!to.length) to.push({ kind: "none", why: "no deposit-paid standby is waiting on this event" });
+    const go = await askMail({
+      title: `Confirm "${human}"`,
+      mail: toPay && refund ? "Two mails, one per group" : toPay ? "Event date confirmed, balance due" : "Event date not running, refund notice",
+      to,
+      also: "Riders who could not make it are refunded and their booking moves to Lost. This can't be undone.",
+      confirmLabel: "Confirm the date",
+    });
+    if (!go) return;
     setBusy(true); setMsg("");
     const res = await fetch("/api/admin/events/confirm-date", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ experienceId, dateId: id }) });
     const j = await res.json().catch(() => ({}));
@@ -91,6 +113,7 @@ export function EventDatesEditor({ experienceId, mode }: { experienceId: string;
           <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="e.g. Option A" className="admin-input px-3 py-2 rounded-lg border text-sm outline-none w-40" /></label>
         <button type="button" onClick={add} disabled={!start || busy} className="rounded-lg bg-[var(--admin-accent)] text-white text-sm font-semibold px-4 py-2 disabled:opacity-50">Add date</button>
       </div>
+      {mailDialog}
     </div>
   );
 }

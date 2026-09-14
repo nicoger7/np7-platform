@@ -269,6 +269,12 @@ export async function PATCH(
     }
   }
 
+  /* What actually left, reported back with the row.
+     Confirming an add-on mails the guest, but `addon_confirmed` is lifecycle
+     mail: with EMAIL_LIFECYCLE_LIVE unset it is held, and the guest hears
+     nothing. The page has to be able to say which of the two happened. */
+  let mail: { sent: boolean; to: string | null; why: string | null } | null = null;
+
   // notify the member on confirm (best-effort)
   if (status === "confirmed") {
     const { data: bk } = await client
@@ -296,7 +302,7 @@ export async function PATCH(
       const received = sumReceived(pays ?? []);
       const balance = Math.max(0, (Number(bk?.agreed_price) || 0) + oursTotal - received);
       const priceNum = Number(data?.price) || 0;
-      await sendEmail({
+      const res = await sendEmail({
         to: email,
         templateKey: "addon_confirmed",
         bookingId: id,
@@ -322,7 +328,12 @@ export async function PATCH(
           addonsDirect: confirmedAll.length > 1 && direct.length ? direct.map((a) => `${nameOf(a)} (pay on site)`).join("\n") : undefined,
           bookingLink: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/account/bookings/${id}`,
         },
-      }).catch(() => {});
+      }).catch(() => ({ status: "failed" as const, error: "the mail could not be sent" }));
+      mail = {
+        sent: res.status === "sent",
+        to: (bk?.contacts?.name ?? "").trim() || email,
+        why: res.status === "sent" ? null : res.error ?? null,
+      };
     }
   }
 
@@ -338,7 +349,7 @@ export async function PATCH(
       .maybeSingle();
     const email = bk?.contacts?.email;
     if (email) {
-      await sendEmail({
+      const res = await sendEmail({
         to: email,
         templateKey: "addon_declined",
         manual: true,
@@ -351,11 +362,16 @@ export async function PATCH(
           declineReason: declineReason || undefined,
           bookingLink: `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/account/bookings/${id}`,
         },
-      }).catch(() => {});
+      }).catch(() => ({ status: "failed" as const, error: "the mail could not be sent" }));
+      mail = {
+        sent: res.status === "sent",
+        to: (bk?.contacts?.name ?? "").trim() || email,
+        why: res.status === "sent" ? null : res.error ?? null,
+      };
     }
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json({ ...data, mail });
 }
 
 // DELETE /api/admin/bookings/:id/addons — remove an add-on

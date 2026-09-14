@@ -16,12 +16,16 @@ import { useEffect, useMemo, useState } from "react";
 import { mutate } from "@/lib/mutate";
 import { parseAmount, formatAmount } from "@/lib/parse-amount";
 import { OFF_BANK_METHODS } from "@/lib/bank/off-bank-methods";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
 
 type BookingOption = {
   id: string;
   name: string | null;
   status: string | null;
-  contact?: { name: string | null } | null;
+  /** email is here for the mail warning: recording money against an open
+   *  request issues and EMAILS the real invoice, so the dialog must be able
+   *  to name the address it goes to. */
+  contact?: { name: string | null; email?: string | null } | null;
   experience?: { title: string | null } | null;
   edition?: { label: string | null; year: number | null } | null;
 };
@@ -38,7 +42,10 @@ type Invoice = {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-export function OffBankForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
+/* onDone carries what the payment did BEYOND landing: money covering an open
+   request issues the real tax invoice and emails it to the guest, and the
+   page it hands back to is where that has to be said. */
+export function OffBankForm({ onDone, onCancel }: { onDone: (promotionNote?: string | null) => void; onCancel: () => void }) {
   const [bookings, setBookings] = useState<BookingOption[]>([]);
   const [query, setQuery] = useState("");
   const [bookingId, setBookingId] = useState("");
@@ -49,6 +56,8 @@ export function OffBankForm({ onDone, onCancel }: { onDone: () => void; onCancel
   const [form, setForm] = useState({ amount: "", date: today(), method: "cash", reason: "", documentId: "", refund: false, notes: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // One dialog for every admin action that writes to a guest (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
 
   useEffect(() => {
     fetch("/api/admin/bookings")
@@ -83,11 +92,30 @@ export function OffBankForm({ onDone, onCancel }: { onDone: () => void; onCancel
 
   const amount = parseAmount(form.amount);
   const canSave = !busy && !!bookingId && amount !== null && amount > 0 && form.reason.trim().length >= 3;
+  /* The open payment request on the chosen booking. Money that covers one is
+     not just recorded: the real tax invoice is issued and mailed. Only a
+     booking that HAS one is told so, or the line would be a lie. */
+  const openRequest = invoices.find((d) => d.type === "proforma_invoice") ?? null;
 
   async function save() {
     if (!canSave) return;
+    /* The amber line above warns; this asks. Money covering an open request
+       issues the real tax invoice and emails it to the guest, and Nico's rule
+       of 14 Sep 2026 is that no admin click mails a guest unasked. A booking
+       with no open request only records money, so it asks nothing. */
+    if (openRequest) {
+      const go = await askMail({
+        title: "Record this off-bank payment",
+        mail: "The real invoice, once this money covers the open request",
+        to: { kind: "person", name: chosen?.contact?.name ?? chosen?.name ?? null, email: chosen?.contact?.email ?? null },
+        attachment: "the invoice PDF",
+        also: `A payment request for €${Number(openRequest.amount ?? 0).toLocaleString()} is open on this booking.`,
+        confirmLabel: "Record it",
+      });
+      if (!go) return;
+    }
     setBusy(true); setError(null);
-    const r = await mutate(`/api/admin/payments`, {
+    const r = await mutate<{ promotionNote?: string | null }>(`/api/admin/payments`, {
       method: "POST",
       body: {
         bookingId,
@@ -102,7 +130,7 @@ export function OffBankForm({ onDone, onCancel }: { onDone: () => void; onCancel
     });
     setBusy(false);
     if (!r.ok) { setError(r.error); return; }
-    onDone();
+    onDone(r.data?.promotionNote ?? null);
   }
 
   const input = "admin-input text-sm px-3 py-1.5 rounded-lg w-full";
@@ -193,6 +221,11 @@ export function OffBankForm({ onDone, onCancel }: { onDone: () => void; onCancel
         </div>
       </div>
 
+      {openRequest && (
+        <p className="text-xs text-amber-600 mb-3">
+          A payment request for €{Number(openRequest.amount ?? 0).toLocaleString()} is open on this booking. Money that covers it issues the real invoice and emails it to the guest.
+        </p>
+      )}
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
       <div className="flex gap-2">
         <button onClick={save} disabled={!canSave}
@@ -202,6 +235,7 @@ export function OffBankForm({ onDone, onCancel }: { onDone: () => void; onCancel
         </button>
         <button onClick={onCancel} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
       </div>
+      {mailDialog}
     </div>
   );
 }

@@ -8,6 +8,8 @@ import { mutate, saved } from "@/lib/mutate";
 import ImagePickerModal from "@/components/image-picker-modal";
 import { SurveyStoryShare } from "@/components/admin/survey-story-share";
 import type { Survey, SurveyInvite, SurveyDestination, SurveyWeek, SurveyStatus } from "@/lib/surveys";
+import { useMailConfirm } from "@/components/admin/mail-confirm";
+import { sentLine } from "@/lib/email/mail-warning";
 
 /**
  * The survey admin: edit the survey (title, intro, status, destination
@@ -602,6 +604,8 @@ function InviteSection({ surveyId, surveyTitle, openToken, invites, setInvites, 
   const [msg, setMsg] = useState("");
 
   const invitedIds = useMemo(() => new Set(invites.map((i) => i.contact_id)), [invites]);
+  // One dialog for every admin action that writes to a member (Nico, 14 Sep 2026).
+  const { ask: askMail, dialog: mailDialog } = useMailConfirm();
 
   async function search(q: string) {
     setTerm(q);
@@ -616,6 +620,18 @@ function InviteSection({ surveyId, surveyTitle, openToken, invites, setInvites, 
 
   async function addInvites() {
     if (!picked.length) return;
+    /* The "Email immediately" tick turns adding people into a send. Ticked, it
+       asks; unticked it only builds the list, so it asks nothing. */
+    if (sendEmail) {
+      const go = await askMail({
+        title: `Add and email ${picked.length} ${picked.length === 1 ? "person" : "people"}`,
+        mail: `Survey invite: ${surveyTitle}`,
+        to: picked.length === 1
+          ? { kind: "person", name: picked[0].name, email: picked[0].email }
+          : { kind: "people", count: picked.length, describe: "members, each with a personal link" },
+      });
+      if (!go) return;
+    }
     setBusy(true); setMsg("");
     try {
       const res = await fetch(`/api/admin/surveys/${surveyId}/invites`, {
@@ -762,13 +778,19 @@ No emails yet — review the list, then press Send invites.`)) return;
   const unsent = invites.filter((i) => !i.emailed && i.contactEmail && i.source !== "open_link").length;
   async function sendAll() {
     if (!unsent || sending) return;
-    if (!confirm(`Email the invite to ${unsent} ${unsent === 1 ? "person" : "people"} who haven't received it yet?`)) return;
+    // Same dialog as every other sender in the admin (Nico, 14 Sep 2026).
+    const go = await askMail({
+      title: "Send the survey invites",
+      mail: `Survey invite: ${surveyTitle}`,
+      to: { kind: "people", count: unsent, describe: "members who have not had it yet, each with a personal link" },
+    });
+    if (!go) return;
     setSending(true); setSendMsg("");
     try {
       const res = await fetch(`/api/admin/surveys/${surveyId}/invites/send`, { method: "POST" });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setSendMsg(j.error || "Couldn't send."); return; }
-      setSendMsg(`Sent to ${j.sent}${j.failed ? ` · ${j.failed} failed` : ""} 🤙`);
+      setSendMsg(`${sentLine(j.sent, "members")}${j.failed ? ` ${j.failed} failed.` : ""}`);
       const list = await fetch(`/api/admin/surveys/${surveyId}/invites`).then((r) => r.json()).catch(() => null);
       if (list?.invites) setInvites(list.invites);
     } finally { setSending(false); }
@@ -802,9 +824,13 @@ No emails yet — review the list, then press Send invites.`)) return;
   const remCount = remTarget === "all" ? remindable.length : remTarget === "opened" ? remOpened : remindable.length - remOpened;
   async function sendReminders() {
     if (!remCount || reminding) return;
-    if (!confirm(`Send the reminder to ${remCount} ${remCount === 1 ? "person" : "people"}?
-
-Same invite email under the subject "${remSubject.trim() || `Quick reminder 🤙 — ${surveyTitle}`}". Each person gets at most ONE reminder — ever.`)) return;
+    const go = await askMail({
+      title: "Remind the non-responders",
+      mail: `The same invite under the subject "${remSubject.trim() || `Quick reminder 🤙 · ${surveyTitle}`}"`,
+      to: { kind: "people", count: remCount, describe: "members who have not answered" },
+      also: "Each person gets at most one reminder, ever. Anyone who answered, bounced or was already reminded is skipped.",
+    });
+    if (!go) return;
     setReminding(true); setSendMsg("");
     try {
       const res = await fetch(`/api/admin/surveys/${surveyId}/invites/remind`, {
@@ -813,7 +839,7 @@ Same invite email under the subject "${remSubject.trim() || `Quick reminder 🤙
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { setSendMsg(j.error || "Couldn't send reminders."); return; }
-      setSendMsg(`Reminded ${j.sent}${j.failed ? ` · ${j.failed} failed` : ""} 🤙`);
+      setSendMsg(`${sentLine(j.sent, "members")}${j.failed ? ` ${j.failed} failed.` : ""}`);
       setRemindOpen(false);
       const list = await fetch(`/api/admin/surveys/${surveyId}/invites`).then((r) => r.json()).catch(() => null);
       if (list?.invites) setInvites(list.invites);
@@ -1043,6 +1069,7 @@ Same invite email under the subject "${remSubject.trim() || `Quick reminder 🤙
         </div>
         );
       })()}
+      {mailDialog}
     </div>
   );
 }

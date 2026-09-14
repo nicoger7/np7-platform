@@ -147,12 +147,20 @@ export async function POST(request: NextRequest) {
     if (!contact.email) return NextResponse.json({ error: "Contact has no email" }, { status: 400 });
     const acct = await ensureMemberAccount({ contactId: contact.id, email: contact.email, origin });
     if ("error" in acct) return NextResponse.json({ error: acct.error }, { status: 400 });
-    await sendEmail({
+    const res = await sendEmail({
       to: contact.email, templateKey: "account_magic_link",
       vars: { firstName: (contact.name ?? "").split(" ")[0] || undefined, activationLink: acct.link },
       contactId: contact.id,
     });
-    return NextResponse.json({ ok: true });
+    /* "Invite sent" was printed whatever happened. A bounced address gets the
+       door closed on it after two tries (see sendEmail), and the admin was
+       still told the link had gone. */
+    return NextResponse.json({
+      ok: true,
+      sent: res.status === "sent",
+      sentTo: (contact.name ?? "").trim() || contact.email,
+      skippedWhy: res.status === "sent" ? null : res.error ?? null,
+    });
   }
 
   if (action === "deactivate" || action === "reactivate") {
