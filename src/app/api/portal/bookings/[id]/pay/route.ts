@@ -31,6 +31,7 @@ import { createCheckoutSession, expireCheckoutSession, stripeConfigured } from "
 import { publicOrigin } from "@/lib/public-origin";
 import { sumReceived } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
+import { coveredExtraTotal } from "@/lib/group-booking";
 
 export const dynamic = "force-dynamic";
 
@@ -59,8 +60,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const currency = (booking.exp_editions?.currency as string | null) ?? (booking.exp_experiences?.currency as string | null) ?? "EUR";
   if (currency !== "EUR") return bad("Paying online is EUR only for now; your invoice has our bank details.", 409);
 
-  // What is owed: the price plus the confirmed add-ons we bill, less what has
-  // landed. The same rule the booking page and the admin's link both use.
+  /*
+   * What is owed: this booking's price, the confirmed add-ons we bill, AND the
+   * people this booking is paying for. A payer who brought two friends carries
+   * all three spots on one plan, so leaving the companions out made their own
+   * securing payment look like more than they owe and the button refused it.
+   */
   const [{ data: pays }, { data: extras }] = await Promise.all([
     db.from("exp_payments").select("amount, direction, type, status, received_at, date, created_at").eq("booking_id", id),
     db.from("exp_booking_addons").select("price, status, notes, payment_mode").eq("booking_id", id),
@@ -68,7 +73,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const addons = ((extras ?? []) as { price: number | null; status?: string | null; notes?: string | null; payment_mode?: string | null }[])
     .filter((a) => effectiveAddonStatus(a) === "confirmed" && a.payment_mode !== "direct")
     .reduce((n, a) => n + (Number(a.price) || 0), 0);
-  const outstanding = r2((Number(booking.agreed_price) || 0) + addons - sumReceived(pays ?? []));
+  const covered = await coveredExtraTotal(db, id);
+  const outstanding = r2((Number(booking.agreed_price) || 0) + addons + covered - sumReceived(pays ?? []));
   if (outstanding <= 0.01) return bad("Nothing left to pay on this booking.", 409);
 
   // Part payments are allowed (the securing payment, then the balance), but

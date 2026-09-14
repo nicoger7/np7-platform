@@ -42,6 +42,55 @@ export type ValidCompanion = {
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
+/** A package row as far as the group rules care. */
+export type CompanionPackageRow = {
+  status?: string | null;
+  archived_at?: string | null;
+  experience_id?: string | null;
+  edition_id?: string | null;
+};
+
+/**
+ * Why a companion's package cannot ride this booking. null = it fits.
+ *
+ * One rule, two callers: the registration that writes the bookings and the
+ * quote that prices them. If the quote counted a package the registration
+ * would later refuse, the payment plan shown at signup would be for a group
+ * that never existed.
+ */
+export function companionPackageIssue(
+  p: CompanionPackageRow | null | undefined,
+  scope: { experienceId: string; editionId: string | null },
+): "unavailable" | "other-week" | null {
+  if (!p || p.archived_at || p.status !== "active" || p.experience_id !== scope.experienceId) return "unavailable";
+  // An edition-scoped package belongs to its week only; an edition-less one
+  // is shared across weeks. Same rule the experience page renders by.
+  if (p.edition_id && p.edition_id !== scope.editionId) return "other-week";
+  return null;
+}
+
+/**
+ * What the companions add to the payer's total: every chosen package counted
+ * as often as it was chosen.
+ *
+ * Deliberately NOT a sum over distinct packages — two friends sharing the same
+ * room type is the normal case, and de-duplicating them would quote the payer
+ * one spot short. Ids the caller could not price (wrong experience, wrong
+ * week, archived) are skipped, and `counted` says how many actually made it,
+ * so nobody can present the plan as covering people it does not.
+ */
+export function sumCompanionPrices(chosenIds: string[], priceByPackage: Map<string, number>): { total: number; counted: number } {
+  let total = 0;
+  let counted = 0;
+  for (const id of chosenIds) {
+    const price = priceByPackage.get(id);
+    if (price == null) continue;
+    total += price;
+    counted++;
+  }
+  return { total: Math.round((total + Number.EPSILON) * 100) / 100, counted };
+}
+
 /**
  * Validate the companions against the DB, in the payer's experience + week.
  * Returns either the clean list or a guest-facing error message.
@@ -91,12 +140,11 @@ export async function validateCompanions(
   const companions: ValidCompanion[] = [];
   for (const c of cleaned) {
     const p = byId.get(c.packageId);
-    if (!p || p.archived_at || p.status !== "active" || p.experience_id !== ctx.experienceId) {
+    const issue = companionPackageIssue(p, { experienceId: ctx.experienceId, editionId: ctx.editionId });
+    if (issue === "unavailable") {
       return { ok: false, error: `The package chosen for ${c.firstName} isn't available — please pick another.` };
     }
-    // An edition-scoped package belongs to its week only; an edition-less one
-    // is shared across weeks. Same rule the experience page renders by.
-    if (p.edition_id && p.edition_id !== ctx.editionId) {
+    if (issue === "other-week") {
       return { ok: false, error: `The package chosen for ${c.firstName} isn't offered in this week — please pick another.` };
     }
     companions.push({ ...c, packageName: p.name, price: p.price ?? null });

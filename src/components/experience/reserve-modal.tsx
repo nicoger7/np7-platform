@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { track } from "@/lib/analytics-client";
+import { PackageChoice, type WeekPackage } from "./package-choice";
 
 /** @deprecated The real deposit comes from the package config via /api/register/quote —
     this constant only remains so older imports keep compiling. Do not use for display. */
@@ -13,6 +14,9 @@ type Quote = {
   deposit: number;
   downpaymentPercent: number;
   refundDays: number;
+  /** Spots this plan was computed for: the payer plus the companions the
+   *  endpoint could price. 1 unless companions were sent. */
+  people?: number;
   milestones: { kind: string; label: string; amount: number; dueLabel: string; dueDate: string | null }[];
 };
 
@@ -39,7 +43,7 @@ export type ReserveContext = {
   /** Riders already secured for this week — honest social proof, only when high. */
   going?: number | null;
   /** Every package bookable this week — a companion picks their own from these. */
-  weekPackages?: { id: string; label: string; price: number }[];
+  weekPackages?: WeekPackage[];
 };
 
 /** One extra person the payer is booking and paying for. */
@@ -75,6 +79,8 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [registered, setRegistered] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState("");
   /* The booking the registration made: a member goes straight to it, a new
      guest gets there after the magic link in their welcome mail. */
   const [bookingId, setBookingId] = useState<string | null>(null);
@@ -92,13 +98,25 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
   // computed server-side by the same engine that drives invoices, so what we
   // promise here always matches what the account shows later. Best-effort: if
   // it fails we just show the generic copy, never block registration.
+  //
+  // The companions go with it, because the payer's plan covers the whole group.
+  // The effect is keyed on the chosen package IDS, not on the roster, so typing
+  // a friend's name never refetches — only adding, removing or re-packaging
+  // somebody does.
+  const companionPackageKey = companions.map((c) => c.packageId).join(",");
   useEffect(() => {
-    const qs = new URLSearchParams({ packageId: ctx.packageId, ...(ctx.editionId ? { editionId: ctx.editionId } : {}) });
+    const qs = new URLSearchParams({
+      packageId: ctx.packageId,
+      ...(ctx.editionId ? { editionId: ctx.editionId } : {}),
+      ...(companionPackageKey ? { companions: companionPackageKey } : {}),
+    });
+    let dead = false;
     fetch(`/api/register/quote?${qs}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d?.milestones) setQuote(d); })
+      .then((d) => { if (!dead && d?.milestones) setQuote(d); })
       .catch(() => {});
-  }, [ctx.packageId, ctx.editionId]);
+    return () => { dead = true; };
+  }, [ctx.packageId, ctx.editionId, companionPackageKey]);
 
   // The modal only mounts once the visitor clicks "Reserve" → start of the funnel.
   useEffect(() => {
@@ -133,6 +151,12 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
   const fmt = (n: number) => `${symbol}${n.toLocaleString("en-US")}`;
   const refundDays = quote?.refundDays ?? 14;
   const reassurance = `No payment now · downpayment fully refundable for ${refundDays} days · cancel anytime.`;
+  // How many spots the quote on screen was computed for, and whether that is
+  // still the roster. One payer plus their companions is one plan, so the panel
+  // must never label a solo plan as the group's while a refetch is in flight.
+  const planPeople = quote?.people ?? 1;
+  const planStale = !!quote && planPeople !== companions.length + 1;
+  const spotsWord = planPeople > 1 ? `all ${planPeople} spots` : "your spot";
 
   async function go() {
     setError("");
@@ -164,6 +188,45 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
     } catch {
       setError("Something went wrong — please try again.");
       setSubmitting(false);
+    }
+  }
+
+  /* Pay right after registering.
+     The securing payment is the plan's first milestone: the deposit where a
+     package has one, otherwise the downpayment. With companions it is the
+     GROUP's, because the payer carries everyone. */
+  const securingAmount = quote?.milestones[0]?.amount ?? 0;
+  const bookingHref = bookingId ? `/account/bookings/${bookingId}#payment` : "/account";
+  const loginHref = bookingId ? `/account/login?next=${encodeURIComponent(bookingHref)}` : "/account";
+  /* Who can start the checkout here. It needs a member session, so a fresh
+     guest goes through the login first. A group payer goes to their trip page
+     too: /api/portal/bookings/[id]/pay measures what is owed from the payer's
+     OWN agreed_price and does not add the bookings they cover, so it would
+     refuse the group's securing amount as more than is owed. */
+  const payDirect = member && companions.length === 0;
+
+  async function payNow() {
+    if (!bookingId || paying) return;
+    setPayError(""); setPaying(true);
+    try {
+      const res = await fetch(`/api/portal/bookings/${bookingId}/pay`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: securingAmount }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && typeof json.url === "string") {
+        track("register_pay_now", { package: ctx.packageId, amount: securingAmount });
+        // Stripe takes it from here. The button stays busy while the browser
+        // navigates, so a second press cannot open a second checkout.
+        window.location.href = json.url;
+        return;
+      }
+      setPayError(json.error || "We could not open the payment. Your account has the bank details.");
+      setPaying(false);
+    } catch {
+      setPayError("We could not open the payment. Your account has the bank details.");
+      setPaying(false);
     }
   }
 
@@ -200,14 +263,18 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                 <input value={c.lastName} onChange={(e) => setCompanionField(i, "lastName", e.target.value)} placeholder="Last name" className={inputCls} />
               </div>
               <input type="email" value={c.email} onChange={(e) => setCompanionField(i, "email", e.target.value)} placeholder="Their email · for their own trip page" className={`w-full mb-2 ${inputCls}`} />
-              <div className="flex items-center gap-2">
-                <select value={c.packageId} onChange={(e) => setCompanionField(i, "packageId", e.target.value)} className={`flex-1 ${inputCls}`}>
-                  {weekPackages.map((p) => (
-                    <option key={p.id} value={p.id}>{p.label} · {money(p.price)}</option>
-                  ))}
-                </select>
-                <button type="button" onClick={() => removeCompanion(i)} className="text-[12px] font-semibold text-[#9aa6ac] hover:text-red-500 px-1">Remove</button>
-              </div>
+              <PackageChoice
+                value={c.packageId}
+                onChange={(id) => setCompanionField(i, "packageId", id)}
+                options={weekPackages}
+                money={money}
+                caption={`${c.firstName.trim() || `Person ${i + 2}`}'s package`}
+                action={
+                  <button type="button" onClick={() => removeCompanion(i)}
+                    aria-label={`Remove ${c.firstName.trim() || `person ${i + 2}`}`}
+                    className="shrink-0 text-[12px] font-semibold text-[#9aa6ac] hover:text-red-500">Remove</button>
+                }
+              />
             </div>
           ))}
           {companions.length < 6 && (
@@ -261,14 +328,42 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                 {companions.map((c) => c.firstName.trim()).filter(Boolean).join(", ")} {companions.length === 1 ? "gets" : "get"} their own trip page by email — with nothing to pay. The whole group is on <strong>your</strong> payment plan.
               </p>
             )}
-            <p className="text-[14.5px] text-[#5a6b72] leading-relaxed mb-6">We&apos;ve emailed you how it works. When you&apos;re ready, <strong>secure your spot</strong> with the refundable downpayment in your account — no rush, you&apos;ve got time.</p>
+            <p className="text-[14.5px] text-[#5a6b72] leading-relaxed mb-6">
+              {securingAmount > 0
+                ? <>We&apos;ve emailed you how it works. <strong>Secure {spotsWord}</strong> now, fully refundable for {refundDays} days.</>
+                : <>We&apos;ve emailed you how it works. When you&apos;re ready, <strong>secure your spot</strong> with the refundable downpayment in your account, no rush, you&apos;ve got time.</>}
+            </p>
+
+            {/* The moment somebody is most willing to pay is right now, so the
+                securing payment is the loud button and the account link goes
+                quiet behind it. Only a logged-in payer can start the checkout
+                (the route needs their session); a fresh guest is sent through
+                the login their welcome mail already unlocks. */}
+            {securingAmount > 0 && bookingId && (
+              payDirect ? (
+                <button type="button" onClick={payNow} disabled={paying}
+                  className="w-full px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] shadow-[0_6px_24px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">
+                  {paying ? "Opening…" : `Pay ${fmt(securingAmount)} now`}
+                </button>
+              ) : (
+                <a href={member ? bookingHref : loginHref}
+                  className="block w-full px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] shadow-[0_6px_24px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] transition-all">
+                  Pay {fmt(securingAmount)} now
+                </a>
+              )
+            )}
+            {payError && <p className="mt-3 text-[13px] text-red-500 leading-snug">{payError}</p>}
+            {securingAmount > 0 && bookingId && !member && !payError && (
+              <p className="mt-2.5 text-[12px] text-[#9aa6ac] leading-snug">Log in first, your welcome mail has the link.</p>
+            )}
+
             <a
-              href={bookingId
-                ? (member ? `/account/bookings/${bookingId}#payment` : `/account/login?next=${encodeURIComponent(`/account/bookings/${bookingId}#payment`)}`)
-                : "/account"}
-              className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]"
+              href={bookingId ? (member ? bookingHref : loginHref) : "/account"}
+              className={securingAmount > 0 && bookingId
+                ? "block w-full mt-3 text-[12.5px] font-bold text-[#7a8a90] hover:text-[#00374a]"
+                : "inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]"}
             >
-              {bookingId && member ? "Go to my trip" : "Open my account"}
+              {bookingId && member ? "Go to my trip" : securingAmount > 0 && bookingId ? "Later, in my account" : "Open my account"}
             </a>
             <button onClick={onClose} className="block w-full mt-3 text-[12.5px] font-semibold text-[#7a8a90] hover:text-[#00374a]">Done</button>
           </div>
@@ -305,20 +400,31 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
             {/* Hero: FREE is the loud element at the low-friction signup moment. */}
             <div className="rounded-2xl bg-[#00afdb]/[0.07] border border-[#cdeefa] px-5 py-4 mb-3 text-center">
               <p className="text-[27px] font-black tracking-[-0.02em] text-[#00afdb] leading-none">Free today</p>
-              <p className="text-[13px] text-[#5a6b72] mt-1.5">No card needed — pay <strong className="text-[#00374a]">{fmt(0)}</strong> to register.<br />{ctx.level} · {ctx.accommodation}, from <strong className="text-[#00374a]">{fmt(ctx.price)}</strong> paid later.</p>
+              {/* The second line follows the roster: quoting the payer's own
+                  seat under a total for two reads as two prices for one thing. */}
+              <p className="text-[13px] text-[#5a6b72] mt-1.5">No card needed — pay <strong className="text-[#00374a]">{fmt(0)}</strong> to register.<br />
+                {companions.length > 0
+                  ? <>{companions.length + 1} spots, from <strong className="text-[#00374a]">{money(groupTotal)}</strong> paid later.</>
+                  : <>{ctx.level} · {ctx.accommodation}, from <strong className="text-[#00374a]">{fmt(ctx.price)}</strong> paid later.</>}
+              </p>
             </div>
 
             {/* Full payment plan — transparent, but on demand (they already saw the
                 price when choosing their package) so the numbers don't dominate. */}
             <details className="group mb-6 rounded-2xl bg-[#f7fbfc] border border-[#e6eef0] overflow-hidden">
               <summary className="flex items-center justify-between gap-3 px-5 py-3 cursor-pointer list-none select-none text-[13px] font-bold text-[#5a6b72] hover:text-[#00374a]">
-                See the full payment plan
+                See the full payment plan{companions.length > 0 ? ` for all ${companions.length + 1}` : ""}
                 <svg className="w-4 h-4 text-[#9aa6ac] transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
               </summary>
-              <div className="px-5 pb-4">
+              {/* Dimmed while the group changed and the new plan is still in
+                  flight, so the old numbers can never pass for the new ones. */}
+              <div className={`px-5 pb-4 ${planStale ? "opacity-50" : ""}`}>
                 <div className="flex items-center justify-between gap-3 text-[13.5px] pt-1">
-                  <span className="font-bold text-[#00374a]">{ctx.level} · {ctx.accommodation}</span>
-                  <span className="font-bold text-[#00374a] shrink-0">{fmt(ctx.price)}</span>
+                  <span className="font-bold text-[#00374a]">
+                    {planPeople > 1 ? `All ${planPeople} spots` : `${ctx.level} · ${ctx.accommodation}`}
+                    {planPeople > 1 && <span className="block text-[11.5px] font-semibold text-[#9aa6ac] mt-0.5">You and {planPeople - 1} more, on one plan</span>}
+                  </span>
+                  <span className="font-bold text-[#00374a] shrink-0">{planPeople > 1 && quote ? fmt(quote.price) : fmt(ctx.price)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3 mt-2 pt-2 border-t border-[#e6eef0] text-[13.5px]">
                   <span className="text-[#5a6b72]">Due today to register</span>
@@ -327,7 +433,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                 {quote && quote.milestones.map((m) => (
                   <div key={m.kind} className="flex items-start justify-between gap-3 mt-2 pt-2 border-t border-[#e6eef0] text-[13.5px]">
                     <span className="text-[#5a6b72]">
-                      {m.kind === "deposit" ? "Deposit — secures your spot" : m.kind === "downpayment" ? `Downpayment (${quote.downpaymentPercent}% of your trip)` : "Final balance"}
+                      {m.kind === "deposit" ? `Deposit · secures ${spotsWord}` : m.kind === "downpayment" ? `Downpayment (${quote.downpaymentPercent}% of ${planPeople > 1 ? "the group" : "your trip"})` : "Final balance"}
                       <span className="block text-[11.5px] text-[#9aa6ac] mt-0.5">{m.dueLabel}</span>
                     </span>
                     <span className="font-bold text-[#00374a] shrink-0">{fmt(m.amount)}</span>
@@ -348,9 +454,9 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                   // the quote hasn't loaded.
                   quote
                     ? quote.deposit > 0
-                      ? `Secure your spot with the refundable ${fmt(quote.deposit)} deposit — ${quote.refundDays} days to change your mind.${quote.milestones.some((m) => m.kind === "downpayment") ? ` Your ${quote.downpaymentPercent}% downpayment tops it up within ${quote.refundDays} days of signing up.` : ""}`
-                      : `Secure your spot with the ${quote.downpaymentPercent}% downpayment${quote.milestones[0] ? ` (${fmt(quote.milestones[0].amount)})` : ""} — due within ${quote.refundDays} days, so you've got time to sort flights first.`
-                    : "Secure your spot with the refundable downpayment — no rush, you've got time.",
+                      ? `Secure ${spotsWord} with the refundable ${fmt(quote.deposit)} deposit · ${quote.refundDays} days to change your mind.${quote.milestones.some((m) => m.kind === "downpayment") ? ` Your ${quote.downpaymentPercent}% downpayment tops it up within ${quote.refundDays} days of signing up.` : ""}`
+                      : `Secure ${spotsWord} with the ${quote.downpaymentPercent}% downpayment${quote.milestones[0] ? ` (${fmt(quote.milestones[0].amount)})` : ""}, due within ${quote.refundDays} days, so you've got time to sort flights first.`
+                    : "Secure your spot with the refundable downpayment, no rush, you've got time.",
                   "Plan it in your account — flights, extra nights & your team.",
                   "Pay the balance later, then show up & ride.",
                 ].map((t, i) => (

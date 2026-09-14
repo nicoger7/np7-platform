@@ -4,6 +4,7 @@ import { resolveGearInfo, gearDelta, gearOptions, parseGearChoice, parseGearBase
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { computePaymentPlan, mergeSameDayStages, PAYMENT_DEFAULTS } from "@/lib/payments";
+import { companionPackageIssue, sumCompanionPrices, MAX_COMPANIONS } from "@/lib/group-register";
 
 /**
  * Public payment-plan quote for the registration modal.
@@ -13,6 +14,13 @@ import { computePaymentPlan, mergeSameDayStages, PAYMENT_DEFAULTS } from "@/lib/
  * engine + config that drives the member plan and the invoices, so the promise
  * made at booking always matches what the account later shows. Prices/deposits
  * are public content (they're on the page), so no auth.
+ *
+ * `companions=<packageId,packageId>` quotes a GROUP. The payer's booking pools
+ * everyone they bring (group-booking.ts: one plan, one invoice, all of it to
+ * the payer), so a plan quoting only their own seat promises half the money
+ * they will owe: the modal showed "Downpayment €1,440" beside a roster that
+ * said "Total for 2 spots €7,470". The companions' prices are summed into the
+ * total and the plan is computed ONCE, by the same engine, on that total.
  */
 export async function GET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
@@ -87,16 +95,55 @@ export async function GET(request: NextRequest) {
   const rentalId = sp.get("rentalId") || null;
   const gDelta = gearDelta(gearInfo, gearChoice, baseline, rentalId);
 
+  // The group the payer is bringing. Duplicates are kept on purpose — two
+  // friends may pick the same room — and every id is re-checked against this
+  // experience and week, because it arrives from a querystring.
+  const companionIds = (sp.get("companions") ?? "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, MAX_COMPANIONS);
+  const scopeExperienceId = (pkg.experience_id as string | null) ?? edition?.experience_id ?? "";
+  let companionsTotal = 0;
+  let companionsCounted = 0;
+  if (companionIds.length && scopeExperienceId) {
+    const { data: cpkgs } = await db
+      .from("exp_packages")
+      .select("id,price,status,archived_at,experience_id,edition_id")
+      .in("id", [...new Set(companionIds)]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const byId = new Map(((cpkgs ?? []) as any[]).map((p) => [p.id as string, p]));
+    // One price per distinct package, then counted as often as it was chosen.
+    const priced = new Map<string, number>();
+    for (const [id, p] of byId) {
+      if (companionPackageIssue(p, { experienceId: scopeExperienceId, editionId: editionId || null })) continue;
+      // Same resolver the companion's real booking will use, minus the member
+      // tier: a companion's tier hangs off THEIR contact, and at quote time
+      // nobody has typed their email yet. So a launch price applies here, a
+      // personal tier discount shows up later as a smaller invoice, never a
+      // bigger one.
+      const { price } = await bookingPrice(db, {
+        price: p.price ?? 0, experienceId: scopeExperienceId, editionId: editionId || null,
+        packageId: id, edition, contactId: null,
+      });
+      priced.set(id, price);
+    }
+    const summed = sumCompanionPrices(companionIds, priced);
+    companionsTotal = summed.total;
+    companionsCounted = summed.counted;
+  }
+
+  const groupTotal = total + extrasTotal + gDelta + companionsTotal;
   const plan = computePaymentPlan(cfg, {
-    total: total + extrasTotal + gDelta,
+    total: groupTotal,
     paidAmount: 0,
     bookedAt: today,
     editionStart: edition?.date_start ?? null,
   });
 
   return NextResponse.json({
-    price: total + extrasTotal + gDelta,
+    price: groupTotal,
     extrasTotal,
+    /** Spots this plan covers: the payer plus every companion it could price.
+     *  The modal compares it with its own roster, so a dropped id can never
+     *  pass for a plan that covers everybody. */
+    people: 1 + companionsCounted,
     // What the picker renders the choice from — deltas only, never raw costs.
     gear: gearOptions(gearInfo, baseline),
     deposit: cfg.deposit ?? PAYMENT_DEFAULTS.deposit,
