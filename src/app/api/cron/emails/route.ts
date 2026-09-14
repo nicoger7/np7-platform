@@ -319,8 +319,18 @@ export async function GET(req: NextRequest) {
 
     // Cutoff: trip-relative mails need the trip on/after go-live; lead nudges
     // need the reservation on/after go-live. Skip everything else (no backwards).
-    const tripLive = onOrAfterCutoff(start);
-    const leadLive = onOrAfterCutoff(b.created_at);
+    /*
+     * The cutoff asks about the TRIP date, and every upcoming trip passes it,
+     * however long ago it was booked. So switching the pipeline on would still
+     * have started chasing guests who booked months before any of this existed:
+     * Bonaire in December is a future trip whether it was booked in May or
+     * today. Nico's rule, 14 Sep 2026: the lifecycle is for NEW bookings.
+     * Anything booked before the cutoff stays silent until somebody decides
+     * otherwise, one guest at a time, from the booking's own Mailing tab.
+     */
+    const bookedLive = onOrAfterCutoff(b.created_at);
+    const tripLive = bookedLive && onOrAfterCutoff(start);
+    const leadLive = bookedLive;
     // An edition can be a 1–2 day clinic (migration 157). The pre-trip chain is
     // written for a travelled week — crew forming two months out, packing,
     // flights, arrival, "final details" — and NONE of it exists for a clinic
