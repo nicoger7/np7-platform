@@ -6,18 +6,19 @@
  * guest who would have paid in thirty seconds from their banking app, and it
  * loses NP7 the days between the reminder and the transfer.
  *
- * The session deliberately does NOT name its payment methods. Stripe then
- * offers the ones enabled on the account, chosen for the guest's own country:
- * iDEAL in the Netherlands, Wero in Germany, Belgium and France, Bancontact,
- * EPS, and the card everywhere. Every one of those except the card is a push
- * payment: the guest approves in their own bank, the money is irreversible and
- * costs cents rather than a percentage.
+ * What it offers is deliberately narrow: the bank-rail methods only. A guest
+ * approves in their own banking app, the money is irreversible, and it costs
+ * cents rather than a percentage. iDEAL and Wero, Bancontact, EPS, BLIK and
+ * Przelewy24, each shown by Stripe to the country that uses it.
  *
- * No card fee here, ever. A surcharge is illegal on SEPA and on private EEA
- * cards (§270a BGB) and this page cannot know the card before it is used, so
- * the honest thing is to charge exactly what is owed. The admin's card link
- * (lib/card-fee) stays the place where a fee is asked for, on a card somebody
- * has actually identified.
+ * Card, Apple Pay, Link and Klarna are deliberately absent, and it is a money
+ * decision rather than a legal one. A surcharge on a private EEA card is
+ * forbidden (§270a BGB), so on a European guest NP7 would carry Stripe's
+ * percentage itself: about €22 on a €1,440 down-payment, where iDEAL costs 29
+ * cents. Klarna is worse again at 2.99 % and is consumer credit for a holiday.
+ * A guest who genuinely needs a card asks, and gets the admin's link, where the
+ * fee can be charged on the cards the law allows it on and the booking is
+ * looked at by a person.
  *
  * The payment is recorded by the same webhook path as that link, through an
  * exp_payment_links row with a zero fee, so a payment made here is dedupe-safe,
@@ -109,8 +110,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       successUrl: `${origin}/account/bookings/${id}?paid=1#payment`,
       cancelUrl: `${origin}/account/bookings/${id}#payment`,
       customerEmail: booking.contacts?.email ?? undefined,
-      // No payment_method_types: Stripe offers what the account has enabled,
-      // picked for the guest's own country. That is the whole point.
+      // Named explicitly rather than left to Stripe's dynamic list: the cheap
+      // rails only. Stripe still shows each guest just the ones their country
+      // has, so a German sees Wero, a Dutch guest iDEAL, and nobody sees a
+      // method NP7 would be paying a percentage for.
+      paymentMethodTypes: ["ideal", "bancontact", "eps", "p24", "blik"],
       expiresAt: Math.floor(expiresAt.getTime() / 1000),
       metadata: { booking_id: id, kind: "trip_card", link_id: link.id, base_cents: String(Math.round(asked * 100)), fee_cents: "0", card_region: "eea" },
       paymentIntentDescription: `NP7 ${title}${edition} · booking ${id.slice(0, 8).toUpperCase()}`,
