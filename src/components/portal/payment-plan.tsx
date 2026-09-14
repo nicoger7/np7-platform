@@ -17,6 +17,7 @@ export function PaymentPlan({
   total,
   paid,
   voucherCredit = 0,
+  pay,
 }: {
   milestones: Milestone[];
   currency?: string;
@@ -24,6 +25,9 @@ export function PaymentPlan({
   voucherCredit?: number;
   total: number;
   paid: number;
+  /** The "pay now" button, when this member can pay online. Rendered under the
+   *  totals, beside the transfer line: two ways to do the same thing. */
+  pay?: React.ReactNode;
 }) {
   const balance = Math.max(0, total - paid);
   const paidInFull = total > 0 && balance <= 0.01;
@@ -108,9 +112,11 @@ export function PaymentPlan({
         </div>
       </div>
 
+      {!paidInFull && pay}
+
       {!paidInFull && (
         <p className="text-[12px] text-[#9aa6ac] mt-3 leading-relaxed">
-          Everything is paid by <strong className="text-[#6a7a80] font-semibold">bank transfer</strong> — pay any milestone sooner if you like. We send each invoice with the bank details in good time before its deadline; payments we&apos;ve received are reflected above.
+          Pay online above, or by <strong className="text-[#6a7a80] font-semibold">bank transfer</strong> from the invoice, whichever suits you. Any milestone can be paid sooner. We send each invoice with the bank details in good time before its deadline; payments we&apos;ve received are reflected above.
         </p>
       )}
     </div>

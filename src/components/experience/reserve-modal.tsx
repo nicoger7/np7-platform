@@ -75,6 +75,9 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [registered, setRegistered] = useState(false);
+  /* The booking the registration made: a member goes straight to it, a new
+     guest gets there after the magic link in their welcome mail. */
+  const [bookingId, setBookingId] = useState<string | null>(null);
   const [member, setMember] = useState(false);
   const [ready, setReady] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
@@ -153,6 +156,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Something went wrong — please try again."); setSubmitting(false); return; }
       track("register", { package: ctx.packageId, member });
+      if (typeof json.bookingId === "string") setBookingId(json.bookingId);
       // Remember this guest on their own device so a later reserve is one-tap.
       try { localStorage.setItem("np7_reserve_guest", JSON.stringify({ firstName, lastName, email })); } catch { /* ignore */ }
       setRegistered(true);
@@ -187,7 +191,14 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
               </p>
             )}
             <p className="text-[14.5px] text-[#5a6b72] leading-relaxed mb-6">We&apos;ve emailed you how it works. When you&apos;re ready, <strong>secure your spot</strong> with the refundable downpayment in your account — no rush, you&apos;ve got time.</p>
-            <a href="/account" className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]">Open my account</a>
+            <a
+              href={bookingId
+                ? (member ? `/account/bookings/${bookingId}#payment` : `/account/login?next=${encodeURIComponent(`/account/bookings/${bookingId}#payment`)}`)
+                : "/account"}
+              className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]"
+            >
+              {bookingId && member ? "Go to my trip" : "Open my account"}
+            </a>
             <button onClick={onClose} className="block w-full mt-3 text-[12.5px] font-semibold text-[#7a8a90] hover:text-[#00374a]">Done</button>
           </div>
         ) : (

@@ -15,6 +15,7 @@ import { PhotoSharingToggle } from "@/components/portal/photo-sharing-toggle";
 import { MarketingConsentToggle } from "@/components/portal/marketing-consent-toggle";
 import { TripAddons } from "@/components/portal/trip-addons";
 import { PaymentPlan } from "@/components/portal/payment-plan";
+import { PayNow } from "@/components/portal/pay-now";
 import { TripView, type TripTab, type TripTile } from "@/components/portal/trip-view";
 import { TripHero } from "@/components/portal/trip-hero";
 import { hasFlightDetails } from "@/lib/flights";
@@ -482,7 +483,19 @@ export default async function BookingDetail({ params }: Props) {
         {/* Merged only here. `plan` above is still addressed by kind (deposit,
             final) for the secured check, the next-step hero and the cancel
             terms, so the merge must not reach it. */}
-        <PaymentPlan milestones={mergeSameDayStages(plan)} currency={cur} total={total ?? 0} paid={paid} voucherCredit={voucherCredit} />
+        <PaymentPlan
+          milestones={mergeSameDayStages(plan)}
+          currency={cur}
+          total={total ?? 0}
+          paid={paid}
+          voucherCredit={voucherCredit}
+          /* The amount the plan says is due now, not the whole balance: a
+             member paying their securing payment should not be asked for the
+             trip. A covered guest and a clinic have their own routes. */
+          pay={!isEvent && !b.covered_by_booking_id && dueNow > 0
+            ? <PayNow bookingId={b.id} amount={Math.min(dueNow, Math.max(0, (total ?? 0) - paid))} currency={cur} />
+            : null}
+        />
       </div>
       {/* How to pay + the invoice/pro-forma (with the bank details & reference)
           right where the money is — not buried in a separate documents tab. */}

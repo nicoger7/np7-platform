@@ -64,6 +64,10 @@ export default async function ThanksPage({ params, searchParams }: Props) {
   const { session_id, reserved } = await searchParams;
 
   let state: "paid" | "reserved" | "unpaid" = reserved ? "reserved" : "unpaid";
+  /* The booking this page is about. Sending everyone to /account made them
+     hunt for the trip they had just booked, and the thing most of them want
+     next is the rest of the money. */
+  let bookingId: string | null = typeof reserved === "string" && reserved !== "1" ? reserved : null;
 
   const stripeKey = process.env.STRIPE_SECRET_KEY;
   if (session_id && stripeKey) {
@@ -74,7 +78,7 @@ export default async function ThanksPage({ params, searchParams }: Props) {
     const session = await res.json();
     if (res.ok && session.payment_status === "paid") {
       state = "paid";
-      const bookingId = session.metadata?.booking_id;
+      bookingId = session.metadata?.booking_id ?? null;
       if (bookingId) await onDepositPaid(bookingId).catch(() => {});
     }
   }
@@ -134,10 +138,10 @@ export default async function ThanksPage({ params, searchParams }: Props) {
           <div className={ok ? "flex flex-col sm:flex-row items-center justify-center gap-3" : ""}>
             {ok && (
               <Link
-                href="/account"
+                href={bookingId ? `/account/bookings/${bookingId}#payment` : "/account"}
                 className="inline-block px-8 py-4 rounded-full text-[14px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.35)] transition-all hover:-translate-y-0.5"
               >
-                Go to my account
+                {bookingId ? "Go to my trip" : "Go to my account"}
               </Link>
             )}
             <Link
