@@ -17,6 +17,7 @@ import { reconcileBooking, suggestInvoices, type ReconInvoice, type ReconPayment
 import { computePaymentPlan, dueUrgency, type MilestoneKind } from "@/lib/payments";
 import { mutate, reportFailure } from "@/lib/mutate";
 import { CancelBookingModal } from "@/components/admin/cancel-booking-modal";
+import { CardLinkDialog } from "@/components/admin/card-link-dialog";
 import { sumReceived, sumExpected, paidState } from "@/lib/payment-totals";
 import type { BookingConnectView } from "@/lib/bank/booking-connect";
 import { OFF_BANK_METHODS, offBankMethodLabel, PROVENANCE_LABEL } from "@/lib/bank/off-bank-methods";
@@ -295,6 +296,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
 
   // New payment form
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [showCardLink, setShowCardLink] = useState(false);
   const [paymentForm, setPaymentForm] = useState(emptyOffBankForm);
   /* The feed, from this booking's side: credits the matcher ties to one of
      its open invoices, plus every unmatched credit for the search box. Read
@@ -1957,6 +1959,16 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
               >
                 Record off-bank payment
               </button>
+              {/* Pay by card, on request: a Stripe link for one amount, with the
+                  card cost on top only where a surcharge is allowed. */}
+              <button
+                onClick={() => setShowCardLink(true)}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg text-[#0aa3c7] hover:bg-[#0aa3c7]/10 transition-colors"
+                style={{ border: "1px solid rgba(10,163,199,.4)" }}
+                title="A Stripe checkout link for a guest who asks to pay by card"
+              >
+                Card payment link
+              </button>
             </div>
           </div>
 
@@ -2710,6 +2722,15 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
           initialMode={correcting.mode}
           onClose={() => setCorrecting(null)}
           onIssued={() => fetchDocuments()}
+        />
+      )}
+      {showCardLink && booking && (
+        <CardLinkDialog
+          bookingId={booking.id}
+          suggestedAmount={recon.nextDue?.remaining ?? 0}
+          outstanding={outstanding}
+          onClose={() => setShowCardLink(false)}
+          onChanged={() => { loadPaymentsTab(); }}
         />
       )}
       {cancelOpen && booking && (

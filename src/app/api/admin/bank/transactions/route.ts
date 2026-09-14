@@ -117,7 +117,12 @@ export async function GET(request: NextRequest) {
       ...t,
       invoiceAllocations: s.allocations,
       invoiceAllocated: s.total,
-      invoiceRemaining: credit ? Math.max(0, Math.round((Number(t.amount) - s.total) * 100) / 100) : 0,
+      /* A Stripe charge the webhook recorded is placed in full: the payment row
+         holds the trip's share and the difference is the card fee the guest
+         paid on top, which is never trip revenue. Left as a remainder it read
+         as "still unplaced" and one Connect click would have booked the fee
+         against an invoice. */
+      invoiceRemaining: credit && t.matched_by !== "stripe" ? Math.max(0, Math.round((Number(t.amount) - s.total) * 100) / 100) : 0,
     };
   });
 

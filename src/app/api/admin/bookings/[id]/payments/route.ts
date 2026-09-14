@@ -108,6 +108,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     .eq("id", paymentId)
     .single();
   if (!row || row.booking_id !== id) return Response.json({ error: "Payment not found" }, { status: 404 });
+  if (row.provenance === "stripe") {
+    return Response.json({ error: "This payment is a Stripe charge. Refund it in Stripe; the row stays as the record of the charge." }, { status: 400 });
+  }
   if (row.provenance === "bank") {
     return Response.json({
       error: "This payment is a bank movement and is not deleted by hand. Disconnect it on the Payments page; the movement then goes back to the pile.",

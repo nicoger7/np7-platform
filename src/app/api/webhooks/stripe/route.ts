@@ -15,6 +15,9 @@ import { createAdminClient } from "@/lib/supabase";
 import { generateDocument, settleInvoices } from "@/lib/invoices/generate";
 import { eur } from "@/lib/stripe";
 import { publicOrigin } from "@/lib/public-origin";
+import { sumReceived } from "@/lib/payment-totals";
+import { effectiveAddonStatus } from "@/lib/addons";
+import { computePaymentPlan } from "@/lib/payments";
 // ─── Stripe signature verification (no stripe npm package needed) ─────────────
 
 async function verifyStripeSignature(
@@ -349,6 +352,144 @@ async function onEventPayment(
   }
 }
 
+// ─── Card payment on request (a link made on the booking page) ───────────────
+
+/**
+ * The guest paid a hand-made card link (kind "trip_card"). Record the trip
+ * amount on the booking with provenance 'stripe', close the link, bring the
+ * booking's paid flags up to date, then let the invoice engine do what it does
+ * for any money landing (promote a paid pro-forma, settle invoices). The card
+ * fee, if any, stays on the link row: it is not trip revenue.
+ */
+async function onTripCardPayment(session: Record<string, unknown>, bookingId: string): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const md = (session["metadata"] as Record<string, string> | null) ?? {};
+  const paymentIntent = typeof session["payment_intent"] === "string" ? (session["payment_intent"] as string) : null;
+  const linkId = md["link_id"] || null;
+  if (!paymentIntent || !linkId) {
+    console.error(`[webhook] trip_card for booking ${bookingId} without a payment intent or link id — nothing recorded`);
+    return;
+  }
+  // The link row is the record of what was asked for; the session metadata is
+  // only the key to it. Anyone able to craft a session cannot make this record
+  // money on a booking the link does not belong to.
+  const { data: link, error: linkErr } = await db.from("exp_payment_links")
+    .select("id, booking_id, session_id, amount, fee, total, status")
+    .eq("id", linkId).maybeSingle();
+  if (linkErr) throw new Error(`link read failed for ${linkId}: ${linkErr.message ?? linkErr}`);
+  if (!link || link.booking_id !== bookingId || (link.session_id && link.session_id !== session["id"])) {
+    console.error(`[webhook] trip_card session ${session["id"]} does not match link ${linkId} on booking ${bookingId} — refused`);
+    return;
+  }
+  // What was charged, from the charge: the trip's share is the total less the
+  // fee the link carried. A drift from the link's own amount is logged, but
+  // the money that actually arrived is what gets recorded.
+  const charged = Number(session["amount_total"] ?? 0) / 100;
+  const fee = Number(link.fee ?? 0);
+  const base = Math.round((charged - fee) * 100) / 100;
+  if (!(base > 0)) {
+    console.error(`[webhook] trip_card ${paymentIntent}: charged ${charged} less fee ${fee} leaves nothing to record — refused`);
+    return;
+  }
+  if (Math.abs(base - Number(link.amount)) > 0.01) {
+    console.warn(`[webhook] trip_card ${paymentIntent}: charge nets ${base}, link asked ${link.amount} — recording what arrived`);
+  }
+
+  const { data: booking, error: readErr } = await db.from("exp_bookings")
+    .select("id, contact_id, experience_id, status, agreed_price, deposit_received, downpayment_received, final_payment_received, created_at, exp_editions(deposit,date_start), exp_packages(deposit,deposit_refund_days,downpayment_percent,final_days_before)")
+    .eq("id", bookingId).maybeSingle();
+  if (readErr) throw new Error(`booking read failed for ${bookingId}: ${readErr.message ?? readErr}`);
+  if (!booking) { console.error(`[webhook] PAID card link but no booking ${bookingId}`); return; }
+
+  // One row per charge, however often Stripe redelivers; two deliveries at
+  // once both insert, the loser reads the winner's row back.
+  /* Either reference: the webhook's own `pi_…`, or `stripe:pi_…` if the bank
+     feed imported the charge first and somebody connected it by hand. That
+     second row holds the GROSS the guest paid, fee included, so it is brought
+     down to the trip's share rather than doubled by an insert. */
+  const findRow = async () => {
+    const { data } = await db.from("exp_payments").select("id, reference, amount").in("reference", [paymentIntent, `stripe:${paymentIntent}`]).limit(2);
+    return ((data as { id: string; reference: string; amount: number }[] | null) ?? [])[0] ?? null;
+  };
+  const existing = await findRow();
+  if (existing && existing.reference !== paymentIntent && Math.abs(Number(existing.amount) - base) > 0.01) {
+    await db.from("exp_payments").update({
+      amount: base, provenance: "stripe", method: "stripe",
+      notes: `Stripe card payment · link ${linkId} · connected from the feed at ${Number(existing.amount).toFixed(2)}, corrected to the trip's share${fee > 0 ? `, card fee ${fee.toFixed(2)} charged on top` : ""}`,
+    }).eq("id", existing.id);
+  }
+  let paymentId: string | null = existing?.id ?? null;
+  if (!paymentId) {
+    const now = new Date();
+    const { data: created, error: payErr } = await db.from("exp_payments").insert({
+      booking_id: bookingId, contact_id: booking.contact_id, experience_id: booking.experience_id,
+      amount: base, type: booking.downpayment_received ? "final" : "downpayment",
+      method: "stripe", direction: "revenue", status: "paid", reference: paymentIntent,
+      date: now.toISOString().slice(0, 10), received_at: now.toISOString(), unmatched: false,
+      bank_transaction_id: null, provenance: "stripe",
+      notes: `Stripe card payment · link ${linkId} · session ${session["id"] ?? ""}${fee > 0 ? ` · card fee ${fee.toFixed(2)} charged on top, not trip revenue` : ""}`,
+    }).select("id").single();
+    if (payErr && payErr.code !== "23505") {
+      console.error(`[webhook] PAYMENT ROW LOST for booking ${bookingId} (${paymentIntent}):`, payErr.message ?? payErr);
+      throw new Error(`payment insert failed for ${bookingId}: ${payErr.message ?? payErr}`);
+    }
+    paymentId = (created as { id: string } | null)?.id ?? (await findRow())?.id ?? null;
+  }
+  await db.from("exp_payment_links")
+    .update({ status: "paid", paid_at: new Date().toISOString(), payment_intent: paymentIntent, ...(paymentId ? { payment_id: paymentId } : {}) })
+    .eq("id", linkId);
+
+  // The Stripe feed imports this same charge as a credit; tie the two now if
+  // the feed got there first, and the import ties them if it comes later.
+  const { linkStripeChargesToWebhookPayments } = await import("@/lib/bank/store");
+  await linkStripeChargesToWebhookPayments(paymentIntent).catch((e) =>
+    console.warn("[webhook] linking the Stripe credit failed (non-fatal):", e instanceof Error ? e.message : e));
+
+  // The flags the booking page and the funnel read, brought up to what the
+  // money now says, the way an admin would set them after a transfer landed.
+  const [{ data: pays }, { data: extras }, { data: stageDocs }] = await Promise.all([
+    db.from("exp_payments").select("amount, direction, type, status, received_at, date, created_at").eq("booking_id", bookingId),
+    db.from("exp_booking_addons").select("price, status, notes, payment_mode").eq("booking_id", bookingId),
+    db.from("documents").select("type, amount").eq("booking_id", bookingId).eq("status", "issued").not("paid_at", "is", null).in("type", ["deposit_invoice", "downpayment_invoice"]),
+  ]);
+  const addons = ((extras ?? []) as { price: number | null; status?: string | null; notes?: string | null; payment_mode?: string | null }[])
+    .filter((a) => effectiveAddonStatus(a) === "confirmed" && a.payment_mode !== "direct")
+    .reduce((n, a) => n + (Number(a.price) || 0), 0);
+  const received = sumReceived(pays ?? []);
+  const total = (Number(booking.agreed_price) || 0) + addons;
+  const pkg = booking.exp_packages ?? {};
+  // A SETTLED down-payment invoice fixes that stage's figure (the Jens Hahn
+  // rule in payments.ts; the same filter the member's own plan uses), so the
+  // plan is asked with what was agreed rather than a percentage of a total
+  // that has grown since.
+  const settled = { deposit: null as number | null, downpayment: null as number | null };
+  for (const d of (stageDocs ?? []) as { type: string; amount: number | null }[]) {
+    if (d.type === "deposit_invoice") settled.deposit = (settled.deposit ?? 0) + (Number(d.amount) || 0);
+    if (d.type === "downpayment_invoice") settled.downpayment = (settled.downpayment ?? 0) + (Number(d.amount) || 0);
+  }
+  const plan = computePaymentPlan(
+    { deposit: booking.exp_editions?.deposit ?? pkg.deposit ?? null, deposit_refund_days: pkg.deposit_refund_days ?? null, downpayment_percent: pkg.downpayment_percent ?? null, final_days_before: pkg.final_days_before ?? null },
+    { total, paidAmount: received, editionStart: booking.exp_editions?.date_start ?? null, bookedAt: booking.created_at ?? null, depositReceived: booking.deposit_received ?? null, downpaymentReceived: booking.downpayment_received ?? null, finalPaymentReceived: booking.final_payment_received ?? null, settledStages: settled },
+  );
+  const securing = plan.filter((m) => m.kind === "deposit" || m.kind === "downpayment").reduce((n, m) => n + m.amount, 0);
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString(), stripe_payment_intent: paymentIntent };
+  const status = String(booking.status ?? "").toLowerCase();
+  if (!booking.downpayment_received && received + 0.01 >= securing) {
+    patch.downpayment_received = true;
+    if (["lead", "reserved", "payment_pending"].includes(status)) patch.status = "confirmed";
+  }
+  if (received + 0.01 >= total) {
+    patch.final_payment_received = true;
+    if (["lead", "reserved", "payment_pending", "confirmed"].includes(status)) patch.status = "paid";
+  }
+  const { error: updErr } = await db.from("exp_bookings").update(patch).eq("id", bookingId);
+  if (updErr) throw new Error(`booking update failed for ${bookingId}: ${updErr.message ?? updErr}`);
+
+  const { afterMoneyLanded } = await import("@/lib/bank/adopt");
+  await afterMoneyLanded(bookingId);
+}
+
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export const dynamic = "force-dynamic";
@@ -410,6 +551,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         if (kind.startsWith("event_")) {
           // Event tickets (deposit / full / balance) — record + confirm.
           await onEventPayment(session, kind, bookingId);
+        } else if (kind === "trip_card") {
+          // A card link made by hand on the booking page.
+          await onTripCardPayment(session, bookingId);
         } else {
           // Trip reserve deposit flow (idempotent).
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

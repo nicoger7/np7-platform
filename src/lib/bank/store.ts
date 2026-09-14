@@ -103,6 +103,15 @@ export async function importTransactions(
     else inserted += ins?.length ?? 0;
   }
 
+  // Stripe credits the webhook already recorded (card links, event tickets)
+  // are tied to their payment row here, or the feed would offer the same
+  // charge for a second booking. Amounts differ by the card fee, so this is
+  // by identifier alone; see linkStripeChargesToWebhookPayments.
+  if (rows.some((r) => r.source === "stripe")) {
+    const link = await linkStripeChargesToWebhookPayments().catch((e) => ({ linked: 0, errors: [`Linking Stripe charges: ${e instanceof Error ? e.message : e}`] }));
+    errors.push(...link.errors);
+  }
+
   let updated = 0;
   for (const r of pendingNowSettled) {
     const prev = seen.get(`${r.source}:${r.externalId}`)!;
@@ -115,6 +124,68 @@ export async function importTransactions(
   }
 
   return { inserted, updated, errors };
+}
+
+/**
+ * A Stripe charge is recorded twice by design: the webhook writes the payment
+ * the moment the card clears (reference = the payment intent), and the Stripe
+ * feed later imports the same charge as a bank_transactions credit (external_id
+ * = the same payment intent, amount = what the guest paid, card fee included).
+ * They are one event. This ties them, by identifier alone: the amounts differ
+ * by the fee on a card link, so the equal-amount rule below cannot do it.
+ * Runs from every import and from the webhook, whichever comes second.
+ */
+export async function linkStripeChargesToWebhookPayments(paymentIntent?: string): Promise<{ linked: number; errors: string[] }> {
+  const admin = db();
+  const errors: string[] = [];
+  let q = admin.from("bank_transactions")
+    .select("id, external_id")
+    .eq("source", "stripe")
+    .is("payment_id", null)
+    .is("ignored_at", null);
+  if (paymentIntent) q = q.eq("external_id", paymentIntent);
+  const { data: txs, error: txErr } = await q;
+  if (txErr) return { linked: 0, errors: [`Reading Stripe transactions: ${txErr.message}`] };
+  if (!txs?.length) return { linked: 0, errors };
+
+  /* Chunked, for the reason importTransactions gives above: a few hundred ids
+     in one `.in()` is a URL that fails, and a silent failure here means the
+     feed keeps offering money the webhook already recorded. */
+  const byReference = new Map<string, { id: string; document_id: string | null }>();
+  const ids = txs.map((t) => String(t.external_id));
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await admin
+      .from("exp_payments")
+      .select("id, reference, document_id")
+      .in("reference", ids.slice(i, i + 100))
+      .is("bank_transaction_id", null)
+      .eq("direction", "revenue");
+    if (error) { errors.push(`Reading Stripe payments: ${error.message}`); continue; }
+    for (const p of data ?? []) byReference.set(String(p.reference), { id: String(p.id), document_id: (p.document_id as string | null) ?? null });
+  }
+  if (!byReference.size) return { linked: 0, errors };
+
+  let linked = 0;
+  for (const tx of txs) {
+    const hit = byReference.get(String(tx.external_id));
+    if (!hit) continue;
+    // The transaction first: if the feed's own row will not take the link,
+    // the payment must not claim a movement that does not name it back.
+    const { error: txUpdErr } = await admin.from("bank_transactions")
+      .update({ payment_id: hit.id, document_id: hit.document_id, matched_at: new Date().toISOString(), matched_by: "stripe", match_confidence: "auto" })
+      .eq("id", tx.id);
+    if (txUpdErr) { errors.push(`Linking ${tx.external_id}: ${txUpdErr.message}`); continue; }
+    // The row keeps provenance 'stripe': verifiable through the charge, while
+    // the money reaches the bank later, netted, in a payout.
+    const { error: payUpdErr } = await admin.from("exp_payments").update({ bank_transaction_id: tx.id, unmatched: false }).eq("id", hit.id);
+    if (payUpdErr) {
+      errors.push(`Linking payment ${hit.id}: ${payUpdErr.message}`);
+      await admin.from("bank_transactions").update({ payment_id: null, document_id: null, matched_at: null, matched_by: null, match_confidence: null }).eq("id", tx.id);
+      continue;
+    }
+    linked++;
+  }
+  return { linked, errors };
 }
 
 /* ── Reconciling with what was already booked by hand ────────────────────── */

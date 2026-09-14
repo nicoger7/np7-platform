@@ -40,7 +40,7 @@ function db() {
 
 /* Server-only modules, loaded lazily so a script that only wants the pure
    suggestion logic does not pull the PDF stack in. */
-async function afterMoneyLanded(bookingId: string | null | undefined) {
+export async function afterMoneyLanded(bookingId: string | null | undefined) {
   if (!bookingId) return;
   const [{ promoteProformaIfPaid }, { settleInvoices }] = await Promise.all([
     import("@/lib/invoices/promote"),
