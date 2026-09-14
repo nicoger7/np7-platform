@@ -2566,6 +2566,20 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
                     {generating || sendingDoc ? "Working…" : nextStep.label}
                   </button>
                 )}
+                {/* The most-used alternative to the primary, on the card rather
+                    than under More: a payment request (pro-forma) for the stage
+                    that is due next. */}
+                {nextStage && nextStep.label && !/pro-forma|payment request/i.test(nextStep.label) && (
+                  <button
+                    onClick={() => generateDocument("proforma_invoice", nextStage.kind)}
+                    disabled={generating !== null || sendingDoc !== null}
+                    title={`Payment request (pro-forma), ${STAGE_NAME[nextStage.kind]} ${formatMoney(nextStage.amount)}`}
+                    className="px-3 py-2 text-xs font-bold rounded-lg admin-muted hover:admin-heading transition-colors disabled:opacity-50"
+                    style={{ border: "1px solid var(--admin-border)" }}
+                  >
+                    Pro-forma
+                  </button>
+                )}
                 <ActionMenu label="More…" items={moreItems} />
               </div>
             </div>
@@ -2734,14 +2748,25 @@ function ActionMenu({ label, items, compact }: { label: string; items: MenuItem[
   // and a dropdown inside it was cut off after the first item. Fixed
   // coordinates come from the trigger's rect; any scroll or resize closes
   // it rather than trying to follow.
-  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  // The admin colour tokens are inline styles on `.admin-root`, so a menu
+  // portaled to <body> painted transparent (its `var(--admin-surface)` had
+  // nothing to resolve). The tokens ride along, and so does the shell's
+  // desktop zoom, with the fixed coordinates divided by it.
+  const [pos, setPos] = useState<{ top: number; right: number; zoom: number; vars: Record<string, string> } | null>(null);
   useLayoutEffect(() => {
     if (!open || !btnRef.current) return;
+    const root = document.querySelector<HTMLElement>(".admin-root");
+    const zoom = root ? parseFloat(getComputedStyle(root).zoom || "1") || 1 : 1;
+    const vars: Record<string, string> = {};
+    if (root) for (let i = 0; i < root.style.length; i++) {
+      const n = root.style[i];
+      if (n.startsWith("--admin")) vars[n] = root.style.getPropertyValue(n);
+    }
     const r = btnRef.current.getBoundingClientRect();
     let top = r.bottom + 4;
-    const h = menuRef.current?.offsetHeight ?? 0;
+    const h = (menuRef.current?.offsetHeight ?? 0) * zoom;
     if (h && top + h > window.innerHeight - 8) top = Math.max(8, r.top - 4 - h);
-    setPos({ top, right: Math.max(8, window.innerWidth - r.right) });
+    setPos({ top: top / zoom, right: Math.max(8, window.innerWidth - r.right) / zoom, zoom, vars });
   }, [open, items.length]);
   useEffect(() => {
     if (!open) return;
@@ -2771,9 +2796,10 @@ function ActionMenu({ label, items, compact }: { label: string; items: MenuItem[
       role="menu"
       className="fixed min-w-[230px] max-w-[300px] rounded-xl py-1 z-[70] text-left"
       style={{
-        top: pos?.top ?? -9999, right: pos?.right ?? 0, visibility: pos ? "visible" : "hidden",
+        ...(pos?.vars ?? {}),
+        top: pos?.top ?? -9999, right: pos?.right ?? 0, zoom: pos?.zoom ?? 1, visibility: pos ? "visible" : "hidden",
         backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)", boxShadow: "var(--admin-shadow)",
-      }}
+      } as React.CSSProperties}
     >
       {items.map((it, i) => it.href ? (
         <a
