@@ -630,6 +630,18 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
    */
   const invoicedGross = await issuedInvoiceTotal(bookingId, input.reuseDocumentId);
   const uninvoiced = round2(Math.max(0, total - invoicedGross));
+  /*
+   * The final invoice bills `uninvoiced`, so its paper has to SHOW why that is
+   * less than the trip: which earlier invoices stand for the rest. Daniel
+   * Rainham's NP7-XP-2026-0052 printed the trip, "Less: payments received
+   * −3,010.80", then a balance equal to the trip, because the deduction and
+   * the balance came from two definitions. Credit notes are left out here: they
+   * correct the invoice they name, they do not pre-bill the trip.
+   */
+  const { data: priorDocs } = await getDb().from("documents").select("id,invoice_number,amount,type,status").eq("booking_id", bookingId).eq("status", "issued");
+  const prior = ((priorDocs ?? []) as { id: string; invoice_number: string | null; amount: number | null; type: string }[])
+    .filter((d) => d.id !== input.reuseDocumentId && ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice"].includes(d.type) && Number(d.amount) > 0);
+  const priorInvoiced = { total: round2(prior.reduce((n, d) => n + Number(d.amount), 0)), numbers: prior.map((d) => d.invoice_number).filter((n): n is string => !!n) };
 
   // Add-on invoice: bills exactly the confirmed extras nothing has invoiced
   // yet — an interim document for things added AFTER the down-payment, so the
@@ -808,6 +820,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       billedAddons: billedAddons.map(({ label, price }) => ({ label, price })),
       packagePrice: round2(booking.agreed_price ?? 0),
       received,
+      priorInvoiced,
     },
     contact: {
       name: contact?.name ?? null,

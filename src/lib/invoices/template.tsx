@@ -18,6 +18,7 @@ import {
 } from "@react-pdf/renderer";
 
 import type { CompanySettings, GeneratableType, VatMode } from "./types";
+import { finalInvoiceFigures } from "./final-figures";
 import { formatMoney as formatMoneyRaw } from "./types";
 
 /**
@@ -145,6 +146,9 @@ export type InvoiceData = {
     packagePrice?: number;
     /** Money actually received. The final balance deducts THIS, not a formula. */
     received?: number;
+    /** Earlier tax invoices on the booking (gross, and their numbers): the part
+     *  of the trip a document already stands for, which this one does not bill. */
+    priorInvoiced?: { total: number; numbers: string[] };
   };
   contact: {
     name: string | null;
@@ -737,12 +741,14 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
    * Received is the only figure that matches the booking page, the reminder
    * email and the guest's bank statement.
    */
-  const received = booking.received ?? 0;
-  /* The stored figure, which also nets off invoices already issued and unpaid —
-     `agreedPrice - received` alone double-bills whatever an open add-on invoice
-     already claims, which is exactly how Andreas Burmeister's final invoice
-     came to be issued and voided three times. */
-  const balance = data.amountDue ?? Math.max(0, booking.agreedPrice - received);
+  // One line of arithmetic the reader can follow; see final-figures.ts.
+  const priorNumbers = booking.priorInvoiced?.numbers ?? [];
+  const { priorInvoiced, receivedApplied, balance } = finalInvoiceFigures({
+    agreedPrice: booking.agreedPrice,
+    received: booking.received,
+    priorInvoiced: booking.priorInvoiced?.total,
+    amountDue: data.amountDue,
+  });
   const addons = booking.addons ?? [];
   // agreedPrice is the whole trip. Show the package on its own line so the
   // add-ons are visible rather than swallowed by a package price €645 too high.
@@ -752,7 +758,7 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
   const packageDesc = booking.packageName ? `Package: ${booking.packageName}` : "";
 
   const totalNet = isMargin ? booking.agreedPrice : booking.agreedPrice / (1 + vatRate / 100);
-  const advanceNet = isMargin ? received : received / (1 + vatRate / 100);
+  const advanceNet = isMargin ? receivedApplied : receivedApplied / (1 + vatRate / 100);
   // Derived FROM the balance, so the VAT split can never describe a different
   // number than the one the invoice is claiming.
   const balanceNet = isMargin ? balance : balance / (1 + vatRate / 100);
@@ -789,15 +795,26 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
         </View>
       ))}
 
-      {/* What has actually been paid. One deduction, one fact. */}
-      {received > 0 && (
+      {/* The part of the trip earlier invoices already stand for. */}
+      {priorInvoiced > 0 && (
+        <View style={[s.tableRow, { color: GREY }]}>
+          <View style={s.col_desc}>
+            <Text style={{ fontFamily: "Helvetica-Bold" }}>Less: already invoiced</Text>
+            <Text style={s.smallText}>{priorNumbers.length ? `Invoice${priorNumbers.length === 1 ? "" : "s"} ${priorNumbers.join(", ")}` : "Earlier invoices on this booking"}</Text>
+          </View>
+          <Text style={s.col_period}> </Text>
+          <Text style={s.col_amount}>-{formatMoney(priorInvoiced, currency)}</Text>
+        </View>
+      )}
+      {/* What has actually been paid against THIS invoice. One deduction, one fact. */}
+      {receivedApplied > 0 && (
         <View style={[s.tableRow, { color: GREY }]}>
           <View style={s.col_desc}>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>Less: payments received</Text>
-            <Text style={s.smallText}>Thank you — already paid on this booking</Text>
+            <Text style={s.smallText}>Thank you, already paid on this booking</Text>
           </View>
           <Text style={s.col_period}> </Text>
-          <Text style={s.col_amount}>-{formatMoney(received, currency)}</Text>
+          <Text style={s.col_amount}>-{formatMoney(receivedApplied, currency)}</Text>
         </View>
       )}
 
