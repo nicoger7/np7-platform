@@ -79,7 +79,7 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
       </div>
       <p className="text-[12px] text-[#7d8b91] mt-2">
         {refundableUntil ? (all ? <>Either way, the first {fmt(amount)} stays refundable until {refundableUntil}. </> : <>Refundable until {refundableUntil}. </>) : null}
-        Straight from your own bank: iDEAL, Wero, Bancontact, whichever yours is. Or ignore this and transfer from your invoice, both land in the same place.
+        Card, or straight from your own bank where your country has it. Or ignore this and transfer from your invoice, both land in the same place.
       </p>
       {error && <p className="text-[12.5px] text-[#b4472a] mt-2">{error}</p>}
     </div>
