@@ -1,6 +1,10 @@
 import "server-only";
 import { bookingPrice } from "@/lib/tier-perks";
 import { composeBookingName } from "@/lib/booking-name";
+import { parseGearBaseline, parseGearChoice, recordGearChoice, type GearChoice, type GearInfo } from "@/lib/gear-choice";
+import {
+  appendBookingNote, findLiveBookings, isEmptyLead, isUniqueViolation, resolveContactIdsByEmail,
+} from "@/lib/existing-booking";
 
 /**
  * Group registration, phase 2: the payer books several people in one go.
@@ -28,6 +32,10 @@ export type CompanionInput = {
   lastName?: string;
   email?: string;
   packageId?: string;
+  /** Their own gear choice. Absent = untouched, so their package's baseline. */
+  gear?: string;
+  /** Their own rental upgrade tier (component id), when they took one. */
+  rentalId?: string | null;
 };
 
 export type ValidCompanion = {
@@ -38,6 +46,26 @@ export type ValidCompanion = {
   packageId: string;
   packageName: string;
   price: number | null;
+  /** null = they never touched it, which means this package's own baseline.
+   *  Kept apart from the baseline so "they chose rental" and "rental came with
+   *  it" stay two different facts. */
+  gear: GearChoice | null;
+  rentalId: string | null;
+  /** What THEIR package price already contains, and what level it coaches.
+   *  Both read off their own package, never the payer's: a friend on a
+   *  beginner package gets no choice even when the payer had one. */
+  gearBaseline: GearChoice;
+  level: string | null;
+  /** Their only row on this week is an empty lead ("tell me when it's live"),
+   *  so their booking COMPLETES that row instead of inserting a second one.
+   *  Optional because most companions have no history at all on the week. */
+};
+
+/** A companion after the form checks, before their package has been looked up:
+ *  the gear fields are still raw, because only their package knows the rules. */
+type CleanedCompanion = Pick<ValidCompanion, "firstName" | "lastName" | "fullName" | "email" | "packageId"> & {
+  gear?: string;
+  rentalId?: string | null;
 };
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -78,11 +106,15 @@ export function companionPackageIssue(
  * one spot short. Ids the caller could not price (wrong experience, wrong
  * week, archived) are skipped, and `counted` says how many actually made it,
  * so nobody can present the plan as covering people it does not.
+ *
+ * The key is one chosen SPOT, package plus gear (`packageId:gear:rentalId`),
+ * not a bare package: two friends in the same room, one of them on their own
+ * board, are two different amounts of money.
  */
-export function sumCompanionPrices(chosenIds: string[], priceByPackage: Map<string, number>): { total: number; counted: number } {
+export function sumCompanionPrices(chosenSpecs: string[], priceByPackage: Map<string, number>): { total: number; counted: number } {
   let total = 0;
   let counted = 0;
-  for (const id of chosenIds) {
+  for (const id of chosenSpecs) {
     const price = priceByPackage.get(id);
     if (price == null) continue;
     total += price;
@@ -94,19 +126,42 @@ export function sumCompanionPrices(chosenIds: string[], priceByPackage: Map<stri
 /**
  * Validate the companions against the DB, in the payer's experience + week.
  * Returns either the clean list or a guest-facing error message.
+ *
+ * `blocked` names the row the payer has to fix when the reason is that this
+ * person is already on the week. The modal puts the note under their fields
+ * instead of in the generic error line, and the route answers 409 rather than
+ * 400 so the client can tell "already booked" from "bad input".
+ *
+ * It carries the EMAIL as well as the index, and the modal anchors on the
+ * email. The index is a position in the list the client actually posted, which
+ * is the roster with the half-typed rows dropped, so a payer with an unfinished
+ * row above a blocked friend was reading "Ben is already registered" under
+ * Anna. The email is the same identity on both sides, whatever was filtered.
  */
 export async function validateCompanions(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any,
   raw: CompanionInput[],
-  ctx: { experienceId: string; editionId: string | null; payerEmail: string },
-): Promise<{ ok: true; companions: ValidCompanion[] } | { ok: false; error: string }> {
+  ctx: {
+    experienceId: string;
+    editionId: string | null;
+    payerEmail: string;
+    /** Rows already covered by THIS booking are this submission's own first
+     *  attempt, not a duplicate. Set only by the same-submission check, which
+     *  has to run the roster rules against a group it may itself have created
+     *  seconds ago. */
+    ignoreCoveredBy?: string | null;
+  },
+): Promise<
+  | { ok: true; companions: ValidCompanion[] }
+  | { ok: false; error: string; blocked?: { index: number; firstName: string; email: string } }
+> {
   if (raw.length > MAX_COMPANIONS) {
     return { ok: false, error: `You can add up to ${MAX_COMPANIONS} people here — for a bigger group, email us and we'll set it up.` };
   }
 
   const seen = new Set<string>([ctx.payerEmail.trim().toLowerCase()]);
-  const cleaned: (Omit<ValidCompanion, "packageName" | "price"> & { packageId: string })[] = [];
+  const cleaned: CleanedCompanion[] = [];
 
   for (const c of raw) {
     const firstName = (c.firstName ?? "").trim();
@@ -122,7 +177,12 @@ export async function validateCompanions(
     if (seen.has(email)) return { ok: false, error: `${email} is already on this booking — each person needs their own email address.` };
     seen.add(email);
 
-    cleaned.push({ firstName, lastName, fullName: `${firstName} ${lastName}`.trim(), email, packageId });
+    // Gear rides along raw: what it MEANS depends on the package behind it,
+    // which is only looked up below.
+    cleaned.push({
+      firstName, lastName, fullName: `${firstName} ${lastName}`.trim(), email, packageId,
+      gear: c.gear, rentalId: c.rentalId ?? null,
+    });
   }
 
   if (!cleaned.length) return { ok: true, companions: [] };
@@ -132,7 +192,7 @@ export async function validateCompanions(
   const ids = [...new Set(cleaned.map((c) => c.packageId))];
   const { data: pkgs } = await db
     .from("exp_packages")
-    .select("id, name, price, experience_id, edition_id, status, archived_at")
+    .select("id, name, price, experience_id, edition_id, status, archived_at, category, gear_baseline")
     .in("id", ids);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const byId = new Map(((pkgs ?? []) as any[]).map((p) => [p.id, p]));
@@ -147,8 +207,54 @@ export async function validateCompanions(
     if (issue === "other-week") {
       return { ok: false, error: `The package chosen for ${c.firstName} isn't offered in this week — please pick another.` };
     }
-    companions.push({ ...c, packageName: p.name, price: p.price ?? null });
+    companions.push({
+      ...c,
+      packageName: p.name,
+      price: p.price ?? null,
+      gearBaseline: parseGearBaseline(p.gear_baseline),
+      level: p.category ?? null,
+      gear: c.gear == null ? null : parseGearChoice(c.gear),
+      rentalId: typeof c.rentalId === "string" ? c.rentalId : null,
+    });
   }
+
+  // Last gate, and deliberately last: package problems keep their priority and
+  // the bookings query only runs for a roster that is otherwise good to go.
+  // Placed here rather than in createCompanionBookings for the reason the
+  // caller already argues, that everything is validated before a single row is
+  // written, so a rejected companion never leaves the payer with half a group.
+  const contactByEmail = await resolveContactIdsByEmail(db, companions.map((c) => c.email));
+  if (contactByEmail.size) {
+    const live = await findLiveBookings(db, {
+      contactIds: [...contactByEmail.values()],
+      experienceId: ctx.experienceId,
+      editionId: ctx.editionId,
+    });
+    for (let i = 0; i < companions.length; i++) {
+      const c = companions[i];
+      const contactId = contactByEmail.get(c.email);
+      const row = contactId ? live.get(contactId) : undefined;
+      if (!row) continue;
+      // Already on this booking: the payer resubmitting, not a second person.
+      if (ctx.ignoreCoveredBy && row.covered_by_booking_id === ctx.ignoreCoveredBy) continue;
+      // She asked to be told when the week went live, and never got a package.
+      // That is not a booking, so it must not block the payer from booking her.
+      // It is also not something to WRITE to: this runs from a public endpoint
+      // that knows the caller only by a typed email, so completing her row in
+      // place would let anyone who knows her address overwrite her booking.
+      // She gets a fresh booking and the old lead stays as the CRM row it was.
+      if (isEmptyLead(row)) continue;
+      // The payer typed this first name themselves, so naming it back tells
+      // them nothing they did not already know. The other booking's status,
+      // package, price and id stay out of it: the payer is not its owner.
+      return {
+        ok: false,
+        error: `${c.firstName} is already registered for this week with that email. Take them off this list to carry on, or they can register themselves.`,
+        blocked: { index: i, firstName: c.firstName, email: c.email },
+      };
+    }
+  }
+
   return { ok: true, companions };
 }
 
@@ -175,6 +281,9 @@ export async function createCompanionBookings(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     edition: any;
     botFlag: boolean;
+    /** The payer's own gear resolver, handed down so the whole group shares
+     *  one component scan per level. */
+    resolveGear: (level: string | null) => Promise<GearInfo>;
   },
 ): Promise<CreatedCompanion[]> {
   const out: CreatedCompanion[] = [];
@@ -205,28 +314,66 @@ export async function createCompanionBookings(
         packageId: c.packageId, edition: ctx.edition, contactId: contactId ?? null,
       }).catch(() => ({ price: c.price ?? 0 }));
 
-      const { data: booking, error: bErr } = await db
-        .from("exp_bookings")
-        .insert({
-          name: composeBookingName({
-            contactName: c.fullName,
-            experienceTitle: ctx.experienceTitle,
-            editionLabel: ctx.editionLabel ?? undefined,
-            year: ctx.editionStart ? new Date(ctx.editionStart).getFullYear() : null,
-          }),
-          contact_id: contactId,
-          experience_id: ctx.experienceId,
-          edition_id: ctx.editionId ?? null,
-          package_id: c.packageId,
-          status: "lead",
-          agreed_price: priced.price,
-          covered_by_booking_id: ctx.payerBookingId,
-          notes: `Website registration (group) · package: ${c.packageName} · paid for by ${ctx.payerName}${ctx.botFlag ? " · ⚠ BOT-CHECK FLAGGED — verify before invoicing" : ""}`,
-        })
-        .select("id").single();
-      if (bErr || !booking) continue;
+      const note = `Website registration (group) · package: ${c.packageName} · paid for by ${ctx.payerName}${ctx.botFlag ? " · ⚠ BOT-CHECK FLAGGED · verify before invoicing" : ""}`;
+      const stamp = new Date().toISOString();
 
-      out.push({ bookingId: booking.id, contactId: contactId!, firstName: c.firstName, email: c.email, packageName: c.packageName });
+      let bookingId: string | null = null;
+      {
+        const { data: booking, error: bErr } = await db
+          .from("exp_bookings")
+          .insert({
+            name: composeBookingName({
+              contactName: c.fullName,
+              experienceTitle: ctx.experienceTitle,
+              editionLabel: ctx.editionLabel ?? undefined,
+              year: ctx.editionStart ? new Date(ctx.editionStart).getFullYear() : null,
+            }),
+            contact_id: contactId,
+            experience_id: ctx.experienceId,
+            edition_id: ctx.editionId ?? null,
+            package_id: c.packageId,
+            status: "lead",
+            agreed_price: priced.price,
+            covered_by_booking_id: ctx.payerBookingId,
+            notes: note,
+          })
+          .select("id").single();
+        if (booking) {
+          bookingId = booking.id;
+        } else if (isUniqueViolation(bErr)) {
+          // The one-booking-per-week index refused it, which means a racing
+          // request wrote this companion a moment ago. If that row is covered
+          // by THIS payer it is the same spot and we simply use it; anything
+          // else belongs to somebody else and is not ours to touch.
+          const live = await findLiveBookings(db, {
+            contactIds: [contactId!], experienceId: ctx.experienceId, editionId: ctx.editionId ?? null,
+          });
+          const row = live.get(contactId!);
+          if (!row || row.covered_by_booking_id !== ctx.payerBookingId) continue;
+          bookingId = row.id;
+        } else {
+          continue;
+        }
+      }
+
+      // Neither branch can leave this unset without having skipped the
+      // companion, but say so rather than assert it.
+      if (!bookingId) continue;
+
+      // Their gear choice, on their own booking, through the same writer the
+      // payer goes through. Inside this try on purpose: recordGearChoice
+      // swallows its own failures, and a companion must never lose the booking
+      // that already exists over an add-on row.
+      await recordGearChoice(db, {
+        bookingId,
+        level: c.level,
+        gear: c.gear ?? c.gearBaseline,
+        baseline: c.gearBaseline,
+        rentalId: c.rentalId,
+        resolve: ctx.resolveGear,
+      });
+
+      out.push({ bookingId, contactId: contactId!, firstName: c.firstName, email: c.email, packageName: c.packageName });
     } catch {
       // Skip this companion; the payer's booking and the others stand.
       continue;

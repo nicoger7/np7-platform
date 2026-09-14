@@ -191,7 +191,7 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
   const all: Milestone[] = [
     {
       kind: "deposit",
-      label: "Deposit — secures your spot",
+      label: "Deposit · secures your spot",
       amount: depositAmt,
       cumulative: depositAmt,
       dueDate: null,
@@ -201,7 +201,7 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
     },
     {
       kind: "downpayment",
-      label: `Downpayment — ${dpPct}% of your trip`,
+      label: `Downpayment · ${dpPct}% of your trip`,
       amount: downpaymentAmt,
       cumulative: downpaymentTarget,
       dueDate: downpaymentDue,

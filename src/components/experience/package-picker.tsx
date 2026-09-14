@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ReserveModal, type ReserveContext } from "./reserve-modal";
+import { GearPills } from "./gear-pills";
+import { gearAdjustment, type GearOptions } from "@/lib/gear-shape";
 import { track } from "@/lib/analytics-client";
 import { cdnImage } from "@/lib/img";
 
@@ -92,7 +94,7 @@ const DEFAULT_INCLUDES = [
 type Quote = {
   price: number; deposit: number; downpaymentPercent: number; refundDays: number;
   milestones: { kind: string; label: string; amount: number; dueLabel: string; dueDate: string | null }[];
-  gear?: { baseline: "rental" | "storage" | "none"; rentalName: string; deltas: { rental: number | null; storage: number | null; none: number }; rentalTiers: { id: string; name: string; delta: number }[] | null } | null;
+  gear?: GearOptions | null;
 };
 
 export function PackagePicker({ packages, extras = [], currency = "EUR", reserve, heroImage, launch }: Props & { launch?: { pct: number; until?: string | null; label?: string } | null }) {
@@ -119,14 +121,26 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
   // refetch (or a momentary null) can never unmount the pill mid-press.
   const [stickyGear, setStickyGear] = useState<Quote["gear"]>(null);
   const extrasSum = extras.filter((x) => pickedExtras.has(x.id)).reduce((n2, x) => n2 + x.price, 0);
-  // The LEFT column's prices follow the gear toggle too — same delta the
-  // summary uses, applied only where the package's own baseline matches the
-  // quoted one (mixed-baseline experiences stay honest, row by row).
-  const gearAdj = (p: { gear_baseline?: string }) => {
+  // The LEFT column's prices follow the gear toggle too, same helper the
+  // summary and the group roster use, applied only where the package's own
+  // baseline matches the quoted one (mixed-baseline experiences stay honest,
+  // row by row). The rows share the selected level and therefore the selected
+  // tiers, so the chosen upgrade belongs here as much as in the summary:
+  // leaving it out would just move the mismatch from the roster to this column.
+  const gearAdj = (p: { gear_baseline?: string; level?: string | null }) => {
     const g = quote?.gear ?? stickyGear;
-    if (!g || gear === g.baseline) return 0;
+    if (!g) return 0;
     if ((p.gear_baseline ?? "rental") !== g.baseline) return 0;
-    return g.deltas[gear] ?? 0;
+    /*
+     * The tier belongs to the SELECTED package's level, and only rows at that
+     * level can be sold it. Beginner packages resolve no rental at all
+     * (gear-choice.ts refuses them by design), so adding the selected level's
+     * upgrade to a beginner row advertised a price that package cannot carry:
+     * "Beginner, No Hotel, from 1,741" for a 1,600 euro package.
+     */
+    const selectedLevel = accommodations.find((a) => a.id === accId)?.level ?? null;
+    const tier = (p.level ?? null) === selectedLevel ? (gear === "rental" ? rentalTier : null) : null;
+    return gearAdjustment(g, gear, tier);
   };
   const summaryRef = useRef<HTMLElement | null>(null);
   const [summaryTop, setSummaryTop] = useState(124);
@@ -226,7 +240,18 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
   useEffect(() => {
     if (!selectedId) { setQuote(null); return; }
     const extrasKey = [...pickedExtras].sort().join(",");
-    const key = `${selectedId}:${reserve?.editionId ?? ""}:${extrasKey}:${gear}:${rentalTier ?? ""}`;
+    /*
+     * The key has to describe the REQUEST, not the component's state. Gear is
+     * only sent once the guest has touched the toggle, so an untouched answer,
+     * which is priced on the package's own baseline, was being filed under
+     * whatever `gear` happened to be at mount ("rental", the hardcoded
+     * initial). Pressing the rental pill then replayed that cached baseline
+     * answer and fired no request at all, which is how "Total p.p." came to sit
+     * 380 euro above the "How you pay" schedule under it on Tenerife.
+     */
+    const sentGear = gearTouched.current ? gear : "";
+    const sentRental = gearTouched.current && gear === "rental" ? (rentalTier ?? "") : "";
+    const key = `${selectedId}:${reserve?.editionId ?? ""}:${extrasKey}:${sentGear}:${sentRental}`;
     const cached = quoteCache.current.get(key);
     if (cached) { setQuote(cached); if (cached.gear) setStickyGear(cached.gear); return; }
     // Only blank the quote when the PACKAGE changed — a gear/extras change
@@ -238,8 +263,8 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
     const qs = new URLSearchParams({ packageId: selectedId });
     if (reserve?.editionId) qs.set("editionId", reserve.editionId);
     if (extrasKey) qs.set("extras", extrasKey);
-    if (gearTouched.current) qs.set("gear", gear);
-    if (gear === "rental" && rentalTier) qs.set("rentalId", rentalTier);
+    if (sentGear) qs.set("gear", sentGear);
+    if (sentRental) qs.set("rentalId", sentRental);
     fetch(`/api/register/quote?${qs}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -306,45 +331,14 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
         {(quote?.gear ?? stickyGear) && (() => { const g = (quote?.gear ?? stickyGear)!; return (
           <div>
             <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">2 · Gear</p>
-            <div className="inline-flex rounded-full bg-white border border-[#e6eef0] p-1 shadow-sm">
-              {([
-                ...(g.deltas.rental != null ? [{ key: "rental" as const, label: "Rental gear" }] : []),
-                ...(g.deltas.storage != null ? [{ key: "storage" as const, label: "Own gear + storage" }] : []),
-                { key: "none" as const, label: "Own gear" },
-              ]).map((opt) => (
-                <button key={opt.key} type="button"
-                  onClick={() => { gearTouched.current = true; setGear(opt.key); }}
-                  className={`px-4 sm:px-5 py-2 rounded-full text-[13px] font-bold transition-colors ${
-                    gear === opt.key
-                      ? opt.key === "rental"
-                        ? "text-[#00374a] font-extrabold shadow-sm"           /* premium: the sun gradient */
-                        : "bg-[#eef7fa] text-[#00374a] border border-[#cde9f2]" /* the quiet, light versions */
-                      : "text-[#8a97a0] hover:text-[#00374a]"
-                  }`}
-                  style={gear === opt.key && opt.key === "rental" ? { background: "linear-gradient(90deg,#ffc42e,#f0774a)" } : undefined}>
-                  {opt.key === "rental" ? "★ " : ""}{opt.label}
-                </button>
-              ))}
-            </div>
-            {gear === "rental" && g.rentalTiers && (
-              <div className="flex flex-wrap gap-2 mt-2.5">
-                {g.rentalTiers.map((t, ti) => {
-                  const on = rentalTier ? rentalTier === t.id : ti === 0;
-                  return (
-                    <button key={t.id} type="button"
-                      onClick={() => { gearTouched.current = true; setRentalTier(ti === 0 ? null : t.id); }}
-                      className={`px-3.5 py-1.5 rounded-full text-[12.5px] font-bold border-2 transition-colors ${on ? "border-[#f0774a] bg-[#fff4ec] text-[#00374a]" : "border-[#e6eef0] bg-white text-[#5a6b72] hover:border-[#f5c9b2]"}`}>
-                      {t.name}{t.delta > 0 ? ` · +${fmt(t.delta)}` : " · included"}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <p className="text-[12.5px] text-[#5a6b72] mt-2">
-              {gear === "rental" ? "Latest boards & sails for the whole week — all sorted for you."
-                : gear === "storage" ? "You bring your own kit — it stays rigged and stored at the centre."
-                : "You bring and handle your own gear."}
-            </p>
+            <GearPills
+              tone="hero"
+              options={g}
+              value={gear}
+              rentalId={rentalTier}
+              onChange={(nextGear, nextTier) => { gearTouched.current = true; setGear(nextGear); setRentalTier(nextTier); }}
+              fmt={fmt}
+            />
           </div>
         ); })()}
 
@@ -606,7 +600,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
                 <s className="block text-[14px] font-semibold text-white/35 leading-none mb-1">{fmt(selected.price)}</s>
               )}
               <span className="block text-3xl font-black tracking-[-0.02em] tabular-nums leading-none">
-                {selected ? fmt((launch ? lp(selected.price) : selected.price) + extrasSum + (quote?.gear ? (quote.gear.deltas[gear] ?? 0) : 0)) : "—"}
+                {selected ? fmt((launch ? lp(selected.price) : selected.price) + extrasSum + gearAdjustment(quote?.gear, gear, gear === "rental" ? rentalTier : null)) : "—"}
               </span>
             </span>
           </div>
@@ -664,7 +658,10 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
               packageId: selected.id,
               level,
               accommodation: selected.accommodation,
-              price: lp(selected.price) + extrasSum + (quote?.gear ? (quote.gear.deltas[gear] ?? 0) : 0),
+              // What the modal prices the payer's own spot at. It has to be the
+              // same sum the quote endpoint will charge, tier included, or the
+              // roster line for "You" contradicts the plan panel under it.
+              price: lp(selected.price) + extrasSum + gearAdjustment(quote?.gear, gear, gear === "rental" ? rentalTier : null),
               gear,
               rentalId: gear === "rental" ? rentalTier : null,
               extras: [...pickedExtras],

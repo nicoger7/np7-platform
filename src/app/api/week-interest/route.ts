@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { composeBookingName } from "@/lib/booking-name";
+import { findLiveBookings } from "@/lib/existing-booking";
 
 import { rateLimited, LIMITS } from "@/lib/rate-limit";
 /**
@@ -56,9 +57,17 @@ export async function POST(request: NextRequest) {
     return bad("This week is not available.", 409);
   }
 
-  // Contact: reuse by email → create. Same shape as /api/reserve.
-  const { data: existing } = await db.from("contacts").select("id").eq("email", email).maybeSingle();
-  let contactId: string | undefined = existing?.id;
+  /*
+   * Contact: reuse by email, oldest wins, then create. Case-insensitive and
+   * LIMITED, which the rest of the codebase already does and this did not:
+   * `.eq(...).maybeSingle()` errors when an address has two contacts, and the
+   * error was being dropped, so a duplicated address minted a THIRD contact and
+   * the duplicate guard below it read a brand new row with no bookings and
+   * never fired. pim@huubenheurman.nl has two contacts today.
+   */
+  const { data: found } = await db.from("contacts").select("id")
+    .ilike("email", email).order("created_at", { ascending: true }).limit(1);
+  let contactId: string | undefined = (found ?? [])[0]?.id;
   if (!contactId) {
     const { data: created, error: cErr } = await db
       .from("contacts").insert({ name: firstName, email, source: "website" }).select("id").single();
@@ -66,12 +75,29 @@ export async function POST(request: NextRequest) {
     contactId = created.id;
   }
 
-  // Already on this week (any live status)? Then they're covered — idempotent
-  // OK instead of a second pipeline row for the same person and week.
-  const { data: dupe } = await db
-    .from("exp_bookings").select("id,status").eq("contact_id", contactId).eq("edition_id", editionId)
-    .is("archived_at", null).limit(1).maybeSingle();
-  if (dupe && dupe.status !== "lost") return NextResponse.json({ ok: true, already: true });
+  /*
+   * Already on this week (any live status)? Then they're covered, so this is
+   * an idempotent OK instead of a second pipeline row for one person and week.
+   *
+   * Through findLiveBookings, the same rule /api/register is judged by, and
+   * that matters in three ways the hand-rolled query got wrong. It compared the
+   * RAW status against "lost", so a Notion-era row still spelled "cancelled"
+   * (Derek Rotz on Bonaire Week III) counted as live and swallowed a real
+   * signup as {ok: true, already: true}: a lost lead reported as a success. It
+   * had no .order(), so for somebody holding both a lost and a live booking on
+   * one week the planner decided which row came back. And it is best-effort, so
+   * a query that hiccups files the lead rather than losing it.
+   *
+   * This guard has also never actually run before now: it used to filter
+   * `archived_at is null`, a column exp_bookings does not have (migration 039
+   * adds it to nine tables and not this one), so PostgREST rejected the whole
+   * query. Same mistake, same family, as the cron at
+   * src/app/api/cron/booking-status/route.ts.
+   */
+  const live = await findLiveBookings(db, {
+    contactIds: [contactId!], experienceId: exp.id, editionId,
+  });
+  if (live.has(contactId!)) return NextResponse.json({ ok: true, already: true });
 
   const { error: bErr } = await db.from("exp_bookings").insert({
     name: composeBookingName({
@@ -84,7 +110,7 @@ export async function POST(request: NextRequest) {
     experience_id: exp.id,
     edition_id: editionId,
     status: "lead",
-    notes: "Website interest — asked to be emailed when this week's packages go live.",
+    notes: "Website interest · asked to be emailed when this week's packages go live.",
   });
   if (bErr) return bad("Could not save your request. Please try again.", 500);
 
