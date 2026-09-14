@@ -13,7 +13,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { generateDocument, settleInvoices } from "@/lib/invoices/generate";
-import { eur } from "@/lib/stripe";
+import { eur, cardForPaymentIntent, refundPaymentIntent } from "@/lib/stripe";
+import { feeAllowedOnCard } from "@/lib/card-fee";
 import { publicOrigin } from "@/lib/public-origin";
 import { sumReceived } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
@@ -488,6 +489,39 @@ async function onTripCardPayment(session: Record<string, unknown>, bookingId: st
 
   const { afterMoneyLanded } = await import("@/lib/bank/adopt");
   await afterMoneyLanded(bookingId);
+
+  /*
+   * The guess, checked against the card.
+   *
+   * A fee bucket is picked by whoever is talking to the guest, before anyone
+   * has seen the card: a legal classification of an object they cannot inspect.
+   * Stripe reports the issuing country and brand on the charge, so the guess
+   * can be judged the moment the money lands, and a fee standing on a card
+   * §270a protects goes straight back. Never the trip's share, only the fee.
+   *
+   * Best-effort on purpose: the payment is recorded and the booking is right
+   * whatever happens here. A refund that fails leaves the link marked with the
+   * reason, so it shows up rather than passing silently.
+   */
+  if (fee > 0) {
+    try {
+      const card = await cardForPaymentIntent(paymentIntent);
+      await db.from("exp_payment_links").update({ card_country: card?.country ?? null, card_brand: card?.brand ?? null }).eq("id", linkId);
+      if (!feeAllowedOnCard(card)) {
+        const why = card?.country
+          ? `${card.brand ?? "card"} issued in ${card.country}: no surcharge may stand on it (§270a BGB)`
+          : "the card could not be identified, so the fee cannot be justified";
+        const res = await refundPaymentIntent(paymentIntent, Math.round(fee * 100));
+        await db.from("exp_payment_links").update({
+          fee_refunded_at: res.ok ? new Date().toISOString() : null,
+          fee_refund_reason: res.ok ? why : `Refund of the ${fee.toFixed(2)} fee FAILED (${res.error ?? "unknown"}), ${why}. Refund it by hand in Stripe.`,
+        }).eq("id", linkId);
+        console.warn(`[webhook] card fee ${fee.toFixed(2)} on ${paymentIntent}: ${res.ok ? "refunded" : "REFUND FAILED"}, ${why}`);
+      }
+    } catch (e) {
+      console.error("[webhook] card fee check failed (payment is recorded, fee not checked):", e instanceof Error ? e.message : e);
+    }
+  }
 }
 
 // ─── Route handler ────────────────────────────────────────────────────────────

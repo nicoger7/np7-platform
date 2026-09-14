@@ -89,6 +89,23 @@ export async function refundPaymentIntent(paymentIntent: string, amountCents?: n
   return { ok: true, id: json.id as string };
 }
 
+/**
+ * What card actually paid: issuing country, brand, funding. Stripe only knows
+ * this once the charge exists, which is precisely why the fee has to be checked
+ * after the fact rather than guessed before it.
+ */
+export async function cardForPaymentIntent(paymentIntent: string): Promise<{ country: string | null; brand: string | null; funding: string | null } | null> {
+  const key = stripeKey();
+  if (!key) return null;
+  const res = await fetch(`${STRIPE}/payment_intents/${paymentIntent}?expand[]=latest_charge`, { headers: { Authorization: `Bearer ${key}` } });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const card = (json as any)?.latest_charge?.payment_method_details?.card;
+  if (!card) return null;
+  return { country: card.country ?? null, brand: card.brand ?? null, funding: card.funding ?? null };
+}
+
 /** Look up the PaymentIntent id for a completed Checkout Session. */
 export async function paymentIntentForSession(sessionId: string): Promise<string | null> {
   const key = stripeKey();

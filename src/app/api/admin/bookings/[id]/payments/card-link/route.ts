@@ -70,7 +70,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const outstanding = booking ? await owed(db, id, Number(booking.agreed_price) || 0) : 0;
   const currency = (booking?.exp_editions?.currency as string | null) ?? (booking?.exp_experiences?.currency as string | null) ?? "EUR";
   const { data, error } = await db.from("exp_payment_links")
-    .select("id, amount, fee, total, currency, card_region, status, url, note, created_at, expires_at, paid_at, payment_intent")
+    .select("id, amount, fee, total, currency, card_region, status, url, note, created_at, expires_at, paid_at, payment_intent, fee_refunded_at, fee_refund_reason, card_country, card_brand")
     .eq("booking_id", id).order("created_at", { ascending: false });
   if (error) return bad(error.message, 500);
   // A link past its expiry reads as expired even before Stripe tells us.

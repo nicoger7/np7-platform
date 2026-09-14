@@ -45,6 +45,38 @@ export const isCardRegion = (v: unknown): v is CardRegion => CARD_REGIONS.some((
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+/** The EEA: the EU plus Norway, Iceland and Liechtenstein. Not the UK, not
+ *  Switzerland. ISO-3166 alpha-2, the codes Stripe reports on a card. */
+const EEA = new Set([
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU",
+  "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES",
+  "SE", "IS", "LI", "NO",
+]);
+
+/** Three-party schemes: outside the IFR, so outside the §270a ban. */
+const THREE_PARTY = new Set(["amex", "american_express", "diners", "discover", "jcb", "unionpay"]);
+
+/**
+ * May a fee stand on the card that was actually used?
+ *
+ * The admin picks a fee bucket before anyone has seen the card, which is a
+ * legal classification of an object they cannot inspect. Stripe reports the
+ * truth on the charge: issuing country and brand. This is the check that runs
+ * afterwards, and it errs towards NO: a card we cannot identify, or an EEA card
+ * of any funding type, is treated as protected, because charging a fee that is
+ * forbidden is a worse error than carrying a cost.
+ *
+ * What it cannot see is whether an EEA card is a commercial one (Stripe reports
+ * funding as credit/debit/prepaid, never "business"), so an EEA corporate card
+ * is refunded its fee too. That is the safe direction.
+ */
+export function feeAllowedOnCard(card: { country?: string | null; brand?: string | null } | null): boolean {
+  if (!card?.country) return false;
+  const brand = String(card.brand ?? "").toLowerCase();
+  if (THREE_PARTY.has(brand)) return true;
+  return !EEA.has(String(card.country).toUpperCase());
+}
+
 /**
  * The fee for a card family, grossed up: Stripe charges pct + fixed on the
  * TOTAL the guest pays, so total = (amount + fixed) / (1 − pct) leaves exactly

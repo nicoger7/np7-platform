@@ -15,6 +15,7 @@ type Link = {
   id: string; amount: number; fee: number; total: number; currency: string; card_region: string;
   status: "open" | "paid" | "expired" | "cancelled"; url: string | null; note: string | null;
   created_at: string; expires_at: string | null; paid_at: string | null;
+  fee_refunded_at?: string | null; fee_refund_reason?: string | null; card_country?: string | null;
 };
 
 const money = (n: number, c = "EUR") => `${c === "EUR" ? "€" : c + " "}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -156,8 +157,9 @@ export function CardLinkDialog({ bookingId, suggestedAmount, outstanding: outsta
                 <div key={l.id} className="flex items-center gap-3 px-3 py-2 text-xs" style={{ borderTop: i ? "1px solid var(--admin-border)" : undefined }}>
                   <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${tone(l.status)}`}>{l.status}</span>
                   <span className="min-w-0 flex-1 truncate admin-heading">
-                    {money(l.amount, l.currency)}{l.fee > 0 ? <span className="admin-faint"> + {money(l.fee, l.currency)} fee</span> : null}
-                    <span className="admin-faint"> · {l.status === "paid" ? `paid ${when(l.paid_at)}` : l.status === "open" ? `valid until ${when(l.expires_at)}` : `made ${when(l.created_at)}`}{l.note ? ` · ${l.note}` : ""}</span>
+                    {money(l.amount, l.currency)}{l.fee > 0 ? <span className={l.fee_refunded_at ? "admin-faint line-through" : "admin-faint"}> + {money(l.fee, l.currency)} fee</span> : null}
+                    {l.fee_refunded_at && <span className="text-amber-400"> fee refunded</span>}
+                    <span className="admin-faint"> · {l.status === "paid" ? `paid ${when(l.paid_at)}` : l.status === "open" ? `valid until ${when(l.expires_at)}` : `made ${when(l.created_at)}`}{l.fee_refund_reason ? ` · ${l.fee_refund_reason}` : l.note ? ` · ${l.note}` : ""}</span>
                   </span>
                   {l.status === "open" && l.url && (
                     <>
