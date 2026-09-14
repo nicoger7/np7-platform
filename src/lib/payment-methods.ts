@@ -99,9 +99,13 @@ const NOTHING_UNKNOWN = "We can't tell which instant payments your country has. 
 /**
  * Countries with a rail in the configuration. Not the method names: Stripe
  * picks those. Only "is there anything here worth opening a checkout for".
- * Add BE, FR and DE the day Wero is granted.
+ *
+ * Belgium is here on its own account, not on Wero's: Bancontact is Belgian,
+ * enabled, and older than Wero. It was briefly left out because BE is also a
+ * Wero country, which is true and irrelevant. Add FR and DE the day Wero is
+ * granted; Belgium keeps Bancontact either way.
  */
-const HAS_RAIL = new Set(["NL", "AT", "PL"]);
+const HAS_RAIL = new Set(["NL", "BE", "AT", "PL"]);
 
 /** What this guest may be shown, given where they are. */
 export function onlineMethodsFor(country: string | null): OnlineMethods {
