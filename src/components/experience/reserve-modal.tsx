@@ -175,6 +175,77 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
 
   const inputCls = "px-4 py-3.5 rounded-xl border border-[#dde6e9] text-[15px] text-[#00374a] outline-none focus:border-[#00afdb] placeholder:text-[#9aa6ac]";
 
+  /* Group booking — collapsed until asked for, because most people book alone
+     and an empty roster is noise. Each person added becomes their own booking
+     with their own trip page; only the money stays here, with the payer.
+
+     Written once as an ELEMENT (not a nested component, which React would
+     remount on every keystroke) and rendered by BOTH the guest form and the
+     member confirm card, so the two can never drift. Returning guests are the
+     likeliest to bring a friend, so the member branch gets the same offer. */
+  const groupBlock = canAddPeople ? (
+    <div className="mb-5">
+      {companions.length === 0 ? (
+        <button type="button" onClick={addCompanion}
+          className="text-[13px] font-bold text-[#00afdb] hover:underline">
+          + Booking for more than one person?
+        </button>
+      ) : (
+        <div className="rounded-2xl border border-[#e8f1f4] bg-[#f7fbfc] p-3.5">
+          <p className="text-[12.5px] font-bold text-[#00374a] mb-2.5">Who else is coming?</p>
+          {companions.map((c, i) => (
+            <div key={i} className="mb-3 pb-3 border-b border-[#e8f1f4] last:border-0 last:mb-0 last:pb-0">
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <input value={c.firstName} onChange={(e) => setCompanionField(i, "firstName", e.target.value)} placeholder="First name" className={inputCls} />
+                <input value={c.lastName} onChange={(e) => setCompanionField(i, "lastName", e.target.value)} placeholder="Last name" className={inputCls} />
+              </div>
+              <input type="email" value={c.email} onChange={(e) => setCompanionField(i, "email", e.target.value)} placeholder="Their email · for their own trip page" className={`w-full mb-2 ${inputCls}`} />
+              <div className="flex items-center gap-2">
+                <select value={c.packageId} onChange={(e) => setCompanionField(i, "packageId", e.target.value)} className={`flex-1 ${inputCls}`}>
+                  {weekPackages.map((p) => (
+                    <option key={p.id} value={p.id}>{p.label} · {money(p.price)}</option>
+                  ))}
+                </select>
+                <button type="button" onClick={() => removeCompanion(i)} className="text-[12px] font-semibold text-[#9aa6ac] hover:text-red-500 px-1">Remove</button>
+              </div>
+            </div>
+          ))}
+          {companions.length < 6 && (
+            <button type="button" onClick={addCompanion} className="text-[12.5px] font-bold text-[#00afdb] hover:underline">+ Add another person</button>
+          )}
+          <div className="mt-3 pt-3 border-t border-[#e8f1f4]">
+            <div className="flex justify-between text-[13px] mb-0.5">
+              <span className="text-[#5a6b72]">You · {ctx.accommodation}</span>
+              <span className="font-bold text-[#00374a] tabular-nums">{money(ctx.price)}</span>
+            </div>
+            {companions.map((c, i) => (
+              <div key={i} className="flex justify-between text-[13px] mb-0.5">
+                <span className="text-[#5a6b72]">{c.firstName.trim() || `Person ${i + 2}`}</span>
+                <span className="font-bold text-[#00374a] tabular-nums">{money(priceOf(c.packageId))}</span>
+              </div>
+            ))}
+            <div className="flex justify-between text-[14px] pt-1.5 mt-1 border-t border-[#e8f1f4]">
+              <span className="font-bold text-[#00374a]">Total for {companions.length + 1} spots</span>
+              <span className="font-extrabold text-[#00374a] tabular-nums">{money(groupTotal)}</span>
+            </div>
+            <p className="text-[11.5px] text-[#8a9aa0] leading-snug mt-2">
+              One payment plan, one invoice, all of it to you. Everyone else gets their own trip page with nothing to pay.
+            </p>
+          </div>
+          <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
+            <input type="checkbox" checked={groupConsent} onChange={(e) => setGroupConsent(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#00afdb]" />
+            <span className="text-[12px] text-[#5a6b72] leading-snug">I have their okay to give NP7 their details, and I&apos;ll let them know we&apos;ll be in touch.</span>
+          </label>
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  // Both branches submit the same group, so they share the same gate and the
+  // same group label. Only the solo wording differs.
+  const blocked = submitting || (companions.length > 0 && !groupConsent);
+  const groupLabel = companions.length > 0 ? `Register ${companions.length + 1} spots, free` : null;
+
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-6" role="dialog" aria-modal="true" aria-label="Register for the clinic">
       <button className="absolute inset-0 bg-[#00141d]/70 backdrop-blur-sm" onClick={onClose} aria-label="Close" />
@@ -300,10 +371,11 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                   <p className="text-[15px] font-bold text-[#00374a]">{firstName} {lastName}</p>
                   <p className="text-[13px] text-[#5a6b72] mt-0.5 break-all">{email}</p>
                 </div>
+                {groupBlock}
                 {error && <p className="text-[13px] text-red-500 mb-4">{error}</p>}
-                <button onClick={go} disabled={submitting}
+                <button onClick={go} disabled={blocked}
                   className="w-full px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] shadow-[0_6px_24px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">
-                  {submitting ? "One sec…" : "Register me — free"}
+                  {submitting ? "One sec…" : groupLabel ?? "Register me, free"}
                 </button>
                 <p className="mt-3 text-center text-[12px] text-[#9aa6ac] leading-snug">{reassurance}</p>
                 <button onClick={logoutAndRegisterAsGuest} disabled={submitting}
@@ -328,67 +400,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                 </div>
                 <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" autoComplete="email" className={`w-full mb-4 ${inputCls}`} />
 
-                {/* Group booking — collapsed until asked for, because most
-                    people book alone and an empty roster is noise. Each person
-                    added becomes their own booking with their own trip page;
-                    only the money stays here, with the payer. */}
-                {canAddPeople && (
-                  <div className="mb-5">
-                    {companions.length === 0 ? (
-                      <button type="button" onClick={addCompanion}
-                        className="text-[13px] font-bold text-[#00afdb] hover:underline">
-                        + Booking for more than one person?
-                      </button>
-                    ) : (
-                      <div className="rounded-2xl border border-[#e8f1f4] bg-[#f7fbfc] p-3.5">
-                        <p className="text-[12.5px] font-bold text-[#00374a] mb-2.5">Who else is coming?</p>
-                        {companions.map((c, i) => (
-                          <div key={i} className="mb-3 pb-3 border-b border-[#e8f1f4] last:border-0 last:mb-0 last:pb-0">
-                            <div className="grid grid-cols-2 gap-2 mb-2">
-                              <input value={c.firstName} onChange={(e) => setCompanionField(i, "firstName", e.target.value)} placeholder="First name" className={inputCls} />
-                              <input value={c.lastName} onChange={(e) => setCompanionField(i, "lastName", e.target.value)} placeholder="Last name" className={inputCls} />
-                            </div>
-                            <input type="email" value={c.email} onChange={(e) => setCompanionField(i, "email", e.target.value)} placeholder="Their email — for their own trip page" className={`w-full mb-2 ${inputCls}`} />
-                            <div className="flex items-center gap-2">
-                              <select value={c.packageId} onChange={(e) => setCompanionField(i, "packageId", e.target.value)} className={`flex-1 ${inputCls}`}>
-                                {weekPackages.map((p) => (
-                                  <option key={p.id} value={p.id}>{p.label} — {money(p.price)}</option>
-                                ))}
-                              </select>
-                              <button type="button" onClick={() => removeCompanion(i)} className="text-[12px] font-semibold text-[#9aa6ac] hover:text-red-500 px-1">Remove</button>
-                            </div>
-                          </div>
-                        ))}
-                        {companions.length < 6 && (
-                          <button type="button" onClick={addCompanion} className="text-[12.5px] font-bold text-[#00afdb] hover:underline">+ Add another person</button>
-                        )}
-                        <div className="mt-3 pt-3 border-t border-[#e8f1f4]">
-                          <div className="flex justify-between text-[13px] mb-0.5">
-                            <span className="text-[#5a6b72]">You — {ctx.accommodation}</span>
-                            <span className="font-bold text-[#00374a] tabular-nums">{money(ctx.price)}</span>
-                          </div>
-                          {companions.map((c, i) => (
-                            <div key={i} className="flex justify-between text-[13px] mb-0.5">
-                              <span className="text-[#5a6b72]">{c.firstName.trim() || `Person ${i + 2}`}</span>
-                              <span className="font-bold text-[#00374a] tabular-nums">{money(priceOf(c.packageId))}</span>
-                            </div>
-                          ))}
-                          <div className="flex justify-between text-[14px] pt-1.5 mt-1 border-t border-[#e8f1f4]">
-                            <span className="font-bold text-[#00374a]">Total for {companions.length + 1} spots</span>
-                            <span className="font-extrabold text-[#00374a] tabular-nums">{money(groupTotal)}</span>
-                          </div>
-                          <p className="text-[11.5px] text-[#8a9aa0] leading-snug mt-2">
-                            One payment plan, one invoice — all of it to you. Everyone else gets their own trip page with nothing to pay.
-                          </p>
-                        </div>
-                        <label className="flex items-start gap-2.5 mt-3 cursor-pointer">
-                          <input type="checkbox" checked={groupConsent} onChange={(e) => setGroupConsent(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#00afdb]" />
-                          <span className="text-[12px] text-[#5a6b72] leading-snug">I have their okay to give NP7 their details, and I&apos;ll let them know we&apos;ll be in touch.</span>
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {groupBlock}
 
                 <label className="flex items-start gap-2.5 mb-5 cursor-pointer">
                   <input type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#00afdb]" />
@@ -397,9 +409,9 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
 
                 {error && <p className="text-[13px] text-red-500 mb-4">{error}</p>}
 
-                <button type="submit" disabled={submitting || (companions.length > 0 && !groupConsent)}
+                <button type="submit" disabled={blocked}
                   className="w-full px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] shadow-[0_6px_24px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">
-                  {submitting ? "One sec…" : companions.length > 0 ? `Register ${companions.length + 1} spots — free` : "Register free"}
+                  {submitting ? "One sec…" : groupLabel ?? "Register free"}
                 </button>
                 <p className="mt-3 text-center text-[12px] text-[#9aa6ac] leading-snug">{reassurance}</p>
               </form>
