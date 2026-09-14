@@ -4,9 +4,8 @@ import { redirect, notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/auth";
 import { getMemberBooking, getTripGalleryGroupsForBooking, getTripVideosForBooking, getBookingPhotoSharing,
-  getBookingMarketingConsent, getBookingPaid, getBookingHotel, getBookingStay, getEditionCoaches, getMemoryDownloadsRemaining, getVideoDownloadsRemaining, getBookingHasReview, getBookingVoucherCredit, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent, getGuidesForBooking } from "@/lib/portal-data";
+  getBookingMarketingConsent, getBookingPaid, getBookingHotel, getBookingStay, getEditionCoaches, getMemoryDownloadsRemaining, getVideoDownloadsRemaining, getBookingHasReview, getBookingVoucherCredit, getConfirmedAddonsTotal, getBookingFlights, getExperienceArrivalInfo, getCrewProfiles, getPreTripContent, getGuidesForBooking, getBookingPaymentInputs } from "@/lib/portal-data";
 import { bookingStatus, fmtDates, money, isSecured } from "@/lib/portal-status";
-import { isAttending } from "@/lib/types";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ExtraNightsButton } from "@/components/portal/extra-nights-button";
 import { MemberDocuments } from "@/components/portal/member-documents";
@@ -24,7 +23,9 @@ import { RedeemVoucher } from "@/components/portal/redeem-voucher";
 import { CrewCard } from "@/components/portal/crew-card";
 import { InvitePanel } from "@/components/portal/invite-panel";
 import { getInvitesForBooking, resolveRewards } from "@/lib/invites";
-import { computePaymentPlan, mergeSameDayStages, amountDueNow, addDays, PAYMENT_DEFAULTS, type Milestone } from "@/lib/payments";
+import { mergeSameDayStages, addDays, PAYMENT_DEFAULTS, type Milestone } from "@/lib/payments";
+import { paymentPicture } from "@/lib/portal-next-step";
+import { NextStepHero, type NextStepTone } from "@/components/portal/next-step-hero";
 import { describePrice } from "@/lib/pricing";
 import { createAdminClient } from "@/lib/supabase";
 import { getCoverer, getCoveredBookings, coveredExtraTotal } from "@/lib/group-booking";
@@ -108,53 +109,32 @@ export default async function BookingDetail({ params }: Props) {
     }
   })();
 
-  // Pull the package's payment config so the member's plan matches the invoices
-  // exactly: package deposit (which can be 0 → a clean 2-stage plan), down-payment
-  // %, and final-payment timing. An edition-level deposit, if set, overrides the
-  // package's. Tolerant: pre-migration / missing → falls back to defaults.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const payRow: any = await (createAdminClient() as any)
-    .from("exp_bookings")
-    .select("created_at, exp_packages(deposit,downpayment_percent,final_days_before,deposit_refund_days)")
-    .eq("id", id)
-    .maybeSingle()
-    .then((r: { data: { created_at: string | null; exp_packages: unknown } | null }) => r.data ?? null)
-    .catch(() => null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const payCfg: any = payRow?.exp_packages ?? null;
-  // Settled stage invoices are the agreement — see BookingPaymentState.settledStages.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: settledDocs } = await (createAdminClient() as any)
-    .from("documents").select("type, amount")
-    .eq("booking_id", b.id).eq("status", "issued").not("paid_at", "is", null)
-    .in("type", ["deposit_invoice", "downpayment_invoice"]);
-  const settledStages = { deposit: 0, downpayment: 0 } as { deposit: number; downpayment: number };
-  for (const d of ((settledDocs ?? []) as { type: string; amount: number | null }[])) {
-    if (d.type === "deposit_invoice") settledStages.deposit += Number(d.amount) || 0;
-    if (d.type === "downpayment_invoice") settledStages.downpayment += Number(d.amount) || 0;
-  }
-  const plan = computePaymentPlan(
-    {
-      deposit: b.edition?.deposit ?? payCfg?.deposit ?? null,
-      downpayment_percent: payCfg?.downpayment_percent ?? null,
-      final_days_before: payCfg?.final_days_before ?? null,
-      deposit_refund_days: payCfg?.deposit_refund_days ?? null,
-    },
+  // The package's payment config (deposit, which can be 0 → a clean 2-stage
+  // plan; down-payment %; final-payment timing) and the settled stage invoices,
+  // so the member's plan matches the invoices exactly. Same loader and same
+  // derivation the home page reads for every upcoming trip, so the two can
+  // never disagree about what is owed and by when.
+  const payInputs = (await getBookingPaymentInputs([b.id])).get(b.id) ?? { cfg: null, settledStages: { deposit: 0, downpayment: 0 }, coveredExtra: 0 };
+  const payCfg = payInputs.cfg;
+  const picture = paymentPicture({
+    status: b.status,
+    downpayment_received: b.downpayment_received,
     // bookedAt anchors the no-deposit downpayment deadline (registration + X days).
-    { total: total ?? 0, paidAmount: paid, editionStart: b.edition?.date_start ?? null, bookedAt: payRow?.created_at ?? null, settledStages }
-  );
-
+    bookedAt: b.created_at,
+    edition: b.edition,
+    total,
+    paid,
+    cfg: payCfg,
+    settledStages: payInputs.settledStages,
+    coveredByBookingId: b.covered_by_booking_id,
+  });
   // "Secured" = the first real payment milestone is paid (the deposit, or — when
   // the package has no deposit — the down-payment), which unlocks trip add-ons.
-  const depositMilestone = plan.find((m) => m.kind === "deposit");
-  const depositPaid =
-    (depositMilestone ? depositMilestone.status === "paid" : paid > 0) ||
-    b.downpayment_received ||
-    isAttending(b.status);
   // Deposit vs down-payment: many packages have NO deposit (the % down-payment is
   // the first, refundable securing payment). Labels must reflect the real config
   // — never say "deposit" when the securing payment is the down-payment.
-  const hasDeposit = !!depositMilestone;
+  // `step` is the money half of the hero below; the phase half stays here.
+  const { plan, nextMilestone, dueNow, depositPaid, hasDeposit, fullyPaid, step } = picture;
   // Same rule the confirmation document uses, so the tab label and the document
   // it opens can never disagree.
   const secured = isSecured(b);
@@ -162,7 +142,7 @@ export default async function BookingDetail({ params }: Props) {
 
   // Cancellation copy — deposit-aware: many trips have no deposit (the 50%
   // downpayment is the first, 14-day-refundable payment), so don't mention one.
-  const cancellation = b.experience?.cancellation_policy || defaultCancellationPolicy(!!depositMilestone);
+  const cancellation = b.experience?.cancellation_policy || defaultCancellationPolicy(hasDeposit);
 
   const photoCount = galleryGroups.reduce((n, g) => n + g.photos.length, 0);
   const memoriesContent = (photoCount === 0 && !b.edition?.memories_video_url && tripVideos.length === 0) ? (
@@ -213,8 +193,6 @@ export default async function BookingDetail({ params }: Props) {
   // no flights to declare, no packing list, no deposit→balance plan. Keep what
   // it DOES have: the waiver (guardian for minors), documents and photos.
   const isEvent = b.edition?.kind === "event";
-  const fullyPaid = total != null && total > 0 && paid >= total;
-  const nextMilestone = plan.find((m) => m.status !== "paid");
 
   // The dated steps a guest keeps asking about — derived from the same
   // schedule the mail cron runs on, so the page and the inbox never disagree.
@@ -318,7 +296,7 @@ export default async function BookingDetail({ params }: Props) {
    * the booking, because a clinic ticket is paid at checkout.
    */
   const eventRefundDays = payCfg?.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays;
-  const eventBookedAt: string | null = payRow?.created_at ? String(payRow.created_at).slice(0, 10) : null;
+  const eventBookedAt: string | null = b.created_at ? String(b.created_at).slice(0, 10) : null;
   const eventCancelMilestones: Milestone[] = [{
     kind: "deposit",
     label: "Ticket",
@@ -333,25 +311,18 @@ export default async function BookingDetail({ params }: Props) {
   const eventBalanceDueLabel = eventBalanceDue
     ? new Date(`${eventBalanceDue}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })
     : null;
-  // What to actually transfer — the milestone MINUS what has already landed
-  // against it. The nominal slice would tell a member who has overpaid the
-  // down-payment to send the full half again. Falls back to the slice only when
-  // we have no ledger to work from.
-  const dueNow = amountDueNow(plan, paid) ?? nextMilestone?.amount ?? 0;
-
   // Immersive hero: cover photo (the edition's own tile wins, then the
   // experience's) + a phase-aware countdown with a wait-progress bar (booked → go).
   const coverImage = b.edition?.hero_image ?? b.experience?.hero_image ?? null;
   const weeks = daysToGo != null ? Math.floor(daysToGo / 7) : null;
-  const bookedAt = payRow?.created_at ? new Date(payRow.created_at) : null;
+  const bookedAt = b.created_at ? new Date(b.created_at) : null;
   const waitPct = bookedAt && startsAt && startsAt.getTime() > bookedAt.getTime()
     ? Math.max(4, Math.min(100, Math.round(((now.getTime() - bookedAt.getTime()) / (startsAt.getTime() - bookedAt.getTime())) * 100)))
     : null;
   const tripPhase: "before" | "during" | "after" = tripEnded ? "after" : tripStarted ? "during" : "before";
 
   // The single "what now?" the member should focus on.
-  type Tone = "coral" | "amber" | "green" | "cyan";
-  let hero: { eyebrow: string; title: string; body: string; ctaLabel?: string; ctaHref?: string; tone: Tone };
+  let hero: { eyebrow: string; title: string; body: string; ctaLabel?: string; ctaHref?: string; tone: NextStepTone };
   if (tripEnded) {
     hero = { eyebrow: "Your week", title: "Relive it 🌊", body: "Your photos and video from the trip are ready below.", tone: "cyan" };
   } else if (tripStarted) {
@@ -365,13 +336,13 @@ export default async function BookingDetail({ params }: Props) {
         : { eyebrow: "Your next step", title: `Payment pending — ${money(total ?? 0, cur)}`, body: "Your spot isn't secured until the ticket is paid. If you started a payment and it didn't go through, just book again — or reply to your confirmation email and we'll sort it.", tone: "amber" };
   } else if (fullyPaid) {
     hero = { eyebrow: "You're all set", title: daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"} to go 🎉` : "You're all set 🎉", body: "Everything's paid. Check your packing list and arrival info so you're ready to ride.", ctaLabel: "Open trip prep", ctaHref: "#prep", tone: "green" };
-  } else if (!depositPaid && nextMilestone) {
+  } else if (step.kind === "secure") {
     // Honest loss-aversion: name the real date we hold the place until (from the
     // engine), then reassure with the 14-day refund. No fake scarcity.
-    const heldUntil = nextMilestone.dueDate ? new Date(nextMilestone.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long" }) : null;
-    hero = { eyebrow: "Your next step", title: "Secure your spot", body: `Pay the ${money(dueNow, cur)} down-payment to lock in your place${heldUntil ? ` — we hold it for you until ${heldUntil}` : ""}. Fully refundable for 14 days.`, ctaLabel: "See how to pay", ctaHref: "#payment", tone: "coral" };
-  } else if (nextMilestone) {
-    hero = { eyebrow: "Your next step", title: `Balance due — ${money(dueNow, cur)}`, body: `Pay by bank transfer${nextMilestone.dueDate ? ` (due ${new Date(nextMilestone.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})` : ""}. The bank details are in your payment plan.`, ctaLabel: "View payment plan", ctaHref: "#payment", tone: "amber" };
+    const heldUntil = step.dueDate ? new Date(step.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long" }) : null;
+    hero = { eyebrow: "Your next step", title: "Secure your spot", body: `Pay the ${money(step.amount, cur)} down-payment to lock in your place${heldUntil ? ` — we hold it for you until ${heldUntil}` : ""}. Fully refundable for 14 days.`, ctaLabel: "See how to pay", ctaHref: "#payment", tone: "coral" };
+  } else if (step.kind === "balance") {
+    hero = { eyebrow: "Your next step", title: `Balance due — ${money(step.amount, cur)}`, body: `Pay by bank transfer${step.dueDate ? ` (due ${new Date(step.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})` : ""}. The bank details are in your payment plan.`, ctaLabel: "View payment plan", ctaHref: "#payment", tone: "amber" };
   } else {
     hero = { eyebrow: "You're all set", title: "You're set 🎉", body: "Everything's sorted for your trip.", ctaLabel: "Open trip prep", ctaHref: "#prep", tone: "green" };
   }
@@ -843,30 +814,6 @@ export default async function BookingDetail({ params }: Props) {
         </div>
       </main>
     </>
-  );
-}
-
-const HERO_TONES: Record<"coral" | "amber" | "green" | "cyan", { bar: string; eyebrow: string; btn: string }> = {
-  coral: { bar: "#d85a30", eyebrow: "#993c1d", btn: "bg-[#0f6e56] hover:bg-[#0c5d49]" },
-  amber: { bar: "#ca8a04", eyebrow: "#854f0b", btn: "bg-[#0f6e56] hover:bg-[#0c5d49]" },
-  green: { bar: "#1d9e75", eyebrow: "#0f6e56", btn: "bg-[#0f6e56] hover:bg-[#0c5d49]" },
-  cyan: { bar: "#00afdb", eyebrow: "#0782a0", btn: "bg-[#00afdb] hover:bg-[#15c0ec]" },
-};
-/** The single "what now?" card at the top — phase + payment aware. */
-function NextStepHero({ eyebrow, title, body, ctaLabel, ctaHref, tone }: { eyebrow: string; title: string; body: string; ctaLabel?: string; ctaHref?: string; tone: "coral" | "amber" | "green" | "cyan" }) {
-  const t = HERO_TONES[tone];
-  return (
-    <section className="bg-white rounded-2xl border border-[#f0e6d6] p-5 sm:p-6" style={{ borderLeftWidth: 4, borderLeftColor: t.bar }}>
-      <p className="text-[10px] font-bold tracking-[0.14em] uppercase" style={{ color: t.eyebrow }}>{eyebrow}</p>
-      <h2 className="text-[19px] sm:text-[21px] font-black text-[#00374a] mt-1 leading-tight">{title}</h2>
-      <p className="text-[14px] text-[#5a6b72] leading-relaxed mt-1.5">{body}</p>
-      {ctaLabel && ctaHref && (
-        <a href={ctaHref} className={`inline-flex items-center gap-1.5 mt-3.5 px-5 py-2.5 rounded-full text-[13.5px] font-bold text-white ${t.btn} transition-colors`}>
-          {ctaLabel}
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-        </a>
-      )}
-    </section>
   );
 }
 

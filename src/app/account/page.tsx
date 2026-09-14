@@ -3,11 +3,12 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberProgression, getProfilePhotoChoices, getMemberGuides } from "@/lib/portal-data";
+import { getMemberBookings, getMemberBannerImages, getMemberProfile, getMemberProgression, getProfilePhotoChoices, getMemberGuides, getPaymentSteps, type MemberBooking } from "@/lib/portal-data";
 import { getExperienceCards } from "@/lib/experience-cards";
 import { getMemberTier } from "@/lib/member-tier";
 import { ExpTileCardCompact } from "@/components/experience/upcoming-experiences";
-import { fmtDates, needsDownpayment, paymentStageLabel } from "@/lib/portal-status";
+import { fmtDates, money, needsDownpayment, paymentStageLabel } from "@/lib/portal-status";
+import { isDueSoon, isOverdue, fmtDueShort, type PaymentStep } from "@/lib/portal-next-step";
 import { hasFlightDetails, type FlightInfo } from "@/lib/flights";
 import { firstNameInitial, initialsFrom } from "@/lib/member-profile";
 import { PortalChrome } from "@/components/portal/portal-chrome";
@@ -17,6 +18,7 @@ import { HomeProgress } from "@/components/portal/home-progress";
 import { GuideCard } from "@/components/portal/guide-card";
 import { SetupProgress, type SetupStep } from "@/components/portal/setup-progress";
 import { SetPasswordPrompt } from "@/components/portal/set-password-prompt";
+import { NextStepHero } from "@/components/portal/next-step-hero";
 import { getMemberApplication } from "@/lib/signature";
 import { flags } from "@/lib/flags";
 
@@ -109,6 +111,22 @@ export default async function AccountHome() {
     .filter((b) => b.edition?.date_start && b.edition.date_start >= today)
     .sort((a, b) => ((a.edition?.date_start ?? "") < (b.edition?.date_start ?? "") ? -1 : 1));
   const unsecured = bookings.filter(needsDownpayment);
+  /* Money first. The trip page has known for a while what a rider owes and by
+     when, and says so in its hero. The home did not: Cameron's balance was two
+     weeks past its date and his home read "Spot secured · Flights added". Same
+     derivation as that hero (portal-next-step), so the two cannot disagree.
+     Only what is close (14 days) or past lands up top; a balance due in spring
+     stays on the trip page where it belongs. Securing a spot is left out on
+     purpose: the orange card below already carries it, and every fresh signup
+     sits inside its own 14-day window. */
+  const paymentSteps = await getPaymentSteps(upcoming).catch(() => new Map<string, PaymentStep>());
+  const balanceDue = (b: MemberBooking) => {
+    const step = paymentSteps.get(b.id);
+    return step?.kind === "balance" && isDueSoon(step, today) ? { step, overdue: isOverdue(step, today) } : null;
+  };
+  const dueCards = upcoming
+    .flatMap((b) => { const d = balanceDue(b); return d ? [{ b, ...d }] : []; })
+    .sort((a, b) => ((a.step.dueDate ?? "") < (b.step.dueDate ?? "") ? -1 : 1));
   // one card per trip that needs attention: unsecured first (secure CTA), then
   // upcoming secured trips (manage CTA)
   const tripCards = [
@@ -213,6 +231,30 @@ export default async function AccountHome() {
             level={progression?.level ? { label: progression.level, pct: progression.pct ?? 0 } : null}
             subtitle="Welcome to your NP7 home — your trips, your gear and everything in between."
           />
+
+          {/* Anything past its date or due within a fortnight, before everything
+              else on the page. Same card as the trip page's hero, same link. */}
+          {dueCards.length > 0 && (
+            <div className="mt-6 space-y-3">
+              {dueCards.map(({ b, step, overdue }) => {
+                const when = step.dueDate ? fmtDueShort(step.dueDate) : null;
+                const trip = `${b.experience?.title ?? "Your trip"}, ${fmtDates(b.edition?.date_start, b.edition?.date_end)}`;
+                return (
+                  <NextStepHero
+                    key={b.id}
+                    eyebrow="Your next step"
+                    title={`Balance due · ${money(step.amount, b.experience?.currency)}${when ? ` · ${overdue ? "was due" : "due"} ${when}` : ""}`}
+                    body={overdue
+                      ? `${trip}. If it's already on its way, all good. Otherwise pay by bank transfer, the bank details are in your payment plan.`
+                      : `${trip}. Pay by bank transfer, the bank details are in your payment plan.`}
+                    ctaLabel="View payment plan"
+                    ctaHref={`/account/bookings/${b.id}#payment`}
+                    tone={overdue ? "coral" : "amber"}
+                  />
+                );
+              })}
+            </div>
+          )}
 
           <div className="mt-6">
             <SetPasswordPrompt show={showPwPrompt} />
@@ -320,6 +362,8 @@ export default async function AccountHome() {
                           hasFlightDetails(b.flight_info as FlightInfo | null) ? "Flights added" : null,
                           b.wa_group ? "In the crew chat" : null,
                         ].filter(Boolean) as string[];
+                        // The one chip that is not a tick: the balance, once it is close or past.
+                        const due = balanceDue(b);
                         return (
                           <div className="mt-3 flex flex-wrap items-center gap-1.5">
                             {done.map((d) => (
@@ -327,6 +371,12 @@ export default async function AccountHome() {
                                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>{d}
                               </span>
                             ))}
+                            {due && (
+                              <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold rounded-full px-2 py-0.5 ${due.overdue ? "text-[#993c1d] bg-[#fbe9e3]" : "text-[#c4621a] bg-[#f47b20]/12"}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${due.overdue ? "bg-[#d85a30]" : "bg-[#f47b20]"}`} />
+                                {due.overdue ? "Overdue" : "Balance due"}
+                              </span>
+                            )}
                           </div>
                         );
                       })()}

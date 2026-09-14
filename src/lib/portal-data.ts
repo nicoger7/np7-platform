@@ -10,6 +10,8 @@ import {
 import { deriveSuggestedLevel, type SkillTag } from "@/lib/member-level";
 import { buildProgression, type CatalogSkill, type Achievement, type Progression } from "@/lib/progression";
 import { sumReceived } from "@/lib/payment-totals";
+import type { PackagePaymentConfig } from "@/lib/payments";
+import { paymentPicture, type PaymentStep } from "@/lib/portal-next-step";
 
 /* Server-only data access for the member portal. Always scoped to the
    member's own contactId (the caller verifies the session first). */
@@ -93,13 +95,110 @@ async function enrichMoney(db: any, bookings: MemberBooking[]): Promise<void> {
     const addons = (addonRes.data ?? []) as any[];
     for (const b of bookings) {
       b.paid = sumReceived(pays.filter((p) => p.booking_id === b.id));
-      b.addons_total = addons
-        .filter((a) => a.booking_id === b.id && effectiveAddonStatus(a) === "confirmed" && a.payment_mode !== "direct")
-        .reduce((s, a) => s + (Number(a.price) || 0), 0);
+      b.addons_total = confirmedAddonsSum(addons.filter((a) => a.booking_id === b.id));
       const base = b.agreed_price ?? null;
       b.trip_total = base != null ? base + b.addons_total : b.addons_total > 0 ? b.addons_total : null;
     }
   } catch { /* tolerant — zeros stand in, same behaviour as before this existed */ }
+}
+
+/** Σ price of the add-ons we bill: confirmed, and not paid straight to the provider. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function confirmedAddonsSum(rows: any[]): number {
+  return rows
+    .filter((a) => effectiveAddonStatus(a) === "confirmed" && a.payment_mode !== "direct")
+    .reduce((s, a) => s + (Number(a.price) || 0), 0);
+}
+
+export type BookingPaymentInputs = {
+  /** The package's payment config; null when the row predates it (engine defaults apply). */
+  cfg: PackagePaymentConfig | null;
+  /** Stages with an issued AND settled invoice, see BookingPaymentState.settledStages. */
+  settledStages: { deposit: number; downpayment: number };
+  /** What a payer's plan carries on top of their own trip (group bookings, migration 198). */
+  coveredExtra: number;
+};
+
+const EMPTY_PAYMENT_INPUTS = (): BookingPaymentInputs => ({ cfg: null, settledStages: { deposit: 0, downpayment: 0 }, coveredExtra: 0 });
+
+/**
+ * The rows a payment plan needs that the booking row does not carry, for a
+ * whole list of bookings in one pass rather than three queries per booking.
+ * The trip page loads one; the home loads every upcoming trip.
+ *
+ * Tolerant: any failure leaves the defaults, which is exactly what
+ * computePaymentPlan falls back to on its own.
+ */
+export async function getBookingPaymentInputs(bookingIds: string[]): Promise<Map<string, BookingPaymentInputs>> {
+  const out = new Map<string, BookingPaymentInputs>();
+  for (const id of bookingIds) out.set(id, EMPTY_PAYMENT_INPUTS());
+  if (!bookingIds.length) return out;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  try {
+    const [pkgRes, docRes, coveredRes] = await Promise.all([
+      db.from("exp_bookings").select("id, exp_packages(deposit,downpayment_percent,final_days_before,deposit_refund_days)").in("id", bookingIds),
+      // Settled stage invoices are the agreement: once a down-payment invoice is
+      // paid, the percentage formula must stop second-guessing it.
+      db.from("documents").select("booking_id, type, amount").in("booking_id", bookingIds)
+        .eq("status", "issued").not("paid_at", "is", null).in("type", ["deposit_invoice", "downpayment_invoice"]),
+      db.from("exp_bookings").select("id, covered_by_booking_id, agreed_price").in("covered_by_booking_id", bookingIds),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const r of (pkgRes.data ?? []) as any[]) {
+      const e = out.get(r.id);
+      if (e) e.cfg = (r.exp_packages as PackagePaymentConfig | null) ?? null;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const d of (docRes.data ?? []) as any[]) {
+      const e = out.get(d.booking_id);
+      if (!e) continue;
+      if (d.type === "deposit_invoice") e.settledStages.deposit += Number(d.amount) || 0;
+      if (d.type === "downpayment_invoice") e.settledStages.downpayment += Number(d.amount) || 0;
+    }
+    // A covered guest's price and add-ons run through the payer's plan: the
+    // same sum getCoveredBookings (lib/group-booking) makes for one payer.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const covered = (coveredRes.data ?? []) as any[];
+    if (covered.length) {
+      const { data: extras } = await db.from("exp_booking_addons").select("booking_id, price, status, notes, payment_mode").in("booking_id", covered.map((c) => c.id));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const extraRows = (extras ?? []) as any[];
+      for (const c of covered) {
+        const e = out.get(c.covered_by_booking_id);
+        if (!e) continue;
+        e.coveredExtra += (Number(c.agreed_price) || 0) + confirmedAddonsSum(extraRows.filter((a) => a.booking_id === c.id));
+      }
+    }
+  } catch { /* tolerant: defaults stand, the engine's own fallback */ }
+  return out;
+}
+
+/**
+ * What each booking has to pay next, keyed by booking id. The home reads this
+ * for every upcoming trip; the trip page reads the same derivation for one, so
+ * the two can never disagree about what is owed and by when.
+ */
+export async function getPaymentSteps(bookings: MemberBooking[]): Promise<Map<string, PaymentStep>> {
+  const inputs = await getBookingPaymentInputs(bookings.map((b) => b.id));
+  const out = new Map<string, PaymentStep>();
+  for (const b of bookings) {
+    const i = inputs.get(b.id) ?? EMPTY_PAYMENT_INPUTS();
+    // The same total the trip page bills: own price + add-ons, plus the guests this booking covers.
+    const total = b.trip_total != null ? b.trip_total + i.coveredExtra : i.coveredExtra > 0 ? i.coveredExtra : null;
+    out.set(b.id, paymentPicture({
+      status: b.status,
+      downpayment_received: b.downpayment_received,
+      bookedAt: b.created_at,
+      edition: b.edition,
+      total,
+      paid: b.paid,
+      cfg: i.cfg,
+      settledStages: i.settledStages,
+      coveredByBookingId: b.covered_by_booking_id,
+    }).step);
+  }
+  return out;
 }
 
 /** The experience's pre-trip content (written once in admin → Event Content →
