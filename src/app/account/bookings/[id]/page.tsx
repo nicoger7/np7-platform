@@ -426,7 +426,7 @@ export default async function BookingDetail({ params }: Props) {
           can never carry a stale amount. */}
       {!fullyPaid && b.experience?.slug && (
         <a
-          href={`/experience/${b.experience.slug}/balance?booking=${b.id}`}
+          href={`/experience/${b.experience.slug}/balance?booking=${b.id}&from=${encodeURIComponent(`/account/bookings/${b.id}`)}`}
           className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#00374a] px-5 py-3 text-[14px] font-bold text-white hover:-translate-y-0.5 transition-transform"
         >
           Pay {money(Math.max(0, (total ?? 0) - paid), cur)}
