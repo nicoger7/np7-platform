@@ -114,9 +114,17 @@ export function PaymentPlan({
 
       {!paidInFull && pay}
 
+      {/* Two sentences, because there are two truths. Where the guest's country
+          has an instant rail the button above is real and the transfer is the
+          alternative. Where it has not, `pay` is null, and promising a button
+          that is not on the page is the quickest way to lose their trust in the
+          rest of it. */}
       {!paidInFull && (
         <p className="text-[12px] text-[#9aa6ac] mt-3 leading-relaxed">
-          Pay online above, or by <strong className="text-[#6a7a80] font-semibold">bank transfer</strong> from the invoice, whichever suits you. Any milestone can be paid sooner. We send each invoice with the bank details in good time before its deadline; payments we&apos;ve received are reflected above.
+          {pay
+            ? <>Pay online above, or by <strong className="text-[#6a7a80] font-semibold">bank transfer</strong> from the invoice, whichever suits you.</>
+            : <>Pay by <strong className="text-[#6a7a80] font-semibold">bank transfer</strong> using the details on your invoice below.</>}
+          {" "}Any milestone can be paid sooner. We send each invoice with the bank details in good time before its deadline; payments we&apos;ve received are reflected above.
         </p>
       )}
     </div>

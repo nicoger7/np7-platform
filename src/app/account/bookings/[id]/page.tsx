@@ -377,7 +377,12 @@ export default async function BookingDetail({ params }: Props) {
       tone: fullyPaid ? "green" : !depositPaid ? "coral" : "amber",
       done: fullyPaid,
       attention: !fullyPaid && (isEvent || !!nextMilestone),
-      cta: fullyPaid ? undefined : isEvent ? "Pay now" : nextMilestone ? (depositPaid ? "Pay balance" : "Pay now") : undefined,
+      /* "Pay now" is a promise about the next screen. Where the guest's country
+         has no instant rail there is no button on that screen, only the bank
+         details, so the tile says what is actually there. Same tab either way:
+         the Payment tab is still where they need to go. */
+      cta: fullyPaid ? undefined : isEvent ? "Pay now"
+        : nextMilestone ? (payMethods ? (depositPaid ? "Pay balance" : "Pay now") : "See how to pay") : undefined,
     },
     ...(isEvent ? [] : [{
       key: "flights", label: "Arrival", tab: (tripStarted ? undefined : "prep") as TripTile["tab"],
