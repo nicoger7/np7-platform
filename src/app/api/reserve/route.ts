@@ -213,6 +213,12 @@ export async function POST(request: NextRequest) {
     "line_items[0][price_data][product_data][description]": `Reservation deposit for ${pkg.name}. Remaining balance due later.`,
     "metadata[booking_id]": booking.id,
     "payment_intent_data[description]": `NP7 deposit · booking ${booking.id}`,
+    // This session is hand-rolled rather than built by lib/stripe, so the
+    // billing address is asked for here by hand and not by the option there.
+    // It is the same ask for the same reason: the deposit invoice needs an
+    // address on it (§14 UStG), and this is the first page the guest ever
+    // reaches, so it is the earliest moment we could possibly have one.
+    billing_address_collection: "required",
   });
   if (stripeCustomerId) {
     params.set("customer", stripeCustomerId);

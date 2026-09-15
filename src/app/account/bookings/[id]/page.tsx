@@ -18,6 +18,8 @@ import { PaymentPlan } from "@/components/portal/payment-plan";
 import { PayNow } from "@/components/portal/pay-now";
 import { TransferPending } from "@/components/portal/transfer-pending";
 import { guestCountry, onlineMethodsFor, canPayOnline } from "@/lib/payment-methods";
+import { billingAddressIncomplete, type BillingAddress } from "@/lib/billing-address";
+import { BillingAddressAsk } from "@/components/portal/billing-address-ask";
 import { TripView, type TripTab, type TripTile } from "@/components/portal/trip-view";
 import { TripHero } from "@/components/portal/trip-hero";
 import { hasFlightDetails } from "@/lib/flights";
@@ -231,14 +233,37 @@ export default async function BookingDetail({ params }: Props) {
     // Where they are, so the Pay button is only offered when their country has
     // something it can actually finish. The pay route decides this again for
     // itself; this copy only keeps a dead button off the page.
+    // The billing columns ride along on the same read: they answer a second
+    // question (does this guest's invoice carry an address?) and a second round
+    // trip to the same row to ask it would be wasted.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (createAdminClient() as any).from("contacts").select("phone, country, billing_country").eq("id", user.contactId).maybeSingle(),
+    (createAdminClient() as any).from("contacts")
+      .select("phone, country, billing_address, billing_postal_code, billing_city, billing_country")
+      .eq("id", user.contactId).maybeSingle(),
   ]);
+  const who = (whoRow?.data ?? null) as ({ phone?: string | null; country?: string | null } & Partial<BillingAddress>) | null;
   const payMethods = (() => {
-    const c = whoRow?.data as { phone?: string | null; country?: string | null; billing_country?: string | null } | null;
-    const m = onlineMethodsFor(guestCountry({ billingCountry: c?.billing_country, country: c?.country, phone: c?.phone }));
+    const m = onlineMethodsFor(guestCountry({ billingCountry: who?.billing_country, country: who?.country, phone: who?.phone }));
     return canPayOnline(m) && m.kind ? { kind: m.kind } : null;
   })();
+  /*
+   * Whether to ask this guest for their address, decided here because this is
+   * where the money already is.
+   *
+   * §14 UStG wants the recipient's full address on any invoice over 250 euro,
+   * and 47 of the 49 NP7 has issued over that line have none. Everyone who
+   * presses Pay is now asked by Stripe on its own page; this is for the guest
+   * who never does, and transfers straight off the invoice instead.
+   *
+   * Three people are deliberately NOT asked: one who owes nothing (they are
+   * not being invoiced for anything, so it is a nag), a covered group guest
+   * (their payer is invoiced, they never are), and one whose trip is over
+   * (their invoices are issued and the moment has passed).
+   */
+  const needsBillingAddress = !tripEnded
+    && !b.covered_by_booking_id
+    && paid < (total ?? 0)
+    && billingAddressIncomplete(who);
   const whatsNext = tripEnded ? [] : buildWhatsNext({
     now,
     start: startsAt,
@@ -614,6 +639,17 @@ export default async function BookingDetail({ params }: Props) {
                 : <>Pay by <strong className="text-[#00374a]">bank transfer</strong> using the account details and payment reference printed on your invoice below, no need to wait for our email. Send it any time before the due date; we mark it here once it lands.</>}
             </p>
           </>
+        )}
+        {/* Directly above the invoices, because that is what it is for and what
+            the guest is looking at when they read it. */}
+        {needsBillingAddress && (
+          <div className="mt-3">
+            <BillingAddressAsk
+              address={who?.billing_address} postalCode={who?.billing_postal_code}
+              city={who?.billing_city} country={who?.billing_country}
+              preview={!!user.preview}
+            />
+          </div>
         )}
         <MemberDocuments bookingId={b.id} />
       </div>

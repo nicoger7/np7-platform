@@ -91,6 +91,11 @@ export async function POST(request: NextRequest) {
       : `${origin}/experience/${b.exp_experiences.slug}?paid=1`,
     cancelUrl: `${origin}/experience/${b.exp_experiences.slug}/balance?booking=${bookingId}${from ? `&from=${encodeURIComponent(from)}` : ""}`,
     customerEmail: contact?.email ?? undefined,
+    // The balance is the payment that produces the final invoice, so it is the
+    // last chance to have an address on it (§14 UStG). Fill-gaps-only on the
+    // way back, so a buyer who already gave one at the deposit is not asked to
+    // beat it with whatever they type in a hurry.
+    collectBillingAddress: true,
     metadata: { booking_id: bookingId, kind, experience_id: b.experience_id },
     paymentIntentDescription: `NP7 event ${payingInFull ? "ticket" : "balance"} · booking ${bookingId}`,
   });

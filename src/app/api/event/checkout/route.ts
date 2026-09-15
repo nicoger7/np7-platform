@@ -411,6 +411,10 @@ export async function POST(request: NextRequest) {
     successUrl: `${origin}/experience/${exp.slug}?paid=1&b=${bookingId}`,
     cancelUrl: `${origin}/experience/${exp.slug}`,
     customerEmail: email,
+    // A clinic ticket is an invoice like any other, and a buyer here has often
+    // never had a contact record before this minute, so this page is the only
+    // place their address is ever going to come from (§14 UStG).
+    collectBillingAddress: true,
     metadata: { booking_id: bookingId, kind, experience_id: exp.id },
     paymentIntentDescription: `NP7 event · ${mode} · booking ${bookingId}`,
   });

@@ -332,3 +332,26 @@ describe("reads that may not answer zero", () => {
     expect(fake.rows("exp_payment_links")).toHaveLength(0);
   });
 });
+
+describe("the billing address is asked for whatever they pay with", () => {
+  /*
+   * The transfer is the one that matters most and is the easiest to forget: a
+   * transfer guest never fills in a card form, so this Checkout page, the one
+   * they pass through before Stripe will issue their IBAN, is the only place
+   * NP7 will ever be handed their address. Stripe's default, "auto", would ask
+   * none of them, which is how 49 invoices over the §14 UStG line ended up
+   * carrying 2 addresses between them.
+   */
+  it.each([
+    ["Germany", "transfer"],
+    ["Netherlands", "rail"],
+    ["United States", "card"],
+  ])("%s, paying by %s", async (country) => {
+    setup(country);
+
+    const { status } = await pay();
+
+    expect(status).toBe(200);
+    expect(sent().collectBillingAddress).toBe(true);
+  });
+});

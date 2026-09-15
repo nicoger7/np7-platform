@@ -427,6 +427,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       successUrl: setup.successUrl,
       cancelUrl: `${home}#payment`,
       ...setup.stripe(link.id),
+      /* Ask for the address here, where the guest is already filling in a
+         payment form, because the invoice this payment produces is required to
+         carry one (§14 UStG) and today almost none of them do. It covers the
+         transfer guest too, and that is the point rather than a side effect:
+         they pass through this same Checkout page before Stripe will issue
+         them an IBAN, so the one group who never types anything into a card
+         form is asked exactly once, at the only moment they are here. */
+      collectBillingAddress: true,
       expiresAt: Math.floor(expiresAt.getTime() / 1000),
       metadata: { booking_id: id, kind: setup.metadataKind, link_id: link.id, base_cents: String(Math.round(asked * 100)), fee_cents: String(Math.round(setup.fee * 100)), card_region: setup.region },
       paymentIntentDescription: paymentDescription(title, edition, id),

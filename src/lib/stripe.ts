@@ -75,6 +75,20 @@ export async function createCheckoutSession(opts: {
   excludedPaymentMethodTypes?: string[];
   /** Unix seconds; Stripe allows 30 min to 24 h from now. */
   expiresAt?: number;
+  /**
+   * Make Checkout ASK for the billing address and hand it back on the completed
+   * session as `customer_details.address`.
+   *
+   * Stripe's default is "auto", which collects an address only where the
+   * payment method itself insists, so almost nobody is asked and almost nobody
+   * answers: 49 issued invoices are over the €250 line §14 UStG draws and 2 of
+   * them carry an address. "required" asks every guest, on a page they are
+   * already standing on, for four fields they can fill from memory.
+   *
+   * It costs one extra form on the way to paying, which is why it is an option
+   * and not a default buried in this helper: every caller says yes on purpose.
+   */
+  collectBillingAddress?: boolean;
 }): Promise<{ url: string; id: string } | null> {
   const lines = opts.lines ?? (opts.line ? [opts.line] : []);
   if (!lines.length) return null;
@@ -97,6 +111,7 @@ export async function createCheckoutSession(opts: {
   }
   (opts.excludedPaymentMethodTypes ?? []).forEach((t, i) => { params[`excluded_payment_method_types[${i}]`] = t; });
   if (opts.expiresAt) params["expires_at"] = String(Math.round(opts.expiresAt));
+  if (opts.collectBillingAddress) params["billing_address_collection"] = "required";
   // A Customer wins over an email: Stripe refuses both, and only the Customer
   // can carry a cash balance, which is what a bank transfer is paid into.
   if (opts.customer) params["customer"] = opts.customer;

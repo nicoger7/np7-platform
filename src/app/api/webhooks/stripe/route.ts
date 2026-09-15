@@ -20,6 +20,7 @@ import { publicOrigin } from "@/lib/public-origin";
 import { sumReceived } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { computePaymentPlan } from "@/lib/payments";
+import { addressFromStripe, fillGaps, type BillingAddress, type StripeAddress } from "@/lib/billing-address";
 // ─── Stripe signature verification (no stripe npm package needed) ─────────────
 
 async function verifyStripeSignature(
@@ -966,6 +967,84 @@ async function onTransferPartlyFunded(pi: Record<string, unknown>): Promise<void
   }).catch(() => {});
 }
 
+// ─── The billing address the guest just typed into Checkout ─────────────────
+
+/**
+ * Keep the address Stripe collected, in the gaps we have.
+ *
+ * Every session NP7 creates now asks for a billing address, because a German
+ * invoice over 250 euro has to carry one (§14 UStG) and 47 of the 49 we have
+ * issued over that line do not. Stripe returns it on the completed session as
+ * `customer_details.address`, in payment mode, whatever was paid with.
+ *
+ * THREE THINGS ABOUT THIS FUNCTION ARE LOAD-BEARING.
+ *
+ * 1. IT ONLY FILLS GAPS. Someone in admin may have typed a correct address by
+ *    hand, and a guest half-filling a form on the way to paying must not be
+ *    able to wipe it. fillGaps (lib/billing-address) is where that is decided,
+ *    so the webhook and the trip-page ask cannot come to different conclusions
+ *    about what counts as already answered.
+ *
+ * 2. IT CANNOT FAIL THE PAYMENT. This is bookkeeping running beside money: the
+ *    whole body is wrapped, so a missing column, a schema reload or a dead
+ *    connection ends in a log line and nothing else. Throwing would turn into
+ *    a 500, Stripe would redeliver, and a payment that is already recorded
+ *    would be reprocessed for the sake of an address. An address we did not get
+ *    can be asked for again on the trip page. A payment we lost cannot.
+ *
+ * 3. THE READS STILL THROW. readOne is used exactly as everywhere else in this
+ *    file, so a failed read is never mistaken for "this contact has no
+ *    address" and never silently overwrites the decision above. The catch here
+ *    swallows the throw at the outermost edge, on purpose, and says so in the
+ *    log rather than pretending it worked.
+ */
+async function saveBillingAddress(session: Record<string, unknown>, bookingId: string): Promise<void> {
+  try {
+    const details = session["customer_details"] as { address?: StripeAddress | null } | null | undefined;
+    const incoming = addressFromStripe(details?.address);
+    // Nothing collected: an older session created before this deploy, or a
+    // guest Stripe let through without one. Not a fault, and not worth a read.
+    if (!Object.keys(incoming).length) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createAdminClient() as any;
+    const booking = await readOne<{ contact_id: string | null; billing_contact_id: string | null }>(
+      db.from("exp_bookings").select("id, contact_id, billing_contact_id").eq("id", bookingId).maybeSingle(),
+      `booking ${bookingId} for its contact`,
+    );
+    /*
+     * WHOEVER THE INVOICE IS ADDRESSED TO, which is not always the traveller.
+     * An employer booking a week for an employee is exactly the case §14 UStG
+     * is most about, and the invoice reads billing_contact_id when it is set.
+     * Writing to the traveller instead put the company's address on a private
+     * person's contact, where it could never be corrected, and left the invoice
+     * with no address at all.
+     */
+    const contactId = booking?.billing_contact_id ?? booking?.contact_id ?? null;
+    if (!contactId) return;
+
+    const contact = await readOne<BillingAddress>(
+      db.from("contacts")
+        .select("id, billing_address, billing_postal_code, billing_city, billing_country")
+        .eq("id", contactId).maybeSingle(),
+      `contact ${contactId} billing address`,
+    );
+    const patch = fillGaps(contact, incoming);
+    // Everything we were given is already on the contact. Touching the row to
+    // change nothing would only move updated_at and make the change look like
+    // an edit to whoever reads it next.
+    if (!Object.keys(patch).length) return;
+
+    const { error } = await db.from("contacts")
+      .update({ ...patch, updated_at: new Date().toISOString() }).eq("id", contactId);
+    if (error) throw new Error(error.message ?? String(error));
+    console.log(`[webhook] billing address filled on contact ${contactId} from session ${session["id"]}: ${Object.keys(patch).join(", ")}`);
+  } catch (e) {
+    // Loud, and that is all. The money is already recorded above.
+    console.error(`[webhook] could not save the billing address for booking ${bookingId} (the payment is unaffected):`, e instanceof Error ? e.message : e);
+  }
+}
+
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export const dynamic = "force-dynamic";
@@ -1027,6 +1106,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const kind = metadata["kind"] ?? "";
 
+    /*
+     * FIRST IN THE BLOCK, and it used to be last.
+     *
+     * The branches below generate and EMAIL the invoice for this very payment.
+     * Running afterwards meant the address the guest had just typed missed the
+     * only document it was collected for: a clinic buyer paying in full got
+     * their invoice, with its number burned and immutable under §14 UStG, and
+     * the address landed a second later with nothing left to print it on.
+     *
+     * It is safe here because it cannot throw: saveBillingAddress swallows
+     * everything and the money path below is untouched by whatever it does.
+     *
+     * `completed` ONLY. A bank transfer reaches this event with payment_status
+     * 'unpaid' days before its money arrives, which is exactly why this is not
+     * inside the paid branch: the transfer guest is the one who never types an
+     * address anywhere else. async_payment_succeeded carries the same session
+     * and the same address, so handling it too would be a read to write
+     * nothing.
+     */
+    if (bookingId && event.type === "checkout.session.completed") {
+      await saveBillingAddress(session, bookingId);
+    }
+
     if (bookingId && paymentStatus === "paid") {
       try {
         if (kind.startsWith("event_")) {
@@ -1083,6 +1185,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     } else {
       console.warn(`[webhook] ${event.type} carried no booking_id in metadata — ignored`);
     }
+
   }
 
   /*

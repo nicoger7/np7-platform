@@ -210,6 +210,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     // With a fee on the bill the session takes cards only, so the fee can
     // never be charged on a SEPA or Klarna payment it was not priced for.
     paymentMethodTypes: fee > 0 ? ["card"] : undefined,
+    // The invoice this payment settles has to carry the guest's address
+    // (§14 UStG), and an admin sending a link by hand is usually looking at a
+    // contact that has none. Stripe asks for it on the page instead.
+    collectBillingAddress: true,
     expiresAt: Math.floor(expiresAt.getTime() / 1000),
     metadata: {
       booking_id: id, kind: "trip_card", link_id: link.id,
