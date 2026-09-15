@@ -41,7 +41,7 @@ import { readRows } from "@/lib/db-read";
 import { sumReceived, type PaymentLike } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { coveredExtraTotal } from "@/lib/group-booking";
-import { guestCountry, onlineMethodsFor, canPayOnline, cardRegionFor, transferCountryFor, type PayKind } from "@/lib/payment-methods";
+import { guestCountry, onlineMethodsFor, canPayOnline, cardRegionFor, transferCountryFor, type PayKind , paymentDescription } from "@/lib/payment-methods";
 import { cardFee, type CardRegion } from "@/lib/card-fee";
 import { bankTransferParams, classifyLinks, sweepableLinks, TRANSFER_DUE_DAYS, TRANSFER_SESSION_HOURS, type LinkRow } from "@/lib/bank-transfer";
 
@@ -429,7 +429,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ...setup.stripe(link.id),
       expiresAt: Math.floor(expiresAt.getTime() / 1000),
       metadata: { booking_id: id, kind: setup.metadataKind, link_id: link.id, base_cents: String(Math.round(asked * 100)), fee_cents: String(Math.round(setup.fee * 100)), card_region: setup.region },
-      paymentIntentDescription: `NP7 ${title}${edition} · booking ${id.slice(0, 8).toUpperCase()}`,
+      paymentIntentDescription: paymentDescription(title, edition, id),
     });
   } catch (e) {
     console.error("[portal-pay] stripe call failed:", e instanceof Error ? e.message : e);

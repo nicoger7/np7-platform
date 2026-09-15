@@ -15,6 +15,7 @@ import { requireAdminGate, getRequestMember, getRequestAccess } from "@/lib/admi
 import { effectiveCanSeeField } from "@/lib/access";
 import { createAdminClient } from "@/lib/supabase";
 import { createCheckoutSession, expireCheckoutSession, stripeConfigured } from "@/lib/stripe";
+import { paymentDescription } from "@/lib/payment-methods";
 import { cardFee, isCardRegion, CARD_REGIONS } from "@/lib/card-fee";
 import { publicOrigin } from "@/lib/public-origin";
 import { readRows } from "@/lib/db-read";
@@ -214,7 +215,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       booking_id: id, kind: "trip_card", link_id: link.id,
       base_cents: String(Math.round(amount * 100)), fee_cents: String(Math.round(fee * 100)), card_region: region,
     },
-    paymentIntentDescription: `NP7 ${title}${edition} · booking ${id.slice(0, 8).toUpperCase()}${fee > 0 ? " incl. card fee" : ""}`,
+    paymentIntentDescription: paymentDescription(title, edition, id, fee > 0 ? " incl. card fee" : ""),
     });
   } catch (e) {
     console.error("[card-link] stripe call failed:", e instanceof Error ? e.message : e);

@@ -96,3 +96,24 @@ describe("guestCountry: two letters is not automatically a country code", () => 
     expect(guestCountry({ country: "SI" })).toBe("SI");
   });
 });
+
+describe("paymentDescription", () => {
+  it("does not say NP7 twice", async () => {
+    const { paymentDescription } = await import("@/lib/payment-methods");
+    // Live on the Stripe bank transfer page: "NP7 NP7 Experience Alaçatı".
+    expect(paymentDescription("NP7 Experience Alaçatı", " · Week I", "4611b8e2-28b6-4f43"))
+      .toBe("NP7 Experience Alaçatı · Week I · booking 4611B8E2");
+  });
+
+  it("adds NP7 when the title does not carry it", async () => {
+    const { paymentDescription } = await import("@/lib/payment-methods");
+    expect(paymentDescription("Race Clinic", "", "c79f1376-737d"))
+      .toBe("NP7 Race Clinic · booking C79F1376");
+  });
+
+  it("keeps the card fee note the admin link adds", async () => {
+    const { paymentDescription } = await import("@/lib/payment-methods");
+    expect(paymentDescription("NP7 Bonaire", " · Week III", "abcdef12-0000", " incl. card fee"))
+      .toBe("NP7 Bonaire · Week III · booking ABCDEF12 incl. card fee");
+  });
+});

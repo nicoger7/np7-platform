@@ -243,6 +243,19 @@ export function onlineMethodsFor(country: string | null): OnlineMethods {
 export const cardRegionFor = (country: string | null): "uk" | "intl" =>
   country === "GB" ? "uk" : "intl";
 
+/**
+ * What the guest sees on their bank statement and on Stripe's own pages.
+ *
+ * It read "NP7 NP7 Experience Alaçatı" because the prefix was added blind and
+ * every experience title already starts with NP7. Live on the bank transfer
+ * instructions page, which is the one screen a guest stares at while deciding
+ * whether to send us a thousand euro, so the stutter is worse than cosmetic.
+ */
+export function paymentDescription(title: string, edition: string, bookingId: string, suffix = ""): string {
+  const name = /^np7\b/i.test(title.trim()) ? title.trim() : `NP7 ${title.trim()}`;
+  return `${name}${edition} · booking ${bookingId.slice(0, 8).toUpperCase()}${suffix}`;
+}
+
 /** The three countries Wero covers, which are the three iDEAL does not. */
 const WERO = new Set(["BE", "FR", "DE"]);
 
