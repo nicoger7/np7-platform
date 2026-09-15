@@ -158,10 +158,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           description: asked >= outstanding - 0.01 ? "Everything still owed on your trip." : "Part payment on your trip.",
           amountCents: Math.round(asked * 100),
         },
-        // Its own line, never folded into the price: the guest sees what the
-        // card costs before they type a number, which is both the decent thing
-        // and what §312a Abs. 4 BGB expects of a surcharge.
-        ...(fee > 0 ? [{ name: "Card payment fee", description: "Only on card. A bank transfer from your invoice is free.", amountCents: Math.round(fee * 100) }] : []),
+        /*
+         * Its own line, never folded into the price: the guest sees what the
+         * card costs before they type a number, which is both the decent thing
+         * and what §312a Abs. 4 BGB expects of a surcharge.
+         *
+         * It says "estimate" because it is one. The band is chosen from where
+         * we believe the guest is, and a person's country is not their card's:
+         * a Londoner can pay with an American card and the reverse. The webhook
+         * reads the real card the moment it is charged and sends back anything
+         * above what that card actually cost us, or the whole fee if it turns
+         * out to be a private European card, where no surcharge may stand at
+         * all. Promising the refund here is the only honest way to charge an
+         * estimate.
+         */
+        ...(fee > 0 ? [{ name: "Card payment fee (estimate)", description: "Only on card. We check your real card when it is charged and refund anything we overestimated, automatically. A bank transfer from your invoice is free.", amountCents: Math.round(fee * 100) }] : []),
       ],
       currency,
       successUrl: `${origin}/account/bookings/${id}?paid=1#payment`,
