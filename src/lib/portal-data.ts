@@ -183,7 +183,10 @@ export async function getBookingPaymentInputs(bookingIds: string[]): Promise<Map
     for (const l of (flightRes.data ?? []) as any[]) {
       const e = out.get(l.booking_id);
       if (!e) continue;
-      e.inFlight += Number(l.amount) || 0;
+      // Only the REMAINDER is in flight. Counting the whole ask told a guest
+      // who was 40 short that there was nothing left to do, took the Pay button
+      // away, and left them no way to send the 40.
+      e.inFlight += Math.max(0, (Number(l.amount) || 0) - (Number(l.amount_received) || 0));
       // Newest wins, so the panel names the transfer they most recently started.
       if (!e.transfer || String(l.awaiting_since ?? "") > String(e.transfer.since ?? "")) {
         e.transfer = {
