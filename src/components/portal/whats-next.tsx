@@ -61,6 +61,16 @@ export type WhatsNextStep = {
   detail?: string;
   done?: boolean;
   /**
+   * Is this step the GUEST'S to take, or does it simply happen to them?
+   *
+   * Nico: "they feel like they have to fulfil it, but certain things they can't
+   * fulfil. just have to wait until it happens (like whatsapp group etc.)".
+   * Drawing the crew forming, the packing list and the trip itself as empty
+   * checkboxes made a guest feel behind on NP7's own work. Only payments, the
+   * waiver and joining the group chat are ever theirs.
+   */
+  mine?: boolean;
+  /**
    * This is the money the plan is asking for RIGHT NOW. Milestone.status is a
    * three-state ladder and `done: paid` throws two thirds of it away; this
    * keeps the middle rung, which is the one the line exists to point at.
@@ -155,6 +165,7 @@ export function buildWhatsNext(input: {
       when: bookedAt,
       label: "You signed up",
       short: "Signed up",
+      mine: true,
       detail: "You picked your week and your package. Everything below follows from here.",
       done: true,
       first: true,
@@ -176,6 +187,7 @@ export function buildWhatsNext(input: {
        * which is most of them once computePaymentPlan falls back to 300.
        */
       dueNow: !when && !paid,
+      mine: true,
       // A clinic is bought outright: its one milestone is the ticket, not a
       // down-payment on something larger.
       label: m.kind === "final" ? `Balance · ${money(m.amount)}` : `${isEvent ? "Ticket" : m.kind === "deposit" ? "Deposit" : "Down-payment"} · ${money(m.amount)}`,
@@ -197,6 +209,9 @@ export function buildWhatsNext(input: {
       detail: whatsappLink
         ? (joinedGroup ? "You're in the group chat." : "The WhatsApp group is open. Join it to meet the others.")
         : `We introduce the crew and open the WhatsApp group around ${fmt(crew) ?? "two months before"}.`,
+      // Theirs only while there is a group to join. Before the link exists it
+      // is simply a date NP7 is working towards.
+      mine: !!whatsappLink && !joinedGroup,
       done: !!joinedGroup,
       href: whatsappLink && !joinedGroup ? whatsappLink : undefined,
       hrefLabel: whatsappLink && !joinedGroup ? "Join the group" : undefined,
@@ -288,6 +303,7 @@ export function buildWhatsNext(input: {
     detail: d.detail,
     done: d.done,
     due: d.due,
+    mine: d.mine,
     href: d.href,
     hrefLabel: d.hrefLabel,
     eta: etaOf(d.when, now),
@@ -306,14 +322,26 @@ export function buildWhatsNext(input: {
  * and fails the 3:1 a non-text mark needs when it is the thing saying "you are
  * here".
  */
-function dotSkin(state: WhatsNextState, onYou: boolean) {
+/*
+ * A CIRCLE IS A TASK, A DOT IS A DATE.
+ *
+ * Everything ahead used to be a hollow ring, which is the universal shape for
+ * an unticked box, so the crew forming and the packing list and the trip itself
+ * all read as homework. They are not: NP7 does those, and the guest can only
+ * wait. Only a step that is genuinely theirs keeps the ring. Everything else
+ * becomes a small solid mark on the line, the way a date sits on a calendar,
+ * and stops asking anything of them.
+ */
+function dotSkin(state: WhatsNextState, onYou: boolean, mine = false) {
   switch (state) {
     case "done": return { fill: "bg-[#0f6e56]", ring: "", tick: true };
     case "now": return onYou
       ? { fill: "bg-[#c4621a]", ring: "ring-4 ring-[#c4621a]/15", tick: false }
       : { fill: "bg-[#00afdb]", ring: "ring-4 ring-[#00afdb]/15", tick: false };
     case "past": return { fill: "bg-[#c8d3d8]", ring: "", tick: false };
-    default: return { fill: "bg-white border-2 border-[#dbe5e8]", ring: "", tick: false };
+    default: return mine
+      ? { fill: "bg-white border-2 border-[#dbe5e8]", ring: "", tick: false }
+      : { fill: "bg-[#dbe5e8]", ring: "", tick: false };
   }
 }
 
@@ -379,7 +407,7 @@ export function WhatsNext({ steps, contact, asking = false, awaitingTransfer = f
         {steps.length > 1 && (
           <div aria-hidden className="flex items-center h-[30px] px-[4px] mt-3">
             {steps.map((s, i) => {
-              const skin = dotSkin(s.state, asking);
+              const skin = dotSkin(s.state, asking, s.mine);
               const travelled = i > 0 && (steps[i - 1].state === "done" || steps[i - 1].state === "past");
               return (
                 <Fragment key={i}>
@@ -408,19 +436,27 @@ export function WhatsNext({ steps, contact, asking = false, awaitingTransfer = f
       <div className="px-5 sm:px-6 pb-5 sm:pb-6">
         <ol className="relative">
           {steps.map((s, i) => {
-            const skin = dotSkin(s.state, asking);
+            const skin = dotSkin(s.state, asking, s.mine);
             return (
               <li key={i} aria-current={s.state === "now" ? "step" : undefined} className="relative flex gap-4 pb-5 last:pb-0">
                 {i < steps.length - 1 && <span aria-hidden className="absolute left-[9px] top-5 bottom-0 w-px bg-[#f0e6d6]" />}
                 {/* 19px whatever the state, so the connector above stays true.
                     The ring does the "this is the big one" job the rail does
                     with size, and costs no layout to do it. */}
-                <span aria-hidden className={`mt-1 w-[19px] h-[19px] rounded-full grid place-items-center shrink-0 ${skin.fill} ${skin.ring}`}>
-                  {skin.tick && <Tick size="w-3 h-3" />}
+                {/* Same rule as the rail: a ring for a task, a small mark for
+                    a date. The 19px box stays whatever is inside it, so the
+                    connector line above never shifts. */}
+                <span aria-hidden className="mt-1 w-[19px] h-[19px] grid place-items-center shrink-0">
+                  <span className={`rounded-full grid place-items-center ${s.state === "ahead" && !s.mine ? "w-[9px] h-[9px]" : "w-[19px] h-[19px]"} ${skin.fill} ${skin.ring}`}>
+                    {skin.tick && <Tick size="w-3 h-3" />}
+                  </span>
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-3">
-                    <p className={`text-[14.5px] font-bold ${s.done ? "text-[#0f6e56]" : "text-[#00374a]"}`}>
+                    {/* A step that is not theirs recedes: it is information,
+                        not an instruction, and reading it as an instruction is
+                        what made the block feel like a chore list. */}
+                    <p className={`text-[14.5px] font-bold ${s.done ? "text-[#0f6e56]" : s.state === "ahead" && !s.mine ? "text-[#6a7a80]" : "text-[#00374a]"}`}>
                       {/* The tick is the only thing that said "done", and it is
                           decoration. Say it. */}
                       {s.done && <span className="sr-only">Done. </span>}

@@ -209,3 +209,26 @@ describe("signing up is a step, and it is already done", () => {
     expect(steps[0].label).not.toBe("You signed up");
   });
 });
+
+describe("a step is either yours to do or a date that simply happens", () => {
+  it("marks the money and the signup as yours", () => {
+    const steps = line({ now: "2026-09-15", bookedAt: new Date("2026-09-14") });
+    expect(steps.find((s) => s.label === "You signed up")?.mine).toBe(true);
+    expect(steps.find((s) => s.label.startsWith("Down-payment"))?.mine).toBe(true);
+  });
+
+  it("does not ask the guest to fulfil NP7's own work", () => {
+    // Nico: "they feel like they have to fulfil it, but certain things they
+    // can't fulfil. just have to wait until it happens (like whatsapp group)."
+    const steps = line({ now: "2026-09-15" });
+    for (const label of ["Packing list & arrival info", "Final details"]) {
+      const s = steps.find((x) => x.label === label);
+      if (s) expect(s.mine).toBeFalsy();
+    }
+  });
+
+  it("the crew step is only theirs once there is a group to join", () => {
+    const withoutLink = line({ now: "2026-09-15" }).find((s) => s.short === "Your crew");
+    expect(withoutLink?.mine).toBeFalsy();
+  });
+});
