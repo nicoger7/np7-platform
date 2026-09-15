@@ -519,6 +519,7 @@ export default async function BookingDetail({ params }: Props) {
                   : null}
                 currency={cur}
                 methods={payMethods}
+                preview={!!user.preview}
               />
             : null}
         />

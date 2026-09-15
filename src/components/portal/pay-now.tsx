@@ -14,7 +14,7 @@ import { useState } from "react";
  * the guest cannot finish. Where their country has no instant rail the button
  * does not appear at all and the bank transfer below it is the answer.
  */
-export function PayNow({ bookingId, amount, balance, refundableUntil, currency = "EUR", label, methods }: {
+export function PayNow({ bookingId, amount, balance, refundableUntil, currency = "EUR", label, methods, preview }: {
   bookingId: string;
   amount: number;
   /** Everything still owed. When it is more than `amount`, paying the lot is
@@ -27,6 +27,11 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
   currency?: string;
   /** Overrides the default "Pay …" wording, e.g. for a securing payment. */
   label?: string;
+  /** An admin looking at this member's page. The banner above already promises
+   *  actions are disabled, and this one was not: the route refuses to act in
+   *  the member's name and answered "Booking not found", which reads like the
+   *  guest's booking is broken rather than like the preview doing its job. */
+  preview?: boolean;
   /** What this guest's country can actually pay with, worked out on the server.
    *  `null` hides the button: there is no point offering a checkout that ends
    *  on a bank list the guest is not on. */
@@ -40,6 +45,7 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
   const all = balance != null && balance > amount + 0.01 ? balance : null;
 
   async function go(which: "milestone" | "all" = "milestone") {
+    if (preview) return;
     setBusy(which); setError(null);
     try {
       const r = await fetch(`/api/portal/bookings/${bookingId}/pay`, {
@@ -69,7 +75,8 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
       <div className="flex flex-col sm:flex-row gap-2">
         <button
           onClick={() => go("milestone")}
-          disabled={busy !== null}
+          disabled={busy !== null || !!preview}
+          title={preview ? "Disabled in the admin preview" : undefined}
           className="w-full sm:w-auto px-5 py-3 rounded-xl bg-[#00374a] hover:bg-[#00293a] disabled:opacity-60 text-white text-[14px] font-bold transition-colors"
         >
           {busy === "milestone" ? "Opening…" : (label ?? `Pay ${money} now`)}
@@ -79,13 +86,15 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
         {all && (
           <button
             onClick={() => go("all")}
-            disabled={busy !== null}
+            disabled={busy !== null || !!preview}
+            title={preview ? "Disabled in the admin preview" : undefined}
             className="w-full sm:w-auto px-5 py-3 rounded-xl bg-white hover:bg-[#f4f9fa] disabled:opacity-60 text-[#00374a] text-[14px] font-bold border border-[#dde6e9] transition-colors"
           >
             {busy === "all" ? "Opening…" : `Pay all now, ${fmt(all)}`}
           </button>
         )}
       </div>
+      {preview && <p className="text-[12px] text-[#7d8b91] mt-2">Paying is disabled while you are looking at this as the member.</p>}
       <p className="text-[12px] text-[#7d8b91] mt-2">
         {refundableUntil ? (all ? <>Either way, the first {fmt(amount)} stays refundable until {refundableUntil}. </> : <>Refundable until {refundableUntil}. </>) : null}
         Straight from your own bank: iDEAL, Wero, Bancontact, whichever yours is. Or ignore this and transfer from your invoice, both land in the same place.
