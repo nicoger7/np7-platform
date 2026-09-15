@@ -30,6 +30,7 @@ import { effectiveAddonStatus } from "@/lib/addons";
 import { coveredExtraTotal } from "@/lib/group-booking";
 import { guestCountry, onlineMethodsFor, canPayOnline, cardRegionFor } from "@/lib/payment-methods";
 import { cardFee } from "@/lib/card-fee";
+import { classifyLinks, sweepableLinks, TRANSFER_DUE_DAYS, type LinkRow } from "@/lib/bank-transfer";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,28 @@ const NOTHING = "Please transfer using the details on your invoice below.";
  *  a card fee through it, and no Klarna. Set in Vercel, not in code. */
 const RAILS_CONFIG = process.env.STRIPE_PMC_RAILS || "";
 const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Every link row on this booking, for the lifecycle below.
+ *
+ * Two reads, because the transfer columns arrive with migration 247 and this
+ * route pays for real trips today: on a deployment that has not had it yet the
+ * first read fails, and a card payment that has always worked must not fail
+ * with it. A read that fails BOTH ways throws. Not knowing what is already
+ * live is the one state in which starting another payment is unsafe.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function linkRows(db: any, bookingId: string): Promise<LinkRow[]> {
+  const base = "id, amount, status, created_by, expires_at, session_id";
+  let { data, error } = await db.from("exp_payment_links")
+    .select(`${base}, amount_received, funds_due_by`).eq("booking_id", bookingId);
+  if (error) {
+    console.warn("[portal-pay] the transfer columns are not there yet, reading without them:", error.message ?? error);
+    ({ data, error } = await db.from("exp_payment_links").select(base).eq("booking_id", bookingId));
+  }
+  if (error) throw new Error(error.message ?? String(error));
+  return (data ?? []) as LinkRow[];
+}
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   // allowPreview: false — an admin looking at a member's portal must not be
@@ -109,19 +132,50 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
    * possibly with a card fee priced into it, so it is left alone and the guest
    * is told which one to use and until when.
    */
-  const { data: open } = await db.from("exp_payment_links")
-    .select("id, amount, session_id, created_by, expires_at").eq("booking_id", id)
-    .eq("status", "open").gt("expires_at", new Date().toISOString());
-  const openLinks = (open ?? []) as { id: string; amount: number; session_id: string | null; created_by: string | null; expires_at: string | null }[];
-  for (const l of openLinks.filter((x) => x.created_by === "member")) {
+  /*
+   * A TRANSFER ALREADY ON ITS WAY IS THE THIRD CASE, and the filter here used
+   * to see neither it nor the row it lives on: `status = 'open' AND expires_at
+   * > now()` loses a submitted transfer on day two, when the CHECKOUT has
+   * expired and the MONEY has not. classifyLinks (lib/bank-transfer) is where
+   * that three-way split is decided, so this page and the admin's own guard
+   * cannot drift apart about what counts as live.
+   */
+  let rows: LinkRow[];
+  try {
+    rows = await linkRows(db, id);
+  } catch (e) {
+    // Not knowing what is already live is not a reason to start a second
+    // payment. Refuse, and say so where somebody will read it.
+    console.error("[portal-pay] could not read the booking's payment links:", e instanceof Error ? e.message : e);
+    return bad("Could not start the payment. Please try again in a moment.", 500);
+  }
+  /* An awaiting row nobody ever funded, past the day we stop waiting. Swept
+     here rather than on a cron: this is the one moment it matters, because the
+     guest is standing in front of the button wanting to pay again. */
+  const stale = sweepableLinks(rows);
+  if (stale.length) {
+    await db.from("exp_payment_links")
+      .update({ status: "expired", note: `Nothing arrived within ${TRANSFER_DUE_DAYS} days, so the guest is not blocked by their own abandoned attempt` })
+      .in("id", stale.map((l) => l.id)).eq("status", "awaiting");
+  }
+  const staleIds = new Set(stale.map((l) => l.id));
+  const live = classifyLinks(rows.filter((l) => !staleIds.has(l.id)));
+  for (const l of live.toCancel) {
     if (l.session_id) await expireCheckoutSession(l.session_id).catch(() => {});
     await db.from("exp_payment_links").update({ status: "cancelled", note: "Replaced when the guest started a new payment" }).eq("id", l.id);
   }
-  const byAdmin = openLinks.filter((x) => x.created_by !== "member");
-  const spokenFor = r2(byAdmin.reduce((n, l) => n + Number(l.amount), 0));
+  // spokenForOnceReplaced, and only here: the rows it leaves out are the ones
+  // just cancelled, two lines up.
+  const spokenFor = live.spokenForOnceReplaced;
   if (spokenFor > 0 && asked > outstanding - spokenFor + 0.01) {
-    const until = byAdmin[0]?.expires_at
-      ? new Date(byAdmin[0].expires_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    const moving = live.inFlight[0];
+    if (moving) {
+      // Their own money, already sent. Telling them to "use the link we sent"
+      // would be nonsense, and starting a second transfer would mean a refund.
+      return bad(`We're still waiting for the €${(Number(moving.amount) || 0).toLocaleString("en-GB")} transfer you started. Bank transfers take one to three working days; your trip page shows the details if you need them again.`, 409);
+    }
+    const until = live.adminOpen[0]?.expires_at
+      ? new Date(live.adminOpen[0].expires_at!).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
       : null;
     return bad(`We already sent you a payment link for ${asked === spokenFor ? "this" : "€" + spokenFor.toLocaleString("en-GB")}. Please use that one${until ? `, it is good until ${until}` : ""}.`, 409);
   }

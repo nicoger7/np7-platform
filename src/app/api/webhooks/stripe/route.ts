@@ -61,6 +61,47 @@ async function verifyStripeSignature(
   return expected === signature;
 }
 
+// ─── Reads that cannot fail quietly ──────────────────────────────────────────
+
+/**
+ * THE ONE RULE FOR EVERY READ IN THIS FILE.
+ *
+ * supabase-js does not throw on a failed query: it resolves with { error }. So
+ * `const { data } = await db.from(…)` makes a database failure look exactly
+ * like "there is no such row", and a no-match is answered everywhere below by
+ * returning quietly, which ends in a 200, which tells Stripe the event was
+ * handled and it is never delivered again. A guest's money then exists in
+ * Stripe and nowhere in the platform, with nothing in any log.
+ *
+ * These two throw instead. The route turns that into a 500, Stripe retries with
+ * backoff for days, and every write below is idempotent so a replay costs
+ * nothing. Only a read that SUCCEEDED and found nothing returns null, and that
+ * is the only case a caller may treat as "not ours".
+ *
+ * The transient version is not hypothetical: PostgREST caches the schema, so
+ * for a while after migration 247 is applied a select naming its new columns
+ * comes back as an error rather than as a row. Retrying is exactly right.
+ */
+async function readOne<T>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  query: PromiseLike<{ data: any; error: { message?: string } | null }>,
+  what: string,
+): Promise<T | null> {
+  const { data, error } = await query;
+  if (error) throw new Error(`read failed (${what}): ${error.message ?? JSON.stringify(error)}`);
+  return (data as T | null) ?? null;
+}
+
+async function readMany<T>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  query: PromiseLike<{ data: any; error: { message?: string } | null }>,
+  what: string,
+): Promise<T[]> {
+  const { data, error } = await query;
+  if (error) throw new Error(`read failed (${what}): ${error.message ?? JSON.stringify(error)}`);
+  return ((data ?? []) as T[]);
+}
+
 // ─── Shared onDepositPaid logic (mirrors the thanks page) ─────────────────────
 
 async function onDepositPaid(bookingId: string, origin: string): Promise<void> {
@@ -78,14 +119,20 @@ async function onDepositPaid(bookingId: string, origin: string): Promise<void> {
     })
     .eq("id", bookingId);
 
-  // Re-fetch for side effects
-  const { data: booking } = await db
-    .from("exp_bookings")
-    .select(
-      "id, contact_id, exp_experiences(title), exp_editions(date_start,date_end), contacts(name,email)"
-    )
-    .eq("id", bookingId)
-    .maybeSingle();
+  // Re-fetch for side effects. readOne, so a database blip cannot masquerade as
+  // "this booking is gone" and silently cost the guest their member account and
+  // their confirmation mail.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const booking = await readOne<any>(
+    db
+      .from("exp_bookings")
+      .select(
+        "id, contact_id, exp_experiences(title), exp_editions(date_start,date_end), contacts(name,email)"
+      )
+      .eq("id", bookingId)
+      .maybeSingle(),
+    `booking ${bookingId}`,
+  );
 
   if (!booking) return;
   const contact = booking.contacts;
@@ -172,18 +219,16 @@ async function onEventPayment(
   const paymentIntent = typeof session["payment_intent"] === "string" ? (session["payment_intent"] as string) : null;
   const amount = Number(session["amount_total"] ?? 0) / 100; // Stripe minor units → major
 
-  // supabase-js does NOT throw on a failed query — it resolves with { error }.
-  // Reading only `data` made a database failure look identical to "no such
-  // booking", and both quietly returned. The route then answered 200, Stripe
-  // marked the event delivered, and a paid ticket was recorded nowhere with
-  // nothing in any log. A real failure must THROW so the caller returns a
-  // non-2xx and Stripe retries; a genuinely missing booking must not, because
-  // retrying that forever is just noise.
-  const { data: booking, error: readErr } = await db
-    .from("exp_bookings")
-    .select("id, contact_id, experience_id, status, agreed_price, downpayment_received, final_payment_received, exp_packages(final_days_before), exp_experiences(title,location,currency), exp_editions(date_start,date_end,location), contacts(name,email)")
-    .eq("id", bookingId).maybeSingle();
-  if (readErr) throw new Error(`booking read failed for ${bookingId}: ${readErr.message ?? readErr}`);
+  // readOne: a failed read throws and Stripe retries. A genuinely missing
+  // booking does not, because retrying that forever is just noise.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const booking = await readOne<any>(
+    db
+      .from("exp_bookings")
+      .select("id, contact_id, experience_id, status, agreed_price, downpayment_received, final_payment_received, exp_packages(final_days_before), exp_experiences(title,location,currency), exp_editions(date_start,date_end,location), contacts(name,email)")
+      .eq("id", bookingId).maybeSingle(),
+    `booking ${bookingId}`,
+  );
   if (!booking) {
     console.error(`[webhook] PAID but no booking ${bookingId} — money taken with nothing to attach it to`);
     return;
@@ -240,8 +285,11 @@ async function onEventPayment(
     // reference, maybeSingle() errors and the duplicate guard would be dead
     // forever, adding a row on every redelivery. The real backstop is the
     // unique index from migration 159 — this just avoids the noise.
-    const { data: dupRows } = await db.from("exp_payments").select("id").eq("reference", paymentIntent).limit(1);
-    const dup = (dupRows as { id: string }[] | null)?.[0] ?? null;
+    const dupRows = await readMany<{ id: string }>(
+      db.from("exp_payments").select("id").eq("reference", paymentIntent).limit(1),
+      `payment for ${paymentIntent}`,
+    );
+    const dup = dupRows[0] ?? null;
     if (!dup) {
       const { error: payErr } = await db.from("exp_payments").insert({
         booking_id: bookingId,
@@ -468,8 +516,11 @@ async function onTripLinkPayment(session: Record<string, unknown>, bookingId: st
      second row holds the GROSS the guest paid, fee included, so it is brought
      down to the trip's share rather than doubled by an insert. */
   const findRow = async () => {
-    const { data } = await db.from("exp_payments").select("id, reference, amount").in("reference", [paymentIntent, `stripe:${paymentIntent}`]).limit(2);
-    return ((data as { id: string; reference: string; amount: number }[] | null) ?? [])[0] ?? null;
+    const rows = await readMany<{ id: string; reference: string; amount: number }>(
+      db.from("exp_payments").select("id, reference, amount").in("reference", [paymentIntent, `stripe:${paymentIntent}`]).limit(2),
+      `payment for ${paymentIntent}`,
+    );
+    return rows[0] ?? null;
   };
   const what = isTransfer ? "bank transfer" : "card payment";
   const existing = await findRow();
@@ -518,15 +569,21 @@ async function onTripLinkPayment(session: Record<string, unknown>, bookingId: st
 
   // The flags the booking page and the funnel read, brought up to what the
   // money now says, the way an admin would set them after a transfer landed.
-  const [{ data: pays }, { data: extras }, { data: stageDocs }] = await Promise.all([
-    db.from("exp_payments").select("amount, direction, type, status, received_at, date, created_at").eq("booking_id", bookingId),
-    db.from("exp_booking_addons").select("price, status, notes, payment_mode").eq("booking_id", bookingId),
-    db.from("documents").select("type, amount").eq("booking_id", bookingId).eq("status", "issued").not("paid_at", "is", null).in("type", ["deposit_invoice", "downpayment_invoice"]),
+  // All three through readMany: a read that fails here would say "nothing has
+  // been paid", and the flags would be set from a total that is missing the
+  // money this very webhook just recorded.
+  const [pays, extras, stageDocs] = await Promise.all([
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    readMany<any>(db.from("exp_payments").select("amount, direction, type, status, received_at, date, created_at").eq("booking_id", bookingId), `payments on ${bookingId}`),
+    readMany<{ price: number | null; status?: string | null; notes?: string | null; payment_mode?: string | null }>(
+      db.from("exp_booking_addons").select("price, status, notes, payment_mode").eq("booking_id", bookingId), `add-ons on ${bookingId}`),
+    readMany<{ type: string; amount: number | null }>(
+      db.from("documents").select("type, amount").eq("booking_id", bookingId).eq("status", "issued").not("paid_at", "is", null).in("type", ["deposit_invoice", "downpayment_invoice"]), `settled stage invoices on ${bookingId}`),
   ]);
-  const addons = ((extras ?? []) as { price: number | null; status?: string | null; notes?: string | null; payment_mode?: string | null }[])
+  const addons = extras
     .filter((a) => effectiveAddonStatus(a) === "confirmed" && a.payment_mode !== "direct")
     .reduce((n, a) => n + (Number(a.price) || 0), 0);
-  const received = sumReceived(pays ?? []);
+  const received = sumReceived(pays);
   const total = (Number(booking.agreed_price) || 0) + addons;
   const pkg = booking.exp_packages ?? {};
   // A SETTLED down-payment invoice fixes that stage's figure (the Jens Hahn
@@ -534,7 +591,7 @@ async function onTripLinkPayment(session: Record<string, unknown>, bookingId: st
   // plan is asked with what was agreed rather than a percentage of a total
   // that has grown since.
   const settled = { deposit: null as number | null, downpayment: null as number | null };
-  for (const d of (stageDocs ?? []) as { type: string; amount: number | null }[]) {
+  for (const d of stageDocs) {
     if (d.type === "deposit_invoice") settled.deposit = (settled.deposit ?? 0) + (Number(d.amount) || 0);
     if (d.type === "downpayment_invoice") settled.downpayment = (settled.downpayment ?? 0) + (Number(d.amount) || 0);
   }
@@ -559,6 +616,17 @@ async function onTripLinkPayment(session: Record<string, unknown>, bookingId: st
     await db.from("exp_payment_links")
       .update({ note: `Money arrived after the booking was ${status}. Recorded, not applied to the booking status.` })
       .eq("id", linkId);
+    /*
+     * The money has to be FINDABLE, not just logged. A log line scrolls away in
+     * Vercel; the payment row is where anybody looking at this booking, this
+     * guest or this month's takings will actually be standing. So the reason is
+     * written on the row itself, beside the amount.
+     */
+    if (paymentId) {
+      await db.from("exp_payments").update({
+        notes: `Stripe ${what} · link ${linkId} · ARRIVED AFTER THE BOOKING WAS ${status.toUpperCase()}. Recorded, not invoiced. A refund under §651h is somebody's decision to make.`,
+      }).eq("id", paymentId);
+    }
   } else {
     if (!booking.downpayment_received && received + 0.01 >= securing) {
       patch.downpayment_received = true;
@@ -572,8 +640,24 @@ async function onTripLinkPayment(session: Record<string, unknown>, bookingId: st
   const { error: updErr } = await db.from("exp_bookings").update(patch).eq("id", bookingId);
   if (updErr) throw new Error(`booking update failed for ${bookingId}: ${updErr.message ?? updErr}`);
 
-  const { afterMoneyLanded } = await import("@/lib/bank/adopt");
-  await afterMoneyLanded(bookingId);
+  /*
+   * NOT FOR A BOOKING THAT IS OVER.
+   *
+   * afterMoneyLanded is promoteProformaIfPaid + settleInvoices, and promotion
+   * does not look at the booking's status: it mints a REAL gapless NP7-XP tax
+   * invoice and emails it with "you're in" next steps. Send that to somebody
+   * who cancelled and there is no tidy way back. §14 UStG means an issued
+   * invoice is corrected with a Storno and a credit note, by hand, in the
+   * books, not deleted.
+   *
+   * The money above is recorded either way. What waits is the paperwork, which
+   * is the part that needs a human to say whether this guest is being refunded
+   * or rebooked.
+   */
+  if (!closed) {
+    const { afterMoneyLanded } = await import("@/lib/bank/adopt");
+    await afterMoneyLanded(bookingId);
+  }
 
   /*
    * The guess, checked against the card.
@@ -638,6 +722,14 @@ async function onTripLinkPayment(session: Record<string, unknown>, bookingId: st
  * The same three checks onTripLinkPayment makes, because metadata alone is
  * never trusted with anything: the row must exist, it must belong to the
  * booking the metadata names, and its session must be this session.
+ *
+ * NULL MEANS ONE THING ONLY: the read worked and this session is not ours to
+ * act on. A read that FAILED throws out of here (see readOne), because the two
+ * used to be the same value, `const { data: link } = …`, and a caller reading
+ * that null would return, the route would answer 200, and Stripe would never
+ * send the event again. The columns below include three that arrive with
+ * migration 247, so an unapplied or not-yet-reloaded schema is exactly the
+ * failure this distinction has to survive.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function linkForSession(db: any, session: Record<string, unknown>): Promise<{ link: Record<string, unknown>; bookingId: string } | null> {
@@ -645,9 +737,13 @@ async function linkForSession(db: any, session: Record<string, unknown>): Promis
   const linkId = md["link_id"] || null;
   const bookingId = md["booking_id"] || null;
   if (!linkId || !bookingId) return null;
-  const { data: link } = await db.from("exp_payment_links")
-    .select("id, booking_id, session_id, amount, fee, status, method, instructions_url, transfer_reference")
-    .eq("id", linkId).maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const link = await readOne<any>(
+    db.from("exp_payment_links")
+      .select("id, booking_id, session_id, amount, fee, status, method, instructions_url, transfer_reference")
+      .eq("id", linkId).maybeSingle(),
+    `link ${linkId}`,
+  );
   if (!link || link.booking_id !== bookingId || (link.session_id && link.session_id !== session["id"])) {
     console.error(`[webhook] session ${session["id"]} does not match link ${linkId} on booking ${bookingId} — refused`);
     return null;
@@ -655,13 +751,17 @@ async function linkForSession(db: any, session: Record<string, unknown>): Promis
   return { link, bookingId };
 }
 
-/** Booking + guest, for the mails below. Null when there is nobody to write to. */
+/** Booking + guest, for the mails below. Null when there is nobody to write to,
+ *  and only ever that: a failed read throws, the way every read here does. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function guestForBooking(db: any, bookingId: string) {
-  const { data } = await db.from("exp_bookings")
-    .select("id, contact_id, exp_experiences(title,currency), exp_editions(date_start,date_end), contacts(name,email)")
-    .eq("id", bookingId).maybeSingle();
-  return data ?? null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return await readOne<any>(
+    db.from("exp_bookings")
+      .select("id, contact_id, exp_experiences(title,currency), exp_editions(date_start,date_end), contacts(name,email)")
+      .eq("id", bookingId).maybeSingle(),
+    `booking ${bookingId}`,
+  );
 }
 
 /**
@@ -706,7 +806,7 @@ async function onTransferAwaiting(session: Record<string, unknown>, eventCreated
   // open → awaiting only. A redelivered 'completed' arriving after the money
   // landed would otherwise knock a paid row back to awaiting, where it counts
   // as spoken for and blocks the guest from paying their balance.
-  const { error: updErr } = await db.from("exp_payment_links").update({
+  const { data: moved, error: updErr } = await db.from("exp_payment_links").update({
     status: "awaiting",
     payment_intent: paymentIntent,
     awaiting_since: since.toISOString(),
@@ -714,8 +814,37 @@ async function onTransferAwaiting(session: Record<string, unknown>, eventCreated
     instructions_url: info?.hostedInstructionsUrl ?? null,
     transfer_reference: info?.reference ?? null,
     iban_last4: info?.iban ? String(info.iban).slice(-4) : null,
-  }).eq("id", link.id).eq("status", "open");
-  if (updErr) console.error(`[webhook] trip_transfer ${paymentIntent}: link ${link.id} not marked awaiting:`, updErr.message ?? updErr);
+  }).eq("id", link.id).eq("status", "open").select("id");
+  /*
+   * THE MAIL IS THE PART THAT CANNOT BE TAKEN BACK.
+   *
+   * This used to log the failure and send the IBAN anyway. The guest was then
+   * told precisely where to send €1,440 against a row still sitting at 'open',
+   * which no guard counts as spoken for, no sweep reaches and no admin screen
+   * shows as awaiting. Money moving through a bank with nothing in the
+   * platform expecting it.
+   *
+   * So a failed write takes the mail with it and the route answers 500. Stripe
+   * redelivers this event, the whole path is idempotent (the update is
+   * conditional on 'open', the mail carries a dedupeKey), and a guest who gets
+   * their bank details a minute late is no worse off.
+   */
+  if (updErr) throw new Error(`link ${link.id} could not be marked awaiting: ${updErr.message ?? updErr}`);
+  /*
+   * No error and no row: the link was not 'open' any more. That is a
+   * redelivery, not a failure, so it must not throw, because Stripe would retry it
+   * forever. But the bank details only go out again while the payment is still
+   * running; on a row that has been paid, cancelled, expired or failed, sending
+   * somebody an IBAN is worse than saying nothing.
+   */
+  if (!((moved as { id: string }[] | null)?.length)) {
+    const status = String(link.status ?? "");
+    if (status !== "awaiting" && status !== "part_funded") {
+      console.warn(`[webhook] trip_transfer ${paymentIntent}: link ${link.id} is '${status}', not open. No instructions sent`);
+      return;
+    }
+    console.warn(`[webhook] trip_transfer ${paymentIntent}: link ${link.id} was already '${status}'. A redelivery, nothing changed`);
+  }
 
   const booking = await guestForBooking(db, bookingId);
   const contact = booking?.contacts;
@@ -767,14 +896,19 @@ async function onTransferPartlyFunded(pi: Record<string, unknown>): Promise<void
   // or one whose awaiting write failed.
   let link: Record<string, unknown> | null = null;
   if (md["link_id"]) {
-    const { data } = await db.from("exp_payment_links")
-      .select("id, booking_id, amount, status, method, transfer_reference").eq("id", md["link_id"]).maybeSingle();
-    link = data ?? null;
+    link = await readOne<Record<string, unknown>>(
+      db.from("exp_payment_links")
+        .select("id, booking_id, amount, status, method, transfer_reference").eq("id", md["link_id"]).maybeSingle(),
+      `link ${md["link_id"]}`,
+    );
   }
   if (!link && piId) {
-    const { data } = await db.from("exp_payment_links")
-      .select("id, booking_id, amount, status, method, transfer_reference").eq("payment_intent", piId).limit(1);
-    link = ((data as Record<string, unknown>[] | null) ?? [])[0] ?? null;
+    const rows = await readMany<Record<string, unknown>>(
+      db.from("exp_payment_links")
+        .select("id, booking_id, amount, status, method, transfer_reference").eq("payment_intent", piId).limit(1),
+      `link for ${piId}`,
+    );
+    link = rows[0] ?? null;
   }
   if (!link) {
     console.error(`[webhook] partially_funded ${piId ?? "?"} matched no payment link — money is in a cash balance with nothing pointing at it`);

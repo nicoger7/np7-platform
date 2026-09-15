@@ -34,6 +34,7 @@ describe("what a new payment may sweep aside", () => {
     const c = classifyLinks([row({ id: "dead", expires_at: hoursFromNow(-1) })], NOW);
     expect(c.toCancel).toHaveLength(0);
     expect(c.spokenFor).toBe(0);
+    expect(c.spokenForOnceReplaced).toBe(0);
   });
 
   it("NEVER cancels a transfer in flight, whoever made it and however dead its URL", () => {
@@ -58,20 +59,22 @@ describe("what counts as already spoken for", () => {
     expect(c.inFlight.map((l) => l.id)).toEqual(["t"]);
   });
 
-  it("adds them up, and leaves the guest's own replaceable attempt out of the sum", () => {
+  it("adds every live row up, the guest's own open checkout included", () => {
     const c = classifyLinks([
       row({ id: "mine", amount: 500 }),
       row({ id: "admin", amount: 300, created_by: "admin" }),
       row({ id: "moving", amount: 640, status: "awaiting" }),
     ], NOW);
-    expect(c.spokenFor).toBe(940);
+    expect(c.spokenFor).toBe(1440);
+    // Only for the pay route, which cancels "mine" in the same request.
+    expect(c.spokenForOnceReplaced).toBe(940);
     expect(c.toCancel.map((l) => l.id)).toEqual(["mine"]);
     expect(c.adminOpen.map((l) => l.id)).toEqual(["admin"]);
   });
 
   it("says nothing is live when nothing is", () => {
     const c = classifyLinks([], NOW);
-    expect(c).toEqual({ toCancel: [], adminOpen: [], inFlight: [], spokenFor: 0 });
+    expect(c).toEqual({ toCancel: [], adminOpen: [], inFlight: [], spokenFor: 0, spokenForOnceReplaced: 0 });
     expect(classifyLinks(null, NOW).spokenFor).toBe(0);
   });
 
