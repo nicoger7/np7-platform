@@ -17,7 +17,8 @@ import { createAdminClient } from "@/lib/supabase";
 import { createCheckoutSession, expireCheckoutSession, stripeConfigured } from "@/lib/stripe";
 import { cardFee, isCardRegion, CARD_REGIONS } from "@/lib/card-fee";
 import { publicOrigin } from "@/lib/public-origin";
-import { sumReceived } from "@/lib/payment-totals";
+import { readRows } from "@/lib/db-read";
+import { sumReceived, type PaymentLike } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { classifyLinks, type LinkRow } from "@/lib/bank-transfer";
 
@@ -37,18 +38,32 @@ const bad = (msg: string, status = 400) => NextResponse.json({ error: msg }, { s
 const r2 = (n: number) => Math.round(n * 100) / 100;
 const money = (n: number) => `€${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-/** What is still owed on a booking: price plus confirmed add-ons the guest
- *  pays through us, less money received. The same rule the booking page uses. */
+/**
+ * What is still owed on a booking: price plus confirmed add-ons the guest pays
+ * through us, less money received. The same rule the booking page uses.
+ *
+ * THROWS RATHER THAN GUESSING. Both reads used to be `const { data } = await`,
+ * and supabase-js resolves a failed query with { error } instead of throwing:
+ * an exp_payments read that fell over came back as an empty list, sumReceived
+ * of nothing is 0, and a booking already paid in full read as owing the lot.
+ * The guard below then has nothing to refuse and an admin makes a second link
+ * for money that is already in the bank. readRows (lib/db-read) throws, and
+ * both callers turn that into a refusal that can simply be retried.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function owed(db: any, id: string, agreedPrice: number): Promise<number> {
-  const [{ data: pays }, { data: extras }] = await Promise.all([
-    db.from("exp_payments").select("amount, direction, type, status, received_at, date, created_at").eq("booking_id", id),
-    db.from("exp_booking_addons").select("price, status, notes, payment_mode").eq("booking_id", id),
+  const [pays, extras] = await Promise.all([
+    readRows<PaymentLike>(
+      db.from("exp_payments").select("amount, direction, type, status, received_at, date, created_at").eq("booking_id", id),
+      `payments on booking ${id}`),
+    readRows<{ price: number | null; status?: string | null; notes?: string | null; payment_mode?: string | null }>(
+      db.from("exp_booking_addons").select("price, status, notes, payment_mode").eq("booking_id", id),
+      `add-ons on booking ${id}`),
   ]);
-  const addons = ((extras ?? []) as { price: number | null; status?: string | null; notes?: string | null; payment_mode?: string | null }[])
+  const addons = extras
     .filter((a) => effectiveAddonStatus(a) === "confirmed" && a.payment_mode !== "direct")
     .reduce((n, a) => n + (Number(a.price) || 0), 0);
-  return r2(agreedPrice + addons - sumReceived(pays ?? []));
+  return r2(agreedPrice + addons - sumReceived(pays));
 }
 
 /**
@@ -70,9 +85,14 @@ async function owed(db: any, id: string, agreedPrice: number): Promise<number> {
 async function spokenForTotal(db: any, id: string): Promise<number> {
   // Pre-247 columns only. This route settles card links that work today, and it
   // must not start failing on a deployment that has not had the migration yet.
-  const { data } = await db.from("exp_payment_links")
-    .select("id, amount, status, created_by, expires_at").eq("booking_id", id);
-  return classifyLinks((data ?? []) as LinkRow[]).spokenFor;
+  // Which is also why a failure here is REAL: these five columns have always
+  // existed, so an error is the connection or the schema, never a missing
+  // column, and the one answer it must not produce is 0. Zero spoken for is
+  // what lets a second claim on a live €1,440 straight through.
+  const rows = await readRows<LinkRow>(
+    db.from("exp_payment_links").select("id, amount, status, created_by, expires_at").eq("booking_id", id),
+    `payment links on booking ${id}`);
+  return classifyLinks(rows).spokenFor;
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -85,7 +105,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { data: booking } = await db.from("exp_bookings").select("agreed_price, exp_editions(currency), exp_experiences(currency)").eq("id", id).maybeSingle();
-  const outstanding = booking ? await owed(db, id, Number(booking.agreed_price) || 0) : 0;
+  // Reporting 0 owed because a read fell over is the same lie the POST guard
+  // used to tell, one screen earlier: the admin reads "nothing outstanding" and
+  // asks the guest for money again. Say what happened instead.
+  let outstanding = 0;
+  if (booking) {
+    try {
+      outstanding = await owed(db, id, Number(booking.agreed_price) || 0);
+    } catch (e) {
+      console.error("[card-link] could not work out what is owed:", e instanceof Error ? e.message : e);
+      return bad("Could not work out what is still owed on this booking. Please reload in a moment.", 500);
+    }
+  }
   const currency = (booking?.exp_editions?.currency as string | null) ?? (booking?.exp_experiences?.currency as string | null) ?? "EUR";
   const { data, error } = await db.from("exp_payment_links")
     .select("id, amount, fee, total, currency, card_region, status, url, note, created_at, expires_at, paid_at, payment_intent, fee_refunded_at, fee_refund_reason, card_country, card_brand")
@@ -128,8 +159,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // Never a link for more than is owed, and money already in flight counts as
   // owed already: two live claims on the balance would let a guest pay it twice.
-  const outstanding = await owed(db, id, Number(booking.agreed_price) || 0);
-  const open = await spokenForTotal(db, id);
+  //
+  // A guard that cannot see is not a guard. Both reads throw rather than
+  // answering 0 (see owed and spokenForTotal above), and not knowing is
+  // answered here the way the member's own Pay button answers it: refuse, and
+  // let whoever is standing at the desk try again in a moment.
+  let outstanding: number;
+  let open: number;
+  try {
+    outstanding = await owed(db, id, Number(booking.agreed_price) || 0);
+    open = await spokenForTotal(db, id);
+  } catch (e) {
+    console.error("[card-link] could not check what is already live on this booking:", e instanceof Error ? e.message : e);
+    return bad("Could not check what is already owed and in flight on this booking, so no link was made. Please try again in a moment.", 500);
+  }
   if (amount > outstanding - open + 0.01) {
     return bad(open > 0
       ? `${money(outstanding)} is owed and ${money(open)} of it is already on a live payment (an open link, or a transfer the guest has started). Cancel that first, or ask for at most ${money(Math.max(0, outstanding - open))}.`

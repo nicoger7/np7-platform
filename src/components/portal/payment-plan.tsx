@@ -133,8 +133,15 @@ export function PaymentPlan({
           has an instant rail the button above is real and the transfer is the
           alternative. Where it has not, `pay` is null, and promising a button
           that is not on the page is the quickest way to lose their trust in the
-          rest of it. */}
-      {!paidInFull && (
+          rest of it.
+
+          A third truth is silence. A guest with money already moving and no
+          button above (the caller drops it when the transfer covers the whole
+          of what is due) must not be told to "pay by bank transfer using the
+          details on your invoice": they did that last night, and read as an
+          instruction it asks them to do it twice. A PART transfer still has its
+          button, so the sentence stays and is right about the rest. */}
+      {!paidInFull && (pay || !pending) && (
         <p className="text-[12px] text-[#9aa6ac] mt-3 leading-relaxed">
           {pay
             ? <>Pay online above, or by <strong className="text-[#6a7a80] font-semibold">bank transfer</strong> from the invoice, whichever suits you.</>

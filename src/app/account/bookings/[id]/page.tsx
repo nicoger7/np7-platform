@@ -16,6 +16,7 @@ import { MarketingConsentToggle } from "@/components/portal/marketing-consent-to
 import { TripAddons } from "@/components/portal/trip-addons";
 import { PaymentPlan } from "@/components/portal/payment-plan";
 import { PayNow } from "@/components/portal/pay-now";
+import { TransferPending } from "@/components/portal/transfer-pending";
 import { guestCountry, onlineMethodsFor, canPayOnline } from "@/lib/payment-methods";
 import { TripView, type TripTab, type TripTile } from "@/components/portal/trip-view";
 import { TripHero } from "@/components/portal/trip-hero";
@@ -116,7 +117,7 @@ export default async function BookingDetail({ params }: Props) {
   // so the member's plan matches the invoices exactly. Same loader and same
   // derivation the home page reads for every upcoming trip, so the two can
   // never disagree about what is owed and by when.
-  const payInputs = (await getBookingPaymentInputs([b.id])).get(b.id) ?? { cfg: null, settledStages: { deposit: 0, downpayment: 0 }, coveredExtra: 0 };
+  const payInputs = (await getBookingPaymentInputs([b.id])).get(b.id) ?? { cfg: null, settledStages: { deposit: 0, downpayment: 0 }, coveredExtra: 0, inFlight: 0, transfer: null };
   const payCfg = payInputs.cfg;
   const picture = paymentPicture({
     status: b.status,
@@ -129,6 +130,19 @@ export default async function BookingDetail({ params }: Props) {
     cfg: payCfg,
     settledStages: payInputs.settledStages,
     coveredByBookingId: b.covered_by_booking_id,
+    /*
+     * A transfer the guest has sent that Stripe has not confirmed. The loader
+     * has always returned it and this page was the one caller that dropped it,
+     * so /account went quiet the moment somebody transferred while this page
+     * carried on shouting "Secure your spot" at them. Two screens, one
+     * derivation, and they disagreed about the money.
+     *
+     * It is NOT added to `paid`: the money is not in the bank and not in
+     * exp_payments. It silences the ASK and nothing else, and only when it
+     * covers the whole of what is due now (see paymentPicture). A part
+     * transfer leaves a real balance and everything below stays as it was.
+     */
+    inFlight: payInputs.inFlight,
   });
   // "Secured" = the first real payment milestone is paid (the deposit, or — when
   // the package has no deposit — the down-payment), which unlocks trip add-ons.
@@ -137,6 +151,11 @@ export default async function BookingDetail({ params }: Props) {
   // — never say "deposit" when the securing payment is the down-payment.
   // `step` is the money half of the hero below; the phase half stays here.
   const { plan, nextMilestone, dueNow, depositPaid, hasDeposit, fullyPaid, step } = picture;
+  /* Everything due right now is already on its way. Read from the step rather
+     than from the existence of a transfer row, because that is the distinction
+     that matters to a guest: a PART transfer leaves money genuinely owed and
+     the page must go on asking for it. */
+  const awaitingTransfer = step.kind === "awaiting";
   // Same rule the confirmation document uses, so the tab label and the document
   // it opens can never disagree.
   const secured = isSecured(b);
@@ -348,6 +367,12 @@ export default async function BookingDetail({ params }: Props) {
         : { eyebrow: "Your next step", title: `Payment pending — ${money(total ?? 0, cur)}`, body: "Your spot isn't secured until the ticket is paid. If you started a payment and it didn't go through, just book again — or reply to your confirmation email and we'll sort it.", tone: "amber" };
   } else if (fullyPaid) {
     hero = { eyebrow: "You're all set", title: daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"} to go 🎉` : "You're all set 🎉", body: "Everything's paid. Check your packing list and arrival info so you're ready to ride.", ctaLabel: "Open trip prep", ctaHref: "#prep", tone: "green" };
+  } else if (step.kind === "awaiting") {
+    /* There is nothing for them to do and the page must say so in the one place
+       they look first. Without this branch an awaiting step fell through to
+       "You're set 🎉", which tells a guest their money has landed when it
+       has not, and the panel further down would then contradict it. */
+    hero = { eyebrow: "Your next step", title: "Nothing to do, your transfer is on its way", body: `${money(step.amount, cur)} is on its way to us. Most transfers arrive in one to three working days, and your spot is held until it does.`, ctaLabel: "See the details", ctaHref: "#payment", tone: "amber" };
   } else if (step.kind === "secure") {
     // Honest loss-aversion: name the real date we hold the place until (from the
     // engine), then reassure with the 14-day refund. No fake scarcity.
@@ -373,7 +398,7 @@ export default async function BookingDetail({ params }: Props) {
        * both said 850. What is owed on an event is simply what is unpaid.
        */
       value: fullyPaid ? "Paid" : isEvent ? (money(eventOutstanding, cur) ?? "—") : nextMilestone ? (money(dueNow, cur) ?? "—") : "—",
-      sub: fullyPaid ? "all done" : isEvent ? (eventPartPaid ? "balance" : "to secure your spot") : dueShort ? `due ${dueShort}` : undefined,
+      sub: fullyPaid ? "all done" : isEvent ? (eventPartPaid ? "balance" : "to secure your spot") : awaitingTransfer ? "on its way" : dueShort ? `due ${dueShort}` : undefined,
       tone: fullyPaid ? "green" : !depositPaid ? "coral" : "amber",
       done: fullyPaid,
       attention: !fullyPaid && (isEvent || !!nextMilestone),
@@ -381,7 +406,11 @@ export default async function BookingDetail({ params }: Props) {
          has no instant rail there is no button on that screen, only the bank
          details, so the tile says what is actually there. Same tab either way:
          the Payment tab is still where they need to go. */
+      /* And while a transfer is in flight there is no button on that screen
+         either: it would only refuse, because the route counts their own money
+         as already spoken for. */
       cta: fullyPaid ? undefined : isEvent ? "Pay now"
+        : awaitingTransfer ? "See the details"
         : nextMilestone ? (payMethods ? (depositPaid ? "Pay balance" : "Pay now") : "See how to pay") : undefined,
     },
     ...(isEvent ? [] : [{
@@ -515,7 +544,26 @@ export default async function BookingDetail({ params }: Props) {
              with nothing above it. Whether there is a button is a fact about
              the guest's country, so it is decided here, once, where both the
              button and the sentence can see it. */
-          pay={!isEvent && !b.covered_by_booking_id && dueNow > 0 && payMethods
+          /* The panel was written and rendered nowhere, which is why a guest
+             who transferred yesterday opened this tab to a Pay button and not
+             one word about their money. It answers, in the place they look for
+             it, every question they would otherwise send us by email: how much,
+             to which account, with what reference. */
+          pending={payInputs.transfer
+            ? <TransferPending
+                amount={payInputs.transfer.amount}
+                currency={cur}
+                reference={payInputs.transfer.reference}
+                ibanLast4={payInputs.transfer.ibanLast4}
+                instructionsUrl={payInputs.transfer.instructionsUrl}
+              />
+            : null}
+          /* And no button beside it while the whole of what is due is already
+             moving: the pay route counts their own transfer as spoken for and
+             would refuse the press, so offering it is a dead end with their
+             money in it. A PART transfer is not this case, keeps its step, and
+             keeps its button for the part that really is unfunded. */
+          pay={!isEvent && !b.covered_by_booking_id && dueNow > 0 && !awaitingTransfer && payMethods
             ? <PayNow
                 bookingId={b.id}
                 amount={Math.min(dueNow, Math.max(0, (total ?? 0) - paid))}
@@ -539,7 +587,10 @@ export default async function BookingDetail({ params }: Props) {
           the last of which ignored the button above it. It is now the heading
           for whichever route is actually theirs. */}
       <div className="mt-4 pt-4 border-t border-[#f3ede2]">
-        {!tripEnded && paid < (total ?? 0) && (
+        {/* Not while their transfer is on its way. "Pay by bank transfer using
+            the details on your invoice" is, to somebody who did exactly that
+            last night, an instruction to do it a second time. */}
+        {!tripEnded && paid < (total ?? 0) && !awaitingTransfer && (
           <>
             <p className="text-[13px] font-bold text-[#00374a]">How to pay</p>
             <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-0.5">
