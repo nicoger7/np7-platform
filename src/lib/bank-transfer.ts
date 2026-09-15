@@ -125,8 +125,19 @@ const notExpired = (l: LinkRow, now: number) => !l.expires_at || new Date(l.expi
 export type LinkClassification = {
   /** Safe to expire at Stripe and mark cancelled before starting a new attempt. */
   toCancel: LinkRow[];
-  /** € already claimed by something live. Money asked for now must fit beside it. */
+  /**
+   * € already claimed by something live, THE MEMBER'S OWN OPEN CHECKOUT
+   * INCLUDED. This is the number almost every caller wants: it is what a second
+   * request for the same money has to fit beside.
+   */
   spokenFor: number;
+  /**
+   * € still claimed once `toCancel` has actually been cancelled, which only
+   * the pay route does, in the same request, right before it asks for a new
+   * payment. Anyone else reading this is under-counting by exactly the amount
+   * the guest is in the middle of paying.
+   */
+  spokenForOnceReplaced: number;
   /** Rows the guest may still be transferring against, newest first. */
   inFlight: LinkRow[];
   /** Live links somebody at NP7 made and sent deliberately. Left alone, and
@@ -155,6 +166,19 @@ export type LinkClassification = {
  *
  * An expired open row is neither: the session is dead, nobody can pay it, and
  * cancelling it at Stripe would only be noise.
+ *
+ * ── TWO TOTALS, AND WHY THE INCLUSIVE ONE IS THE DEFAULT ─────────────────────
+ *
+ * Group 1 is "cancel and replace" only from inside the pay route, which really
+ * does cancel it, in the same request, one line later. To every OTHER reader
+ * that row is a guest halfway through paying: the checkout is open in front of
+ * them and the money is on its way.
+ *
+ * The admin's double-pay guard read the narrow total and let a second request
+ * for the same €1,440 through while the member's own checkout was live. So the
+ * plain name carries the inclusive figure. A caller who grabs the wrong one
+ * now over-counts, which refuses a link somebody can simply retry, rather than
+ * under-counting, which bills a guest twice.
  */
 export function classifyLinks(rows: LinkRow[] | null | undefined, now: number = Date.now()): LinkClassification {
   const all = rows ?? [];
@@ -162,11 +186,13 @@ export function classifyLinks(rows: LinkRow[] | null | undefined, now: number = 
   const openLive = all.filter((l) => l.status === "open" && notExpired(l, now));
   const toCancel = openLive.filter((l) => l.created_by === "member");
   const adminOpen = openLive.filter((l) => l.created_by !== "member");
-  const spoken = [...inFlight, ...adminOpen];
+  const sum = (rs: LinkRow[]) => r2(rs.reduce((n, l) => n + (Number(l.amount) || 0), 0));
+  const onceReplaced = sum([...inFlight, ...adminOpen]);
   return {
     toCancel,
     adminOpen,
-    spokenFor: r2(spoken.reduce((n, l) => n + (Number(l.amount) || 0), 0)),
+    spokenFor: r2(onceReplaced + sum(toCancel)),
+    spokenForOnceReplaced: onceReplaced,
     inFlight: [...inFlight].sort((a, b) => String(b.expires_at ?? "").localeCompare(String(a.expires_at ?? ""))),
   };
 }

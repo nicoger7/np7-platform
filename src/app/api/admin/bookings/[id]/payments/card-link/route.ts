@@ -19,6 +19,7 @@ import { cardFee, isCardRegion, CARD_REGIONS } from "@/lib/card-fee";
 import { publicOrigin } from "@/lib/public-origin";
 import { sumReceived } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
+import { classifyLinks, type LinkRow } from "@/lib/bank-transfer";
 
 export const dynamic = "force-dynamic";
 
@@ -50,11 +51,28 @@ async function owed(db: any, id: string, agreedPrice: number): Promise<number> {
   return r2(agreedPrice + addons - sumReceived(pays ?? []));
 }
 
-/** Links that are still live: their amounts are spoken for. */
+/**
+ * Money on this booking that something live has already claimed.
+ *
+ * Every live row counts, whoever started it: an admin's own link, a member's
+ * open checkout, and a bank transfer the member submitted days ago. The last
+ * two are the ones this used to miss. `status = 'open' AND expires_at > now()`
+ * sees neither a submitted transfer (its row is 'awaiting', and its CHECKOUT
+ * expired at 23 hours while the money is still moving) nor, through
+ * classifyLinks' narrow total, the member's own checkout that is open in front
+ * of them right now. Either miss reads 0 against a live €1,440 and lets an
+ * admin ask for the same money a second time.
+ *
+ * lib/bank-transfer owns that classification, so the member's page and this
+ * page cannot drift apart on what "live" means.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function openLinkTotal(db: any, id: string): Promise<number> {
-  const { data } = await db.from("exp_payment_links").select("amount").eq("booking_id", id).eq("status", "open").gt("expires_at", new Date().toISOString());
-  return r2(((data ?? []) as { amount: number }[]).reduce((n, l) => n + Number(l.amount), 0));
+async function spokenForTotal(db: any, id: string): Promise<number> {
+  // Pre-247 columns only. This route settles card links that work today, and it
+  // must not start failing on a deployment that has not had the migration yet.
+  const { data } = await db.from("exp_payment_links")
+    .select("id, amount, status, created_by, expires_at").eq("booking_id", id);
+  return classifyLinks((data ?? []) as LinkRow[]).spokenFor;
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -108,13 +126,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const currency = (booking.exp_editions?.currency as string | null) ?? (booking.exp_experiences?.currency as string | null) ?? "EUR";
   if (currency !== "EUR") return bad(`This booking is in ${currency}; card links are EUR only for now.`, 409);
 
-  // Never a link for more than is owed, and links still open count as owed
-  // already: two live links for the balance would let a guest pay it twice.
+  // Never a link for more than is owed, and money already in flight counts as
+  // owed already: two live claims on the balance would let a guest pay it twice.
   const outstanding = await owed(db, id, Number(booking.agreed_price) || 0);
-  const open = await openLinkTotal(db, id);
+  const open = await spokenForTotal(db, id);
   if (amount > outstanding - open + 0.01) {
     return bad(open > 0
-      ? `${money(outstanding)} is owed and ${money(open)} of it is already on an open link. Cancel that link first, or ask for at most ${money(Math.max(0, outstanding - open))}.`
+      ? `${money(outstanding)} is owed and ${money(open)} of it is already on a live payment (an open link, or a transfer the guest has started). Cancel that first, or ask for at most ${money(Math.max(0, outstanding - open))}.`
       : `Only ${money(outstanding)} is still owed on this booking; the link cannot ask for more.`);
   }
   const { fee, total } = cardFee(amount, region);
