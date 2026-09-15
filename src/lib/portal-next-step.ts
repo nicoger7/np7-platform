@@ -22,7 +22,10 @@ export type PaymentStep =
   /** The first securing payment: the deposit, or the down-payment where there is none. */
   | { kind: "secure"; amount: number; dueDate: string | null }
   /** The spot is held, the remainder is owed. */
-  | { kind: "balance"; amount: number; dueDate: string | null };
+  | { kind: "balance"; amount: number; dueDate: string | null }
+  /** A bank transfer covering what is due is on its way. Nothing to do: it
+   *  takes one to three working days and the spot is held meanwhile. */
+  | { kind: "awaiting"; amount: number; dueDate: string | null };
 
 export type PaymentInputs = {
   status: string | null;
@@ -40,6 +43,13 @@ export type PaymentInputs = {
   settledStages?: { deposit: number; downpayment: number } | null;
   /** Group bookings: a covered guest pays nothing here, the payer's plan carries it. */
   coveredByBookingId?: string | null;
+  /**
+   * Money the guest has already sent by bank transfer and Stripe has not yet
+   * confirmed. Deliberately NOT part of `paid`: it is not in the bank, it is
+   * not in exp_payments, and counting it as received would mark a spot secured
+   * against money that may never arrive. It only silences the ASK.
+   */
+  inFlight?: number;
 };
 
 export type PaymentPicture = {
@@ -95,6 +105,8 @@ export function paymentPicture(i: PaymentInputs): PaymentPicture {
   const nextMilestone = plan.find((m) => m.status !== "paid");
   const dueNow = amountDueNow(plan, paid) ?? nextMilestone?.amount ?? 0;
 
+  const inFlight = i.inFlight ?? 0;
+
   let step: PaymentStep;
   if (i.coveredByBookingId || fullyPaid) {
     step = { kind: "none" };
@@ -104,6 +116,19 @@ export function paymentPicture(i: PaymentInputs): PaymentPicture {
     step = paid > 0.01
       ? { kind: "balance", amount: round2(Math.max(0, (total ?? 0) - paid)), dueDate: plan.find((m) => m.kind === "final")?.dueDate ?? null }
       : { kind: "pending", amount: total ?? 0 };
+  } else if (inFlight + 0.01 >= dueNow && dueNow > 0) {
+    /*
+     * A transfer covering what is due now silences the ask, and it belongs HERE
+     * rather than in the trip page because the HOME page reads the same
+     * derivation: put the branch in the page and somebody who transferred last
+     * night still opens their home to "balance due". This way both are right at
+     * once, with no edit to the home page at all.
+     *
+     * Only when it covers the whole of what is due. A PART transfer leaves the
+     * existing step standing, because the money that is genuinely unfunded is
+     * still owed and asking for it is the honest thing.
+     */
+    step = { kind: "awaiting", amount: round2(inFlight), dueDate: nextMilestone?.dueDate ?? null };
   } else if (!depositPaid && nextMilestone) {
     step = { kind: "secure", amount: dueNow, dueDate: nextMilestone.dueDate };
   } else if (nextMilestone) {

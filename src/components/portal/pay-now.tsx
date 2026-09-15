@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import type { PayKind } from "@/lib/payment-methods";
 
 /**
  * Pay the trip from the trip page.
@@ -11,8 +12,16 @@ import { useState } from "react";
  *
  * What they are offered is decided by their country, in payment-methods.ts,
  * and the decision is made on the server so this button never opens a checkout
- * the guest cannot finish. Where their country has no instant rail the button
- * does not appear at all and the bank transfer below it is the answer.
+ * the guest cannot finish. Where their country has neither an instant rail nor
+ * a transfer the button does not appear at all and the bank details below it
+ * are the answer.
+ *
+ * A TRANSFER NAMES ITSELF BEFORE THE PRESS. "Pay €1,440 now" is simply untrue
+ * of a method that takes one to three working days, and a guest who reads
+ * "now", presses, and lands on a page of bank details has been misled by us
+ * rather than by Stripe. So the method is in the label, the footnote says what
+ * the next screen holds and how long the money takes, and nothing anywhere
+ * promises an instant payment or a return to a thank-you page.
  */
 export function PayNow({ bookingId, amount, balance, refundableUntil, currency = "EUR", label, methods, preview }: {
   bookingId: string;
@@ -35,7 +44,7 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
   /** What this guest's country can actually pay with, worked out on the server.
    *  `null` hides the button: there is no point offering a checkout that ends
    *  on a bank list the guest is not on. */
-  methods?: { kind: "rail" | "card"; feePct?: number } | null;
+  methods?: { kind: PayKind; feePct?: number } | null;
 }) {
   const [busy, setBusy] = useState<null | "milestone" | "all">(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +77,13 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
   // No rail in their country and no lawful way to charge a card fee: the bank
   // transfer right below this is genuinely the better route, so say nothing.
   if (methods === null) return null;
-  const isCard = methods?.kind === "card";
+  const isTransfer = methods?.kind === "transfer";
+
+  // The label, which is a promise about the next screen, and the footnote,
+  // which is the rest of that promise. A transfer guest must never be shown the
+  // iDEAL/Wero/Bancontact line: none of those is what they are about to use.
+  const primaryLabel = label ?? (isTransfer ? `Pay ${money} by bank transfer` : `Pay ${money} now`);
+  const allLabel = all ? (isTransfer ? `Pay all by transfer, ${fmt(all)}` : `Pay all now, ${fmt(all)}`) : null;
 
   return (
     <div className="mt-4">
@@ -79,7 +94,7 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
           title={preview ? "Disabled in the admin preview" : undefined}
           className="w-full sm:w-auto px-5 py-3 rounded-xl bg-[#00374a] hover:bg-[#00293a] disabled:opacity-60 text-white text-[14px] font-bold transition-colors"
         >
-          {busy === "milestone" ? "Opening…" : (label ?? `Pay ${money} now`)}
+          {busy === "milestone" ? "Opening…" : primaryLabel}
         </button>
         {/* Paying the lot in one go: quieter, because the plan is the normal
             way, but right there for the people who would rather be done. */}
@@ -90,20 +105,23 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
             title={preview ? "Disabled in the admin preview" : undefined}
             className="w-full sm:w-auto px-5 py-3 rounded-xl bg-white hover:bg-[#f4f9fa] disabled:opacity-60 text-[#00374a] text-[14px] font-bold border border-[#dde6e9] transition-colors"
           >
-            {busy === "all" ? "Opening…" : `Pay all now, ${fmt(all)}`}
+            {busy === "all" ? "Opening…" : allLabel}
           </button>
         )}
       </div>
       {preview && <p className="text-[12px] text-[#7d8b91] mt-2">Paying is disabled while you are looking at this as the member.</p>}
       <p className="text-[12px] text-[#7d8b91] mt-2">
         {refundableUntil ? (all ? <>Either way, the first {fmt(amount)} stays refundable until {refundableUntil}. </> : <>Refundable until {refundableUntil}. </>) : null}
-        {/* Deliberately NOT a list of method names. It said "iDEAL, Wero,
-            Bancontact" to every guest on earth, including an Austrian who has
-            EPS and a Pole who has BLIK, and it would have gone on saying it as
-            the list changes. Stripe shows each guest the ones their own bank
-            supports, so the honest sentence is the one that describes what
-            happens rather than naming what they will see. */}
-        Straight from your own bank, no fee. Or ignore this and transfer from your invoice, both land in the same place.
+        {/* Three routes, three different promises, and none of them names a
+            method. The old rail line said "iDEAL, Wero, Bancontact" to every
+            guest on earth, including an Austrian who has EPS and a Pole who has
+            BLIK. Stripe shows each guest what their own bank supports, so the
+            honest sentence describes what happens rather than what they will
+            see. The transfer needs its own, because a guest who expects an
+            instant payment and gets an account number has been misled. */}
+        {isTransfer
+          ? <>Press pay and we&apos;ll show you an account number that&apos;s yours alone, with the exact amount and a reference. Transfer it from your banking app the way you&apos;d pay anyone. It usually reaches us in one to three working days, and your spot is held from the moment you send it. We&apos;ll email you the same details so you don&apos;t have to keep this page open.</>
+          : <>Straight from your own bank, no fee. Or ignore this and transfer from your invoice, both land in the same place.</>}
       </p>
       {error && <p className="text-[12.5px] text-[#b4472a] mt-2">{error}</p>}
     </div>

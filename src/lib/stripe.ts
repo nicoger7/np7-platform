@@ -13,12 +13,22 @@ export function stripeConfigured(): boolean {
   return !!stripeKey();
 }
 
-async function stripePost(path: string, params: Record<string, string>): Promise<{ ok: boolean; json: Record<string, unknown> }> {
+/**
+ * `idempotencyKey` makes Stripe return the FIRST response for a repeated call
+ * rather than doing the thing twice. It matters wherever a second press would
+ * create a second object with a life of its own — a Customer above all, because
+ * a Customer is an IBAN and one human must never have two.
+ */
+export async function stripePost(path: string, params: Record<string, string>, idempotencyKey?: string): Promise<{ ok: boolean; json: Record<string, unknown> }> {
   const key = stripeKey();
   if (!key) return { ok: false, json: { error: { message: "STRIPE_SECRET_KEY not set" } } };
   const res = await fetch(`${STRIPE}${path}`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/x-www-form-urlencoded" },
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+    },
     body: new URLSearchParams(params).toString(),
   });
   const json = await res.json().catch(() => ({}));
@@ -39,7 +49,19 @@ export async function createCheckoutSession(opts: {
   successUrl: string;
   cancelUrl: string;
   customerEmail?: string;
+  /** An existing Customer id. Sent INSTEAD of customerEmail, never beside it:
+   *  Stripe errors on both at once. Required for a bank transfer, where the
+   *  IBAN is issued against that Customer's cash balance. */
+  customer?: string;
   metadata: Record<string, string>;
+  /** Copied onto the PaymentIntent's own metadata. Session metadata does NOT
+   *  propagate to the intent, and a PI-level event (a partial funding, say)
+   *  carries no session at all, so without this such an event has no way back
+   *  to the link row it belongs to. */
+  paymentIntentMetadata?: Record<string, string>;
+  /** Raw Stripe form keys the caller builds itself, e.g. the customer_balance
+   *  map from lib/bank-transfer. Applied last so it is the final word. */
+  extraParams?: Record<string, string>;
   paymentIntentDescription?: string;
   /** Restrict how it can be paid, e.g. ["card"] when a card fee is on the bill.
    *  Naming types turns OFF Stripe's own country filtering, so prefer the
@@ -75,9 +97,14 @@ export async function createCheckoutSession(opts: {
   }
   (opts.excludedPaymentMethodTypes ?? []).forEach((t, i) => { params[`excluded_payment_method_types[${i}]`] = t; });
   if (opts.expiresAt) params["expires_at"] = String(Math.round(opts.expiresAt));
-  if (opts.customerEmail) params["customer_email"] = opts.customerEmail;
+  // A Customer wins over an email: Stripe refuses both, and only the Customer
+  // can carry a cash balance, which is what a bank transfer is paid into.
+  if (opts.customer) params["customer"] = opts.customer;
+  else if (opts.customerEmail) params["customer_email"] = opts.customerEmail;
   if (opts.paymentIntentDescription) params["payment_intent_data[description]"] = opts.paymentIntentDescription;
   for (const [k, v] of Object.entries(opts.metadata)) params[`metadata[${k}]`] = v;
+  for (const [k, v] of Object.entries(opts.paymentIntentMetadata ?? {})) params[`payment_intent_data[metadata][${k}]`] = v;
+  for (const [k, v] of Object.entries(opts.extraParams ?? {})) params[k] = v;
 
   const { ok, json } = await stripePost("/checkout/sessions", params);
   if (!ok || typeof json.url !== "string") {
@@ -117,6 +144,80 @@ export async function cardForPaymentIntent(paymentIntent: string): Promise<{ cou
   const card = (json as any)?.latest_charge?.payment_method_details?.card;
   if (!card) return null;
   return { country: card.country ?? null, brand: card.brand ?? null, funding: card.funding ?? null };
+}
+
+/**
+ * What a PaymentIntent actually received, and when.
+ *
+ * `amount_received` is the only honest figure on a bank transfer: Stripe cannot
+ * control what the guest types into their banking app, so what was asked for
+ * and what arrived are two different numbers. `chargeCreated` is the day the
+ * money landed, which is not the day this webhook runs — a retry after an
+ * outage can be hours or a day late, and settleInvoices() settles oldest-first
+ * on the real payment date, so a drifting date mis-settles invoices.
+ */
+export async function paymentIntentDetails(paymentIntent: string): Promise<{ amountReceived: number | null; status: string | null; chargeCreated: number | null } | null> {
+  const key = stripeKey();
+  if (!key) return null;
+  try {
+    const res = await fetch(`${STRIPE}/payment_intents/${paymentIntent}?expand[]=latest_charge`, { headers: { Authorization: `Bearer ${key}` } });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pi = json as any;
+    const created = pi?.latest_charge?.created;
+    return {
+      amountReceived: typeof pi?.amount_received === "number" ? pi.amount_received : null,
+      status: typeof pi?.status === "string" ? pi.status : null,
+      chargeCreated: typeof created === "number" ? created : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The bank details Stripe is showing this guest: the hosted instructions page,
+ * the reference they must quote, and the account the money goes to.
+ *
+ * None of this is on the Checkout Session. It lives on the PaymentIntent's
+ * `next_action`, which is why the completed-and-unpaid branch has to fetch the
+ * intent: the instructions URL is the whole promise this feature makes, and a
+ * guest who closed the tab has nothing else.
+ *
+ * Optional-chains everything and returns null rather than throwing. The exact
+ * shape of next_action is the one thing in this build that cannot be verified
+ * from this machine, and making Stripe retry an event that carries no money
+ * helps nobody.
+ */
+export async function transferInstructions(paymentIntent: string): Promise<{
+  hostedInstructionsUrl: string | null; reference: string | null;
+  iban: string | null; bic: string | null; accountHolder: string | null; amountRemaining: number | null;
+} | null> {
+  const key = stripeKey();
+  if (!key) return null;
+  try {
+    const res = await fetch(`${STRIPE}/payment_intents/${paymentIntent}`, { headers: { Authorization: `Bearer ${key}` } });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const n = (json as any)?.next_action?.display_bank_transfer_instructions;
+    if (!n) return null;
+    // Stripe returns the addresses as a list because an account can have more
+    // than one; the IBAN one is what a SEPA guest needs.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const acct = (n.financial_addresses ?? []).find((a: any) => a?.type === "iban") ?? n.financial_addresses?.[0] ?? null;
+    return {
+      hostedInstructionsUrl: n.hosted_instructions_url ?? null,
+      reference: n.reference ?? null,
+      iban: acct?.iban?.iban ?? null,
+      bic: acct?.iban?.bic ?? null,
+      accountHolder: acct?.iban?.account_holder_name ?? null,
+      amountRemaining: typeof n.amount_remaining === "number" ? n.amount_remaining : null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Look up the PaymentIntent id for a completed Checkout Session. */

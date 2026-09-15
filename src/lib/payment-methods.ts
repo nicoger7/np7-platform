@@ -41,6 +41,30 @@
  * Wero needs no code change when Stripe grants it. Switch it on in that
  * configuration and BE, FR and DE start seeing it. The only line to touch here
  * is the rail list below, which decides whether their button is drawn.
+ *
+ * ── The third capability: the bank transfer ──────────────────────────────────
+ *
+ * The EEA guest with no rail was sent to the transfer printed on their invoice,
+ * which works but leaves NP7 matching it by hand and leaves the guest typing
+ * our IBAN and a reference out of a PDF. Stripe's `customer_balance` gives that
+ * same guest an account number that is theirs alone: they transfer to it from
+ * their banking app, Stripe matches it by itself, and the booking settles with
+ * nobody in admin touching it. It costs cents, works in every euro country, and
+ * cannot be charged back.
+ *
+ * It is gated on STRIPE_BANK_TRANSFER_ENABLED, for the same reason Wero is
+ * gated: THE ACCOUNT DOES NOT HAVE THE METHOD YET. Stripe requires identity
+ * verification before granting it, which is the owner's to complete. And this
+ * does not degrade softly — naming a payment method the account lacks makes
+ * Stripe reject the whole session, so a flag switched on early would take
+ * payment away from precisely the guests the transfer exists to serve. Default
+ * OFF, and with it off every country gets exactly the answer it gets today.
+ *
+ * ORDER MATTERS BELOW, and it is load-bearing rather than incidental: the rail
+ * check stays FIRST, because DE is a Wero country. The day Wero is granted,
+ * Germany flips from transfer to rail, and that is right — instant and
+ * confirmed beats three days of waiting. Two flags that interact, written so
+ * the interaction is the part you read.
  */
 
 /** The dial codes the booking form offers, as countries. */
@@ -136,17 +160,31 @@ export function guestCountry(c: {
   return null;
 }
 
+/**
+ * The one way this guest may pay online, if there is one.
+ *
+ * A discriminant rather than a bag of booleans, because the value has always
+ * been single-valued and the type never said so: three flags would admit eight
+ * states, four of them nonsense, and nothing would name the places that have to
+ * decide again the day Wero is granted. With this, tsc names them.
+ *
+ *   rail     · an instant bank rail (iDEAL, Bancontact, EPS, BLIK, one day Wero)
+ *   transfer · a SEPA credit transfer to an IBAN issued for this guest alone
+ *   card     · only outside the EEA, where the fee may lawfully be passed on
+ */
+export type PayKind = "rail" | "transfer" | "card";
+
 export type OnlineMethods = {
-  /** Their country has a rail: hand Stripe the configuration and let it pick. */
-  rails: boolean;
-  /** No rail, but a card fee is lawful here, so offer the card with the fee. */
-  card: boolean;
+  /** What to offer, or null when the bank transfer on their invoice is better. */
+  kind: PayKind | null;
   /** Said to the guest when nothing is offered, in their words not ours. */
   unavailable: string | null;
 };
 
-/** True when there is any way at all to pay this guest's booking online. */
-export const canPayOnline = (m: OnlineMethods) => m.rails || m.card;
+/** True when there is any way at all to pay this guest's booking online. A type
+ *  predicate so the guard that asks it also narrows `kind` for the switch that
+ *  follows: the caller decides once, not twice. */
+export const canPayOnline = (m: OnlineMethods): m is OnlineMethods & { kind: PayKind } => m.kind !== null;
 
 const NOTHING_EEA = "Your bank's instant payment isn't available in your country yet, so a transfer is the way. The details are on your invoice below.";
 const NOTHING_UNKNOWN = "We can't tell which instant payments your country has. A transfer works from anywhere, the details are on your invoice below.";
@@ -165,15 +203,27 @@ const HAS_RAIL = new Set(["NL", "BE", "AT", "PL"]);
 /** What this guest may be shown, given where they are. */
 export function onlineMethodsFor(country: string | null): OnlineMethods {
   const weroLive = process.env.STRIPE_WERO_ENABLED === "true";
-  if (!country) return { rails: false, card: false, unavailable: NOTHING_UNKNOWN };
+  const transferLive = process.env.STRIPE_BANK_TRANSFER_ENABLED === "true";
+  /*
+   * An unknown country gets nothing, and that is not laziness. eu_bank_transfer
+   * needs a country to decide which localised IBAN the guest is shown, and
+   * guessing DE for somebody who may be outside SEPA altogether hands them
+   * details they cannot use. NOTHING_UNKNOWN already says something true.
+   */
+  if (!country) return { kind: null, unavailable: NOTHING_UNKNOWN };
+  // FIRST, deliberately. DE is a Wero country, so the day Wero is granted
+  // Germany moves from the transfer to the rail: instant beats three days.
   if (HAS_RAIL.has(country) || (weroLive && WERO.has(country))) {
-    return { rails: true, card: false, unavailable: null };
+    return { kind: "rail", unavailable: null };
   }
   // Outside the EEA there is no rail worth wiring and the fee is lawful, so the
-  // card is the honest offer. Inside it, the bank transfer stands.
-  return EEA.has(country)
-    ? { rails: false, card: false, unavailable: NOTHING_EEA }
-    : { rails: false, card: true, unavailable: null };
+  // card is the honest offer. Inside it, the transfer — real where the account
+  // has the method, and the invoice's own bank details until then. Never
+  // offered beside a rail: a Dutch guest with iDEAL has no reason to wait days.
+  if (!EEA.has(country)) return { kind: "card", unavailable: null };
+  return transferLive
+    ? { kind: "transfer", unavailable: null }
+    : { kind: null, unavailable: NOTHING_EEA };
 }
 
 /**
@@ -195,3 +245,28 @@ export const cardRegionFor = (country: string | null): "uk" | "intl" =>
 
 /** The three countries Wero covers, which are the three iDEAL does not. */
 const WERO = new Set(["BE", "FR", "DE"]);
+
+/**
+ * Which country's IBAN this guest is shown.
+ *
+ * Stripe localises `eu_bank_transfer` for four countries only: DE, FR, IE, NL.
+ * Those four get their own; everybody else in the EEA gets the German one, and
+ * that is the least surprising answer rather than an arbitrary one:
+ *
+ *  · NP7's Stripe business location is DE, so a German virtual account is the
+ *    one Stripe issues most naturally.
+ *  · The invoice this guest already holds carries German bank details and a
+ *    German USt-IdNr, so a DE IBAN is the line they expect on their statement.
+ *  · A SEPA credit transfer costs and clears the same to any euro-area IBAN,
+ *    so nobody pays for the choice.
+ *  · One fallback means one reference format and one answer when support is
+ *    asked "is this really you?".
+ *
+ * NL is here for the day it loses iDEAL rather than for today; it is
+ * unreachable while iDEAL holds, and wrong to leave out if it ever does not.
+ */
+export function transferCountryFor(country: string | null): "DE" | "FR" | "IE" | "NL" {
+  const c = (country ?? "").toUpperCase();
+  if (c === "FR" || c === "IE" || c === "NL") return c;
+  return "DE";
+}

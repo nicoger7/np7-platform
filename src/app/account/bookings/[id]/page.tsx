@@ -212,7 +212,7 @@ export default async function BookingDetail({ params }: Props) {
   const payMethods = (() => {
     const c = whoRow?.data as { phone?: string | null; country?: string | null; billing_country?: string | null } | null;
     const m = onlineMethodsFor(guestCountry({ billingCountry: c?.billing_country, country: c?.country, phone: c?.phone }));
-    return canPayOnline(m) ? { kind: m.card ? "card" as const : "rail" as const } : null;
+    return canPayOnline(m) && m.kind ? { kind: m.kind } : null;
   })();
   const whatsNext = tripEnded ? [] : buildWhatsNext({
     now,
