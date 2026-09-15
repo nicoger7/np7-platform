@@ -33,6 +33,9 @@ export async function GET(request: NextRequest) {
   const view = searchParams.get("view") || "unmatched"; // unmatched | matched | ignored | all
   const kind = searchParams.get("kind");
   const direction = searchParams.get("direction"); // in | out, by the sign of the amount
+  // Which bank. The account is shared with Squarespace, so most Stripe rows are
+  // not NP7 Experience money at all, and 78 of them sit among 490 Qonto rows.
+  const source = searchParams.get("source"); // qonto | stripe
   const search = (searchParams.get("q") || "").trim();
   const limit = Math.min(Number(searchParams.get("limit") || 200), 500);
 
@@ -58,6 +61,7 @@ export async function GET(request: NextRequest) {
   else if (view === "ignored") q = q.not("ignored_at", "is", null);
 
   if (kind) q = q.eq("kind", kind);
+  if (source) q = q.eq("source", source);
   // "Money out" is every debit, whatever kind it was sorted into: an expense,
   // a fee, an unknown. The page's toggle asks by sign, not by kind.
   if (direction === "in") q = q.gt("amount", 0);

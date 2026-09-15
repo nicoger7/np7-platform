@@ -145,6 +145,19 @@ const DIRECTIONS = [
   { key: "out", label: "Money out" },
 ] as const;
 
+/*
+ * Which bank. Not cosmetic: the Stripe account is shared with Squarespace, so
+ * most of what arrives from it is not Experience money, and the 78 Stripe rows
+ * are otherwise scattered through 490 Qonto ones with nothing but a small grey
+ * badge to tell them apart. "Card" rather than "Stripe" because that is what it
+ * is from where the team sits: Qonto is the transfers, Stripe is the cards.
+ */
+const SOURCES = [
+  { key: "", label: "All banks" },
+  { key: "qonto", label: "Qonto" },
+  { key: "stripe", label: "Stripe" },
+] as const;
+
 const KIND_LABEL: Record<string, string> = {
   income: "Money in",
   expense: "Money out",
@@ -172,6 +185,7 @@ export function BankFeed({ view }: { view: FeedView }) {
   const [count, setCount] = useState(0);
   const [sources, setSources] = useState<{ bank: boolean; stripe: boolean }>({ bank: false, stripe: false });
   const [direction, setDirection] = useState<string>("");
+  const [source, setSource] = useState<string>("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -188,7 +202,7 @@ export function BankFeed({ view }: { view: FeedView }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/bank/transactions?view=${view}&direction=${direction}&q=${encodeURIComponent(search)}`);
+      const res = await fetch(`/api/admin/bank/transactions?view=${view}&direction=${direction}&source=${source}&q=${encodeURIComponent(search)}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Could not load the ledger.");
       setTxs(json.transactions ?? []);
@@ -204,7 +218,7 @@ export function BankFeed({ view }: { view: FeedView }) {
     } finally {
       setLoading(false);
     }
-  }, [view, direction, search]);
+  }, [view, direction, source, search]);
 
   useEffect(() => { const t = setTimeout(load, search ? 300 : 0); return () => clearTimeout(t); }, [load, search]);
 
@@ -339,6 +353,13 @@ export function BankFeed({ view }: { view: FeedView }) {
           {DIRECTIONS.map((d) => (
             <button key={d.key} onClick={() => { setDirection(d.key); setOpenId(null); }} data-on={direction === d.key ? "true" : "false"}>
               {d.label}
+            </button>
+          ))}
+        </div>
+        <div className="fin-seg inline-flex">
+          {SOURCES.map((x) => (
+            <button key={x.key} onClick={() => { setSource(x.key); setOpenId(null); }} data-on={source === x.key ? "true" : "false"}>
+              {x.label}
             </button>
           ))}
         </div>
