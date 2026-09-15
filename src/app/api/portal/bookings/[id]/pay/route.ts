@@ -136,8 +136,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
    * overcharged, which the webhook's refund catches, and if it turns out to be
    * an EEA private card the whole fee comes back.
    */
-  const region = methods.card ? cardRegionFor(where) : "eea";
-  const { fee, total } = methods.card ? cardFee(asked, region) : { fee: 0, total: asked };
+  const region = methods.kind === "card" ? cardRegionFor(where) : "eea";
+  const { fee, total } = methods.kind === "card" ? cardFee(asked, region) : { fee: 0, total: asked };
   const { data: link, error: insErr } = await db.from("exp_payment_links").insert({
     booking_id: id, contact_id: booking.contact_id,
     amount: asked, fee, total, currency, card_region: region,
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
        * is worse but still pays: better a Dutch guest sees a few methods they
        * cannot use than cannot pay at all.
        */
-      ...(methods.card
+      ...(methods.kind === "card"
         ? { paymentMethodTypes: ["card"] }
         : RAILS_CONFIG
           ? { paymentMethodConfiguration: RAILS_CONFIG, excludedPaymentMethodTypes: ["klarna"] }

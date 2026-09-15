@@ -46,8 +46,15 @@ export type EmailVars = {
   recipientName?: string;
   fromName?: string;
   amount?: string;
-  /** Payment reference to quote on a bank transfer (the invoice number). */
+  /** Payment reference to quote on a bank transfer (the invoice number, or the
+   *  one Stripe issued with a guest's own virtual account). */
   reference?: string;
+  /** The account a Stripe bank transfer goes to. Spent on the mail the moment
+   *  Stripe issues it and never stored: it is a virtual account that can be
+   *  rotated, so a stored copy is a stale copy. */
+  iban?: string;
+  bic?: string;
+  accountHolder?: string;
   inviterName?: string;
   rewardFriend?: string;
   personalNote?: string;
@@ -641,6 +648,52 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         // next steps belong here rather than months later.
         whatsNextBlock(v) +
         p(`See you on the water.<br>— Nico &amp; the NP7 team`),
+    }),
+  }),
+
+  /**
+   * The account details, the moment Stripe issues them.
+   *
+   * The guest is looking at this same information on Stripe's page right now
+   * and may close that tab in ten seconds, so this is their copy of it, and it
+   * is the reason this template exists at all. Everything they have to type
+   * into their banking app is a fact row; nothing in it says "paid", "now" or
+   * "confirmed", because none of those has happened yet.
+   */
+  transfer_instructions: (v, opts) => ({
+    subject: `Your bank details for ${v.experienceTitle ?? "your NP7 trip"}${v.amount ? ` — ${v.amount}` : ""}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "The account, the reference and the amount, so you don't have to keep the page open.",
+      bodyHtml:
+        greet(v) +
+        p(`Here are the details for your transfer for <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""}, so you don't have to keep that page open.`) +
+        facts([
+          ["Amount", v.amount],
+          ["Account holder", v.accountHolder],
+          ["IBAN", v.iban],
+          ["BIC", v.bic],
+          ["Reference", v.reference],
+        ]) +
+        p(`Send <strong>exactly that amount</strong>, quoting the reference, and it finds your booking by itself. Most transfers reach us in <strong>one to three working days</strong>, and your spot is held from the moment you send it. There's nothing else for you to do.`) +
+        (v.bookingLink ? emailButton("See my booking", v.bookingLink) : "") +
+        p(`Any questions, just reply to this email.<br>— Nico &amp; the NP7 team`),
+    }),
+  }),
+
+  /** The transfer bounced. They believe they paid and their spot is not held,
+   *  so this is plain about what happened and short about what to do. */
+  transfer_failed: (v, opts) => ({
+    subject: `Your bank transfer for ${v.experienceTitle ?? "your NP7 trip"} didn't go through`,
+    html: emailLayout({
+      ...opts,
+      preheader: "Nothing left your account. Here's how to try again.",
+      bodyHtml:
+        greet(v) +
+        p(`Your bank transfer for <strong>${esc(v.experienceTitle || "your trip")}</strong> didn't go through — our payment provider sent it back rather than taking it.`) +
+        p(`No money has left your account for it, and nothing is lost: open your booking and start the payment again, or use the bank details on your invoice, whichever is easier.`) +
+        (v.bookingLink ? emailButton("Open my booking", v.bookingLink) : "") +
+        p(`If it keeps happening, just reply here and we'll sort it with you.<br>— Nico &amp; the NP7 team`),
     }),
   }),
 

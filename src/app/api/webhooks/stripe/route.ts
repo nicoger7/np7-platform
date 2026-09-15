@@ -13,7 +13,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { generateDocument, settleInvoices } from "@/lib/invoices/generate";
-import { eur, cardForPaymentIntent, refundPaymentIntent } from "@/lib/stripe";
+import { eur, cardForPaymentIntent, refundPaymentIntent, paymentIntentDetails, transferInstructions } from "@/lib/stripe";
+import { recordedAmount, fundsDueBy } from "@/lib/bank-transfer";
 import { feeAllowedOnCard, cardRegionFromCard, cardFee } from "@/lib/card-fee";
 import { publicOrigin } from "@/lib/public-origin";
 import { sumReceived } from "@/lib/payment-totals";
@@ -353,49 +354,106 @@ async function onEventPayment(
   }
 }
 
-// ─── Card payment on request (a link made on the booking page) ───────────────
+// ─── A payment against a link (a card link, or a bank transfer) ──────────────
 
 /**
- * The guest paid a hand-made card link (kind "trip_card"). Record the trip
- * amount on the booking with provenance 'stripe', close the link, bring the
- * booking's paid flags up to date, then let the invoice engine do what it does
- * for any money landing (promote a paid pro-forma, settle invoices). The card
- * fee, if any, stays on the link row: it is not trip revenue.
+ * The guest paid a link: a hand-made card link ("trip_card") or a bank transfer
+ * they started themselves ("trip_transfer"). Record the trip amount on the
+ * booking with provenance 'stripe', close the link, bring the booking's paid
+ * flags up to date, then let the invoice engine do what it does for any money
+ * landing (promote a paid pro-forma, settle invoices). The card fee, if any,
+ * stays on the link row: it is not trip revenue.
+ *
+ * ONE function for both, deliberately. The dedupe on pi_/stripe:pi_, the 23505
+ * handling, the plan recomputation, afterMoneyLanded and the bank-feed linking
+ * encode several bugs already paid for; a second copy for transfers would be a
+ * second place for them to come back. The card-fee tail below is already behind
+ * `if (fee > 0)`, which a transfer can never be, so it costs a transfer nothing.
+ *
+ * This is the ONLY function in this file that may touch exp_payments. The
+ * awaiting and partly-funded handlers below do not import it and must not.
  */
-async function onTripCardPayment(session: Record<string, unknown>, bookingId: string): Promise<void> {
+async function onTripLinkPayment(session: Record<string, unknown>, bookingId: string, eventCreated?: number): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const md = (session["metadata"] as Record<string, string> | null) ?? {};
+  const kind = md["kind"] || "trip_card";
   const paymentIntent = typeof session["payment_intent"] === "string" ? (session["payment_intent"] as string) : null;
   const linkId = md["link_id"] || null;
   if (!paymentIntent || !linkId) {
-    console.error(`[webhook] trip_card for booking ${bookingId} without a payment intent or link id — nothing recorded`);
+    console.error(`[webhook] ${kind} for booking ${bookingId} without a payment intent or link id — nothing recorded`);
     return;
   }
   // The link row is the record of what was asked for; the session metadata is
   // only the key to it. Anyone able to craft a session cannot make this record
   // money on a booking the link does not belong to.
-  const { data: link, error: linkErr } = await db.from("exp_payment_links")
-    .select("id, booking_id, session_id, amount, fee, total, status")
+  let { data: link, error: linkErr } = await db.from("exp_payment_links")
+    .select("id, booking_id, session_id, amount, fee, total, status, method")
     .eq("id", linkId).maybeSingle();
+  if (linkErr) {
+    /* `method` arrives with migration 247, which is applied by hand, so this
+       deploy can land ahead of it. A card link settling real money must not
+       start returning 500 over a missing column: read what has always been
+       there and let the session metadata say what kind of payment it is. */
+    console.error(`[webhook] link read failed for ${linkId}, retrying without the method column:`, linkErr.message ?? linkErr);
+    ({ data: link, error: linkErr } = await db.from("exp_payment_links")
+      .select("id, booking_id, session_id, amount, fee, total, status")
+      .eq("id", linkId).maybeSingle());
+  }
   if (linkErr) throw new Error(`link read failed for ${linkId}: ${linkErr.message ?? linkErr}`);
   if (!link || link.booking_id !== bookingId || (link.session_id && link.session_id !== session["id"])) {
-    console.error(`[webhook] trip_card session ${session["id"]} does not match link ${linkId} on booking ${bookingId} — refused`);
+    console.error(`[webhook] ${kind} session ${session["id"]} does not match link ${linkId} on booking ${bookingId} — refused`);
     return;
   }
-  // What was charged, from the charge: the trip's share is the total less the
-  // fee the link carried. A drift from the link's own amount is logged, but
-  // the money that actually arrived is what gets recorded.
-  const charged = Number(session["amount_total"] ?? 0) / 100;
-  const fee = Number(link.fee ?? 0);
-  const base = Math.round((charged - fee) * 100) / 100;
+  /*
+   * WHAT ARRIVED, not what was asked for.
+   *
+   * On a card the two are the same to the cent. On a transfer they are two
+   * different numbers, because Stripe cannot control what a guest types into
+   * their banking app, so the recorded figure comes from the PaymentIntent's
+   * own amount_received. session.amount_total is the fallback for one case
+   * only, a fetch that failed, where the two are equal by construction: a
+   * customer_balance intent does not succeed until it is fully funded.
+   */
+  const isTransfer = link.method === "transfer" || kind === "trip_transfer";
+  const det = await paymentIntentDetails(paymentIntent);
+  /*
+   * §270a BGB bans a surcharge on a SEPA credit transfer outright, so a
+   * transfer's fee is zero and is forced to zero here rather than trusted. A
+   * fee written onto a transfer row by some future bug would otherwise be
+   * silently deducted from the trip's share, which is the quietest way this can
+   * go wrong.
+   */
+  const fee = isTransfer ? 0 : Number(link.fee ?? 0);
+  if (isTransfer && Number(link.fee ?? 0) !== 0) {
+    console.error(`[webhook] transfer link ${linkId} carries a fee of ${link.fee} — no surcharge may stand on a SEPA transfer (§270a BGB); recording the full amount and ignoring it`);
+  }
+  const base = recordedAmount({
+    amountReceivedCents: det?.amountReceived ?? null,
+    sessionTotalCents: Number(session["amount_total"] ?? 0),
+    feeEur: fee,
+  });
   if (!(base > 0)) {
-    console.error(`[webhook] trip_card ${paymentIntent}: charged ${charged} less fee ${fee} leaves nothing to record — refused`);
+    console.error(`[webhook] ${kind} ${paymentIntent}: nothing to record after a fee of ${fee} — refused`);
     return;
   }
+  // Near-decorative on an instant card charge, and the whole point on a
+  // transfer: the link's amount was a request and this says when it was not met.
   if (Math.abs(base - Number(link.amount)) > 0.01) {
-    console.warn(`[webhook] trip_card ${paymentIntent}: charge nets ${base}, link asked ${link.amount} — recording what arrived`);
+    console.warn(`[webhook] ${kind} ${paymentIntent}: charge nets ${base}, link asked ${link.amount} — recording what arrived`);
   }
+  /*
+   * WHEN it arrived. `new Date()` is honest to the second on a card and drifts
+   * on a transfer: a webhook we 500'd for an hour, or a Stripe retry after an
+   * outage, would stamp a payment days after the money landed — and
+   * settleInvoices() settles oldest-first on the real payment date, so a
+   * drifting date mis-settles invoices. The charge's own date first, then the
+   * event's, then now. Never session.created, which is the day they opened the
+   * checkout and can be three days early.
+   */
+  const landedAt = det?.chargeCreated != null
+    ? new Date(det.chargeCreated * 1000)
+    : eventCreated != null ? new Date(eventCreated * 1000) : new Date();
 
   const { data: booking, error: readErr } = await db.from("exp_bookings")
     .select("id, contact_id, experience_id, status, agreed_price, deposit_received, downpayment_received, final_payment_received, created_at, exp_editions(deposit,date_start), exp_packages(deposit,deposit_refund_days,downpayment_percent,final_days_before)")
@@ -413,23 +471,23 @@ async function onTripCardPayment(session: Record<string, unknown>, bookingId: st
     const { data } = await db.from("exp_payments").select("id, reference, amount").in("reference", [paymentIntent, `stripe:${paymentIntent}`]).limit(2);
     return ((data as { id: string; reference: string; amount: number }[] | null) ?? [])[0] ?? null;
   };
+  const what = isTransfer ? "bank transfer" : "card payment";
   const existing = await findRow();
   if (existing && existing.reference !== paymentIntent && Math.abs(Number(existing.amount) - base) > 0.01) {
     await db.from("exp_payments").update({
       amount: base, provenance: "stripe", method: "stripe",
-      notes: `Stripe card payment · link ${linkId} · connected from the feed at ${Number(existing.amount).toFixed(2)}, corrected to the trip's share${fee > 0 ? `, card fee ${fee.toFixed(2)} charged on top` : ""}`,
+      notes: `Stripe ${what} · link ${linkId} · connected from the feed at ${Number(existing.amount).toFixed(2)}, corrected to the trip's share${fee > 0 ? `, card fee ${fee.toFixed(2)} charged on top` : ""}`,
     }).eq("id", existing.id);
   }
   let paymentId: string | null = existing?.id ?? null;
   if (!paymentId) {
-    const now = new Date();
     const { data: created, error: payErr } = await db.from("exp_payments").insert({
       booking_id: bookingId, contact_id: booking.contact_id, experience_id: booking.experience_id,
       amount: base, type: booking.downpayment_received ? "final" : "downpayment",
       method: "stripe", direction: "revenue", status: "paid", reference: paymentIntent,
-      date: now.toISOString().slice(0, 10), received_at: now.toISOString(), unmatched: false,
+      date: landedAt.toISOString().slice(0, 10), received_at: landedAt.toISOString(), unmatched: false,
       bank_transaction_id: null, provenance: "stripe",
-      notes: `Stripe card payment · link ${linkId} · session ${session["id"] ?? ""}${fee > 0 ? ` · card fee ${fee.toFixed(2)} charged on top, not trip revenue` : ""}`,
+      notes: `Stripe ${what} · link ${linkId} · session ${session["id"] ?? ""}${fee > 0 ? ` · card fee ${fee.toFixed(2)} charged on top, not trip revenue` : ""}`,
     }).select("id").single();
     if (payErr && payErr.code !== "23505") {
       console.error(`[webhook] PAYMENT ROW LOST for booking ${bookingId} (${paymentIntent}):`, payErr.message ?? payErr);
@@ -437,9 +495,20 @@ async function onTripCardPayment(session: Record<string, unknown>, bookingId: st
     }
     paymentId = (created as { id: string } | null)?.id ?? (await findRow())?.id ?? null;
   }
-  await db.from("exp_payment_links")
-    .update({ status: "paid", paid_at: new Date().toISOString(), payment_intent: paymentIntent, ...(paymentId ? { payment_id: paymentId } : {}) })
-    .eq("id", linkId);
+  // `.neq("status","paid")` so paid_at is stamped once and a redelivery cannot
+  // move it. Stripe guarantees neither ordering nor once-only delivery, so
+  // every status write in this file is conditional on the state it comes from.
+  const closeLink = { status: "paid", paid_at: landedAt.toISOString(), payment_intent: paymentIntent, ...(paymentId ? { payment_id: paymentId } : {}) };
+  const { error: closeErr } = await db.from("exp_payment_links")
+    .update({ ...closeLink, amount_received: base + fee })
+    .eq("id", linkId).neq("status", "paid");
+  if (closeErr) {
+    // amount_received arrives with migration 247. A link left open beside a
+    // recorded payment would keep counting as spoken for and block the guest
+    // from paying their balance, so the close must not depend on it.
+    console.error(`[webhook] closing link ${linkId} failed, retrying without amount_received:`, closeErr.message ?? closeErr);
+    await db.from("exp_payment_links").update(closeLink).eq("id", linkId).neq("status", "paid");
+  }
 
   // The Stripe feed imports this same charge as a credit; tie the two now if
   // the feed got there first, and the import ties them if it comes later.
@@ -476,13 +545,29 @@ async function onTripCardPayment(session: Record<string, unknown>, bookingId: st
   const securing = plan.filter((m) => m.kind === "deposit" || m.kind === "downpayment").reduce((n, m) => n + m.amount, 0);
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString(), stripe_payment_intent: paymentIntent };
   const status = String(booking.status ?? "").toLowerCase();
-  if (!booking.downpayment_received && received + 0.01 >= securing) {
-    patch.downpayment_received = true;
-    if (["lead", "reserved", "payment_pending"].includes(status)) patch.status = "confirmed";
-  }
-  if (received + 0.01 >= total) {
-    patch.final_payment_received = true;
-    if (["lead", "reserved", "payment_pending", "confirmed"].includes(status)) patch.status = "paid";
+  /*
+   * A transfer started on Monday can land on Thursday, by which time the
+   * booking may have been cancelled in admin. The money is still recorded —
+   * dropping it on the floor would be far worse — but nothing here resurrects
+   * the booking: whether that transfer is refunded is a human's call under
+   * §651h, not a webhook's. Logged at error level and noted on the link so it
+   * is found rather than discovered.
+   */
+  const closed = status === "cancelled" || status === "lost";
+  if (closed) {
+    console.error(`[webhook] ${kind} ${paymentIntent}: ${base} landed on booking ${bookingId}, which is ${status}. Money recorded, booking NOT reopened — somebody has to decide about a refund.`);
+    await db.from("exp_payment_links")
+      .update({ note: `Money arrived after the booking was ${status}. Recorded, not applied to the booking status.` })
+      .eq("id", linkId);
+  } else {
+    if (!booking.downpayment_received && received + 0.01 >= securing) {
+      patch.downpayment_received = true;
+      if (["lead", "reserved", "payment_pending"].includes(status)) patch.status = "confirmed";
+    }
+    if (received + 0.01 >= total) {
+      patch.final_payment_received = true;
+      if (["lead", "reserved", "payment_pending", "confirmed"].includes(status)) patch.status = "paid";
+    }
   }
   const { error: updErr } = await db.from("exp_bookings").update(patch).eq("id", bookingId);
   if (updErr) throw new Error(`booking update failed for ${bookingId}: ${updErr.message ?? updErr}`);
@@ -546,6 +631,195 @@ async function onTripCardPayment(session: Record<string, unknown>, bookingId: st
   }
 }
 
+// ─── A transfer in flight (no money yet, so no payment row anywhere here) ────
+
+/**
+ * The link row, with the booking and the guest, for a session that names one.
+ * The same three checks onTripLinkPayment makes, because metadata alone is
+ * never trusted with anything: the row must exist, it must belong to the
+ * booking the metadata names, and its session must be this session.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function linkForSession(db: any, session: Record<string, unknown>): Promise<{ link: Record<string, unknown>; bookingId: string } | null> {
+  const md = (session["metadata"] as Record<string, string> | null) ?? {};
+  const linkId = md["link_id"] || null;
+  const bookingId = md["booking_id"] || null;
+  if (!linkId || !bookingId) return null;
+  const { data: link } = await db.from("exp_payment_links")
+    .select("id, booking_id, session_id, amount, fee, status, method, instructions_url, transfer_reference")
+    .eq("id", linkId).maybeSingle();
+  if (!link || link.booking_id !== bookingId || (link.session_id && link.session_id !== session["id"])) {
+    console.error(`[webhook] session ${session["id"]} does not match link ${linkId} on booking ${bookingId} — refused`);
+    return null;
+  }
+  return { link, bookingId };
+}
+
+/** Booking + guest, for the mails below. Null when there is nobody to write to. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function guestForBooking(db: any, bookingId: string) {
+  const { data } = await db.from("exp_bookings")
+    .select("id, contact_id, exp_experiences(title,currency), exp_editions(date_start,date_end), contacts(name,email)")
+    .eq("id", bookingId).maybeSingle();
+  return data ?? null;
+}
+
+/**
+ * The guest submitted the checkout and Stripe issued them an IBAN.
+ *
+ * NO MONEY HAS MOVED. payment_status is 'unpaid', the transfer has not been
+ * sent yet, and recording a payment here would mark a booking confirmed against
+ * money that may never come. So this function does not import exp_payments, does
+ * not select from it and does not write to it, and that is structural rather
+ * than a promise in a comment: the only thing it touches is the link row and the
+ * mail carrying the bank details.
+ *
+ * The bank details are NOT on the session. hosted_instructions_url, the
+ * reference and the IBAN live on the PaymentIntent's next_action, so this is
+ * the one place that must fetch the intent, and it spends the full details on
+ * the mail in the same breath rather than storing them: they are Stripe's
+ * virtual account for that Customer and can be rotated, so a stored copy is a
+ * stale copy waiting to send somebody's money to the wrong place.
+ */
+async function onTransferAwaiting(session: Record<string, unknown>, eventCreated?: number): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const found = await linkForSession(db, session);
+  if (!found) return;
+  const { link, bookingId } = found;
+  const paymentIntent = typeof session["payment_intent"] === "string" ? (session["payment_intent"] as string) : null;
+  if (!paymentIntent) {
+    console.error(`[webhook] trip_transfer ${session["id"]} arrived with no payment intent — the guest has an IBAN we cannot name`);
+    return;
+  }
+
+  const info = await transferInstructions(paymentIntent);
+  if (!info?.hostedInstructionsUrl) {
+    // Loud, because the instructions page IS the promise this feature makes. A
+    // guest who closed the tab has nothing else, and the page below can only
+    // apologise. Never thrown: making Stripe redeliver an event that carries no
+    // money helps nobody.
+    console.error(`[webhook] trip_transfer ${paymentIntent}: could not read the bank instructions from Stripe. The guest has an IBAN we cannot show them again.`);
+  }
+
+  const since = eventCreated != null ? new Date(eventCreated * 1000) : new Date();
+  // open → awaiting only. A redelivered 'completed' arriving after the money
+  // landed would otherwise knock a paid row back to awaiting, where it counts
+  // as spoken for and blocks the guest from paying their balance.
+  const { error: updErr } = await db.from("exp_payment_links").update({
+    status: "awaiting",
+    payment_intent: paymentIntent,
+    awaiting_since: since.toISOString(),
+    funds_due_by: fundsDueBy(since).toISOString(),
+    instructions_url: info?.hostedInstructionsUrl ?? null,
+    transfer_reference: info?.reference ?? null,
+    iban_last4: info?.iban ? String(info.iban).slice(-4) : null,
+  }).eq("id", link.id).eq("status", "open");
+  if (updErr) console.error(`[webhook] trip_transfer ${paymentIntent}: link ${link.id} not marked awaiting:`, updErr.message ?? updErr);
+
+  const booking = await guestForBooking(db, bookingId);
+  const contact = booking?.contacts;
+  if (!contact?.email) return;
+  const currency = (booking?.exp_experiences?.currency as string | null) ?? "EUR";
+  const { sendEmail } = await import("@/lib/email/send");
+  await sendEmail({
+    to: contact.email,
+    templateKey: "transfer_instructions",
+    vars: {
+      firstName: (contact.name ?? "").split(" ")[0] || undefined,
+      experienceTitle: booking?.exp_experiences?.title,
+      dates: fmtEventDates(booking?.exp_editions?.date_start, booking?.exp_editions?.date_end),
+      amount: eur(Number(link.amount) || 0, currency),
+      reference: info?.reference ?? undefined,
+      iban: info?.iban ?? undefined,
+      bic: info?.bic ?? undefined,
+      accountHolder: info?.accountHolder ?? undefined,
+      bookingLink: `${publicOrigin()}/account/bookings/${bookingId}`,
+    },
+    bookingId,
+    contactId: booking?.contact_id,
+    dedupeKey: `transfer_instructions:${link.id}`,
+  }).catch(() => {});
+}
+
+/**
+ * Some of the money arrived, not all of it.
+ *
+ * On customer_balance a PaymentIntent does not succeed until it is fully
+ * funded, so a short transfer fires this and never async_payment_succeeded.
+ * NOTHING is written to exp_payments, and that is correct rather than a
+ * compromise: the funds are sitting in the guest's Stripe cash balance, applied
+ * to nothing, and €1,400 against a €1,440 ask is not revenue. Writing it would
+ * mark the securing payment met on a booking that has not made it.
+ *
+ * So the whole money path is already right without this handler. What it adds
+ * is visibility (the shortfall on the link row) and a mail quoting the SAME
+ * reference, so the top-up funds the same intent. Its absence is not fatal.
+ */
+async function onTransferPartlyFunded(pi: Record<string, unknown>): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const piId = typeof pi["id"] === "string" ? (pi["id"] as string) : null;
+  const md = (pi["metadata"] as Record<string, string> | null) ?? {};
+  // The PI carries its own copy of link_id (payment_intent_data[metadata]),
+  // because a PI-level event has no session on it at all. The lookup by
+  // payment_intent is the fallback for an intent created before that existed,
+  // or one whose awaiting write failed.
+  let link: Record<string, unknown> | null = null;
+  if (md["link_id"]) {
+    const { data } = await db.from("exp_payment_links")
+      .select("id, booking_id, amount, status, method, transfer_reference").eq("id", md["link_id"]).maybeSingle();
+    link = data ?? null;
+  }
+  if (!link && piId) {
+    const { data } = await db.from("exp_payment_links")
+      .select("id, booking_id, amount, status, method, transfer_reference").eq("payment_intent", piId).limit(1);
+    link = ((data as Record<string, unknown>[] | null) ?? [])[0] ?? null;
+  }
+  if (!link) {
+    console.error(`[webhook] partially_funded ${piId ?? "?"} matched no payment link — money is in a cash balance with nothing pointing at it`);
+    return;
+  }
+
+  const receivedCents = Number(pi["amount_received"] ?? 0);
+  const received = Math.round(receivedCents) / 100;
+  const asked = Number(link.amount) || 0;
+  const short = Math.round((asked - received) * 100) / 100;
+  // awaiting or part_funded only: never a paid row, whatever order the events
+  // arrive in.
+  await db.from("exp_payment_links")
+    .update({ status: "part_funded", amount_received: received })
+    .eq("id", link.id).in("status", ["awaiting", "part_funded"]);
+  console.warn(`[webhook] partially_funded ${piId}: ${received} of ${asked} arrived on link ${link.id}, ${short} still short`);
+  if (!(short > 0.01)) return;
+
+  const bookingId = String(link.booking_id);
+  const booking = await guestForBooking(db, bookingId);
+  const contact = booking?.contacts;
+  if (!contact?.email) return;
+  const currency = (booking?.exp_experiences?.currency as string | null) ?? "EUR";
+  const { sendEmail } = await import("@/lib/email/send");
+  await sendEmail({
+    to: contact.email,
+    templateKey: "payment_shortfall_reminder",
+    vars: {
+      firstName: (contact.name ?? "").split(" ")[0] || undefined,
+      experienceTitle: booking?.exp_experiences?.title,
+      dates: fmtEventDates(booking?.exp_editions?.date_start, booking?.exp_editions?.date_end),
+      balance: eur(short, currency),
+      // The SAME reference, so the top-up funds the same intent rather than
+      // starting a second one nobody is watching.
+      reference: (link.transfer_reference as string | null) ?? undefined,
+      bookingLink: `${publicOrigin()}/account/bookings/${bookingId}`,
+    },
+    bookingId,
+    contactId: booking?.contact_id,
+    // Keyed on the amount so a redelivery of the same partial is suppressed and
+    // a genuine SECOND partial, which is a different number, is not.
+    dedupeKey: `transfer_shortfall:${link.id}:${Math.round(receivedCents)}`,
+  }).catch(() => {});
+}
+
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export const dynamic = "force-dynamic";
@@ -575,12 +849,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  let event: { type: string; data: { object: Record<string, unknown> } };
+  let event: { type: string; created?: number; data: { object: Record<string, unknown> } };
   try {
     event = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  /* The event's own timestamp, passed down so a payment is dated when it
+     happened rather than when we got round to it. A retry after an outage can
+     be hours late, and settleInvoices() settles oldest-first on the real
+     payment date, so a drifting date mis-settles invoices. */
+  const eventCreated = typeof event.created === "number" ? event.created : undefined;
 
   // Links in these mails go to the guest, so they name the real site, never
   // the host Stripe happened to call. See lib/public-origin.
@@ -607,9 +886,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         if (kind.startsWith("event_")) {
           // Event tickets (deposit / full / balance) — record + confirm.
           await onEventPayment(session, kind, bookingId);
-        } else if (kind === "trip_card") {
-          // A card link made by hand on the booking page.
-          await onTripCardPayment(session, bookingId);
+        } else if (kind === "trip_card" || kind === "trip_transfer") {
+          /* A card link made by hand on the booking page, or a bank transfer
+             the member started themselves. 'trip_card' stays spelled out so a
+             session created before this deploy still settles.
+             A transfer normally arrives here as async_payment_succeeded, days
+             later. It can also arrive as 'completed' already paid, when the
+             guest has enough left in their Stripe cash balance from an earlier
+             over-transfer for the intent to settle instantly, and that path is
+             correct with no special case: the money is real either way. */
+          await onTripLinkPayment(session, bookingId, eventCreated);
         } else {
           // Trip reserve deposit flow (idempotent).
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -630,6 +916,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         console.error(`[webhook] FAILED to record payment for booking ${bookingId} — returning 500 so Stripe retries:`, err);
         return NextResponse.json({ error: "processing failed, please retry" }, { status: 500 });
       }
+    } else if (bookingId && kind === "trip_transfer" && event.type === "checkout.session.completed") {
+      /*
+       * THE GUEST SUBMITTED AND WAS GIVEN AN IBAN. payment_status is 'unpaid',
+       * the money has not moved, and nothing about it may be recorded as a
+       * payment. What must happen is the opposite of recording: write down the
+       * account details so the guest can find them again, and start the clock.
+       */
+      try {
+        await onTransferAwaiting(session, eventCreated);
+      } catch (err) {
+        console.error(`[webhook] FAILED to note the transfer instructions for booking ${bookingId} — returning 500 so Stripe retries:`, err);
+        return NextResponse.json({ error: "processing failed, please retry" }, { status: 500 });
+      }
     } else if (bookingId) {
       // Not an error — an async method simply hasn't cleared yet. Say so, so a
       // "where is my booking?" an hour after a SEPA payment has an answer in
@@ -640,13 +939,84 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  /*
+   * Some of the transfer arrived, not all of it. A customer_balance intent does
+   * not succeed until it is fully funded, so this is the only signal a short
+   * transfer gives. No payment row is written on this path, which is why its
+   * absence is survivable: confirm the event name in the Stripe dashboard
+   * before relying on it, and nothing else may be made to depend on it.
+   */
+  if (event.type === "payment_intent.partially_funded") {
+    try {
+      await onTransferPartlyFunded(event.data.object);
+    } catch (err) {
+      console.error("[webhook] partially_funded handling failed (no money is at stake here, so not retried):", err);
+    }
+  }
+
+  /*
+   * The checkout URL died unused. Nobody submitted it, so no IBAN was ever
+   * issued and there is nothing anybody could have paid. `.eq("status","open")`
+   * is what keeps this harmless: an awaiting row, whose session has also
+   * expired by then but whose MONEY is still moving, is untouched.
+   */
+  if (event.type === "checkout.session.expired") {
+    const session = event.data.object;
+    const metadata = (session["metadata"] as Record<string, string> | null) ?? {};
+    const linkId = metadata["link_id"];
+    if (linkId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = createAdminClient() as any;
+      await db.from("exp_payment_links")
+        .update({ status: "expired", note: "The checkout link expired before it was used" })
+        .eq("id", linkId).eq("status", "open");
+    }
+  }
+
   // A delayed payment that ultimately bounced. Nothing to undo — the booking
   // was never marked paid — but it must not disappear quietly: the buyer
-  // believes they bought a ticket and their spot is not held.
+  // believes they paid and their spot is not held.
   if (event.type === "checkout.session.async_payment_failed") {
     const session = event.data.object;
     const metadata = (session["metadata"] as Record<string, string> | null) ?? {};
-    console.error(`[webhook] async payment FAILED for booking ${metadata["booking_id"] ?? "?"} — buyer thinks they paid, spot is not held`);
+    const bookingId = metadata["booking_id"] ?? null;
+    const linkId = metadata["link_id"] ?? null;
+    const reason = (session["last_payment_error"] as { message?: string } | null)?.message ?? "the bank did not complete it";
+    console.error(`[webhook] async payment FAILED for booking ${bookingId ?? "?"} — buyer thinks they paid, spot is not held`);
+    if (linkId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = createAdminClient() as any;
+      // Anything but paid: a failure arriving after a late success must never
+      // unwind a row that already has money against it.
+      await db.from("exp_payment_links")
+        .update({ status: "failed", note: `Stripe reported the payment failed: ${String(reason).slice(0, 240)}` })
+        .eq("id", linkId).not("status", "in", "(paid,part_funded)");
+    }
+    if (bookingId && metadata["kind"] === "trip_transfer") {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db = createAdminClient() as any;
+        const booking = await guestForBooking(db, bookingId);
+        const contact = booking?.contacts;
+        if (contact?.email) {
+          const { sendEmail } = await import("@/lib/email/send");
+          await sendEmail({
+            to: contact.email,
+            templateKey: "transfer_failed",
+            vars: {
+              firstName: (contact.name ?? "").split(" ")[0] || undefined,
+              experienceTitle: booking?.exp_experiences?.title,
+              bookingLink: `${origin}/account/bookings/${bookingId}`,
+            },
+            bookingId,
+            contactId: booking?.contact_id,
+            dedupeKey: `transfer_failed:${linkId ?? bookingId}`,
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.warn("[webhook] could not mail the failed transfer (non-fatal):", err);
+      }
+    }
   }
 
   return NextResponse.json({ received: true });

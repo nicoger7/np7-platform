@@ -110,6 +110,17 @@ function confirmedAddonsSum(rows: any[]): number {
     .reduce((s, a) => s + (Number(a.price) || 0), 0);
 }
 
+/** The bank details Stripe showed this guest, as the trip page needs to show
+ *  them again. No IBAN: the row keeps only the last four, which is enough to
+ *  recognise the account on a statement and useless to anybody else. */
+export type TransferInFlight = {
+  amount: number;
+  reference: string | null;
+  ibanLast4: string | null;
+  instructionsUrl: string | null;
+  since: string | null;
+};
+
 export type BookingPaymentInputs = {
   /** The package's payment config; null when the row predates it (engine defaults apply). */
   cfg: PackagePaymentConfig | null;
@@ -117,9 +128,14 @@ export type BookingPaymentInputs = {
   settledStages: { deposit: number; downpayment: number };
   /** What a payer's plan carries on top of their own trip (group bookings, migration 198). */
   coveredExtra: number;
+  /** Σ of bank transfers the guest has started and Stripe has not confirmed.
+   *  Never added to `paid`: it is not in the bank and not in exp_payments. */
+  inFlight: number;
+  /** The newest one, for the panel that tells them where they stand. */
+  transfer: TransferInFlight | null;
 };
 
-const EMPTY_PAYMENT_INPUTS = (): BookingPaymentInputs => ({ cfg: null, settledStages: { deposit: 0, downpayment: 0 }, coveredExtra: 0 });
+const EMPTY_PAYMENT_INPUTS = (): BookingPaymentInputs => ({ cfg: null, settledStages: { deposit: 0, downpayment: 0 }, coveredExtra: 0, inFlight: 0, transfer: null });
 
 /**
  * The rows a payment plan needs that the booking row does not carry, for a
@@ -136,13 +152,20 @@ export async function getBookingPaymentInputs(bookingIds: string[]): Promise<Map
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   try {
-    const [pkgRes, docRes, coveredRes] = await Promise.all([
+    const [pkgRes, docRes, coveredRes, flightRes] = await Promise.all([
       db.from("exp_bookings").select("id, exp_packages(deposit,downpayment_percent,final_days_before,deposit_refund_days)").in("id", bookingIds),
       // Settled stage invoices are the agreement: once a down-payment invoice is
       // paid, the percentage formula must stop second-guessing it.
       db.from("documents").select("booking_id, type, amount").in("booking_id", bookingIds)
         .eq("status", "issued").not("paid_at", "is", null).in("type", ["deposit_invoice", "downpayment_invoice"]),
       db.from("exp_bookings").select("id, covered_by_booking_id, agreed_price").in("covered_by_booking_id", bookingIds),
+      // Bank transfers the guest has started and Stripe has not confirmed. They
+      // are NOT money received — that stays the ledger's job — but a page that
+      // ignores them shouts "Secure your spot" at somebody who sent it last
+      // night, which reads as "we lost your money".
+      db.from("exp_payment_links")
+        .select("booking_id, amount, amount_received, transfer_reference, iban_last4, instructions_url, awaiting_since")
+        .in("booking_id", bookingIds).in("status", ["awaiting", "part_funded"]),
     ]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const r of (pkgRes.data ?? []) as any[]) {
@@ -155,6 +178,22 @@ export async function getBookingPaymentInputs(bookingIds: string[]): Promise<Map
       if (!e) continue;
       if (d.type === "deposit_invoice") e.settledStages.deposit += Number(d.amount) || 0;
       if (d.type === "downpayment_invoice") e.settledStages.downpayment += Number(d.amount) || 0;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const l of (flightRes.data ?? []) as any[]) {
+      const e = out.get(l.booking_id);
+      if (!e) continue;
+      e.inFlight += Number(l.amount) || 0;
+      // Newest wins, so the panel names the transfer they most recently started.
+      if (!e.transfer || String(l.awaiting_since ?? "") > String(e.transfer.since ?? "")) {
+        e.transfer = {
+          amount: Number(l.amount) || 0,
+          reference: l.transfer_reference ?? null,
+          ibanLast4: l.iban_last4 ?? null,
+          instructionsUrl: l.instructions_url ?? null,
+          since: l.awaiting_since ?? null,
+        };
+      }
     }
     // A covered guest's price and add-ons run through the payer's plan: the
     // same sum getCoveredBookings (lib/group-booking) makes for one payer.
@@ -196,6 +235,7 @@ export async function getPaymentSteps(bookings: MemberBooking[]): Promise<Map<st
       cfg: i.cfg,
       settledStages: i.settledStages,
       coveredByBookingId: b.covered_by_booking_id,
+      inFlight: i.inFlight,
     }).step);
   }
   return out;

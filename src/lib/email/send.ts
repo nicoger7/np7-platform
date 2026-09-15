@@ -54,7 +54,13 @@ type SendResult = { status: "sent" | "failed" | "skipped"; id?: string; error?: 
 // team_invite belongs with the other two at the front of this list: it is how a
 // colleague signs in for the first time, not customer lifecycle mail. Left off,
 // the invite silently does nothing wherever EMAIL_LIFECYCLE_LIVE is unset.
-const SOFT_LAUNCH_ALLOWED = new Set(["account_magic_link", "team_invite", "password_reset", "reservation_received", "trip_invite", "group_spot_covered", "voucher_purchased", "voucher_gift", "cancellation_confirmed", "invoice_sent", "payment_shortfall_reminder", "withdrawal_received", "skills_verified"]);
+// transfer_instructions and transfer_failed belong on this list for the same
+// reason invoice_sent and withdrawal_received do: the guest's own action fires
+// them and they carry no automated lifecycle data. Left off, the mail carrying
+// somebody's IBAN is silently suppressed wherever EMAIL_LIFECYCLE_LIVE is
+// unset, and their only copy of their bank details is the browser tab they are
+// looking at.
+const SOFT_LAUNCH_ALLOWED = new Set(["account_magic_link", "team_invite", "password_reset", "reservation_received", "trip_invite", "group_spot_covered", "voucher_purchased", "voucher_gift", "cancellation_confirmed", "invoice_sent", "payment_shortfall_reminder", "transfer_instructions", "transfer_failed", "withdrawal_received", "skills_verified"]);
 function lifecycleSuppressed(templateKey: string): boolean {
   const live = process.env.EMAIL_LIFECYCLE_LIVE === "true" || process.env.EMAIL_LIFECYCLE_LIVE === "1";
   return !live && !SOFT_LAUNCH_ALLOWED.has(templateKey);

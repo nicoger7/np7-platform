@@ -44,6 +44,8 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   invoice_sent: "Your invoice for {{experienceTitle}}{{?amount}} — {{amount}}{{/amount}}",
   credit_note_sent: "Correction to your invoice {{originalReference}} · {{experienceTitle}}",
   payment_shortfall_reminder: "Almost there — a little left on {{experienceTitle}} 🌊",
+  transfer_instructions: "Your bank details for {{experienceTitle}} — {{amount}}",
+  transfer_failed: "Your bank transfer for {{experienceTitle}} didn't go through",
   tier_expiry_reminder: "Your {{tierLabel}} status runs out{{?validUntilLabel}} on {{validUntilLabel}}{{/validUntilLabel}}",
   crew_forming: "Your crew for {{experienceTitle}} is coming together 🤙",
   guide_ready: "Your training guide — {{experienceTitle}} 🤙",
@@ -296,6 +298,26 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("Nothing is due on this document.") +
     BTN("View my booking", "bookingLink") +
     P("Any questions, just reply. Happy to help." + SIGN),
+
+  // The guest has JUST been given an IBAN on screen and may close that tab in
+  // ten seconds. This mail is their copy of it, so every fact they need to type
+  // into their banking app is in it, and nothing in it says "paid" or "now".
+  transfer_instructions:
+    P("Hey {{firstName}} 🤙") +
+    P("Here are the details for your transfer for <strong>{{experienceTitle}}</strong>{{?dates}} ({{dates}}){{/dates}}, so you don't have to keep that page open.") +
+    P("<strong>Amount:</strong> {{amount}}{{?accountHolder}}<br><strong>Account holder:</strong> {{accountHolder}}{{/accountHolder}}{{?iban}}<br><strong>IBAN:</strong> {{iban}}{{/iban}}{{?bic}}<br><strong>BIC:</strong> {{bic}}{{/bic}}{{?reference}}<br><strong>Reference:</strong> {{reference}}{{/reference}}") +
+    P("Send exactly that amount, quoting the reference, and it finds your booking by itself. Most transfers reach us in <strong>one to three working days</strong>, and your spot is held from the moment you send it. There is nothing else for you to do.") +
+    BTN("See my booking", "bookingLink") +
+    P("Any questions, just reply to this email." + SIGN),
+
+  // Not a dunning letter. They think they paid, and the spot is not held, so
+  // this says what happened plainly and gives them the way back.
+  transfer_failed:
+    P("Hey {{firstName}} 🤙") +
+    P("Your bank transfer for <strong>{{experienceTitle}}</strong> didn't go through — our payment provider sent it back rather than taking it.") +
+    P("No money has left your account for it, and nothing is lost: open your booking and start the payment again, or use the bank details on your invoice, whichever is easier.") +
+    BTN("Open my booking", "bookingLink") +
+    P("If it keeps happening, just reply here and we'll sort it with you." + SIGN),
 
   payment_shortfall_reminder:
     P("Hey {{firstName}} 🤙") +
