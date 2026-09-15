@@ -78,6 +78,31 @@ export function feeAllowedOnCard(card: { country?: string | null; brand?: string
 }
 
 /**
+ * Which band the card ACTUALLY used belongs to, read after the fact.
+ *
+ * The band is picked before anyone has seen the card, from where we believe the
+ * guest is, so it can be too dear: a guest with a US phone paying with a UK
+ * card was quoted 3.15 % on a card that costs 2.5 %. §312a Abs. 4 BGB lets a
+ * surcharge stand only up to what it actually cost, so the difference has to go
+ * back. Returns null when the card cannot be identified, where the caller
+ * should refund the whole fee rather than guess.
+ *
+ * Amex and Diners first: they are three-party schemes, outside the interchange
+ * cap and outside §270a, so their own band applies wherever they were issued.
+ * A commercial EEA card is NOT detectable here (Stripe reports funding as
+ * credit, debit or prepaid, never "business"), so an EEA card of any kind lands
+ * in the protected band and gets its fee back in full. That is the safe way to
+ * be wrong.
+ */
+export function cardRegionFromCard(card: { country?: string | null; brand?: string | null } | null): CardRegion | null {
+  if (!card?.country) return null;
+  if (THREE_PARTY.has(String(card.brand ?? "").toLowerCase())) return "amex";
+  const iso = String(card.country).toUpperCase();
+  if (EEA.has(iso)) return "eea";
+  return iso === "GB" ? "uk" : "intl";
+}
+
+/**
  * The fee for a card family, grossed up: Stripe charges pct + fixed on the
  * TOTAL the guest pays, so total = (amount + fixed) / (1 − pct) leaves exactly
  * `amount` for the trip. Zero where a surcharge is not allowed.

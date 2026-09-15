@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { generateDocument, settleInvoices } from "@/lib/invoices/generate";
 import { eur, cardForPaymentIntent, refundPaymentIntent } from "@/lib/stripe";
-import { feeAllowedOnCard } from "@/lib/card-fee";
+import { feeAllowedOnCard, cardRegionFromCard, cardFee } from "@/lib/card-fee";
 import { publicOrigin } from "@/lib/public-origin";
 import { sumReceived } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
@@ -517,6 +517,28 @@ async function onTripCardPayment(session: Record<string, unknown>, bookingId: st
           fee_refund_reason: res.ok ? why : `Refund of the ${fee.toFixed(2)} fee FAILED (${res.error ?? "unknown"}), ${why}. Refund it by hand in Stripe.`,
         }).eq("id", linkId);
         console.warn(`[webhook] card fee ${fee.toFixed(2)} on ${paymentIntent}: ${res.ok ? "refunded" : "REFUND FAILED"}, ${why}`);
+      } else {
+        /*
+         * A fee that MAY stand can still be too big. The band was chosen from
+         * where we think the guest is, not from the card, so a guest with a US
+         * phone paying with a UK card was quoted 3.15 % on a card that costs
+         * 2.5 %. §312a Abs. 4 BGB allows the surcharge only up to what it
+         * actually cost, so the excess goes back. Only ever downwards: a card
+         * dearer than we quoted is NP7's own misjudgement to carry, never
+         * something to bill afterwards.
+         */
+        const actual = cardRegionFromCard(card);
+        const owed = actual ? cardFee(base, actual).fee : fee;
+        const excess = Math.round((fee - owed) * 100) / 100;
+        if (excess >= 0.01) {
+          const why = `${card?.brand ?? "card"} issued in ${card?.country}: the ${actual} band costs ${owed.toFixed(2)}, ${fee.toFixed(2)} was charged, so ${excess.toFixed(2)} was above cost (§312a Abs. 4 BGB)`;
+          const res = await refundPaymentIntent(paymentIntent, Math.round(excess * 100));
+          await db.from("exp_payment_links").update({
+            fee_refunded_at: res.ok ? new Date().toISOString() : null,
+            fee_refund_reason: res.ok ? why : `Partial refund of ${excess.toFixed(2)} FAILED (${res.error ?? "unknown"}), ${why}. Refund it by hand in Stripe.`,
+          }).eq("id", linkId);
+          console.warn(`[webhook] card fee excess ${excess.toFixed(2)} on ${paymentIntent}: ${res.ok ? "refunded" : "REFUND FAILED"}, ${why}`);
+        }
       }
     } catch (e) {
       console.error("[webhook] card fee check failed (payment is recorded, fee not checked):", e instanceof Error ? e.message : e);
