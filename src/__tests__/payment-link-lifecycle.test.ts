@@ -10,7 +10,7 @@
  * is overpaid and somebody has to refund it by hand.
  */
 import { describe, it, expect } from "vitest";
-import { classifyLinks, sweepableLinks, isInFlight, type LinkRow } from "@/lib/bank-transfer";
+import { classifyLinks, sweepableLinks, isInFlight, canSayNotSent, type LinkRow } from "@/lib/bank-transfer";
 
 const NOW = new Date("2026-09-20T12:00:00Z").getTime();
 const hoursFromNow = (h: number) => new Date(NOW + h * 3600_000).toISOString();
@@ -190,5 +190,73 @@ describe("a short transfer claims only what is still missing", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ] as any;
     expect(sweepableLinks(rows, Date.now()).map((l: { id: string }) => l.id)).toEqual(["empty"]);
+  });
+});
+
+/**
+ * "I have not sent this yet": the escape hatch out of an awaiting row, and the
+ * three rows it must refuse.
+ *
+ * The dead end: press Pay by bank transfer, read the IBAN, send nothing. The
+ * row counts as spoken for, the trip page says "your transfer is on its way",
+ * and every Pay button is gone for the fourteen days funds_due_by takes to
+ * sweep it. These pin who may say it and, more importantly, who may not.
+ */
+describe("who may say they never sent it", () => {
+  const awaiting = (over: Partial<LinkRow> = {}) =>
+    row({ id: "t", status: "awaiting", created_by: "member", amount_received: 0, ...over });
+
+  it("the guest's own transfer, awaiting, with nothing against it", () => {
+    expect(canSayNotSent(awaiting())).toEqual({ ok: true });
+  });
+
+  it("not a part-funded row: that row is the only record of the money on it", () => {
+    expect(canSayNotSent(awaiting({ status: "part_funded", amount_received: 1400 })))
+      .toEqual({ ok: false, reason: "already-arrived" });
+  });
+
+  it("not a row with money against it whatever its status says", () => {
+    // The money decides, not the label: a webhook mid-write can leave an
+    // awaiting row carrying a real amount, and cancelling that erases it.
+    expect(canSayNotSent(awaiting({ amount_received: 0.5 })))
+      .toEqual({ ok: false, reason: "already-arrived" });
+  });
+
+  it("not a transfer somebody at NP7 set up and sent them", () => {
+    expect(canSayNotSent(awaiting({ created_by: "admin" })))
+      .toEqual({ ok: false, reason: "not-theirs" });
+  });
+
+  it("not an open checkout: no IBAN was ever issued, so there is nothing to back out of", () => {
+    expect(canSayNotSent(awaiting({ status: "open" })))
+      .toEqual({ ok: false, reason: "not-waiting" });
+  });
+
+  it("not a row that is already finished with", () => {
+    for (const status of ["paid", "cancelled", "expired", "failed"]) {
+      expect(canSayNotSent(awaiting({ status })), status).toEqual({ ok: false, reason: "not-waiting" });
+    }
+  });
+
+  it("not a row that is not there", () => {
+    expect(canSayNotSent(null)).toEqual({ ok: false, reason: "missing" });
+    expect(canSayNotSent(undefined)).toEqual({ ok: false, reason: "missing" });
+  });
+
+  it("and saying it hands the guest their Pay button back", () => {
+    const rows = [awaiting({ amount: 1440 })];
+    expect(classifyLinks(rows, NOW).spokenFor).toBe(1440);
+    // What the route writes: status cancelled, and nothing at Stripe.
+    const after = rows.map((l) => ({ ...l, status: "cancelled" }));
+    expect(classifyLinks(after, NOW).spokenFor).toBe(0);
+    expect(sweepableLinks(after, NOW)).toHaveLength(0);
+  });
+
+  it("leaves a part-funded guest where they already were, which is not stuck", () => {
+    // They were never locked out: only the REMAINDER is claimed, so the 40 they
+    // are short is askable today. Refusing them costs them nothing.
+    const part = [awaiting({ status: "part_funded", amount: 1440, amount_received: 1400 })];
+    expect(canSayNotSent(part[0]).ok).toBe(false);
+    expect(classifyLinks(part, NOW).spokenFor).toBeCloseTo(40, 2);
   });
 });

@@ -16,11 +16,17 @@
  * the full IBAN is deliberately absent — the last four are enough to recognise
  * the account on a statement, and the real details live on Stripe's own
  * instructions page and in the email, which cannot go stale.
+ *
+ * The one exception is the escape hatch at the bottom, which has to talk to the
+ * server, so it is its own client leaf (NotSent) the way PayNow is: this panel
+ * stays a server component that only renders what it is handed.
  */
+import { NotSent } from "@/components/portal/not-sent";
+
 const money = (n: number, currency = "EUR") =>
   new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
 
-export function TransferPending({ amount, currency = "EUR", reference, ibanLast4, instructionsUrl }: {
+export function TransferPending({ amount, currency = "EUR", reference, ibanLast4, instructionsUrl, bookingId, linkId }: {
   amount: number;
   currency?: string;
   /** What Stripe told them to quote. Without it we cannot promise a match. */
@@ -28,6 +34,14 @@ export function TransferPending({ amount, currency = "EUR", reference, ibanLast4
   ibanLast4?: string | null;
   /** Stripe's hosted instructions page, where the real account details live. */
   instructionsUrl?: string | null;
+  /**
+   * The row this panel is about, when the guest is allowed to tell us they
+   * never sent it (canSayNotSent, lib/bank-transfer). Null on a transfer
+   * somebody at NP7 set up, and on one that money has already arrived against:
+   * that row is the only record of the money, so it stays exactly where it is.
+   */
+  bookingId?: string | null;
+  linkId?: string | null;
 }) {
   if (!(amount > 0)) return null;
   return (
@@ -54,6 +68,11 @@ export function TransferPending({ amount, currency = "EUR", reference, ibanLast4
       <p className="text-[12px] text-[#a08a5c] leading-snug mt-2">
         We credit whatever arrives. If it&apos;s less than the amount above, your plan below will show what&apos;s left.
       </p>
+      {/* Last, and quiet. This panel exists for the guest whose money IS on its
+          way, and the great majority of them need reassurance rather than a
+          way out. The one who never sent it needs this more than anything else
+          on the card, so it is present, plainly worded and never a shout. */}
+      {bookingId && linkId && <NotSent bookingId={bookingId} linkId={linkId} />}
     </div>
   );
 }

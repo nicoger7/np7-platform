@@ -919,11 +919,23 @@ async function onTransferPartlyFunded(pi: Record<string, unknown>): Promise<void
   const received = Math.round(receivedCents) / 100;
   const asked = Number(link.amount) || 0;
   const short = Math.round((asked - received) * 100) / 100;
-  // awaiting or part_funded only: never a paid row, whatever order the events
-  // arrive in.
+  /*
+   * CANCELLED belongs in this list, and leaving it out lost real money.
+   *
+   * A guest who mistypes 140 for 1,440 and then presses "I haven't sent this
+   * yet" leaves a cancelled row, and their 140 arrives a day later. Filtering
+   * it out meant amount_received was never written, so the only record the
+   * platform keeps of a short transfer did not exist, and the guest was then
+   * emailed a shortfall notice about money we had not recorded at all.
+   *
+   * Money that arrived is money that arrived. The row is reopened to
+   * part_funded so it is visible, counted and swept like any other, exactly as
+   * linkForSession already ignores status on the full-funding path. Only a PAID
+   * row is still refused, whatever order the events arrive in.
+   */
   await db.from("exp_payment_links")
     .update({ status: "part_funded", amount_received: received })
-    .eq("id", link.id).in("status", ["awaiting", "part_funded"]);
+    .eq("id", link.id).in("status", ["awaiting", "part_funded", "cancelled", "expired"]);
   console.warn(`[webhook] partially_funded ${piId}: ${received} of ${asked} arrived on link ${link.id}, ${short} still short`);
   if (!(short > 0.01)) return;
 

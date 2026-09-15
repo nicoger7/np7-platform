@@ -156,6 +156,12 @@ export default async function BookingDetail({ params }: Props) {
      that matters to a guest: a PART transfer leaves money genuinely owed and
      the page must go on asking for it. */
   const awaitingTransfer = step.kind === "awaiting";
+  /* Whether the page is genuinely asking THIS guest for money, read from the
+     same step the hero reads so the two cards stacked on each other can never
+     disagree. "awaiting" is its own kind, so a transfer already on its way is
+     out by construction; a covered group guest is "none", so their payer's
+     due milestones never dun them. */
+  const asking = step.kind === "secure" || step.kind === "balance" || step.kind === "pending";
   // Same rule the confirmation document uses, so the tab label and the document
   // it opens can never disagree.
   const secured = isSecured(b);
@@ -244,6 +250,7 @@ export default async function BookingDetail({ params }: Props) {
     timingBefore: (timing as { before: Record<string, number | null | undefined> }).before ?? {},
     whatsappLink: b.edition?.whatsapp_group_link ?? null,
     joinedGroup: !!b.wa_group,
+    asking,
     money: (n) => money(n, cur) ?? String(n),
   });
   /* The day the "Final details" mail really lands, taken from the same
@@ -556,6 +563,13 @@ export default async function BookingDetail({ params }: Props) {
                 reference={payInputs.transfer.reference}
                 ibanLast4={payInputs.transfer.ibanLast4}
                 instructionsUrl={payInputs.transfer.instructionsUrl}
+                /* The way out, for the guest who pressed Pay, read the account
+                   number and never sent anything. Withheld from an admin
+                   preview for the same reason the Pay button is: the route
+                   refuses to act in the member's name, and a button that can
+                   only fail is worse than no button. */
+                bookingId={payInputs.transfer.canSayNotSent && !user.preview ? b.id : null}
+                linkId={payInputs.transfer.canSayNotSent && !user.preview ? payInputs.transfer.id : null}
               />
             : null}
           /* And no button beside it while the whole of what is due is already
@@ -911,7 +925,8 @@ export default async function BookingDetail({ params }: Props) {
             hero={!tripEnded ? (
               <>
                 <NextStepHero {...hero} />
-                <WhatsNext steps={whatsNext} contact={{ email: contactRow?.email ?? null, phone: contactRow?.phone ?? null }} />
+                <WhatsNext steps={whatsNext} contact={{ email: contactRow?.email ?? null, phone: contactRow?.phone ?? null }}
+                  asking={asking} awaitingTransfer={awaitingTransfer} />
               </>
             ) : guides.length > 0 ? (
               <GuideCard guide={guides[0]} unread={!guides[0].openedAt} />

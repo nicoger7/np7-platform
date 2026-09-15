@@ -12,6 +12,7 @@ import { buildProgression, type CatalogSkill, type Achievement, type Progression
 import { sumReceived } from "@/lib/payment-totals";
 import type { PackagePaymentConfig } from "@/lib/payments";
 import { paymentPicture, type PaymentStep } from "@/lib/portal-next-step";
+import { canSayNotSent, type LinkRow } from "@/lib/bank-transfer";
 
 /* Server-only data access for the member portal. Always scoped to the
    member's own contactId (the caller verifies the session first). */
@@ -119,6 +120,12 @@ export type TransferInFlight = {
   ibanLast4: string | null;
   instructionsUrl: string | null;
   since: string | null;
+  /** The row itself, so the guest can tell us they never sent this one. */
+  id: string;
+  /** Whether they may: their own row, still awaiting, nothing arrived against
+   *  it. Decided by canSayNotSent so the panel and the route that acts on it
+   *  cannot drift apart about which transfers may be put back. */
+  canSayNotSent: boolean;
 };
 
 export type BookingPaymentInputs = {
@@ -164,7 +171,7 @@ export async function getBookingPaymentInputs(bookingIds: string[]): Promise<Map
       // ignores them shouts "Secure your spot" at somebody who sent it last
       // night, which reads as "we lost your money".
       db.from("exp_payment_links")
-        .select("booking_id, amount, amount_received, transfer_reference, iban_last4, instructions_url, awaiting_since")
+        .select("id, booking_id, amount, amount_received, transfer_reference, iban_last4, instructions_url, awaiting_since, status, created_by")
         .in("booking_id", bookingIds).in("status", ["awaiting", "part_funded"]),
     ]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -195,6 +202,8 @@ export async function getBookingPaymentInputs(bookingIds: string[]): Promise<Map
           ibanLast4: l.iban_last4 ?? null,
           instructionsUrl: l.instructions_url ?? null,
           since: l.awaiting_since ?? null,
+          id: String(l.id),
+          canSayNotSent: canSayNotSent(l as LinkRow).ok,
         };
       }
     }

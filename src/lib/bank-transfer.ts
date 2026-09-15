@@ -240,3 +240,51 @@ export function sweepableLinks(rows: LinkRow[] | null | undefined, now: number =
 export function fundsDueBy(awaitingSince: Date, days: number = TRANSFER_DUE_DAYS): Date {
   return new Date(awaitingSince.getTime() + days * 86_400_000);
 }
+
+export type NotSentVerdict =
+  | { ok: true }
+  | { ok: false; reason: "missing" | "not-theirs" | "already-arrived" | "not-waiting" };
+
+/**
+ * "I have not sent this yet": whether the guest may say it about this row.
+ *
+ * THE HOLE IT CLOSES. Press Pay by bank transfer, read the IBAN, then don't
+ * send the money: the row sits at `awaiting`, classifyLinks counts the whole
+ * ask as spoken for, and paymentPicture turns the ask into "your transfer is on
+ * its way". Every Pay button disappears until funds_due_by sweeps the row, and
+ * that is fourteen days away. A guest who changed their mind, mistyped the
+ * amount, or would rather use a card is locked out of paying us at all.
+ *
+ * WHY IT IS SAFE, AND THE ONE THING THAT MUST NOT CHANGE. Saying this cancels
+ * the ROW and never the PaymentIntent, so the IBAN stays live and money that
+ * turns up later is still recorded: the webhook's linkForSession validates that
+ * the link exists, belongs to the booking and matches the session, and
+ * deliberately does NOT look at status. Teach it to refuse a cancelled link and
+ * this feature becomes a way for a guest to lose their own money. Status gates
+ * whether we OFFER a payment. It never gates whether we RECORD one.
+ *
+ * `awaiting` only, and never a row with money against it:
+ *
+ *  · open:        a checkout nobody submitted, so Stripe has issued no IBAN
+ *                  and there is nothing to back out of. The pay route already
+ *                  expires and replaces those on the next press.
+ *  · part_funded: real money arrived, and amount_received on this row is the
+ *                  ONLY record the platform keeps of it, which is the same
+ *                  reason sweepableLinks refuses to touch one. Nor is that
+ *                  guest stuck: classifyLinks claims only the REMAINDER, so
+ *                  their Pay button is already back for the shortfall.
+ *  · paid / cancelled / expired: nothing left to give back.
+ *
+ * created_by must be the member's own. An admin's transfer was set up and sent
+ * by somebody at NP7, possibly against an agreement made by mail, and is not
+ * something to undo from a trip page.
+ */
+export function canSayNotSent(l: LinkRow | null | undefined): NotSentVerdict {
+  if (!l) return { ok: false, reason: "missing" };
+  if (l.created_by !== "member") return { ok: false, reason: "not-theirs" };
+  // Belt and braces on the status: a row carrying money is a part-funded row
+  // whatever its status column says, and the money decides, not the label.
+  if (l.status === "part_funded" || Number(l.amount_received) > 0) return { ok: false, reason: "already-arrived" };
+  if (l.status !== "awaiting") return { ok: false, reason: "not-waiting" };
+  return { ok: true };
+}
