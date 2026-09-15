@@ -508,7 +508,14 @@ export default async function BookingDetail({ params }: Props) {
           /* The amount the plan says is due now, not the whole balance: a
              member paying their securing payment should not be asked for the
              trip. A covered guest and a clinic have their own routes. */
-          pay={!isEvent && !b.covered_by_booking_id && dueNow > 0
+          /* payMethods belongs in THIS condition, not only inside PayNow.
+             PayNow returning null still handed PaymentPlan a real element, so
+             the element was truthy, the button was invisible, and the line
+             underneath cheerfully said "Pay online above" to a German guest
+             with nothing above it. Whether there is a button is a fact about
+             the guest's country, so it is decided here, once, where both the
+             button and the sentence can see it. */
+          pay={!isEvent && !b.covered_by_booking_id && dueNow > 0 && payMethods
             ? <PayNow
                 bookingId={b.id}
                 amount={Math.min(dueNow, Math.max(0, (total ?? 0) - paid))}
