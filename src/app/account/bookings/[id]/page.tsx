@@ -525,12 +525,21 @@ export default async function BookingDetail({ params }: Props) {
         />
       </div>
       {/* How to pay + the invoice/pro-forma (with the bank details & reference)
-          right where the money is — not buried in a separate documents tab. */}
+          right where the money is, not buried in a separate documents tab.
+          It used to say "Pay by bank transfer" unconditionally, directly under
+          a working Pay button and under a line that already offered both, so a
+          guest with an instant rail read three payment instructions in a row,
+          the last of which ignored the button above it. It is now the heading
+          for whichever route is actually theirs. */}
       <div className="mt-4 pt-4 border-t border-[#f3ede2]">
         {!tripEnded && paid < (total ?? 0) && (
           <>
             <p className="text-[13px] font-bold text-[#00374a]">How to pay</p>
-            <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-0.5">Pay by <strong className="text-[#00374a]">bank transfer</strong> using the account details and payment reference printed on your invoice below — no need to wait for our email. Send it any time before the due date; we mark it here once it lands.</p>
+            <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-0.5">
+              {payMethods
+                ? <>Use the button above, or pay by <strong className="text-[#00374a]">bank transfer</strong> with the account details and payment reference printed on your invoice below. Either way, send it before the due date and we mark it here once it lands.</>
+                : <>Pay by <strong className="text-[#00374a]">bank transfer</strong> using the account details and payment reference printed on your invoice below, no need to wait for our email. Send it any time before the due date; we mark it here once it lands.</>}
+            </p>
           </>
         )}
         <MemberDocuments bookingId={b.id} />

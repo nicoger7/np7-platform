@@ -97,7 +97,13 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
       {preview && <p className="text-[12px] text-[#7d8b91] mt-2">Paying is disabled while you are looking at this as the member.</p>}
       <p className="text-[12px] text-[#7d8b91] mt-2">
         {refundableUntil ? (all ? <>Either way, the first {fmt(amount)} stays refundable until {refundableUntil}. </> : <>Refundable until {refundableUntil}. </>) : null}
-        Straight from your own bank: iDEAL, Wero, Bancontact, whichever yours is. Or ignore this and transfer from your invoice, both land in the same place.
+        {/* Deliberately NOT a list of method names. It said "iDEAL, Wero,
+            Bancontact" to every guest on earth, including an Austrian who has
+            EPS and a Pole who has BLIK, and it would have gone on saying it as
+            the list changes. Stripe shows each guest the ones their own bank
+            supports, so the honest sentence is the one that describes what
+            happens rather than naming what they will see. */}
+        Straight from your own bank, no fee. Or ignore this and transfer from your invoice, both land in the same place.
       </p>
       {error && <p className="text-[12.5px] text-[#b4472a] mt-2">{error}</p>}
     </div>
