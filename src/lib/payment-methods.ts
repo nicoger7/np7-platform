@@ -112,9 +112,17 @@ export function guestCountry(c: {
   for (const raw of [c.billingCountry, c.country]) {
     const named = (raw ?? "").trim().toUpperCase();
     if (!named) continue;
-    if (named.length === 2 && /^[A-Z]{2}$/.test(named)) return named;
+    /*
+     * Aliases are checked BEFORE the two-letter passthrough, or "UK" sails
+     * through as if it were a country code. It is not: the ISO code for the
+     * United Kingdom is GB, so "UK" matched nothing downstream and two real
+     * bookers were being treated as non-European and offered a card with a fee.
+     * Anything two letters we do not recognise still passes through, because
+     * that is overwhelmingly a real code.
+     */
     const byName = NAME_TO_ISO[named];
     if (byName) return byName;
+    if (named.length === 2 && /^[A-Z]{2}$/.test(named)) return named;
     // "Minnesota, USA" and the like: take the last comma-separated part, which
     // is where people put the country when they write an address into a
     // one-line box.

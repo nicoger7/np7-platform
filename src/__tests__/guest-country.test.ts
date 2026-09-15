@@ -83,3 +83,16 @@ describe("guestCountry: each field is tried, not just preferred", () => {
     expect(guestCountry({ billingCountry: "NL", country: "Germany" })).toBe("NL");
   });
 });
+
+describe("guestCountry: two letters is not automatically a country code", () => {
+  it("reads UK as GB, because UK is not an ISO code", () => {
+    // Two real bookers carry the literal string "UK". It used to pass straight
+    // through, match no country anywhere, and land them on the card with a fee.
+    expect(guestCountry({ country: "UK" })).toBe("GB");
+    expect(guestCountry({ billingCountry: "uk" })).toBe("GB");
+  });
+
+  it("still passes an unrecognised two-letter code through", () => {
+    expect(guestCountry({ country: "SI" })).toBe("SI");
+  });
+});
