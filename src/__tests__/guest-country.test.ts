@@ -53,3 +53,21 @@ describe("guestCountry", () => {
     expect(guestCountry({ phone: "0031612345678" })).toBeNull();
   });
 });
+
+describe("cardRegionFor", () => {
+  it("quotes a UK guest the UK band, not the international one", async () => {
+    const { cardRegionFor } = await import("@/lib/payment-methods");
+    const { cardFee } = await import("@/lib/card-fee");
+    expect(cardRegionFor("GB")).toBe("uk");
+    // On a 1,440 securing payment the difference is real money, and quoting
+    // above cost is what §312a Abs. 4 BGB forbids.
+    const uk = cardFee(1440, "uk").fee;
+    const intl = cardFee(1440, "intl").fee;
+    expect(uk).toBeLessThan(intl);
+  });
+
+  it("quotes everywhere else the international band", async () => {
+    const { cardRegionFor } = await import("@/lib/payment-methods");
+    for (const c of ["US", "CH", "TR", "AU", "BR", null]) expect(cardRegionFor(c)).toBe("intl");
+  });
+});

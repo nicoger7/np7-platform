@@ -160,5 +160,22 @@ export function onlineMethodsFor(country: string | null): OnlineMethods {
     : { rails: false, card: true, unavailable: null };
 }
 
+/**
+ * Which fee band to quote a card guest, from where they are.
+ *
+ * It used to quote every card guest the international band, 3.15 %, including a
+ * guest in the UK whose card actually costs Stripe 2.5 %. §312a Abs. 4 BGB lets
+ * a surcharge stand only up to what it actually costs us, so quoting the dearer
+ * band to a London guest was 0.65 % above cost and not lawful.
+ *
+ * Still an estimate, because the guest's country is not the CARD's country: a
+ * Londoner can pay with an American card. The webhook reads the real card after
+ * the fact and refunds the whole fee if it turns out to be a private EEA card,
+ * where no surcharge may stand at all. A card that is merely cheaper than the
+ * band quoted is not yet refunded down, which is the remaining gap.
+ */
+export const cardRegionFor = (country: string | null): "uk" | "intl" =>
+  country === "GB" ? "uk" : "intl";
+
 /** The three countries Wero covers, which are the three iDEAL does not. */
 const WERO = new Set(["BE", "FR", "DE"]);

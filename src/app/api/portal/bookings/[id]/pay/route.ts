@@ -28,7 +28,7 @@ import { publicOrigin } from "@/lib/public-origin";
 import { sumReceived } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { coveredExtraTotal } from "@/lib/group-booking";
-import { guestCountry, onlineMethodsFor, canPayOnline } from "@/lib/payment-methods";
+import { guestCountry, onlineMethodsFor, canPayOnline, cardRegionFor } from "@/lib/payment-methods";
 import { cardFee } from "@/lib/card-fee";
 
 export const dynamic = "force-dynamic";
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
    * overcharged, which the webhook's refund catches, and if it turns out to be
    * an EEA private card the whole fee comes back.
    */
-  const region = methods.card ? "intl" : "eea";
+  const region = methods.card ? cardRegionFor(where) : "eea";
   const { fee, total } = methods.card ? cardFee(asked, region) : { fee: 0, total: asked };
   const { data: link, error: insErr } = await db.from("exp_payment_links").insert({
     booking_id: id, contact_id: booking.contact_id,
