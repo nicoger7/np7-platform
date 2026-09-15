@@ -533,30 +533,30 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
   // (dueUrgency in src/lib/payments.ts): a loud warning a few days before the
   // window closes, then the honest "we can't hold it any more" once it has.
   downpayment_last_chance: (v, opts) => ({
-    subject: `Last chance to hold your spot — ${v.experienceTitle ?? "NP7 Experience"}`,
+    subject: `A reminder about your downpayment · ${v.experienceTitle ?? "NP7 Experience"}`,
     html: emailLayout({
       ...opts,
-      preheader: "Your payment window closes soon — after that we can't hold your place.",
+      preheader: "Your downpayment is due soon. Your spot is held.",
       bodyHtml:
         greet(v) +
-        p(`Quick heads-up: your window to secure <strong>${esc(v.experienceTitle || "your trip")}</strong> closes ${v.dueDate ? `on <strong>${esc(v.dueDate)}</strong>` : "in the next days"}. After that we can't hold your place, and the spot opens up to other riders.`) +
-        p(`Locking it in takes a minute — pay the downpayment${v.downpayment ? ` of <strong>${esc(v.downpayment)}</strong>` : ""} by bank transfer. Everything you need is in your account:`) +
+        p(`Quick heads-up: the downpayment for <strong>${esc(v.experienceTitle || "your trip")}</strong> is due ${v.dueDate ? `on <strong>${esc(v.dueDate)}</strong>` : "in the next days"}. Your spot is held, this is just so the date doesn't catch you out.`) +
+        p(`It takes a minute: ${v.downpayment ? `<strong>${esc(v.downpayment)}</strong>` : "the downpayment"} by bank transfer, everything you need is in your account.`) +
         (v.bookingLink ? emailButton("Secure my spot now", v.bookingLink) : "") +
         p(`Already paid in the last day or two? Then you're set — bank transfers can take a moment to reach us. Questions? Just reply.`),
     }),
   }),
 
   spot_released: (v, opts) => ({
-    subject: `Your spot on ${v.experienceTitle ?? "the trip"} is no longer held`,
+    subject: `Your downpayment for ${v.experienceTitle ?? "the trip"} is past its date`,
     html: emailLayout({
       ...opts,
-      preheader: "Your payment window has passed — but there may still be room.",
+      preheader: "Past its date. Your spot is still yours.",
       bodyHtml:
         greet(v) +
-        p(`Your payment window for <strong>${esc(v.experienceTitle || "your trip")}</strong> has passed, so we can no longer hold your place — the spot is open to other riders again.`) +
-        p(`Still want to come? If there's room left, it's yours the moment your downpayment lands:`) +
+        p(`The downpayment for <strong>${esc(v.experienceTitle || "your trip")}</strong> is past its date. Your spot is still yours, we have not given it to anyone.`) +
+        p(`Whenever you can, send it over:`) +
         (v.bookingLink ? emailButton("Check my trip & pay", v.bookingLink) : "") +
-        p(`And if the timing didn't work out this round — no hard feelings. Reply and we'll find you a week that fits. 🤙`),
+        p(`And if something has changed, or the timing has gone wrong, just reply. We would rather hear it than wonder. 🤙`),
     }),
   }),
 

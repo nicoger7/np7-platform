@@ -47,20 +47,30 @@ export function PaymentPlan({
 
   return (
     <div>
+      {/*
+        * A reminder, not a threat, and the reason is a fact about how NP7
+        * actually works: nothing here releases a spot. No cron cancels, no
+        * status changes on a missed date. If a booking ever really has to be
+        * let go, Nico does that by hand, in a conversation with the guest.
+        *
+        * So the old copy was not merely harsh, it was untrue, and it sat two
+        * centimetres under a badge reading SPOT SECURED. A guest read "we can
+        * no longer hold your spot" directly below us telling them it was held.
+        * Whichever one they believed, we had lost them.
+        */}
       {urgency === "last_chance" && securing?.dueDate && (
         <div className="mb-4 rounded-xl border border-[#f6d9a8] bg-[#fff7e8] px-4 py-3">
-          <p className="text-[13.5px] font-bold text-[#9a6a12]">⏳ Last chance to secure your spot</p>
+          <p className="text-[13.5px] font-bold text-[#9a6a12]">Your {securing.kind === "deposit" ? "deposit" : "downpayment"} is due soon</p>
           <p className="text-[12.5px] text-[#8a6a2a] leading-snug mt-0.5">
-            Pay your {securing.kind === "deposit" ? "deposit" : "downpayment"} of <strong>{money(securing.amount, currency)}</strong> by{" "}
-            <strong>{fmtDate(securing.dueDate)}</strong> — after that we can&apos;t hold your place on the trip.
+            <strong>{money(securing.amount, currency)}</strong> by <strong>{fmtDate(securing.dueDate)}</strong>. Your spot is held. If the date is awkward, just tell us and we&apos;ll work it out.
           </p>
         </div>
       )}
       {urgency === "expired" && (
-        <div className="mb-4 rounded-xl border border-[#f3c1b0] bg-[#fdf0eb] px-4 py-3">
-          <p className="text-[13.5px] font-bold text-[#b3401f]">Your payment window has passed</p>
-          <p className="text-[12.5px] text-[#a05236] leading-snug mt-0.5">
-            We can no longer hold your spot — it&apos;s open to other riders until it fills. Pay now and it&apos;s yours again if it&apos;s still free, or message us and we&apos;ll do our best to sort it.
+        <div className="mb-4 rounded-xl border border-[#f6d9a8] bg-[#fff7e8] px-4 py-3">
+          <p className="text-[13.5px] font-bold text-[#9a6a12]">This one is past its date</p>
+          <p className="text-[12.5px] text-[#8a6a2a] leading-snug mt-0.5">
+            Your spot is still yours. Whenever you can, send it over, and if something has changed or the timing is difficult, message us and we&apos;ll sort it out together.
           </p>
         </div>
       )}

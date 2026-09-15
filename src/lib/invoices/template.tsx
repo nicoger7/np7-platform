@@ -509,7 +509,7 @@ function ProformaLines({ data }: { data: InvoiceData }) {
         <Text>
           This pro-forma invoice is a payment request, not a tax invoice — your official
           invoice follows automatically once your payment has arrived.
-          {data.dueDate ? ` Please pay by ${fmtDate(data.dueDate)}, quoting the reference above — after that date we can no longer hold your spot.` : " Please quote the reference above with your transfer."}
+          {data.dueDate ? ` Please pay by ${fmtDate(data.dueDate)}, quoting the reference above.` : " Please quote the reference above with your transfer."}
           {remaining > 0 ? ` The remaining balance of ${formatMoney(remaining, currency)} is invoiced separately later.` : ""}
         </Text>
       </View>

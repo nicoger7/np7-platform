@@ -101,17 +101,17 @@ export const DEFAULT_BODIES: Record<string, string> = {
 
   downpayment_last_chance:
     P("Hey {{firstName}} 🤙") +
-    P("Quick heads-up: your window to secure <strong>{{experienceTitle}}</strong> closes on <strong>{{dueDate}}</strong>. After that we can't hold your place, and the spot opens up to other riders.") +
-    P("Locking it in takes a minute — pay the downpayment of <strong>{{downpayment}}</strong> by bank transfer. Everything you need is in your account:") +
+    P("Quick heads-up: the downpayment for <strong>{{experienceTitle}}</strong> is due on <strong>{{dueDate}}</strong>. Your spot is held, this is just so the date doesn't catch you out.") +
+    P("It takes a minute: <strong>{{downpayment}}</strong> by bank transfer, everything you need is in your account.") +
     BTN("Secure my spot now", "bookingLink") +
     P("Already paid in the last day or two? Then you're set — bank transfers can take a moment to reach us. Questions? Just reply."),
 
   spot_released:
     P("Hey {{firstName}} 🤙") +
-    P("Your payment window for <strong>{{experienceTitle}}</strong> has passed, so we can no longer hold your place — the spot is open to other riders again.") +
-    P("Still want to come? If there's room left, it's yours the moment your downpayment lands:") +
+    P("The downpayment for <strong>{{experienceTitle}}</strong> is past its date. Your spot is still yours, we have not given it to anyone.") +
+    P("Whenever you can, send it over:") +
     BTN("Check my trip & pay", "bookingLink") +
-    P("And if the timing didn't work out this round — no hard feelings. Reply and we'll find you a week that fits. 🤙"),
+    P("And if something has changed, or the timing has gone wrong, just reply. We would rather hear it than wonder. 🤙"),
 
   balance_invoice_reminder:
     P("Hey {{firstName}} 🤙") +
