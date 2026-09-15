@@ -71,3 +71,15 @@ describe("cardRegionFor", () => {
     for (const c of ["US", "CH", "TR", "AU", "BR", null]) expect(cardRegionFor(c)).toBe("intl");
   });
 });
+
+describe("guestCountry: each field is tried, not just preferred", () => {
+  it("falls through to the contact's country when the billing one is unreadable", () => {
+    // It used to shadow: a billing country of "n/a" sent the guest to their
+    // phone, past a country field that said exactly where they were.
+    expect(guestCountry({ billingCountry: "n/a", country: "Germany" })).toBe("DE");
+  });
+
+  it("still lets a readable billing country win", () => {
+    expect(guestCountry({ billingCountry: "NL", country: "Germany" })).toBe("NL");
+  });
+});

@@ -102,9 +102,17 @@ const EEA = new Set([
 export function guestCountry(c: {
   billingCountry?: string | null; country?: string | null; phone?: string | null;
 }): string | null {
-  const named = (c.billingCountry ?? c.country ?? "").trim().toUpperCase();
-  if (named.length === 2 && /^[A-Z]{2}$/.test(named)) return named;
-  if (named) {
+  /*
+   * Each field is TRIED, not just preferred. `billingCountry ?? country` meant
+   * an unreadable billing country shadowed a perfectly good one on the contact,
+   * and the guest fell all the way through to their phone for no reason. Only
+   * two contacts carry a billing country today, so this has cost nothing yet,
+   * and it would have started costing the moment we begin asking for one.
+   */
+  for (const raw of [c.billingCountry, c.country]) {
+    const named = (raw ?? "").trim().toUpperCase();
+    if (!named) continue;
+    if (named.length === 2 && /^[A-Z]{2}$/.test(named)) return named;
     const byName = NAME_TO_ISO[named];
     if (byName) return byName;
     // "Minnesota, USA" and the like: take the last comma-separated part, which
