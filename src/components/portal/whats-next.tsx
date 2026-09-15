@@ -105,6 +105,8 @@ type Draft = Omit<WhatsNextStep, "state" | "eta"> & {
   dueNow?: boolean;
   /** The trip ends the line, whatever any other date says. */
   last?: boolean;
+  /** Pinned to the left. Only signing up, which is where the line starts. */
+  first?: boolean;
 };
 
 export function buildWhatsNext(input: {
@@ -126,14 +128,40 @@ export function buildWhatsNext(input: {
    * and nothing whatsoever to do.
    */
   asking: boolean;
+  /** When they signed up. The first step on the rail, and always done. */
+  bookedAt: Date | null;
   money: (n: number) => string;
 }): WhatsNextStep[] {
-  const { now, start, end, plan, depositPaid, fullyPaid, isEvent, timingBefore, whatsappLink, joinedGroup, asking, money } = input;
+  const { now, start, end, plan, depositPaid, fullyPaid, isEvent, timingBefore, whatsappLink, joinedGroup, asking, bookedAt, money } = input;
   const daysBefore = (n: number | null | undefined) =>
     start && n != null ? new Date(start.getTime() - n * 86_400_000) : null;
   const drafts: Draft[] = [];
 
-  // Money first — it is the only step that is theirs to take.
+  /*
+   * SIGNING UP IS A STEP, and it is already done.
+   *
+   * The rail used to open on the current dot with nothing behind it, so a guest
+   * who had just booked read a line that said they had achieved nothing. Nico:
+   * "this feels bad, it starts at step zero". He is right, and it was also
+   * untrue: they found the trip, chose a package and gave us their details.
+   *
+   * It is honest rather than flattering. The step is done because the booking
+   * exists, which is a fact, and it deliberately does NOT claim the spot is
+   * secured, because that is what the down-payment is for and the next dot
+   * along says so.
+   */
+  if (bookedAt) {
+    drafts.push({
+      when: bookedAt,
+      label: "You signed up",
+      short: "Signed up",
+      detail: "You picked your week and your package. Everything below follows from here.",
+      done: true,
+      first: true,
+    });
+  }
+
+  // Money first, it is the only step that is theirs to take.
   for (const m of plan) {
     const when = m.dueDate ? new Date(m.dueDate) : null;
     const paid = m.status === "paid";
@@ -214,6 +242,16 @@ export function buildWhatsNext(input: {
   const ordered = drafts
     .map((d, i) => ({ d, i }))
     .sort((a, b) => {
+      /*
+       * Pinned first, not sorted by its date. Signing up is the origin of the
+       * line and always happened before everything on it, but its DATE is not
+       * always the earliest: a guest carrying an overdue balance has a
+       * milestone dated before the day they booked, and by date alone the rail
+       * opened on the debt instead of on the thing they had actually done.
+       */
+      const fa = a.d.first ? 0 : 1;
+      const fb = b.d.first ? 0 : 1;
+      if (fa !== fb) return fa - fb;
       const ra = a.d.last ? 1 : 0;
       const rb = b.d.last ? 1 : 0;
       if (ra !== rb) return ra - rb;

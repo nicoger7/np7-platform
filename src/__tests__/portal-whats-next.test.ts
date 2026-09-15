@@ -32,6 +32,7 @@ function line(over: {
   fullyPaid?: boolean;
   joinedGroup?: boolean;
   start?: Date | null;
+  bookedAt?: Date | null;
 }): WhatsNextStep[] {
   return buildWhatsNext({
     now: new Date(over.now),
@@ -41,6 +42,9 @@ function line(over: {
     depositPaid: true,
     fullyPaid: over.fullyPaid ?? false,
     isEvent: over.isEvent ?? false,
+    // null unless a test asks for it, so every existing assertion about the
+    // first step on the rail keeps meaning what it meant.
+    bookedAt: over.bookedAt ?? null,
     timingBefore: TIMING,
     whatsappLink: null,
     joinedGroup: over.joinedGroup ?? false,
@@ -182,5 +186,26 @@ describe("invariants the rail depends on", () => {
   it("never marks a done step as anything else", () => {
     const joined = worlds[5];
     expect(joined.find((s) => s.short === "Your crew")?.state).toBe("done");
+  });
+});
+
+
+describe("signing up is a step, and it is already done", () => {
+  it("opens the rail on a finished step rather than on nothing", () => {
+    // Nico: "this feels bad, it starts at step zero". A guest who just booked
+    // read a line saying they had achieved nothing, which was also untrue.
+    const steps = line({ now: "2026-09-15", bookedAt: new Date("2026-09-14") });
+    expect(steps[0].label).toBe("You signed up");
+    expect(steps[0].done).toBe(true);
+  });
+
+  it("does not claim the spot is secured, because the down-payment does that", () => {
+    const steps = line({ now: "2026-09-15", bookedAt: new Date("2026-09-14") });
+    expect((steps[0].detail ?? "").toLowerCase()).not.toContain("secure");
+  });
+
+  it("is left out when we do not know when they booked", () => {
+    const steps = line({ now: "2026-09-15" });
+    expect(steps[0].label).not.toBe("You signed up");
   });
 });

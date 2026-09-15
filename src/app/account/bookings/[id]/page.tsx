@@ -251,6 +251,7 @@ export default async function BookingDetail({ params }: Props) {
     whatsappLink: b.edition?.whatsapp_group_link ?? null,
     joinedGroup: !!b.wa_group,
     asking,
+    bookedAt: b.created_at ? new Date(b.created_at) : null,
     money: (n) => money(n, cur) ?? String(n),
   });
   /* The day the "Final details" mail really lands, taken from the same
