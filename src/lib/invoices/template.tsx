@@ -94,6 +94,7 @@ const s = StyleSheet.create({
   bankRefBox: { marginTop: 8, padding: 8, backgroundColor: "#fff3da", borderRadius: 3, borderLeftWidth: 3, borderLeftColor: "#e6b873" },
   bankRefLabel: { fontSize: 7, color: GREY, marginBottom: 2, fontFamily: "Helvetica-Bold" },
   bankRefValue: { fontSize: 12, fontFamily: "Helvetica-Bold", color: BRAND_DARK, letterSpacing: 1 },
+  bankAlso: { marginTop: 8, fontSize: 7.5, color: GREY, lineHeight: 1.4 },
   // Footer
   footer: { position: "absolute", bottom: 28, left: 48, right: 48, borderTopWidth: 1, borderTopColor: LIGHT_GREY, paddingTop: 8, flexDirection: "row", justifyContent: "space-between" },
   footerText: { fontSize: 7, color: GREY },
@@ -381,6 +382,20 @@ function BankDetails({ company, currency, reference }: { company: CompanySetting
         <Text style={s.bankLabel}>Currency:</Text>
         <Text style={s.bankValue}>{currency}</Text>
       </View>
+      {/*
+       * A guest who presses Pay on their trip page is shown a DIFFERENT account
+       * number: their own virtual IBAN at Stripe, which reconciles itself. Two
+       * accounts both headed NP7 GmbH, with nothing joining them up, is how a
+       * legitimate payment page starts to read like a scam. This line is the
+       * thing that joins them up, and it costs one sentence.
+       *
+       * The account above cannot simply be replaced by the Stripe one: §14 UStG
+       * makes this the invoice, and the invoice carries the company's own bank
+       * details.
+       */}
+      <Text style={s.bankAlso}>
+        You can also pay from your trip page at np-seven.com, where we show you an account number and reference of your own that match your booking automatically. Both accounts are ours; use whichever suits you.
+      </Text>
     </View>
   );
 }
