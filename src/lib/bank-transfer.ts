@@ -186,7 +186,15 @@ export function classifyLinks(rows: LinkRow[] | null | undefined, now: number = 
   const openLive = all.filter((l) => l.status === "open" && notExpired(l, now));
   const toCancel = openLive.filter((l) => l.created_by === "member");
   const adminOpen = openLive.filter((l) => l.created_by !== "member");
-  const sum = (rs: LinkRow[]) => r2(rs.reduce((n, l) => n + (Number(l.amount) || 0), 0));
+  /*
+   * What is STILL claimed, not what was asked for. A guest asked for 1,440 who
+   * sent 1,400 has 40 outstanding, not 1,440: counting the ask froze the whole
+   * booking over a 40 shortfall, hid every way to pay it, and then told them to
+   * send the full amount again. Money that has arrived is money that has
+   * arrived, and only the remainder is still in flight.
+   */
+  const stillClaimed = (l: LinkRow) => Math.max(0, (Number(l.amount) || 0) - (Number(l.amount_received) || 0));
+  const sum = (rs: LinkRow[]) => r2(rs.reduce((n, l) => n + stillClaimed(l), 0));
   const onceReplaced = sum([...inFlight, ...adminOpen]);
   return {
     toCancel,
@@ -213,6 +221,15 @@ export function classifyLinks(rows: LinkRow[] | null | undefined, now: number = 
  * record one.
  */
 export function sweepableLinks(rows: LinkRow[] | null | undefined, now: number = Date.now()): LinkRow[] {
+  /*
+   * Deliberately awaiting ONLY, and deliberately never a row with money on it.
+   * A short transfer is recorded nowhere else: amount_received on this row is
+   * the only trace the platform keeps of the money that did arrive, so sweeping
+   * it to expired would erase the record of real money. A reviewer read the
+   * frozen-booking symptom and proposed sweeping these; the cure is the
+   * remainder arithmetic in classifyLinks above, which lets the guest pay the
+   * shortfall without the row having to disappear. The row stays, as evidence.
+   */
   return (rows ?? []).filter((l) =>
     l.status === "awaiting" &&
     !(Number(l.amount_received) > 0) &&

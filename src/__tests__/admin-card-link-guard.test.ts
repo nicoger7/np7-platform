@@ -14,6 +14,11 @@
  *
  * Stripe is not reachable from here, so the checkout call is stubbed. The guard
  * itself, and the classification it now leans on, are the real thing.
+ *
+ * The second half of the same bug is a read that answers 0 because it FAILED.
+ * supabase-js resolves a broken query with { error }, so `const { data } =`
+ * turned a dead connection into "nothing received, nothing live", which is the
+ * one pair of answers that lets the link through.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { NextRequest } from "next/server";
@@ -34,7 +39,7 @@ vi.mock("@/lib/stripe", () => ({
   expireCheckoutSession: async () => ({ ok: true }),
 }));
 
-import { POST } from "@/app/api/admin/bookings/[id]/payments/card-link/route";
+import { POST, GET } from "@/app/api/admin/bookings/[id]/payments/card-link/route";
 
 const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
 
@@ -154,5 +159,45 @@ describe("what does not stand in the way", () => {
     const created = fake.rows("exp_payment_links")[0];
     expect(Number(created.amount)).toBe(1440);
     expect(created.session_id).toBe("cs_new_1");
+  });
+});
+
+describe("a guard that cannot see is not a guard", () => {
+  it("refuses the link when it cannot tell what has already been paid", async () => {
+    const fake = setup([]);
+    // €1,440 is already in the bank. With the read failing, sumReceived of an
+    // empty list is 0 and the booking reads as owing the whole trip again.
+    fake.rows("exp_payments").push({ booking_id: "bk1", amount: 1440, status: "paid", direction: "in", type: "final" });
+    fake.failOn("exp_payments", "select");
+
+    const { status, body } = await askFor(1440);
+
+    expect(status).toBe(500);
+    expect(body.error).toContain("no link was made");
+    expect(fake.rows("exp_payment_links")).toHaveLength(0);
+    expect(state.sessions).toBe(0);
+  });
+
+  it("refuses the link when it cannot tell what is already live", async () => {
+    const fake = setup([link({ id: "moving", status: "awaiting" })]);
+    fake.failOn("exp_payment_links", "select");
+
+    const { status } = await askFor(1440);
+
+    expect(status).toBe(500);
+    // The row that was already there, and nothing beside it.
+    expect(fake.rows("exp_payment_links")).toHaveLength(1);
+    expect(state.sessions).toBe(0);
+  });
+
+  it("does not tell the admin nothing is outstanding when the read fell over", async () => {
+    const fake = setup([]);
+    fake.failOn("exp_payments", "select");
+
+    const res = await GET({} as unknown as NextRequest, { params: Promise.resolve({ id: "bk1" }) });
+    const body = (await res.json()) as { error?: string; outstanding?: number };
+
+    expect(res.status).toBe(500);
+    expect(body.outstanding).toBeUndefined();
   });
 });

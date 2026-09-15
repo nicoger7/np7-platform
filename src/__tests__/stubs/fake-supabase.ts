@@ -115,6 +115,17 @@ class FakeQuery implements PromiseLike<Result> {
     this.filters.push((r) => (cmp(r[col]) as never) > (cmp(val) as never));
     return this;
   }
+  /**
+   * `.is("stripe_customer_id", null)`, which is how a claim-it-if-nobody-has
+   * update is written in PostgREST. A column a row simply does not carry is
+   * `undefined` here and NULL there, so both count: a test row set up without
+   * the column is a row that has not been claimed.
+   */
+  is(col: string, val: unknown): this {
+    if (val === null) this.filters.push((r) => r[col] == null);
+    else this.filters.push((r) => r[col] === val);
+    return this;
+  }
   /** `.not("paid_at", "is", null)` and `.not("status", "in", "(paid,cancelled)")`. */
   not(col: string, operator: string, val: unknown): this {
     if (operator === "is" && val === null) this.filters.push((r) => r[col] != null);

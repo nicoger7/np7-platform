@@ -157,3 +157,38 @@ describe("a redelivered webhook writes no second payment row", () => {
     expect(ledger).toHaveLength(1);
   });
 });
+
+describe("a short transfer claims only what is still missing", () => {
+  it("counts the remainder, not the whole ask", async () => {
+    const { classifyLinks } = await import("@/lib/bank-transfer");
+    // Asked 1,440, sent 1,400. What is still in flight is 40, not 1,440.
+    // Counting the ask froze the booking: no Pay button, no way to send the 40,
+    // and an email telling them to transfer the full amount again.
+    const c = classifyLinks([
+      { id: "l1", status: "part_funded", amount: 1440, amount_received: 1400, created_by: "member", expires_at: null, session_id: "cs_1", funds_due_by: null },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ] as any);
+    expect(c.spokenFor).toBeCloseTo(40, 2);
+    expect(c.spokenForOnceReplaced).toBeCloseTo(40, 2);
+  });
+
+  it("still claims the whole ask while nothing has arrived", async () => {
+    const { classifyLinks } = await import("@/lib/bank-transfer");
+    const c = classifyLinks([
+      { id: "l1", status: "awaiting", amount: 1440, amount_received: 0, created_by: "member", expires_at: null, session_id: "cs_1", funds_due_by: null },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ] as any);
+    expect(c.spokenFor).toBeCloseTo(1440, 2);
+  });
+
+  it("never sweeps a part-funded row, because that row is the only record of the money", async () => {
+    const { sweepableLinks } = await import("@/lib/bank-transfer");
+    const old = new Date(Date.now() - 86_400_000).toISOString();
+    const rows = [
+      { id: "part", status: "part_funded", amount: 1440, amount_received: 1400, funds_due_by: old },
+      { id: "empty", status: "awaiting", amount: 1440, amount_received: 0, funds_due_by: old },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ] as any;
+    expect(sweepableLinks(rows, Date.now()).map((l: { id: string }) => l.id)).toEqual(["empty"]);
+  });
+});
