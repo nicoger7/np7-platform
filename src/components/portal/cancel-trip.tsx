@@ -46,7 +46,7 @@ export function CancelTrip({ bookingId, milestones, paid, currency = "EUR" }: {
   } else if (beyondDeposit) {
     tone = "warn";
     headline = "Past the refund point";
-    detail = `The ${money(paid, currency)} you've paid is the cancellation fee at this stage, so it isn't refundable. Before you do: you can pass your place to someone else instead, which costs you nothing — just tell us who.`;
+    detail = `The ${money(paid, currency)} you've paid is the cancellation fee at this stage, so it isn't refundable. Before you do: you can pass your place to someone else instead, which costs you nothing. Just tell us who.`;
   } else if (deposit) {
     tone = "warn";
     headline = "Your deposit is the cancellation fee now";
@@ -59,7 +59,7 @@ export function CancelTrip({ bookingId, milestones, paid, currency = "EUR" }: {
        without inventing a stage: what you have paid is the fee. */
     tone = "warn";
     headline = "What you've paid is the cancellation fee";
-    detail = `The ${money(paid, currency)} you've paid so far is kept as the cancellation fee at this stage, and nothing more is owed. You can also pass your place to someone else instead, which costs you nothing — just tell us who.`;
+    detail = `The ${money(paid, currency)} you've paid so far is kept as the cancellation fee at this stage, and nothing more is owed. You can also pass your place to someone else instead, which costs you nothing. Just tell us who.`;
   }
 
   async function request() {
@@ -73,7 +73,7 @@ export function CancelTrip({ bookingId, milestones, paid, currency = "EUR" }: {
     setBusy(false);
     // No voucher promised on the way out either: a confirmation screen that
     // mentions one is the same promise, just later.
-    if (r.ok) setDoneMsg("Cancellation requested — our team will be in touch shortly to confirm and sort out anything owed.");
+    if (r.ok) setDoneMsg("Cancellation requested. Our team will be in touch shortly to confirm and sort out anything owed.");
     else setError(`${r.error} If it keeps failing, please email us.`);
   }
 
@@ -99,7 +99,7 @@ export function CancelTrip({ bookingId, milestones, paid, currency = "EUR" }: {
                   <p className={`text-[14px] font-bold ${tone === "warn" ? "text-amber-800" : "text-[#0782a0]"}`}>{headline}</p>
                   <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-1">{detail}</p>
                 </div>
-                <p className="text-[12.5px] text-[#9aa6ac] leading-relaxed mb-5">Cancellation terms follow our package-travel conditions. Send the request and our team will confirm your refund or credit voucher — you&apos;re not charged anything by clicking below.</p>
+                <p className="text-[12.5px] text-[#9aa6ac] leading-relaxed mb-5">Cancellation terms follow our package-travel conditions. Send the request and our team will confirm your refund or credit voucher. You&apos;re not charged anything by clicking below.</p>
                 {error && <p className="text-[13px] text-red-500 mb-3">{error}</p>}
                 <div className="flex gap-2.5">
                   <button onClick={() => setOpen(false)} disabled={busy} className="flex-1 px-5 py-3 rounded-full text-[13.5px] font-bold text-[#6a7a80] bg-[#f1f5f6]">Keep my trip</button>

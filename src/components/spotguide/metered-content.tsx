@@ -22,10 +22,10 @@ export function MeteredContent({ accent = "#00afdb", children, spotCount, destNa
   // Few spots so far → invite people to build it; enough → sell the volume.
   const community = spotCount == null || spotCount < 8;
   const where = destName ? ` in ${destName}` : "";
-  const heading = community ? "A rider-built spotguide" : `See all ${spotCount} spots — free`;
+  const heading = community ? "A rider-built spotguide" : `See all ${spotCount} spots · free`;
   const blurb = community
-    ? `The NP7 spotguide is built by riders, for riders. Rate the spots you know and put your home spot${where} on the map — a free account and you're one tap in.`
-    : `${spotCount} spots, rated by NP7 and the crew — with wind stats, crowd forecasts and the local tips you won't find on a map. Free account, no payment.`;
+    ? `The NP7 spotguide is built by riders, for riders. Rate the spots you know and put your home spot${where} on the map. A free account and you're one tap in.`
+    : `${spotCount} spots, rated by NP7 and the crew. Wind stats, crowd forecasts and the local tips you won't find on a map. Free account, no payment.`;
 
   const bullets = ["Rate the spots you know", "Add your home spot", "Wind stats & crowd forecasts", "Members' tips"];
 
@@ -71,7 +71,7 @@ export function MeteredContent({ accent = "#00afdb", children, spotCount, destNa
           </button>
           <button onClick={() => sg.needAuth("login")} className="text-[13.5px] font-bold text-[#5a6b72] hover:text-[#00374a] transition-colors">Already a member? Log in</button>
         </div>
-        <p className="mt-3 text-[12px] text-[#9aa6ac]">Free — no payment, ever.</p>
+        <p className="mt-3 text-[12px] text-[#9aa6ac]">Free. No payment, ever.</p>
       </div>
     </div>
   );

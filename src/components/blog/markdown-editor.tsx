@@ -165,7 +165,7 @@ export function MarkdownEditor({
           {value.trim() ? (
             <PostBody content={value} />
           ) : (
-            <p className="text-[15px] text-[#8a9aa0] italic">Nothing to preview yet — write something in the Write tab.</p>
+            <p className="text-[15px] text-[#8a9aa0] italic">Nothing to preview yet. Write something in the Write tab.</p>
           )}
         </div>
       )}

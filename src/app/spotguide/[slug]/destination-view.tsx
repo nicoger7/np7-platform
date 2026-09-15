@@ -193,7 +193,7 @@ export async function DestinationView({
                   <div className="p-6 sm:p-7">
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-white/80">Ride it with us</p>
                     <h3 className="text-2xl font-black tracking-[-0.02em] mt-1">Sail {d.name} on an NP7 trip</h3>
-                    <p className="text-white/85 text-[14px] mt-1.5 max-w-[560px]">Guided by Nico Prien (GER-7) and the crew — coaching, the best spots, and everything handled.</p>
+                    <p className="text-white/85 text-[14px] mt-1.5 max-w-[560px]">Guided by Nico Prien (GER-7) and the crew: coaching, the best spots, and everything handled.</p>
                     <div className="flex flex-wrap gap-2.5 mt-4">
                       {d.trips.map((t) => (
                         <Link key={t.id} href={`/experience/${t.slug}`} className="inline-flex items-center gap-1.5 bg-white text-[#00374a] font-bold text-[13.5px] rounded-full px-4 py-2.5 hover:-translate-y-0.5 transition-transform">

@@ -95,7 +95,7 @@ function spanLabel(start?: string | null, end?: string | null): string | null {
   if (!end || end === start) return `${d(s)} ${s.getUTCFullYear()}`;
   const e = new Date(`${end}T00:00:00Z`);
   if (Number.isNaN(e.getTime())) return `${d(s)} ${s.getUTCFullYear()}`;
-  return `${d(s)} – ${d(e)} ${e.getUTCFullYear()}`;
+  return `${d(s)} - ${d(e)} ${e.getUTCFullYear()}`;
 }
 
 /**

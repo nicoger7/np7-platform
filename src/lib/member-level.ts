@@ -15,12 +15,12 @@ export type Level = (typeof LEVELS)[number];
 /** One-line, plain-English definition of each level — shared everywhere a level
     is shown or picked (member area + spotguide). */
 export const LEVEL_DESCRIPTIONS: Record<Level, string> = {
-  Beginner: "Uphauling, sailing both ways and basic steering — not yet planing.",
+  Beginner: "Uphauling, sailing both ways and basic steering, but not yet planing.",
   Intermediate: "Planing in the harness & footstraps; learning the carve gybe.",
   Advanced: "Confident planing, waterstart & carve gybes; into waves or freestyle.",
-  Expert: "Dialled-in all-rounder — carve gybes both ways, solid in strong wind & chop.",
-  "Semi-Pro": "Advanced moves land reliably — race pace, jumps or a first wave/freestyle repertoire.",
-  Pro: "Masters most conditions — advanced waves, freestyle or racing.",
+  Expert: "Dialled-in all-rounder: carve gybes both ways, solid in strong wind & chop.",
+  "Semi-Pro": "Advanced moves land reliably: race pace, jumps or a first wave/freestyle repertoire.",
+  Pro: "Masters most conditions: advanced waves, freestyle or racing.",
 };
 export type LevelStatus = "self" | "suggested" | "verified";
 

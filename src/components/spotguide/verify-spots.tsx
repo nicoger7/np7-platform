@@ -60,7 +60,7 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
         className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 text-left hover:bg-[#fdf8ee] transition-colors">
         <span className="min-w-0">
           <span className="block text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac]">Help verify <span style={{ color: accent }}>({spots.length})</span></span>
-          <span className="block text-[12.5px] text-[#6a7a80]">Members added these — been to one? Confirm what&apos;s right, flag what&apos;s off.</span>
+          <span className="block text-[12.5px] text-[#6a7a80]">Members added these. Been to one? Confirm what&apos;s right, flag what&apos;s off.</span>
         </span>
         <svg className={`w-5 h-5 shrink-0 text-[#9aa6ac] transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
       </button>
@@ -93,9 +93,9 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
               )}
 
               {s.justLive ? (
-                <p className="mt-3 text-[13px] font-bold text-[#1f9e57]">Now live for everyone — thanks! 🎉</p>
+                <p className="mt-3 text-[13px] font-bold text-[#1f9e57]">Now live for everyone, thanks! 🎉</p>
               ) : s.justHidden ? (
-                <p className="mt-3 text-[13px] font-bold text-[#b4522f]">Flagged — we&apos;ll review it. Thanks!</p>
+                <p className="mt-3 text-[13px] font-bold text-[#b4522f]">Flagged. We&apos;ll review it. Thanks!</p>
               ) : s.isOwn ? (
                 <p className="mt-3 text-[12.5px] text-[#9aa6ac]">Your submission · awaiting other members</p>
               ) : (
@@ -117,9 +117,9 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
                             : (cat.confirms + cat.flags > 0) && <span className="ml-2 text-[11px] text-[#9aa6ac]">✓{cat.confirms} · ✗{cat.flags}</span>}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <button onClick={() => vote(s.id, row.key, "confirm")} disabled={busy === k} aria-label="Right" title={row.gate ? "I've been here — accurate" : "This is right"}
+                          <button onClick={() => vote(s.id, row.key, "confirm")} disabled={busy === k} aria-label="Right" title={row.gate ? "I've been here and it's accurate" : "This is right"}
                             className={chip(cat.mine === "confirm", "ok")} style={cat.mine === "confirm" ? { backgroundColor: "#1f9e57" } : undefined}>✓</button>
-                          <button onClick={() => (row.gate ? (setFlagFor(flagFor === s.id ? null : s.id), setFlagNote("")) : vote(s.id, row.key, "flag"))} disabled={busy === k} aria-label="Off" title={row.gate ? "Not accurate — tell us what's off" : "This is wrong"}
+                          <button onClick={() => (row.gate ? (setFlagFor(flagFor === s.id ? null : s.id), setFlagNote("")) : vote(s.id, row.key, "flag"))} disabled={busy === k} aria-label="Off" title={row.gate ? "Not accurate. Tell us what's off" : "This is wrong"}
                             className={chip(cat.mine === "flag" || (!!row.gate && flagFor === s.id), "no")} style={cat.mine === "flag" ? { backgroundColor: "#c05a34" } : undefined}>✕</button>
                         </div>
                       </div>
@@ -139,7 +139,7 @@ export function VerifySpots({ destId, accent = "#00afdb" }: { destId: string; ac
                   )}
                 </div>
               )}
-              {!done && !s.isOwn && <p className="mt-2 text-[11px] text-[#b3a994]">✓ what&apos;s right · ✕ what&apos;s off — only the top row decides if it goes public.</p>}
+              {!done && !s.isOwn && <p className="mt-2 text-[11px] text-[#b3a994]">✓ what&apos;s right · ✕ what&apos;s off. Only the top row decides if it goes public.</p>}
             </div>
           );
         })}

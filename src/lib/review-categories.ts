@@ -20,11 +20,11 @@ export type ReviewCategory = {
 
 export const REVIEW_CATEGORIES: ReviewCategory[] = [
   { key: "coaching", label: "Coaching", sub: "technique, feedback & video analysis" },
-  { key: "vibe", label: "Group & vibe", sub: "the crew — did you leave with new friends?" },
+  { key: "vibe", label: "Group & vibe", sub: "the crew: did you leave with new friends?" },
   { key: "offwater", label: "Off-water program", sub: "activities, workshops & evenings" },
   { key: "food", label: "Food & dinners", sub: "lunches and dinners together" },
   { key: "accommodation", label: "Accommodation", sub: "your hotel & room", hotelOnly: true },
-  { key: "organization", label: "Organization", sub: "booking, info & transfers — everything around the week" },
+  { key: "organization", label: "Organization", sub: "booking, info & transfers: everything around the week" },
 ];
 
 const KEYS = new Set(REVIEW_CATEGORIES.map((c) => c.key));

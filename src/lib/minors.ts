@@ -50,9 +50,9 @@ export function checkParticipant(
   const minor = isMinorOn(dob, eventDate);
   if (minor === null) return "Please enter the participant's date of birth.";
   const age = ageOn(dob, eventDate);
-  if (age != null && (age < 6 || age > 100)) return "That date of birth doesn't look right — please check it.";
+  if (age != null && (age < 6 || age > 100)) return "That date of birth doesn't look right. Please check it.";
   if (!minor) return null;
-  if (!(g.guardianName ?? "").trim()) return "A parent or guardian must book for a participant under 18 — please add their name.";
+  if (!(g.guardianName ?? "").trim()) return "A parent or guardian must book for a participant under 18. Please add their name.";
   if (!/\S+@\S+\.\S+/.test((g.guardianEmail ?? "").trim())) return "Please add the parent or guardian's email address.";
   if (!(g.guardianPhone ?? "").trim()) return "Please add a phone number we can reach the parent or guardian on.";
   return null;

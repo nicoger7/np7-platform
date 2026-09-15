@@ -59,7 +59,7 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
       // and it was deleted three months later. The one footage of their first
       // planing jibe, gone with no warning and nothing to re-download.
       setKeepers((s) => { const n = new Set(s); wasKept ? n.add(stem) : n.delete(stem); return n; });
-      setStarErr(`${starred ? "Couldn't keep that clip" : "Couldn't unstar that clip"} — it is not saved. ${r.error}`);
+      setStarErr(`${starred ? "Couldn't keep that clip" : "Couldn't unstar that clip"}. It is not saved. ${r.error}`);
     }
   }, [keepers, bookingId]);
 
@@ -121,7 +121,7 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
       const res = await fetch(`/api/portal/bookings/${bookingId}/video-download`, { method: "POST" });
       if (!res.ok) {
         setRemaining(0);
-        setDlErr(res.status === 403 ? "You've used all your video downloads — the clips stay available to watch." : "Couldn't start the download. Please try again.");
+        setDlErr(res.status === 403 ? "You've used all your video downloads. The clips stay available to watch." : "Couldn't start the download. Please try again.");
         return;
       }
       const { remaining: rem } = await res.json();
@@ -261,10 +261,10 @@ export function TripVideoGrid({ videos, bookingId, fallbackPoster, title = "Trip
         />
       )}
       {videoDownloadable && othersExist && (
-        <p className="text-[11.5px] text-[#9aa6ac] mt-1.5">A whole week of clips is big — it arrives as a few numbered zip files. Keep the tab open until the last one lands.</p>
+        <p className="text-[11.5px] text-[#9aa6ac] mt-1.5">A whole week of clips is big, so it arrives as a few numbered zip files. Keep the tab open until the last one lands.</p>
       )}
       <p className="text-[11.5px] text-[#9aa6ac] mt-2">
-        Videos stay for 3 months after the trip — star up to {KEEPER_LIMIT} to keep forever ({keepers.size} of {KEEPER_LIMIT} kept).
+        Videos stay for 3 months after the trip. Star up to {KEEPER_LIMIT} to keep forever ({keepers.size} of {KEEPER_LIMIT} kept).
       </p>
       {starErr && <p className="text-[12.5px] font-semibold text-[#c4621a] mt-1.5 leading-snug">{starErr}</p>}
       </div>

@@ -174,7 +174,7 @@ export type InvoiceData = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   try {
     return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   } catch {
@@ -183,7 +183,7 @@ function fmtDate(iso: string | null | undefined): string {
 }
 
 function fmtDateShort(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   try {
     return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   } catch {
@@ -192,11 +192,11 @@ function fmtDateShort(iso: string | null | undefined): string {
 }
 
 function servicePeriod(ed: InvoiceData["edition"]): string {
-  if (!ed) return "—";
+  if (!ed) return "-";
   const s = fmtDateShort(ed.dateStart);
   const e = fmtDateShort(ed.dateEnd);
   if (!ed.dateEnd) return s;
-  return `${s} – ${e}`;
+  return `${s} - ${e}`;
 }
 
 function buyerAddress(c: InvoiceData["contact"]): string {
@@ -259,7 +259,7 @@ function DocInfoBlock({ data }: { data: InvoiceData }) {
     <View style={s.docInfoBlock}>
       <Text style={s.docTitle}>{docTitle}</Text>
       {type === "proforma_invoice" && (
-        <Text style={s.smallText}>Payment request — not a tax invoice</Text>
+        <Text style={s.smallText}>Payment request, not a tax invoice</Text>
       )}
       {!isConfirmation && invoiceNumber && (
         <Text style={s.docNumber}>No. {invoiceNumber}</Text>
@@ -285,7 +285,7 @@ function BuyerBlock({ contact }: { contact: InvoiceData["contact"] }) {
     <View style={s.buyerRow}>
       <Text style={s.buyerLabel}>Bill to:</Text>
       <View style={s.buyerData}>
-        <Text>{buyerAddress(contact) || contact.name || "—"}</Text>
+        <Text>{buyerAddress(contact) || contact.name || "Not provided"}</Text>
         {contact.email && <Text style={[s.smallText, { marginTop: 3 }]}>{contact.email}</Text>}
       </View>
     </View>
@@ -333,9 +333,9 @@ function VatNote({ vatMode, vatRate }: { vatMode: VatMode; vatRate: number | nul
        guest, who is usually not German. */
     return (
       <Text style={s.vatNote}>
-        Sonderregelung für Reisebüros (§ 25 UStG) — die Umsatzsteuer ist im Preis enthalten und wird nicht gesondert ausgewiesen.
+        Sonderregelung für Reisebüros (§ 25 UStG). Die Umsatzsteuer ist im Preis enthalten und wird nicht gesondert ausgewiesen.
         {"\n"}
-        Special scheme for travel agents (Articles 306–310 EU VAT Directive). VAT is included in the price and not shown separately.
+        Special scheme for travel agents (Articles 306-310 EU VAT Directive). VAT is included in the price and not shown separately.
       </Text>
     );
   }
@@ -502,7 +502,7 @@ function ProformaLines({ data }: { data: InvoiceData }) {
       ) : (
         <View style={s.tableRow}>
           <View style={s.col_desc}>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} – {securingLabel}{milestone === "final" ? "" : " (secures your spot)"}</Text>
+            <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} · {securingLabel}{milestone === "final" ? "" : " (secures your spot)"}</Text>
             {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
             {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
           </View>
@@ -522,7 +522,7 @@ function ProformaLines({ data }: { data: InvoiceData }) {
 
       <View style={[s.noteBox, { marginTop: 16 }]}>
         <Text>
-          This pro-forma invoice is a payment request, not a tax invoice — your official
+          This pro-forma invoice is a payment request, not a tax invoice. Your official
           invoice follows automatically once your payment has arrived.
           {data.dueDate ? ` Please pay by ${fmtDate(data.dueDate)}, quoting the reference above.` : " Please quote the reference above with your transfer."}
           {remaining > 0 ? ` The remaining balance of ${formatMoney(remaining, currency)} is invoiced separately later.` : ""}
@@ -559,7 +559,7 @@ function DepositInvoiceLines({ data }: { data: InvoiceData }) {
       {/* Deposit line */}
       <View style={s.tableRow}>
         <View style={s.col_desc}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} – Advance Payment (Deposit)</Text>
+          <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} · Advance Payment (Deposit)</Text>
           {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
           {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
         </View>
@@ -597,7 +597,7 @@ function DepositInvoiceLines({ data }: { data: InvoiceData }) {
         <Text>
           {balance > 0
             ? `Note: This invoice covers the deposit only. The remaining balance of ${formatMoney(balance, currency)} will be invoiced separately and is payable by bank transfer before the trip start date.`
-            : "Note: This payment settles the booking in full — there is no further balance to pay."}
+            : "Note: This payment settles the booking in full. There is no further balance to pay."}
         </Text>
       </View>
     </View>
@@ -631,7 +631,7 @@ function DownpaymentInvoiceLines({ data }: { data: InvoiceData }) {
       {/* Interim payment line */}
       <View style={s.tableRow}>
         <View style={s.col_desc}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} – Interim Payment (Down-Payment)</Text>
+          <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} · Interim Payment (Down-Payment)</Text>
           {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
           {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
         </View>
@@ -670,7 +670,7 @@ function DownpaymentInvoiceLines({ data }: { data: InvoiceData }) {
             : ` ${formatMoney(downpayment, currency)} of ${formatMoney(booking.agreedPrice, currency)} is now invoiced.`}
           {remaining > 0
             ? ` The remaining balance of ${formatMoney(remaining, currency)} will be invoiced separately and is payable by bank transfer before the trip start date.`
-            : " This settles the booking in full — there is no further balance to pay."}
+            : " This settles the booking in full. There is no further balance to pay."}
         </Text>
       </View>
     </View>
@@ -702,7 +702,7 @@ function AddonInvoiceLines({ data }: { data: InvoiceData }) {
         <View key={i} style={s.tableRow}>
           <View style={s.col_desc}>
             <Text style={{ fontFamily: "Helvetica-Bold" }}>{a.label}</Text>
-            <Text style={s.smallText}>{[experience.title, edition?.label].filter(Boolean).join(" · ")} — booking extra</Text>
+            <Text style={s.smallText}>Booking extra · {[experience.title, edition?.label].filter(Boolean).join(" · ")}</Text>
           </View>
           <Text style={s.col_period}>{servicePeriod(edition)}</Text>
           <Text style={s.col_amount}>{formatMoney(a.price, currency)}</Text>
@@ -729,7 +729,7 @@ function AddonInvoiceLines({ data }: { data: InvoiceData }) {
       </View>
       <View style={[s.noteBox, { marginTop: 16 }]}>
         <Text>
-          {`Note: This invoice covers extras added to your booking — your payment plan for the trip itself is unchanged.`}
+          {`Note: This invoice covers extras added to your booking. Your payment plan for the trip itself is unchanged.`}
           {remaining > 0 ? ` The remaining trip balance of ${formatMoney(remaining, currency)} will be invoiced separately as scheduled.` : ""}
         </Text>
       </View>
@@ -873,20 +873,20 @@ function BookingConfirmation({ data }: { data: InvoiceData }) {
       {[
         ["Name", contact.name],
         ["Email", contact.email],
-        ["Billing address", buyerAddress(contact) || "—"],
+        ["Billing address", buyerAddress(contact)],
       ].map(([label, val]) => (
         <View key={label} style={s.detailRow}>
           <Text style={s.detailLabel}>{label}</Text>
-          <Text style={s.detailValue}>{val || "—"}</Text>
+          <Text style={s.detailValue}>{val || "Not provided"}</Text>
         </View>
       ))}
 
       <Text style={s.sectionTitle}>Trip Details</Text>
       {[
         ["Experience", experience.title],
-        ["Edition", edition?.label ?? "—"],
+        ["Edition", edition?.label ?? "Not specified"],
         ["Travel dates", servicePeriod(edition)],
-        ["Package", booking.packageName ?? "—"],
+        ["Package", booking.packageName ?? "Not specified"],
         ["Confirmation date", fmtDate(invoiceDate)],
         ["Booking reference", booking.id.slice(0, 8).toUpperCase()],
       ].map(([label, val]) => (
@@ -925,8 +925,8 @@ function SicherungsscheinNote({ company }: { company: CompanySettings }) {
     <View style={[s.noteBox, { marginTop: 12 }]}>
       <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 3 }}>Insolvency protection (Sicherungsschein)</Text>
       <Text>
-        Insurer: {company.sicherungsschein_insurer ?? "—"}{"\n"}
-        Certificate number: {company.sicherungsschein_number ?? "—"}
+        Insurer: {company.sicherungsschein_insurer ?? "Not provided"}{"\n"}
+        Certificate number: {company.sicherungsschein_number ?? "Not provided"}
       </Text>
     </View>
   );

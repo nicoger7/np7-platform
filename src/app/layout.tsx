@@ -29,10 +29,10 @@ const SITE_URL = "https://www.np-seven.com";
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "NP7 — Windsurf trips, spots & gear",
+    default: "NP7 · Windsurf trips, spots & gear",
     template: "%s · NP7",
   },
-  description: "Windsurf coaching trips to the world's best spots, a rider-built spotguide, and custom boards — by Nico Prien.",
+  description: "Windsurf coaching trips to the world's best spots, a rider-built spotguide, and custom boards. All from Nico Prien.",
   applicationName: "NP7",
   // Member/public PWA: installs to /account. The /admin route group overrides
   // this with its own manifest + icons so the team gets a separate home-screen app.
@@ -54,16 +54,16 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "NP7",
     url: SITE_URL,
-    title: "NP7 — Windsurf trips, spots & gear",
-    description: "Windsurf coaching trips to the world's best spots, a rider-built spotguide, and custom boards — by Nico Prien.",
+    title: "NP7 · Windsurf trips, spots & gear",
+    description: "Windsurf coaching trips to the world's best spots, a rider-built spotguide, and custom boards. All from Nico Prien.",
     // Site-wide default share image — pages with their own art (blog covers,
     // destination heroes) override it in their generateMetadata.
-    images: [{ url: `${SITE_URL}/cdn/assets/hero/windsurf-hero-poster.jpg`, width: 1920, height: 1080, alt: "NP7 — windsurfing" }],
+    images: [{ url: `${SITE_URL}/cdn/assets/hero/windsurf-hero-poster.jpg`, width: 1920, height: 1080, alt: "NP7 windsurfing" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "NP7 — Windsurf trips, spots & gear",
-    description: "Windsurf coaching trips to the world's best spots, a rider-built spotguide, and custom boards — by Nico Prien.",
+    title: "NP7 · Windsurf trips, spots & gear",
+    description: "Windsurf coaching trips to the world's best spots, a rider-built spotguide, and custom boards. All from Nico Prien.",
     images: [`${SITE_URL}/cdn/assets/hero/windsurf-hero-poster.jpg`],
   },
 };

@@ -135,7 +135,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     if (total === 0) {
       return NextResponse.json(
-        { error: "You're already staying those nights — pick dates outside your current stay." },
+        { error: "You're already staying those nights. Pick dates outside your current stay." },
         { status: 409 },
       );
     }

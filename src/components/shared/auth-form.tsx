@@ -69,7 +69,7 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login", n
       if (res.ok) track("register", { source });
       setSent("register"); setBusy(false);
     } catch {
-      setError("Something went wrong — please try again.");
+      setError("Something went wrong. Please try again.");
       setBusy(false);
     }
   }
@@ -102,7 +102,7 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login", n
             <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" autoComplete="given-name" className={input} />
             <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" autoComplete="family-name" className={input} />
           </div>
-          <p className="text-[11.5px] text-[#9aa6ac] -mt-1">Private — others only ever see your first name &amp; last initial (e.g. &ldquo;Nico P.&rdquo;), never your full name.</p>
+          <p className="text-[11.5px] text-[#9aa6ac] -mt-1">Private: others only ever see your first name &amp; last initial (e.g. &ldquo;Nico P.&rdquo;), never your full name.</p>
         </>
       )}
       <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Your email" autoComplete="email" className={input} />
@@ -119,7 +119,7 @@ export function AuthForm({ onLoggedIn, compact = false, initialMode = "login", n
 
       {mode === "register" && (
         <p className="text-[12px] text-[#9aa6ac] leading-relaxed text-center pt-1">
-          We&apos;ll email you a link to finish — no password needed to start.
+          We&apos;ll email you a link to finish. No password needed to start.
         </p>
       )}
 

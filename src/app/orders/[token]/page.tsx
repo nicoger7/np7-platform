@@ -70,7 +70,7 @@ export default async function OrderPage({
             <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase text-[#c2ff38] mb-2">// ORDER PLACED</p>
             <h2 className="text-3xl font-black mb-2">You&apos;re in. 🤙</h2>
             <p className="text-sm text-white/80 leading-relaxed mb-5">
-              {(lines ?? [])[0]?.title ? <>The <strong>{(lines ?? [])[0].title}</strong> is officially yours — one transfer away from your first session on it.</> : <>Your gear is one transfer away from its first session.</>}
+              {(lines ?? [])[0]?.title ? <>The <strong>{(lines ?? [])[0].title}</strong> is officially yours. One transfer away from your first session on it.</> : <>Your gear is one transfer away from its first session.</>}
             </p>
             <div className="rounded-xl bg-black/40 border border-white/10 p-4 mb-5">
               <p className="text-xs text-white/50 mb-1">Pay by bank transfer</p>
@@ -83,7 +83,7 @@ export default async function OrderPage({
             <div className="grid sm:grid-cols-3 gap-3 text-[11px] text-white/60">
               {[
                 ["1", "Your transfer lands"],
-                ["2", "We pack, check & ship — tracking here"],
+                ["2", "We pack, check & ship · tracking here"],
                 ["3", "You ride it"],
               ].map(([n, t]) => (
                 <p key={n} className="flex items-center gap-2">
@@ -143,7 +143,7 @@ export default async function OrderPage({
             <h2 className="text-lg font-bold mb-2">Return in progress</h2>
             {openReturns.map((r: { id: string; status: string; declared_at: string }) => (
               <p key={r.id} className="text-sm text-white/70">
-                Declared {new Date(r.declared_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} — status: <span className="text-[#c2ff38]">{r.status.replace(/_/g, " ")}</span>
+                Declared {new Date(r.declared_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} · status: <span className="text-[#c2ff38]">{r.status.replace(/_/g, " ")}</span>
               </p>
             ))}
           </div>

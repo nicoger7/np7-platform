@@ -7,7 +7,7 @@ import { fmtDates } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { GuideCard } from "@/components/portal/guide-card";
 
-export const metadata: Metadata = { title: "My focus points — NP7" };
+export const metadata: Metadata = { title: "My focus points · NP7" };
 export const dynamic = "force-dynamic";
 
 /**

@@ -11,7 +11,7 @@ import { flags } from "@/lib/flags";
 export const metadata: Metadata = {
   title: "The NP7 Method",
   description:
-    "Great windsurfing was never one fix on the water — it's seven things moving together. The NP7 Method is Nico Prien's proven, holistic coaching system for building the whole rider across one week by the sea.",
+    "Great windsurfing was never one fix on the water. It's seven things moving together. The NP7 Method is Nico Prien's proven, holistic coaching system for building the whole rider across one week by the sea.",
   alternates: { canonical: "/method" },
 };
 export const revalidate = 3600;

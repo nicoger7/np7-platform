@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   // ── logged-in member: verified straight away ──
   if (user) {
     if (await getMemberApplication(user.contactId)) {
-      return NextResponse.json({ alreadyApplied: true, error: "You've already applied — we'll be in touch." }, { status: 409 });
+      return NextResponse.json({ alreadyApplied: true, error: "You've already applied. We'll be in touch." }, { status: 409 });
     }
     const { data: contact } = await db.from("contacts").select("name,email,phone").eq("id", user.contactId).maybeSingle();
     const res = await createApplication({
@@ -55,11 +55,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Please enter your name and a valid email." }, { status: 400 });
   }
   const contactId = await findOrCreateContact(email, name);
-  if (!contactId) return NextResponse.json({ error: "Could not submit — please try again." }, { status: 500 });
+  if (!contactId) return NextResponse.json({ error: "Could not submit. Please try again." }, { status: 500 });
 
   // Already have a verified application on this email? Nothing more to do.
   const { data: prior } = await db.from("exp_trip_applications").select("id,verified").eq("contact_id", contactId).is("archived_at", null).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (prior?.verified) return NextResponse.json({ alreadyApplied: true, error: "You've already applied with this email — we'll be in touch." }, { status: 409 });
+  if (prior?.verified) return NextResponse.json({ alreadyApplied: true, error: "You've already applied with this email. We'll be in touch." }, { status: 409 });
 
   const res = await createApplication({
     contactId, verified: false,

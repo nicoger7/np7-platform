@@ -35,7 +35,7 @@ export function SetPasswordPrompt({ show }: { show: boolean }) {
       // next sign-in and on every other device — nagging that looks like a bug.
       // Put the card back so the dismissal can actually be retried.
       setClosed(wasClosed);
-      setErr("Couldn't save that. This reminder will come back next time you sign in — tap Maybe later again to try once more.");
+      setErr("Couldn't save that. This reminder will come back next time you sign in. Tap Maybe later again to try once more.");
     }
   }
 
@@ -59,7 +59,7 @@ export function SetPasswordPrompt({ show }: { show: boolean }) {
   if (done) {
     return (
       <div className="mb-6 rounded-2xl bg-[#e1f5ee] border border-[#bfe6d7] px-5 py-3.5 text-[14px] text-[#0f6e56] font-semibold">
-        Password set — you can use it next time you sign in. ✓
+        Password set. You can use it next time you sign in. ✓
       </div>
     );
   }
@@ -72,7 +72,7 @@ export function SetPasswordPrompt({ show }: { show: boolean }) {
         </span>
         <div className="flex-1 min-w-0">
           <p className="text-[15px] font-bold text-[#00374a]">Set a password for faster sign-in</p>
-          <p className="text-[13px] text-[#5a6b72] mt-0.5">You signed in with a magic link. Add a password so next time you can log in instantly — or keep using magic links, your call.</p>
+          <p className="text-[13px] text-[#5a6b72] mt-0.5">You signed in with a magic link. Add a password so next time you can log in instantly, or keep using magic links. Your call.</p>
 
           {!open ? (
             <div className="mt-3 flex flex-wrap gap-2">

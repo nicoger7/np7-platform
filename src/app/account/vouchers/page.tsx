@@ -8,7 +8,7 @@ import { GiftBuyForm } from "@/components/experience/gift-buy-form";
 import { loadGiftData } from "@/lib/gift-data";
 import { STATUS_LABEL, STATUS_TONE, fmtVoucherMoney, type Voucher } from "@/lib/vouchers";
 
-export const metadata: Metadata = { title: "Gift vouchers — NP7" };
+export const metadata: Metadata = { title: "Gift vouchers · NP7" };
 export const dynamic = "force-dynamic";
 
 type Row = Voucher & { exp_experiences: { title: string | null } | null };
@@ -51,7 +51,7 @@ export default async function VouchersPage() {
           <Link href="/account" className="text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a]">← Home</Link>
           <div className="mt-2 mb-8">
             <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Gift vouchers</h1>
-            <p className="text-[15px] text-[#6a7a80] mt-1.5">Gift a windsurf, wing &amp; foil trip — or print &amp; use one you&apos;ve been given.</p>
+            <p className="text-[15px] text-[#6a7a80] mt-1.5">Gift a windsurf, wing &amp; foil trip, or print &amp; use one you&apos;ve been given.</p>
           </div>
 
           {rows.length > 0 && (
@@ -85,7 +85,7 @@ export default async function VouchersPage() {
                     {v.status === "pending" && mine && (
                       <div className="mt-4 rounded-xl bg-[#fff7ec] border border-[#f0e6d6] p-4 text-[13px] text-[#6a7a80] leading-relaxed">
                         <p className="font-bold text-[#00374a] mb-1">Pay by bank transfer to activate</p>
-                        <p>Send {v.amount != null ? <strong>{fmtVoucherMoney(v.amount, v.currency ?? "EUR")}</strong> : "the amount"} with reference <strong>{v.code}</strong>{bank?.iban ? <> to IBAN <strong>{bank.iban}</strong>{bank.bic ? ` (BIC ${bank.bic})` : ""}{bank.bank_name ? `, ${bank.bank_name}` : ""}</> : ""}. We&apos;ll activate it as soon as it lands and email you — then you can print &amp; gift it.</p>
+                        <p>Send {v.amount != null ? <strong>{fmtVoucherMoney(v.amount, v.currency ?? "EUR")}</strong> : "the amount"} with reference <strong>{v.code}</strong>{bank?.iban ? <> to IBAN <strong>{bank.iban}</strong>{bank.bic ? ` (BIC ${bank.bic})` : ""}{bank.bank_name ? `, ${bank.bank_name}` : ""}</> : ""}. We&apos;ll activate it as soon as it lands and email you. Then you can print &amp; gift it.</p>
                       </div>
                     )}
 
@@ -98,7 +98,7 @@ export default async function VouchersPage() {
                           )}
                         </div>
                         <p className="text-[12.5px] text-[#8a9aa0] mt-2.5 leading-relaxed">
-                          To use it: register for the trip (it&apos;s free), then open your trip&apos;s <strong>payment plan</strong> and enter code <strong className="font-mono text-[#00374a]">{v.code}</strong> — the voucher covers what you&apos;ve been invoiced.
+                          To use it: register for the trip (it&apos;s free), then open your trip&apos;s <strong>payment plan</strong> and enter code <strong className="font-mono text-[#00374a]">{v.code}</strong>. The voucher covers what you&apos;ve been invoiced.
                         </p>
                       </div>
                     )}
@@ -112,7 +112,7 @@ export default async function VouchersPage() {
           {/* The options — gift a trip, right here (no detour to the public site) */}
           <div className="max-w-[760px]">
             <h2 className="text-2xl sm:text-[28px] font-black tracking-[-0.02em] text-[#00374a] mb-1.5">{rows.length > 0 ? "Gift another trip" : "Gift a trip"}</h2>
-            <p className="text-[14px] text-[#6a7a80] mb-6">A windsurf, wing &amp; foil adventure wrapped as a voucher. Pay by bank transfer — we email a printable voucher once it lands, and call the recipient if you like.</p>
+            <p className="text-[14px] text-[#6a7a80] mb-6">A windsurf, wing &amp; foil adventure wrapped as a voucher. Pay by bank transfer. We email a printable voucher once it lands, and call the recipient if you like.</p>
             <GiftBuyForm experiences={experiences} packages={packages} />
           </div>
         </div>

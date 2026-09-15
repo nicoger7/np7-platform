@@ -8,7 +8,7 @@ import { flags } from "@/lib/flags";
 const HIGHLIGHTS = ["Pro coaching every day", "Small, hand-picked crew", "Hotel, transfers & gear sorted"];
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "You're invited — NP7 Experience" };
+export const metadata: Metadata = { title: "You're invited · NP7 Experience" };
 
 type Props = { params: Promise<{ token: string }> };
 
@@ -17,8 +17,8 @@ function fmtRange(start: string | null, end: string | null): string {
   const s = new Date(start);
   const e = end ? new Date(end) : null;
   const month = (d: Date) => d.toLocaleDateString("en-GB", { month: "short" });
-  if (e && s.getMonth() === e.getMonth()) return `${s.getDate()}–${e.getDate()} ${month(e)} ${e.getFullYear()}`;
-  if (e) return `${s.getDate()} ${month(s)} – ${e.getDate()} ${month(e)} ${e.getFullYear()}`;
+  if (e && s.getMonth() === e.getMonth()) return `${s.getDate()}-${e.getDate()} ${month(e)} ${e.getFullYear()}`;
+  if (e) return `${s.getDate()} ${month(s)} - ${e.getDate()} ${month(e)} ${e.getFullYear()}`;
   return s.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 function fmtMoney(n: number | null | undefined, currency = "EUR"): string {
@@ -43,7 +43,7 @@ export default async function JoinPage({ params }: Props) {
       <Shell>
         <div className="rounded-2xl bg-white border border-[#f0e6d6] p-7 text-center">
           <h1 className="text-[20px] font-black text-[#00374a]">This invite isn&apos;t available</h1>
-          <p className="text-[14px] text-[#5a6b72] mt-2 leading-relaxed">The link may have expired or been mistyped. Ask your friend to resend it — or explore our trips directly.</p>
+          <p className="text-[14px] text-[#5a6b72] mt-2 leading-relaxed">The link may have expired or been mistyped. Ask your friend to resend it, or explore our trips directly.</p>
           <Link href="/experience" className="inline-block mt-4 rounded-lg bg-[#00374a] text-white text-[14px] font-semibold px-5 py-2.5">Explore trips</Link>
         </div>
       </Shell>
@@ -63,7 +63,7 @@ export default async function JoinPage({ params }: Props) {
   // or two; a warm fallback if it has none.
   const blurb = (() => {
     const d = (experience.description || "").trim();
-    if (!d) return "A week of windsurfing, coaching and good people — flights aside, everything's arranged so you just show up and ride.";
+    if (!d) return "A week of windsurfing, coaching and good people. Flights aside, everything's arranged so you just show up and ride.";
     return d.length <= 180 ? d : d.slice(0, 180).replace(/\s+\S*$/, "") + "…";
   })();
   // Real "what's included" from the package, falling back to the on-brand basics.

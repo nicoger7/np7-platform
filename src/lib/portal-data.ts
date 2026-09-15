@@ -836,7 +836,7 @@ export async function getEditionCrewLevels(editionId: string): Promise<EditionCr
     const achievedIds = achBy.get(cid) ?? [];
     const suggested = deriveSuggestedLevel(catalog, new Set(achievedIds));
     return {
-      contactId: cid, name: b.name ?? "—", email: b.email ?? null,
+      contactId: cid, name: b.name ?? "Unnamed", email: b.email ?? null,
       self_level: l.self_level ?? null, coach_level: b.level ?? null,
       level_status: l.level_status ?? null, suggested, reviewed: l.level_status === "verified", achievedIds,
       selfLoggedIds: selfBy.get(cid) ?? [],

@@ -33,8 +33,8 @@ export function TierStatusCard({ tier }: { tier: MemberTier | null }) {
       </div>
       <p className="text-[13.5px] text-[#6a7a80] mb-5 leading-relaxed">
         {tier
-          ? <>{fmtN(tier.trips)} trip{tier.trips === 1 ? "" : "s"} ridden{tier.toNext ? <> — <b className="text-[#00374a]">{fmtN(tier.toNext)} more to {tier.nextLabel}</b></> : " — top tier"}. A full week counts 1, a clinic 0.25.</>
-          : <>Ride your first week and the ladder starts — every finished trip counts.</>}
+          ? <>{fmtN(tier.trips)} trip{tier.trips === 1 ? "" : "s"} ridden{tier.toNext ? <> · <b className="text-[#00374a]">{fmtN(tier.toNext)} more to {tier.nextLabel}</b></> : " · top tier"}. A full week counts 1, a clinic 0.25.</>
+          : <>Ride your first week and the ladder starts. Every finished trip counts.</>}
       </p>
 
       <div className="flex gap-2 mb-2">
@@ -54,7 +54,7 @@ export function TierStatusCard({ tier }: { tier: MemberTier | null }) {
         <>
           {tier.validUntil && (
             <p className="text-[12px] text-[#9aa6ac] mb-4">
-              {tier.label} status valid until {new Date(tier.validUntil + "T00:00:00Z").toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })} — your next trip extends it.
+              {tier.label} status valid until {new Date(tier.validUntil + "T00:00:00Z").toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" })}. Your next trip extends it.
             </p>
           )}
         </>
@@ -75,7 +75,7 @@ export function TierStatusCard({ tier }: { tier: MemberTier | null }) {
                   {mine && <span className="text-[9px] font-extrabold tracking-[0.12em] uppercase bg-[#ffc42e] text-[#4a3403] rounded-full px-2 py-0.5">You</span>}
                 </div>
                 <p className="text-[11px] text-[#9aa6ac] mb-2.5">
-                  {s.key === "rider" ? "every NP7 rider" : s.key === "crew" ? `after your 1st trip · keep it: ${TIER_KEEP.crew} trip a year` : "2 trips within 12 months — earned and kept by pace"}
+                  {s.key === "rider" ? "every NP7 rider" : s.key === "crew" ? `after your 1st trip · keep it: ${TIER_KEEP.crew} trip a year` : "2 trips within 12 months · earned and kept by pace"}
                 </p>
                 <ul className="space-y-1">
                   {TIER_PERKS[s.key].map((p) => (

@@ -88,5 +88,5 @@ export function withMemberArea(
     : video ? "your video-analysis clips, "
     : "";
   const docs = unit === "clinic" ? "clinic documents" : "trip documents";
-  return [...base, `NP7 member area — ${media}${docs} & progress tracker`];
+  return [...base, `NP7 member area: ${media}${docs} & progress tracker`];
 }

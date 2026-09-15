@@ -125,12 +125,12 @@ export function SpotsList({ spots: published, accent = "#00afdb", focus }: { spo
               <div className="space-y-4">
                 {spot.ownPending && (
                   <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-[13.5px] text-amber-900 leading-relaxed">
-                    <span className="font-bold">Under review — only you can see this.</span> Once a few riders confirm your spot it goes live for everyone. Keep adding what you know below — conditions, wind, photos — it all carries over.
+                    <span className="font-bold">Under review: only you can see this.</span> Once a few riders confirm your spot it goes live for everyone. Keep adding what you know below: conditions, wind, photos. It all carries over.
                   </div>
                 )}
                 {spot.teamPending && (
                   <div className="rounded-xl border border-amber-300/60 bg-amber-50 px-4 py-3 text-[13.5px] text-amber-900 leading-relaxed">
-                    <span className="font-bold">Member-submitted — not public yet.</span> It goes live once riders confirm it in <span className="font-semibold">Help verify</span>{" "}below. You see it because you&apos;re on the team.
+                    <span className="font-bold">Member-submitted, not public yet.</span> It goes live once riders confirm it in <span className="font-semibold">Help verify</span>{" "}below. You see it because you&apos;re on the team.
                   </div>
                 )}
                 <div className="sm:hidden"><RatingHeadline np7={spot.np7} member={spot.member} accent={accent} /></div>
@@ -143,7 +143,7 @@ export function SpotsList({ spots: published, accent = "#00afdb", focus }: { spo
                   const who = shown.length
                     ? shown.join(", ") + (extra > 0 ? ` and ${extra} more ${extra === 1 ? "rider" : "riders"}` : "")
                     : `${count} ${count === 1 ? "rider" : "riders"}`;
-                  return <p className="text-[12.5px] font-semibold text-[#0f6e56]">✓ Confirmed by {who} — riders who know this spot</p>;
+                  return <p className="text-[12.5px] font-semibold text-[#0f6e56]">✓ Confirmed by {who} · riders who know this spot</p>;
                 })()}
                 {(() => {
                   // Hero = the chosen photo, else the crew's top-VOTED photo (spot.photos
@@ -189,7 +189,7 @@ export function SpotsList({ spots: published, accent = "#00afdb", focus }: { spo
                   <Foldout icon={FoldIconStats} label="Wind statistics" meta="Modeled"
                     value={windStatsTeaser(spot.wind_stats) ?? undefined} accent={accent}>
                     <WindStatsChart stats={spot.wind_stats} accent={accent} />
-                    <p className="mt-2 text-[11.5px] text-[#9aa6ac] leading-snug">Modeled from Open-Meteo climatology at the pin — a guide, not measured on site.</p>
+                    <p className="mt-2 text-[11.5px] text-[#9aa6ac] leading-snug">Modeled from Open-Meteo climatology at the pin. A guide, not measured on site.</p>
                   </Foldout>
                 )}
 

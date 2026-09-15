@@ -90,8 +90,8 @@ const addonBuckets = (v: EmailVars) => {
   const list = (raw: string) =>
     `<ul style="margin:0 0 14px;padding-left:20px;">${raw.split("\n").filter(Boolean).map((l) => `<li style="margin:3px 0;">${esc(l)}</li>`).join("")}</ul>`;
   let out = heading("All your add-ons");
-  if (v.addonsOurs) out += p(`<strong>On your NP7 balance</strong> — paid by bank transfer to us:`) + list(v.addonsOurs);
-  if (v.addonsDirect) out += p(`<strong>Paid locally</strong> — settled directly with the provider, not on your balance:`) + list(v.addonsDirect);
+  if (v.addonsOurs) out += p(`<strong>On your NP7 balance</strong>, paid by bank transfer to us:`) + list(v.addonsOurs);
+  if (v.addonsDirect) out += p(`<strong>Paid locally</strong>, settled directly with the provider, not on your balance:`) + list(v.addonsDirect);
   return out;
 };
 
@@ -196,19 +196,19 @@ const whatsNextBlock = (v: EmailVars): string =>
 
 export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Built> = {
   reservation_received: (v, opts) => ({
-    subject: `You're registered — ${v.experienceTitle ?? "NP7 Experience"} 🤙`,
+    subject: `You're registered for ${v.experienceTitle ?? "NP7 Experience"} 🤙`,
     html: emailLayout({
       ...opts,
-      preheader: "You're on the list — here's how it works and how to secure your spot.",
+      preheader: "You're on the list. Here's how it works and how to secure your spot.",
       bodyHtml:
         greet(v) +
-        p(`You're registered for <strong>${esc(v.experienceTitle || "")}${v.editionLabel ? " · " + esc(v.editionLabel) : ""}</strong> — awesome to have you. Here's how it works from here:`) +
-        p(`<strong>1. Secure your spot.</strong> Attached are your payment details (pro-forma invoice) — pay the downpayment by bank transfer within the window shown and your place is locked in.${v.refundDays ? ` Fully refundable for ${esc(String(v.refundDays))} days after you pay, so there's plenty of time to sort flights.` : ""}`) +
+        p(`You're registered for <strong>${esc(v.experienceTitle || "")}${v.editionLabel ? " · " + esc(v.editionLabel) : ""}</strong>. Awesome to have you. Here's how it works from here:`) +
+        p(`<strong>1. Secure your spot.</strong> Attached are your payment details (pro-forma invoice). Pay the downpayment by bank transfer within the window shown and your place is locked in.${v.refundDays ? ` Fully refundable for ${esc(String(v.refundDays))} days after you pay, so there's plenty of time to sort flights.` : ""}`) +
         p(`<strong>2. Plan it with us.</strong> Manage your booking and meet your crew in your trip account.${v.addonsSummary ? ` You can also add ${esc(v.addonsSummary)} any time.` : ""}`) +
         p(`<strong>3. Pay the balance later</strong> by bank transfer, in good time before the trip.`) +
         (v.bookingLink ? emailButton("Secure my spot", v.bookingLink) : "") +
         whatsNextBlock(v) +
-        p(`— Nico &amp; the NP7 team`),
+        p(`Nico &amp; the NP7 team`),
     }),
   }),
 
@@ -218,13 +218,13 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `Your ${v.tierLabel ?? "NP7"} status runs out ${v.validUntilLabel ? `in ${v.validUntilLabel}` : "soon"}`,
     html: emailLayout({
       ...opts,
-      preheader: "One trip keeps it — here's what's coming up.",
+      preheader: "One trip keeps it. Here's what's coming up.",
       bodyHtml:
         greet(v) +
-        p(`A heads-up from your NP7 ladder: your <strong>${esc(String(v.tierLabel ?? ""))}</strong> status is valid until <strong>${esc(String(v.validUntilLabel ?? "soon"))}</strong>. After that it steps down — and with it the perks${v.tierLabel === "Legend" ? " (your Signature invitations and the friend discount included)" : ""}.`) +
+        p(`A heads-up from your NP7 ladder: your <strong>${esc(String(v.tierLabel ?? ""))}</strong> status is valid until <strong>${esc(String(v.validUntilLabel ?? "soon"))}</strong>. After that it steps down, taking the perks with it${v.tierLabel === "Legend" ? " (your Signature invitations and the friend discount included)" : ""}.`) +
         p(`Keeping it is simple: <strong>ride with us again</strong>. ${esc(String(v.keepRule ?? ""))}`) +
         (v.tripsLink ? emailButton("See the upcoming weeks", String(v.tripsLink)) : "") +
-        p(`Your member prices are already on the tiles when you're signed in.<br>— Nico & the NP7 team`),
+        p(`Your member prices are already on the tiles when you're signed in.<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -240,7 +240,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         p(`Good news from the water: your coach verified <strong>${esc(String(v.skillCount ?? "new"))} skill${String(v.skillCount ?? "") === "1" ? "" : "s"}</strong>${v.experienceTitle ? ` after <strong>${esc(v.experienceTitle)}</strong>` : ""} on your NP7 progress ladder.`) +
         (v.levelLabel ? p(`Your verified rank now reads <strong>${esc(String(v.levelLabel))}</strong>.`) : "") +
         (v.portalLink ? emailButton("See my progress", String(v.portalLink)) : "") +
-        p(`Keep it rolling — the next trip builds straight on top.<br>— Nico & the NP7 team`),
+        p(`Keep it rolling. The next trip builds straight on top.<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -248,15 +248,15 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `You're in! 🤙 ${v.experienceTitle ?? "Your NP7 trip"} is booked`,
     html: emailLayout({
       ...opts,
-      preheader: "Deposit received — activate your trip account.",
+      preheader: "Deposit received. Activate your trip account.",
       bodyHtml:
         greet(v) +
-        p(`Your deposit is in — you're officially coming. Get ready for the week your jibes have been waiting for.`) +
+        p(`Your deposit is in. You're officially coming. Get ready for the week your jibes have been waiting for.`) +
         facts([["Trip", v.experienceTitle], ["Dates", v.dates], ["Package", v.packageName], ["Balance to come", v.balance]]) +
         p(`We've created your personal <strong>trip account</strong> where you'll manage your booking, see your travel documents, update your details and find your memories after the week. Activate it here:`) +
         (v.activationLink ? emailButton("Activate my trip account", v.activationLink) : "") +
-        p(`<strong>What's next:</strong> we'll contact you personally within a day or two to go through everything. The remaining balance is paid later by bank transfer — we'll send the invoice in good time.`) +
-        p(`See you on the water.<br>— Nico & the NP7 team`),
+        p(`<strong>What's next:</strong> we'll contact you personally within a day or two to go through everything. The remaining balance is paid later by bank transfer. We'll send the invoice in good time.`) +
+        p(`See you on the water.<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -266,32 +266,32 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `You're in! 🤙 ${v.experienceTitle ?? "Your NP7 event"}`,
     html: emailLayout({
       ...opts,
-      preheader: "Ticket confirmed — activate your account and sign the waiver.",
+      preheader: "Ticket confirmed. Activate your account and sign the waiver.",
       bodyHtml:
         greet(v) +
-        p(`Your spot is booked and paid — see you on the water. 🌊`) +
+        p(`Your spot is booked and paid. See you on the water. 🌊`) +
         facts([["Event", v.experienceTitle], ["Dates", v.dates], ["Where", v.location], ["Paid", v.amount]]) +
-        p(`We've set up your <strong>NP7 account</strong>, where you'll find your booking, your documents and — after the event — your photos and video.`) +
+        p(`We've set up your <strong>NP7 account</strong>, where you'll find your booking, your documents and (after the event) your photos and video.`) +
         (v.activationLink ? emailButton("Open my account", v.activationLink) : "") +
         heading("One thing before you ride") +
-        p(`Everyone on the water signs a short waiver. It takes a minute${v.waiverLink ? ` — <a href="${esc(v.waiverLink)}" style="color:#0aa3c7;font-weight:700;">sign it here</a>` : ""}. If the participant is under 18, a parent or guardian signs it.`) +
-        p(`Any questions, just reply to this email.<br>— Nico & the NP7 team`),
+        p(`Everyone on the water signs a short waiver, and it takes about a minute.${v.waiverLink ? ` <a href="${esc(v.waiverLink)}" style="color:#0aa3c7;font-weight:700;">Sign it here</a>.` : ""} If the participant is under 18, a parent or guardian signs it.`) +
+        p(`Any questions, just reply to this email.<br>Nico & the NP7 team`),
     }),
   }),
 
   /** Standby deposit taken — the date isn't confirmed yet, and the mail must
    *  not pretend otherwise. */
   event_deposit_received: (v, opts) => ({
-    subject: `Deposit received — ${v.experienceTitle ?? "your NP7 event"}`,
+    subject: `Deposit received · ${v.experienceTitle ?? "your NP7 event"}`,
     html: emailLayout({
       ...opts,
-      preheader: "Deposit received — we'll confirm the date shortly.",
+      preheader: "Deposit received. We'll confirm the date shortly.",
       bodyHtml:
         greet(v) +
-        p(`Your deposit is in and your spot is held. We confirm the date once the forecast lands — you'll hear from us as soon as it does, and the balance is due then.`) +
+        p(`Your deposit is in and your spot is held. We confirm the date once the forecast lands. You'll hear from us as soon as it does, and the balance is due then.`) +
         facts([["Event", v.experienceTitle], ["Dates", v.dates], ["Where", v.location], ["Deposit paid", v.amount]]) +
         (v.activationLink ? emailButton("Open my account", v.activationLink) : "") +
-        p(`Any questions, just reply.<br>— Nico & the NP7 team`),
+        p(`Any questions, just reply.<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -307,10 +307,10 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `You're in! 🤙 ${v.experienceTitle ?? "Your NP7 event"}`,
     html: emailLayout({
       ...opts,
-      preheader: "Deposit received — your spot is confirmed.",
+      preheader: "Deposit received. Your spot is confirmed.",
       bodyHtml:
         greet(v) +
-        p(`Your deposit is in and your spot is <strong>confirmed</strong> — see you on the water. 🌊`) +
+        p(`Your deposit is in and your spot is <strong>confirmed</strong>. See you on the water. 🌊`) +
         facts([
           ["Event", v.experienceTitle],
           ["Dates", v.dates],
@@ -319,27 +319,27 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
           ["Still to pay", v.balance],
           ["Due", v.balanceDue],
         ]) +
-        p(`We've set up your <strong>NP7 account</strong>, where you'll find your booking, your invoice and — after the clinic — your photos.`) +
+        p(`We've set up your <strong>NP7 account</strong>, where you'll find your booking, your invoice and (after the clinic) your photos.`) +
         (v.activationLink ? emailButton("Open my account", v.activationLink) : "") +
         heading("One thing before you ride") +
-        p(`Everyone on the water signs a short waiver. It takes a minute${v.waiverLink ? ` — <a href="${esc(v.waiverLink)}" style="color:#0aa3c7;font-weight:700;">sign it here</a>` : ""}. If the participant is under 18, a parent or guardian signs it.`) +
-        p(`Any questions, just reply to this email.<br>— Nico & the NP7 team`),
+        p(`Everyone on the water signs a short waiver, and it takes about a minute.${v.waiverLink ? ` <a href="${esc(v.waiverLink)}" style="color:#0aa3c7;font-weight:700;">Sign it here</a>.` : ""} If the participant is under 18, a parent or guardian signs it.`) +
+        p(`Any questions, just reply to this email.<br>Nico & the NP7 team`),
     }),
   }),
 
   /** The admin confirmed an event date and this buyer CAN make it — the
    *  deposit holds the spot, the balance is due now via the Stripe link. */
   event_date_confirmed_balance: (v, opts) => ({
-    subject: `It's on! 🤙 ${v.experienceTitle ?? "Your NP7 event"} — date confirmed`,
+    subject: `It's on! 🤙 ${v.experienceTitle ?? "Your NP7 event"} · date confirmed`,
     html: emailLayout({
       ...opts,
-      preheader: "The forecast landed — settle the balance and you're locked in.",
+      preheader: "The forecast landed. Settle the balance and you're locked in.",
       bodyHtml:
         greet(v) +
-        p(`Great news — the forecast landed and <strong>${esc(String(v.experienceTitle ?? "your event"))}</strong> is confirmed. Your deposit holds the spot; the balance locks it in.`) +
+        p(`Great news: the forecast landed and <strong>${esc(String(v.experienceTitle ?? "your event"))}</strong> is confirmed. Your deposit holds the spot; the balance locks it in.`) +
         facts([["Event", v.experienceTitle], ["Balance due", v.balance]]) +
         (v.balanceLink ? emailButton("Pay the balance", String(v.balanceLink)) : "") +
-        p(`See you on the water. 🌊<br>— Nico & the NP7 team`),
+        p(`See you on the water. 🌊<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -347,15 +347,15 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
    *  itself is already on its way when this sends; the mail must not ask for
    *  anything, only explain. */
   event_date_not_running: (v, opts) => ({
-    subject: `${v.experienceTitle ?? "Your NP7 event"} — your dates didn't make it`,
+    subject: `${v.experienceTitle ?? "Your NP7 event"} · your dates didn't make it`,
     html: emailLayout({
       ...opts,
-      preheader: "Your chosen dates aren't running — your refund is on the way.",
+      preheader: "Your chosen dates aren't running. Your refund is on the way.",
       bodyHtml:
         greet(v) +
-        p(`We've locked in a date for <strong>${esc(String(v.experienceTitle ?? "the event"))}</strong> — unfortunately not one of the dates you could make. Sorry we couldn't line the wind up with your calendar this time.`) +
-        (v.refund ? p(`Your refund of <strong>${esc(String(v.refund))}</strong> goes back to your card automatically over the next few days — nothing to do on your side.`) : "") +
-        p(`Next forecast window, we'd love another shot.<br>— Nico & the NP7 team`),
+        p(`We've locked in a date for <strong>${esc(String(v.experienceTitle ?? "the event"))}</strong>, and unfortunately it isn't one of the dates you could make. Sorry we couldn't line the wind up with your calendar this time.`) +
+        (v.refund ? p(`Your refund of <strong>${esc(String(v.refund))}</strong> goes back to your card automatically over the next few days. Nothing to do on your side.`) : "") +
+        p(`Next forecast window, we'd love another shot.<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -365,13 +365,13 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `Your NP7 gift voucher runs out on ${v.redeemByLabel ?? "…"}`,
     html: emailLayout({
       ...opts,
-      preheader: "Still yours to ride — book any experience and we'll apply it.",
+      preheader: "Still yours to ride. Book any experience and we'll apply it.",
       bodyHtml:
         greet(v) +
-        p(`A friendly heads-up: your NP7 gift voucher <strong>${esc(String(v.code ?? ""))}</strong>${v.amountLabel ? ` over <strong>${esc(String(v.amountLabel))}</strong>` : ""} is valid until <strong>${esc(String(v.redeemByLabel ?? "soon"))}</strong> — after that it expires.`) +
+        p(`A friendly heads-up: your NP7 gift voucher <strong>${esc(String(v.code ?? ""))}</strong>${v.amountLabel ? ` over <strong>${esc(String(v.amountLabel))}</strong>` : ""} is valid until <strong>${esc(String(v.redeemByLabel ?? "soon"))}</strong>. After that it expires.`) +
         p(`Redeeming is easy: pick any experience, mention the code when you book, and we take it straight off the invoice.`) +
         (v.browseLink ? emailButton("Browse the experiences", String(v.browseLink)) : "") +
-        p(`Not sure which week fits? Just reply — we'll help you pick.<br>— Nico & the NP7 team`),
+        p(`Not sure which week fits? Just reply and we'll help you pick.<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -379,12 +379,12 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `Reset your NP7 password`,
     html: emailLayout({
       ...opts,
-      preheader: "Set a new password — the link works once.",
+      preheader: "Set a new password. The link works once.",
       bodyHtml:
         greet(v) +
-        p(`Someone asked to reset the password for this NP7 account — usually that someone is you.`) +
+        p(`Someone asked to reset the password for this NP7 account. Usually that someone is you.`) +
         (v.resetLink ? emailButton("Set a new password", v.resetLink) : "") +
-        p(`The link works once and expires after an hour. If you didn't request this, you can safely ignore this email — your password stays as it is.`),
+        p(`The link works once and expires after an hour. If you didn't request this, you can safely ignore this email. Your password stays as it is.`),
     }),
   }),
 
@@ -429,13 +429,13 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `${v.inviterName ?? "Someone"} booked you onto ${v.experienceTitle ?? "an NP7 trip"} 🤙`,
     html: emailLayout({
       ...opts,
-      preheader: `Your spot is booked and paid for by ${v.inviterName ?? "someone else"} — here's your trip page.`,
+      preheader: `Your spot is booked and paid for by ${v.inviterName ?? "someone else"}. Here's your trip page.`,
       bodyHtml:
         greet(v) +
-        p(`${v.inviterName ?? "Someone"} has booked you a spot on <strong>${v.experienceTitle ?? "an NP7 Experience"}</strong>${v.editionLabel ? ` — ${v.editionLabel}` : ""}${v.dates ? `, ${v.dates}` : ""}.`) +
-        p(`<strong>There is nothing for you to pay.</strong> ${v.inviterName ?? "They"} is covering your spot${v.packageName ? ` (${v.packageName})` : ""}. Questions about the money side? Ask ${v.inviterName ?? "them"} — we bill them, never you.`) +
+        p(`${v.inviterName ?? "Someone"} has booked you a spot on <strong>${v.experienceTitle ?? "an NP7 Experience"}</strong>${v.editionLabel ? `, ${v.editionLabel}` : ""}${v.dates ? `, ${v.dates}` : ""}.`) +
+        p(`<strong>There is nothing for you to pay.</strong> ${v.inviterName ?? "They"} is covering your spot${v.packageName ? ` (${v.packageName})` : ""}. Questions about the money side? Ask ${v.inviterName ?? "them"}. We bill them, never you.`) +
         (v.activationLink ? emailButton("Open my trip page", v.activationLink) : "") +
-        p(`Your own trip page is where you sign your waiver, add your flight times and tell us about your level — that part is yours. Later it fills up with the week's photos and videos.`) +
+        p(`Your own trip page is where you sign your waiver, add your flight times and tell us about your level. That part is yours. Later it fills up with the week's photos and videos.`) +
         p(`If this wasn't meant for you, just reply to this email and we'll take you off.`),
     }),
   }),
@@ -444,14 +444,14 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `${v.inviterName ?? "A friend"} invited you to ${v.experienceTitle ?? "an NP7 trip"} 🌊`,
     html: emailLayout({
       ...opts,
-      preheader: `Join ${v.inviterName ?? "a friend"} on this windsurf trip${v.rewardFriend ? ` — ${v.rewardFriend} off your spot` : ""}.`,
+      preheader: `Join ${v.inviterName ?? "a friend"} on this windsurf trip${v.rewardFriend ? ` and get ${v.rewardFriend} off your spot` : ""}.`,
       bodyHtml:
         p(`Hey ${esc(v.firstName || "there")} 🤙`) +
-        p(`<strong>${esc(v.inviterName || "A friend")}</strong> wants you along on <strong>${esc(v.experienceTitle || "an NP7 trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} — an NP7 windsurf adventure.`) +
+        p(`<strong>${esc(v.inviterName || "A friend")}</strong> wants you along on <strong>${esc(v.experienceTitle || "an NP7 trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""}, an NP7 windsurf adventure.`) +
         (v.personalNote ? p(`<em>“${esc(v.personalNote)}”</em>`) : "") +
         (v.rewardFriend ? p(`${v.inviterName ? `As <strong>${esc(v.inviterName)}</strong>’s guest you` : "You"} get <strong>${esc(v.rewardFriend)} off</strong> your spot.`) : "") +
         (v.joinLink ? emailButton("See the trip & join", v.joinLink) : "") +
-        p(`Signing up is free and holds no payment — your spot is fully refundable for 14 days. Hope to see you on the water!<br>— Nico & the NP7 team`),
+        p(`Signing up is free and holds no payment. Your spot is fully refundable for 14 days. Hope to see you on the water!<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -474,17 +474,17 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       // a survey behind a shareable open link.
       subject: v.surveySubject?.trim()
         || (isQuick
-          ? `${v.surveyTitle ?? "A special NP7 trip"} — would you join? One tap 🤙`
-          : `${v.surveyTitle ?? "A special NP7 trip"} — would you join? 🌊`),
+          ? `${v.surveyTitle ?? "A special NP7 trip"}: would you join? One tap 🤙`
+          : `${v.surveyTitle ?? "A special NP7 trip"}: would you join? 🌊`),
       html: emailLayout({
         ...opts,
         preheader: isQuick
-          ? `One tap answers it — no forms, no login.`
-          : `Two minutes to help pick the week — no forms, no login.`,
+          ? `One tap answers it. No forms, no login.`
+          : `Two minutes to help pick the week. No forms, no login.`,
         bodyHtml: isQuick
           ? p(`Hey ${esc(v.firstName || "there")} 🤙`) +
             (customBody ??
-              (p(`I'm putting together <strong>${esc(v.surveyTitle || "a special, invite-only trip")}</strong> and you're on my shortlist. Just tell me if you'd be in — <strong>one tap on a date below is all it takes</strong> (it registers instantly, and you can change it after).`) +
+              (p(`I'm putting together <strong>${esc(v.surveyTitle || "a special, invite-only trip")}</strong> and you're on my shortlist. Just tell me if you'd be in: <strong>one tap on a date below is all it takes</strong> (it registers instantly, and you can change it after).`) +
               (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : ""))) +
             // Dates as compact chips that wrap, not full-width buttons stacked
             // with 22px of air each: seven of those was a page and a half of
@@ -509,30 +509,30 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
             // "As many as work for you" is nonsense under a single button —
             // one option gets the one-tap wording instead.
             p(`<span style="color:#8a97a0;font-size:13.5px;">${quick.length > 1
-              ? "Tap as many as work for you — nothing is booked, it just tells me where the crew is leaning. 🤙"
-              : "Nothing is booked — one tap just tells me you&#39;d be in. 🤙"}</span>`) +
-            (v.quickDeclineUrl ? p(`Not this time? No hard feelings — <a href="${esc(v.quickDeclineUrl)}" style="color:#b0791e;font-weight:bold;">tap here</a> and I'll stop asking. 🤙`) : "") +
-            p(`This link is personal to you — no login, no commitment, just a show of hands.<br>— Nico`)
+              ? "Tap as many as work for you. Nothing is booked, it just tells me where the crew is leaning. 🤙"
+              : "Nothing is booked. One tap just tells me you&#39;d be in. 🤙"}</span>`) +
+            (v.quickDeclineUrl ? p(`Not this time? No hard feelings, just <a href="${esc(v.quickDeclineUrl)}" style="color:#b0791e;font-weight:bold;">tap here</a> and I'll stop asking. 🤙`) : "") +
+            p(`This link is personal to you. No login, no commitment, just a show of hands.<br>Nico`)
           : p(`Hey ${esc(v.firstName || "there")} 🤙`) +
             (customBody ??
-              (p(`I'm putting together a <strong>special, invite-only trip</strong> and I'd love your input to help shape it — where, when, and what you'd want out of it.`) +
+              (p(`I'm putting together a <strong>special, invite-only trip</strong> and I'd love your input to help shape it: where, when, and what you'd want out of it.`) +
               (v.surveyIntro ? p(`<em>${esc(v.surveyIntro)}</em>`) : ""))) +
             (v.surveyLink ? emailButton(v.surveyCtaText || "Take the 2-minute survey", v.surveyLink) : "") +
-            p(`This link is just for you — no need to log in. Thanks for helping me build something great.<br>— Nico`),
+            p(`This link is just for you. No need to log in. Thanks for helping me build something great.<br>Nico`),
       }),
     };
   },
 
   payment_pending_nudge: (v, opts) => ({
-    subject: `Your spot is waiting — ${v.experienceTitle ?? "NP7 Experience"}`,
+    subject: `Your spot is waiting · ${v.experienceTitle ?? "NP7 Experience"}`,
     html: emailLayout({
       ...opts,
-      preheader: "Your spot isn't secured yet — lock it in from your account.",
+      preheader: "Your spot isn't secured yet. Lock it in from your account.",
       bodyHtml:
         greet(v) +
-        p(`Your place on <strong>${esc(v.experienceTitle || "")}</strong> is still open — but it isn't secured yet. Spots are limited, so lock yours in with the down-payment whenever you're ready. You'll find the amount and how to pay in your account:`) +
+        p(`Your place on <strong>${esc(v.experienceTitle || "")}</strong> is still open, but it isn't secured yet. Spots are limited, so lock yours in with the down-payment whenever you're ready. You'll find the amount and how to pay in your account:`) +
         (v.bookingLink ? emailButton("Secure my spot", v.bookingLink) : "") +
-        p(`It stays fully refundable for 14 days. Questions? Just reply — we're happy to help.`),
+        p(`It stays fully refundable for 14 days. Questions? Just reply. We're happy to help.`),
     }),
   }),
 
@@ -549,7 +549,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         p(`Quick heads-up: the downpayment for <strong>${esc(v.experienceTitle || "your trip")}</strong> is due ${v.dueDate ? `on <strong>${esc(v.dueDate)}</strong>` : "in the next days"}. Your spot is held, this is just so the date doesn't catch you out.`) +
         p(`It takes a minute: ${v.downpayment ? `<strong>${esc(v.downpayment)}</strong>` : "the downpayment"} by bank transfer, everything you need is in your account.`) +
         (v.bookingLink ? emailButton("Secure my spot now", v.bookingLink) : "") +
-        p(`Already paid in the last day or two? Then you're set — bank transfers can take a moment to reach us. Questions? Just reply.`),
+        p(`Already paid in the last day or two? Then you're set. Bank transfers can take a moment to reach us. Questions? Just reply.`),
     }),
   }),
 
@@ -568,7 +568,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
   }),
 
   balance_invoice_reminder: (v, opts) => ({
-    subject: `Balance for ${v.experienceTitle ?? "your NP7 trip"} — invoice`,
+    subject: `Balance for ${v.experienceTitle ?? "your NP7 trip"} · invoice`,
     html: emailLayout({
       ...opts,
       preheader: "Your remaining balance is now due by bank transfer.",
@@ -578,21 +578,21 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         p(`Your trip is getting close! The remaining balance${v.balance ? " of <strong>" + esc(v.balance) + "</strong>" : ""} for <strong>${esc(v.experienceTitle || "")}</strong> is now due by <strong>bank transfer</strong>.`) +
         p(`You'll find your invoice and bank details in your trip account:`) +
         (v.bookingLink ? emailButton("View my booking & invoice", v.bookingLink) : "") +
-        p(`Thanks — almost time to ride!<br>— Nico & the NP7 team`),
+        p(`Thanks. Almost time to ride!<br>Nico & the NP7 team`),
     }),
   }),
 
   invoice_sent: (v, opts) => ({
-    subject: `Your invoice for ${v.experienceTitle ?? "your NP7 trip"}${v.amount ? " — " + v.amount : ""}`,
+    subject: `Your invoice for ${v.experienceTitle ?? "your NP7 trip"}${v.amount ? " · " + v.amount : ""}`,
     html: emailLayout({
       ...opts,
-      preheader: "Your invoice is attached — payable by bank transfer.",
+      preheader: "Your invoice is attached, payable by bank transfer.",
       bodyHtml:
         greet(v) +
-        p(`Here's your invoice for <strong>${esc(v.experienceTitle || "your NP7 trip")}</strong>${v.amount ? `, <strong>${esc(v.amount)}</strong>` : ""} — attached as a PDF.`) +
+        p(`Here's your invoice for <strong>${esc(v.experienceTitle || "your NP7 trip")}</strong>${v.amount ? `, <strong>${esc(v.amount)}</strong>` : ""}. It's attached as a PDF.`) +
         p(`Please pay by <strong>bank transfer</strong>${v.reference ? ` and quote the reference <strong>${esc(v.reference)}</strong>` : ""} so we can match it to your booking straight away.`) +
         (v.bookingLink ? emailButton("View my booking", v.bookingLink) : "") +
-        p(`Any questions, just reply — happy to help.<br>— Nico &amp; the NP7 team`),
+        p(`Any questions, just reply. Happy to help.<br>Nico &amp; the NP7 team`),
     }),
   }),
 
@@ -637,17 +637,17 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `Payment received 🤙 your invoice for ${v.experienceTitle ?? "your NP7 trip"}`,
     html: emailLayout({
       ...opts,
-      preheader: "Your payment arrived — the official invoice is attached.",
+      preheader: "Your payment arrived. The official invoice is attached.",
       bodyHtml:
         greet(v) +
-        p(`Great news — your payment${v.amount ? ` of <strong>${esc(v.amount)}</strong>` : ""} for <strong>${esc(v.experienceTitle || "your NP7 trip")}</strong> has arrived. Your spot is secured! 🎉`) +
-        p(`Attached is your official invoice${v.reference ? ` (<strong>${esc(v.reference)}</strong>)` : ""} for your records — it replaces the pro-forma payment request.`) +
+        p(`Great news: your payment${v.amount ? ` of <strong>${esc(v.amount)}</strong>` : ""} for <strong>${esc(v.experienceTitle || "your NP7 trip")}</strong> has arrived. Your spot is secured! 🎉`) +
+        p(`Attached is your official invoice${v.reference ? ` (<strong>${esc(v.reference)}</strong>)` : ""} for your records. It replaces the pro-forma payment request.`) +
         (v.bookingLink ? emailButton("View my booking", v.bookingLink) : "") +
         // Nico: this belongs after the DOWN-PAYMENT, not only after the balance.
         // On the bank-transfer path this mail is the "you're in" moment, so the
         // next steps belong here rather than months later.
         whatsNextBlock(v) +
-        p(`See you on the water.<br>— Nico &amp; the NP7 team`),
+        p(`See you on the water.<br>Nico &amp; the NP7 team`),
     }),
   }),
 
@@ -661,7 +661,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
    * "confirmed", because none of those has happened yet.
    */
   transfer_instructions: (v, opts) => ({
-    subject: `Your bank details for ${v.experienceTitle ?? "your NP7 trip"}${v.amount ? ` — ${v.amount}` : ""}`,
+    subject: `Your bank details for ${v.experienceTitle ?? "your NP7 trip"}${v.amount ? ` · ${v.amount}` : ""}`,
     html: emailLayout({
       ...opts,
       preheader: "The account, the reference and the amount, so you don't have to keep the page open.",
@@ -677,7 +677,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         ]) +
         p(`Send <strong>exactly that amount</strong>, quoting the reference, and it finds your booking by itself. Most transfers reach us in <strong>one to three working days</strong>, and your spot is held from the moment you send it. There's nothing else for you to do.`) +
         (v.bookingLink ? emailButton("See my booking", v.bookingLink) : "") +
-        p(`Any questions, just reply to this email.<br>— Nico &amp; the NP7 team`),
+        p(`Any questions, just reply to this email.<br>Nico &amp; the NP7 team`),
     }),
   }),
 
@@ -690,24 +690,24 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       preheader: "Nothing left your account. Here's how to try again.",
       bodyHtml:
         greet(v) +
-        p(`Your bank transfer for <strong>${esc(v.experienceTitle || "your trip")}</strong> didn't go through — our payment provider sent it back rather than taking it.`) +
+        p(`Your bank transfer for <strong>${esc(v.experienceTitle || "your trip")}</strong> didn't go through. Our payment provider sent it back rather than taking it.`) +
         p(`No money has left your account for it, and nothing is lost: open your booking and start the payment again, or use the bank details on your invoice, whichever is easier.`) +
         (v.bookingLink ? emailButton("Open my booking", v.bookingLink) : "") +
-        p(`If it keeps happening, just reply here and we'll sort it with you.<br>— Nico &amp; the NP7 team`),
+        p(`If it keeps happening, just reply here and we'll sort it with you.<br>Nico &amp; the NP7 team`),
     }),
   }),
 
   payment_shortfall_reminder: (v, opts) => ({
-    subject: `Almost there — a little left on ${v.experienceTitle ?? "your NP7 trip"} 🌊`,
+    subject: `Almost there: a little left on ${v.experienceTitle ?? "your NP7 trip"} 🌊`,
     html: emailLayout({
       ...opts,
-      preheader: "We're excited for your trip — just a small balance to settle.",
+      preheader: "We're excited for your trip. Just a small balance to settle.",
       bodyHtml:
         greet(v) +
-        p(`We're getting really excited for <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} — it's going to be a great one. 🤩`) +
+        p(`We're getting really excited for <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""}. It's going to be a great one. 🤩`) +
         p(`There's just <strong>${esc(v.balance || "a little")}</strong> left to fully settle your balance. A quick bank transfer${v.reference ? ` quoting <strong>${esc(v.reference)}</strong>` : ""} and you're all set.`) +
         (v.bookingLink ? emailButton("View my booking & pay", v.bookingLink) : "") +
-        p(`Thanks so much — can't wait to ride with you.<br>— Nico &amp; the NP7 team`),
+        p(`Thanks so much. Can't wait to ride with you.<br>Nico &amp; the NP7 team`),
     }),
   }),
 
@@ -723,7 +723,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `Your crew for ${v.experienceTitle ?? "your NP7 trip"} is coming together 🤙`,
     html: emailLayout({
       ...opts,
-      preheader: "Meet the people you'll be riding with — the group chat is open.",
+      preheader: "Meet the people you'll be riding with. The group chat is open.",
       bodyHtml:
         greet(v) +
         p(`<strong>${esc(v.experienceTitle || "Your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} is about two months away, and the crew is taking shape.`) +
@@ -731,9 +731,9 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         (v.whatsappLink
           ? p(`<strong>Come and say hi:</strong>`) + emailButton("Join the group chat", v.whatsappLink)
           : "") +
-        p(`No rush on anything else — your packing list and arrival details follow closer to the trip.`) +
+        p(`No rush on anything else. Your packing list and arrival details follow closer to the trip.`) +
         (v.bookingLink ? emailButton("Open my trip details", v.bookingLink) : "") +
-        p(`See you on the water.<br>— Nico & the NP7 team`),
+        p(`See you on the water.<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -749,7 +749,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         (v.packingList ? rule() + heading("What to bring") + checklist(v.packingList) : "") +
         p(`Your arrival info and group chat are in your trip account too:`) +
         (v.bookingLink ? emailButton("Open my trip details", v.bookingLink) : "") +
-        p(`Can't wait to ride with you.<br>— Nico & the NP7 team`),
+        p(`Can't wait to ride with you.<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -757,31 +757,31 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `Almost time 🌊 ${v.experienceTitle ?? "your NP7 trip"} is around the corner`,
     html: emailLayout({
       ...opts,
-      preheader: "The countdown is on — here's what to look forward to.",
+      preheader: "The countdown is on. Here's what to look forward to.",
       bodyHtml:
         greet(v) +
-        p(`The countdown is on — <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} is almost here. 🤩`) +
-        p(`Picture it: warm water, steady wind, good people, and a coach right there with you all week. Get the boards waxed in your mind — this is going to be a good one.`) +
+        p(`The countdown is on. <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} is almost here. 🤩`) +
+        p(`Picture it: warm water, steady wind, good people, and a coach right there with you all week. Get the boards waxed in your mind. This is going to be a good one.`) +
         p(`Your crew, your coaches and all the details are waiting in your trip account:`) +
         (v.bookingLink ? emailButton("Open my trip", v.bookingLink) : "") +
-        p(`See you on the water soon.<br>— Nico & the NP7 team`),
+        p(`See you on the water soon.<br>Nico & the NP7 team`),
     }),
   }),
 
   balance_paid_confirmation: (v, opts) => ({
-    subject: `All paid up — you're set for ${v.experienceTitle ?? "your NP7 trip"} 🎉`,
+    subject: `You're all set for ${v.experienceTitle ?? "your NP7 trip"} 🎉`,
     html: emailLayout({
       ...opts,
-      preheader: "Your balance is settled — everything's ready for your trip.",
+      preheader: "Your balance is settled. Everything's ready for your trip.",
       bodyHtml:
         greet(v) +
         // The title fell back to an empty string, so a real guest read
         // "everything's sorted for ." with a hole in the sentence.
-        p(`Your balance is paid in full — everything's sorted for <strong>${esc(v.experienceTitle || "your trip")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>. Nothing left to do but count down the days. 🌊`) +
+        p(`Your balance is paid in full. Everything's sorted for <strong>${esc(v.experienceTitle || "your trip")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>. Nothing left to do but count down the days. 🌊`) +
         p(`Closer to departure we'll send your packing list and arrival info. It's all in your trip account too:`) +
         (v.bookingLink ? emailButton("Open my trip", v.bookingLink) : "") +
         whatsNextBlock(v) +
-        p(`See you on the water.<br>— Nico &amp; the NP7 team`),
+        p(`See you on the water.<br>Nico &amp; the NP7 team`),
     }),
   }),
 
@@ -792,9 +792,9 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       preheader: "Your printable gift voucher is attached.",
       bodyHtml:
         greet(v) +
-        p(`Thank you — your <strong>${esc(v.amount || "")}</strong> gift voucher towards <strong>${esc(v.experienceTitle || "an NP7 trip")}</strong> is confirmed and ready. 🎁`) +
-        p(`We've attached it as a <strong>printable PDF</strong>${v.recipientName ? ` — hand or send it to <strong>${esc(v.recipientName)}</strong>` : ""}. The code is <strong>${esc(v.voucherCode || "")}</strong>; it can be redeemed any time in the account at np-seven.com.`) +
-        p(`Thanks for giving the gift of riding.<br>— Nico & the NP7 team`),
+        p(`Thank you! Your <strong>${esc(v.amount || "")}</strong> gift voucher towards <strong>${esc(v.experienceTitle || "an NP7 trip")}</strong> is confirmed and ready. 🎁`) +
+        p(`We've attached it as a <strong>printable PDF</strong>${v.recipientName ? `, ready to hand or send to <strong>${esc(v.recipientName)}</strong>` : ""}. The code is <strong>${esc(v.voucherCode || "")}</strong>; it can be redeemed any time in the account at np-seven.com.`) +
+        p(`Thanks for giving the gift of riding.<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -803,7 +803,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
   // of the declaration plus the date and time of receipt. German first — the
   // statutory context is German consumer law.
   withdrawal_received: (v, opts) => ({
-    subject: `Eingangsbestätigung — Ihr Widerruf ist eingegangen`,
+    subject: `Eingangsbestätigung: Ihr Widerruf ist eingegangen`,
     html: emailLayout({
       ...opts,
       preheader: "Bestätigung des Eingangs Ihrer Widerrufserklärung.",
@@ -814,7 +814,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         p(`<strong>Eingegangen am:</strong> ${esc(v.receivedDate || "")} um ${esc(v.receivedTime || "")} Uhr (deutsche Zeit).`) +
         p(`Wir prüfen Ihre Erklärung und melden uns zeitnah mit den nächsten Schritten (z.&nbsp;B. zur Rückabwicklung). Diese Bestätigung dokumentiert nur den Eingang.`) +
         p(`<em>English: this confirms RECEIPT of your withdrawal declaration submitted via our online withdrawal function, including its content and the date and time of receipt. We'll follow up shortly.</em>`) +
-        p(`— NP7 GmbH`),
+        p(`NP7 GmbH`),
     }),
   }),
 
@@ -822,26 +822,26 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `🎁 You've been gifted an NP7 windsurf trip${v.fromName ? ` by ${v.fromName}` : ""}`,
     html: emailLayout({
       ...opts,
-      preheader: "A gift voucher towards an NP7 Experience — open to redeem.",
+      preheader: "A gift voucher towards an NP7 Experience. Open to redeem.",
       bodyHtml:
         p(`Hey ${esc(v.firstName || "there")} 🤙`) +
-        p(`${v.fromName ? `<strong>${esc(v.fromName)}</strong> has` : "You've"} gifted you a <strong>${esc(v.amount || "")}</strong> voucher towards <strong>${esc(v.experienceTitle || "an NP7 trip")}</strong> — a coached windsurf, wing &amp; foil adventure. 🌊`) +
+        p(`${v.fromName ? `<strong>${esc(v.fromName)}</strong> has` : "You've"} gifted you a <strong>${esc(v.amount || "")}</strong> voucher towards <strong>${esc(v.experienceTitle || "an NP7 trip")}</strong>. That's a coached windsurf, wing &amp; foil adventure. 🌊`) +
         p(`Your voucher (code <strong>${esc(v.voucherCode || "")}</strong>) is attached as a printable PDF. To use it, explore the trips and we'll apply it to your booking:`) +
         (v.joinLink ? emailButton("Explore the trips", v.joinLink) : "") +
-        p(`See you on the water.<br>— Nico & the NP7 team`),
+        p(`See you on the water.<br>Nico & the NP7 team`),
     }),
   }),
 
   cancellation_confirmed: (v, opts) => ({
-    subject: `Your cancellation — ${v.experienceTitle ?? "NP7 trip"}`,
+    subject: `Your cancellation · ${v.experienceTitle ?? "NP7 trip"}`,
     html: emailLayout({
       ...opts,
       preheader: "Your booking has been cancelled.",
       bodyHtml:
         greet(v) +
         p(`This confirms we've cancelled your booking for <strong>${esc(v.experienceTitle || "your NP7 trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""}, as requested.`) +
-        p(`Anything owed back to you — a refund or a goodwill credit toward a future trip — we'll sort personally and be in touch shortly. If anything's unclear, just reply to this email.`) +
-        p(`We hope to ride with you another time. 🌊<br>— Nico & the NP7 team`),
+        p(`Anything owed back to you, whether a refund or a goodwill credit toward a future trip, we'll sort personally and be in touch shortly. If anything's unclear, just reply to this email.`) +
+        p(`We hope to ride with you another time. 🌊<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -857,7 +857,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
    * one-time sign-in that lands directly on their own waiver.
    */
   waiver_reminder: (v, opts) => ({
-    subject: `Quick one before ${v.experienceTitle ?? "your NP7 trip"} — sign your waiver`,
+    subject: `Quick one before ${v.experienceTitle ?? "your NP7 trip"}: sign your waiver`,
     html: emailLayout({
       ...opts,
       preheader: "A 1-minute waiver everyone signs before the trip.",
@@ -865,25 +865,25 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         greet(v) +
         p(`Quick bit of admin before <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""}: every participant signs a short waiver &amp; health declaration. It takes about a minute, right in your account.`) +
         (v.waiverLink ? emailButton("Sign my waiver", v.waiverLink) : "") +
-        p(`Already done it? You're all set — ignore this. 🤙`),
+        p(`Already done it? Then you're all set and you can ignore this. 🤙`),
     }),
   }),
 
   waiver_final_call: (v, opts) => ({
-    subject: `${v.firstName && v.firstName !== "there" ? v.firstName + ", one" : "One"} thing left before ${v.experienceTitle ?? "your NP7 trip"} — your waiver`,
+    subject: `${v.firstName && v.firstName !== "there" ? v.firstName + ", one" : "One"} thing left before ${v.experienceTitle ?? "your NP7 trip"}: your waiver`,
     html: emailLayout({
       ...opts,
-      preheader: "One minute and one click — everyone riding with us signs one.",
+      preheader: "One minute and one click. Everyone riding with us signs one.",
       bodyHtml:
         greet(v) +
-        p(`We're nearly there — <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} is coming up fast, and there's one thing still open on your side: your <strong>waiver &amp; health declaration</strong>.`) +
+        p(`We're nearly there. <strong>${esc(v.experienceTitle || "your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} is coming up fast, and there's one thing still open on your side: your <strong>waiver &amp; health declaration</strong>.`) +
         // The one sentence the first reminder was missing. It has to carry
         // "this is required" without sounding like a warning letter — everyone
         // on the beach signs one, and that framing does the work.
-        p(`Everyone riding with us signs one — a quick health check and the usual insurance bit. It's the last thing we need before we can get you out on the water, and it takes about a minute.`) +
-        (v.waiverLink ? emailButton("Sign my waiver — 1 minute", v.waiverLink) : "") +
+        p(`Everyone riding with us signs one: a quick health check and the usual insurance bit. It's the last thing we need before we can get you out on the water, and it takes about a minute.`) +
+        (v.waiverLink ? emailButton("Sign my waiver · 1 minute", v.waiverLink) : "") +
         p(`The button signs you straight in, so there's no password to remember. If it's expired by the time you click, just reply to this mail and we'll send a fresh one.`) +
-        p(`Already signed? Then you're all set and you can ignore this. 🤙<br>— Nico &amp; the NP7 team`),
+        p(`Already signed? Then you're all set and you can ignore this. 🤙<br>Nico &amp; the NP7 team`),
     }),
   }),
 
@@ -891,46 +891,46 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     subject: `📸 Your photos from ${v.experienceTitle ?? "your NP7 trip"} are here`,
     html: emailLayout({
       ...opts,
-      preheader: "Relive the week — your gallery is live.",
+      preheader: "Relive the week. Your gallery is live.",
       bodyHtml:
         greet(v) +
-        p(`Good news — the photos from <strong>${esc(v.experienceTitle || "your trip")}</strong> are in your gallery. Relive the week, and download your favourites.`) +
+        p(`Good news: the photos from <strong>${esc(v.experienceTitle || "your trip")}</strong> are in your gallery. Relive the week, and download your favourites.`) +
         (v.tripLink ? emailButton("See my photos", v.tripLink) : "") +
-        p(`Hope the stoke lasts.<br>— Nico & the NP7 team`),
+        p(`Hope the stoke lasts.<br>Nico & the NP7 team`),
     }),
   }),
 
   pre_trip_final: (v, opts) => ({
-    subject: `Almost time — final details for ${v.experienceTitle ?? "your NP7 trip"} 🌊`,
+    subject: `Almost time: final details for ${v.experienceTitle ?? "your NP7 trip"} 🌊`,
     html: emailLayout({
       ...opts,
-      preheader: "Arrival info and your group chat — see you very soon.",
+      preheader: "Arrival info and your group chat. See you very soon.",
       bodyHtml:
         greet(v) +
         p(`Just a few days to go until <strong>${esc(v.experienceTitle || "")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>! Here are your final details.`) +
         note(v.finalDetailsNote) +
-        p(`<strong>Before you fly:</strong> give your packing list one last check, and have your arrival & airport transfer info handy — it's all in your trip account.`) +
+        p(`<strong>Before you fly:</strong> give your packing list one last check, and have your arrival & airport transfer info handy. It's all in your trip account.`) +
         (v.whatsappLink
           ? p(`<strong>Join your group chat</strong> so you're in the loop with the crew and our team on the ground:`) + emailButton("Join the group chat", v.whatsappLink)
           : (v.bookingLink ? emailButton("Open my trip details", v.bookingLink) : "")) +
-        p(`Safe travels — we can't wait to ride with you.<br>— Nico & the NP7 team`),
+        p(`Safe travels. We can't wait to ride with you.<br>Nico & the NP7 team`),
     }),
   }),
 
   post_trip_thank_you: (v, opts) => ({
-    subject: `What a week 🤙 thank you — ${v.experienceTitle ?? "your NP7 trip"}`,
+    subject: `What a week 🤙 thank you · ${v.experienceTitle ?? "your NP7 trip"}`,
     html: emailLayout({
       ...opts,
-      preheader: "Thank you for riding with us — your photos and a small ask.",
+      preheader: "Thank you for riding with us. Your photos, and one small ask.",
       bodyHtml:
         greet(v) +
-        p(`Thank you for joining <strong>${esc(v.experienceTitle || "")}</strong> — it was epic having you on the water. We hope you went home a better windsurfer with a few new friends. 🤙`) +
+        p(`Thank you for joining <strong>${esc(v.experienceTitle || "")}</strong>. It was epic having you on the water. We hope you went home a better windsurfer with a few new friends. 🤙`) +
         guideCta(v) +
-        p(`<strong>Your photos</strong> are being sorted and will appear in your trip account soon — we'll let you know the moment they're up.`) +
+        p(`<strong>Your photos</strong> are being sorted and will appear in your trip account soon. We'll let you know the moment they're up.`) +
         (v.reviewLink
           ? p(`If you had a great time, a short review means the world to us and helps other riders find their next trip:`) + emailButton("Leave a review", v.reviewLink)
-          : p(`If you had a great time, we'd love to hear from you — just reply to this email, it makes our day.`)) +
-        p(`Until the next session.<br>— Nico & the NP7 team`),
+          : p(`If you had a great time, we'd love to hear from you. Just reply to this email, it makes our day.`)) +
+        p(`Until the next session.<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -942,7 +942,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
    * /admin/windcoach-guides once the coach is happy with it.
    */
   guide_ready: (v, opts) => ({
-    subject: `Your training guide — ${v.experienceTitle ?? "your NP7 trip"} 🤙`,
+    subject: `Your training guide · ${v.experienceTitle ?? "your NP7 trip"} 🤙`,
     html: emailLayout({
       ...opts,
       preheader: "Your personal focus points from the week, ready to train.",
@@ -953,10 +953,10 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
             (v.coachName ? ` ${esc(v.coachName)} put it together from what you worked on together on the water.` : "")
         ) +
         (v.guidePoints ? rule() + heading("Your focus points") + focusList(v.guidePoints) : "") +
-        p(`Each one comes with what to do, how it should feel, and the mistakes to watch for — plus the tip your coach gave you in person.`) +
+        p(`Each one comes with what to do, how it should feel, and the mistakes to watch for, plus the tip your coach gave you in person.`) +
         (v.guideUrl ? emailButton("Open your training guide", v.guideUrl) : "") +
-        p(`It lives in your trip account, so it's there whenever you need it — before the next session, or the next trip.`) +
-        p(`See you on the water.<br>— Nico & the NP7 team`),
+        p(`It lives in your trip account, so it's there whenever you need it: before the next session, or the next trip.`) +
+        p(`See you on the water.<br>Nico & the NP7 team`),
     }),
   }),
 
@@ -969,41 +969,41 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
    * he has them. The mail is deliberately plain and offers a way forward.
    */
   addon_declined: (v, opts) => ({
-    subject: `About your request — ${v.addonLabel ?? "your extra"}`,
+    subject: `About your request · ${v.addonLabel ?? "your extra"}`,
     html: emailLayout({
       ...opts,
-      preheader: "We couldn't arrange that one — here's why.",
+      preheader: "We couldn't arrange that one. Here's why.",
       bodyHtml:
         greet(v) +
         p(`You asked us about <strong>${esc(v.addonLabel || "an extra")}</strong> for ${esc(v.experienceTitle || "your trip")}, and unfortunately we can't make that one work.`) +
         note(v.declineReason) +
         p(`Nothing has been added to your balance, and the rest of your trip is unaffected.`) +
-        p(`If the dates are flexible, reply to this email and we'll see what else is possible — we'd rather find you something than leave it here.`) +
+        p(`If the dates are flexible, reply to this email and we'll see what else is possible. We'd rather find you something than leave it here.`) +
         (v.bookingLink ? emailButton("Open my trip", v.bookingLink) : "") +
-        p(`— Nico &amp; the NP7 team`),
+        p(`Nico &amp; the NP7 team`),
     }),
   }),
 
   addon_confirmed: (v, opts) => ({
-    subject: `Confirmed: ${v.addonLabel ?? "your add-on"} — ${v.experienceTitle ?? "your NP7 trip"}`,
+    subject: `Confirmed: ${v.addonLabel ?? "your add-on"} · ${v.experienceTitle ?? "your NP7 trip"}`,
     html: emailLayout({
       ...opts,
-      preheader: v.addonPayDirect ? "Your add-on is confirmed — you pay it locally." : "Your requested add-on is confirmed.",
+      preheader: v.addonPayDirect ? "Your add-on is confirmed. You pay it locally." : "Your requested add-on is confirmed.",
       bodyHtml:
         greet(v) +
-        p(`Good news — we've confirmed <strong>${esc(v.addonLabel || "your add-on")}</strong> for your trip${v.experienceTitle ? " to <strong>" + esc(v.experienceTitle) + "</strong>" : ""}.`) +
+        p(`Good news: we've confirmed <strong>${esc(v.addonLabel || "your add-on")}</strong> for your trip${v.experienceTitle ? " to <strong>" + esc(v.experienceTitle) + "</strong>" : ""}.`) +
         // Two different kinds of money. A pay-direct add-on is arranged by us but
         // settled with the provider on site — telling the guest it "adds €0 to
         // your balance, payable by bank transfer" (the old copy for every
         // add-on) was wrong about the amount AND the payee in one sentence.
         (v.addonPayDirect
-          ? p(`You'll pay for this <strong>directly with the local provider</strong> on site — it doesn't change your NP7 balance. They'll confirm the price with you there.`)
+          ? p(`You'll pay for this <strong>directly with the local provider</strong> on site. It doesn't change your NP7 balance. They'll confirm the price with you there.`)
           : v.addonPrice
-            ? p(`It adds <strong>${esc(v.addonPrice)}</strong> to your trip balance${v.balance ? ` — your remaining balance is <strong>${esc(v.balance)}</strong>` : ""}, payable by bank transfer with the rest.`)
+            ? p(`It adds <strong>${esc(v.addonPrice)}</strong> to your trip balance${v.balance ? `, bringing your remaining balance to <strong>${esc(v.balance)}</strong>` : ""}, payable by bank transfer with the rest.`)
             : "") +
         addonBuckets(v) +
         (v.bookingLink ? emailButton("View it in your trip", v.bookingLink) : "") +
-        p(`Any questions, just reply.<br>— Nico & the NP7 team`),
+        p(`Any questions, just reply.<br>Nico & the NP7 team`),
     }),
   }),
 };

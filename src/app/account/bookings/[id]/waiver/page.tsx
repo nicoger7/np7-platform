@@ -7,7 +7,7 @@ import { DEFAULT_WAIVER, renderWaiver, waiverCompanyVars } from "@/lib/waiver";
 import { fmtDates } from "@/lib/portal-status";
 import { SignWaiver } from "@/components/portal/sign-waiver";
 
-export const metadata: Metadata = { title: "Sign your waiver — NP7" };
+export const metadata: Metadata = { title: "Sign your waiver · NP7" };
 export const dynamic = "force-dynamic";
 
 export default async function WaiverPage({ params }: { params: Promise<{ id: string }> }) {

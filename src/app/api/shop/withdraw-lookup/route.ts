@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   const { data } = await db.from("hw_orders")
     .select("public_token").eq("display_number", number).ilike("email", email).maybeSingle();
   if (!data) {
-    return NextResponse.json({ error: "No order found for that combination — check the order number in your confirmation email." }, { status: 404 });
+    return NextResponse.json({ error: "No order found for that combination. Check the order number in your confirmation email." }, { status: 404 });
   }
   return NextResponse.json({ token: data.public_token });
 }

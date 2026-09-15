@@ -213,7 +213,7 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
         ? fmtDue(downpaymentDue)
         : depositAmt > 0
           ? `Due within ${refundDays} days of signing up`
-          : `Due within ${refundDays} days of registering — secures your spot`,
+          : `Due within ${refundDays} days of registering · secures your spot`,
       status: downPaid ? "paid" : depositPaid ? "due" : "upcoming",
     },
     {

@@ -82,13 +82,13 @@ export function DestinationRater({ criteria, accent = "#00afdb", defaults }: { c
       </button>
       {open && (
         <div className="px-5 pb-5 pt-4 border-t border-[#f0e9da]">
-          {seededFromNp7 && <p className="text-[12px] text-[#8a9aa0] mb-2.5">Starting from <b className="text-[#00374a]">NP7&apos;s rating</b> — tap the stars to adjust to yours.</p>}
+          {seededFromNp7 && <p className="text-[12px] text-[#8a9aa0] mb-2.5">Starting from <b className="text-[#00374a]">NP7&apos;s rating</b>. Tap the stars to adjust to yours.</p>}
           <StarRows criteria={criteria} value={draft} onPick={(k, n) => setDraft((d) => ({ ...d, [k]: n }))} accent={accent} />
           <div className="flex items-center gap-3 mt-3">
             <button onClick={submit} disabled={busy || (sg.loggedIn && (!hasAny || !dirty))} className="px-4 py-2 rounded-full text-[13px] font-bold text-white disabled:opacity-40 transition-opacity" style={{ backgroundColor: accent }}>
               {busy ? "Saving…" : !sg.loggedIn ? "Sign up to rate" : rated ? "Update rating" : "Submit rating"}
             </button>
-            {done && <span className="text-[12.5px] font-bold" style={{ color: "#1f9e57" }}>Saved — thanks! 🤙</span>}
+            {done && <span className="text-[12.5px] font-bold" style={{ color: "#1f9e57" }}>Saved, thanks! 🤙</span>}
           </div>
         </div>
       )}
@@ -141,7 +141,7 @@ export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved, defaults }
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Level it suits <span className="normal-case tracking-normal text-[#c3b9a6]">— pick any that fit</span></p>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Level it suits <span className="normal-case tracking-normal text-[#c3b9a6]">(pick any that fit)</span></p>
           <LevelPicker multiple values={levels} onValues={setLevels} accent={accent} />
         </div>
         <div>
@@ -172,7 +172,7 @@ export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved, defaults }
 
       <div>
         <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Rate it</p>
-        {seededFromNp7 && <p className="text-[11.5px] text-[#8a9aa0] mb-1.5">Starting from <b className="text-[#00374a]">NP7&apos;s rating</b> — tap to adjust to yours.</p>}
+        {seededFromNp7 && <p className="text-[11.5px] text-[#8a9aa0] mb-1.5">Starting from <b className="text-[#00374a]">NP7&apos;s rating</b>. Tap to adjust to yours.</p>}
         <StarRows criteria={SPOT_CRITERIA} value={ratings} onPick={(k, n) => setRatings((r) => ({ ...r, [k]: n === (r[k] ?? 0) ? 0 : n }))} accent={accent} />
       </div>
 
@@ -180,7 +180,7 @@ export function SpotVisitRater({ spotId, accent = "#00afdb", onSaved, defaults }
         <button onClick={submit} disabled={busy || (sg.loggedIn && !hasAny)} className="px-4 py-2 rounded-full text-[13px] font-bold text-white disabled:opacity-40 transition-opacity" style={{ backgroundColor: accent }}>
           {busy ? "Saving…" : !sg.loggedIn ? "Sign up to add" : mine ? "Update" : "Add my knowledge"}
         </button>
-        {done && <span className="text-[12.5px] font-bold" style={{ color: "#1f9e57" }}>Saved — thanks! 🤙</span>}
+        {done && <span className="text-[12.5px] font-bold" style={{ color: "#1f9e57" }}>Saved, thanks! 🤙</span>}
       </div>
     </div>
   );
@@ -202,7 +202,7 @@ export function ForecastVoter({ spotId, accent = "#00afdb" }: { spotId: string; 
   return (
     <div className="mt-3 pt-3 border-t border-[#f0e9da]">
       <p className="text-[12px] font-semibold text-[#5a6b72] mb-1">Which forecast nails it here? <span className="text-[#9aa6ac] font-normal">Vote the model you trust.</span></p>
-      <p className="text-[11px] text-[#9aa6ac] mb-2 leading-snug">It&apos;s the forecast <b>model</b> — in any wind app (Windguru, Windy…) you can pick which one to show. Not sure? <b>GFS</b> is the safe global default; the high-res ones (ICON-D2, AROME…) are sharper at coastal &amp; thermal spots.</p>
+      <p className="text-[11px] text-[#9aa6ac] mb-2 leading-snug">It&apos;s the forecast <b>model</b>. In any wind app (Windguru, Windy…) you can pick which one to show. Not sure? <b>GFS</b> is the safe global default; the high-res ones (ICON-D2, AROME…) are sharper at coastal &amp; thermal spots.</p>
       <div className="space-y-2">
         {(["global", "highres"] as ForecastTier[]).map((tier) => (
           <div key={tier}>

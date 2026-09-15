@@ -51,7 +51,7 @@ export async function createOrderCore(db: Db, input: CreateOrderInput): Promise<
     const unitGross = input.allowPriceOverride && l.unit_price_eur != null && l.unit_price_eur !== ""
       ? toCents(l.unit_price_eur)
       : toCents(grossDefault);
-    if (!unitGross) return { error: `${v.sku} has no price — set an RRP first.`, status: 400 };
+    if (!unitGross) return { error: `${v.sku} has no price. Set an RRP first.`, status: 400 };
     const t = computeLine(qty, unitGross, tax.rate);
     subtotalNet += t.totalNet; taxTotal += t.taxAmount; grandTotal += t.totalGross;
     lines.push({

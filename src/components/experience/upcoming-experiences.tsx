@@ -35,7 +35,7 @@ function SignatureTile() {
         <div className="p-6">
           <p className="text-[12px] font-semibold text-[#ffd97a] mb-1.5">By application</p>
           <h3 className="text-xl font-extrabold tracking-[-0.02em] text-white mb-2.5">Signature Trips</h3>
-          <p className="text-[14px] text-white/65 leading-relaxed line-clamp-2 mb-4">My most special trips — small, hand-picked crews, in places you talk about for years.</p>
+          <p className="text-[14px] text-white/65 leading-relaxed line-clamp-2 mb-4">My most special trips: small, hand-picked crews, in places you talk about for years.</p>
           <div className="flex items-center justify-between pt-3 border-t border-white/10">
             <span className="text-[13px] font-semibold text-white/45">Selective</span>
             <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#ffd97a] group-hover:gap-2.5 transition-all">
@@ -142,7 +142,7 @@ export function UpcomingExperiences({ experiences, showSignature = false }: { ex
       )}
 
       {filtered.length === 0 && !showSignature ? (
-        <p className="text-center text-white/70">No trips that month — try another.</p>
+        <p className="text-center text-white/70">No trips that month. Try another.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((exp, i) => (

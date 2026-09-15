@@ -31,11 +31,11 @@ export default function WiderrufPage() {
         body: JSON.stringify({ ...form, name: form.name.trim(), contractRef: form.contractRef.trim(), email: form.email.trim(), note: form.note.trim() }),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(j.error || "That didn't work — please try again."); return; }
+      if (!res.ok) { setError(j.error || "That didn't work. Please try again."); return; }
       setReceivedAt(j.receivedAt || null);
       setStep(3);
     } catch {
-      setError("Network error — please try again, or send your withdrawal by email (address in the Impressum).");
+      setError("Network error. Please try again, or send your withdrawal by email (address in the Impressum).");
     } finally {
       setBusy(false);
     }
@@ -47,8 +47,8 @@ export default function WiderrufPage() {
   return (
     <LegalShell title="Withdraw from contract">
       <p>
-        Withdraw from a contract with NP7 GmbH that carries a statutory right of withdrawal
-        (e.g. a gift-voucher purchase) — online, no login, no reasons required
+        Withdraw from a contract with NP7 GmbH that carries a statutory right of withdrawal,
+        for example a gift-voucher purchase. It is online, needs no login, and needs no reasons
         (<em>gesetzliche Online-Widerrufsfunktion, § 356a BGB</em>).
         Details: <Link href="/widerrufsbelehrung">withdrawal policy</Link>.
       </p>
@@ -60,7 +60,7 @@ export default function WiderrufPage() {
             <input className={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} autoComplete="name" />
           </div>
           <div>
-            <label className={label}>Order, voucher or booking number — or the email you ordered with *</label>
+            <label className={label}>Order, voucher or booking number, or the email you ordered with *</label>
             <input className={input} value={form.contractRef} onChange={(e) => setForm({ ...form, contractRef: e.target.value })} placeholder="e.g. voucher code or order number" />
             <p className="text-[12px] text-[#8a9aa0] mt-1">Anything that identifies the contract.</p>
           </div>
@@ -69,7 +69,7 @@ export default function WiderrufPage() {
             <input className={input} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} autoComplete="email" />
           </div>
           <div>
-            <label className={label}>Note <span className="font-normal text-[#8a9aa0]">(optional — never required)</span></label>
+            <label className={label}>Note <span className="font-normal text-[#8a9aa0]">(optional, never required)</span></label>
             <textarea className={`${input} min-h-[70px] resize-y`} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
           </div>
           {/* Honeypot — hidden from real visitors */}

@@ -124,7 +124,7 @@ export function EnquireForm({ productId, productName, noun = "board" }: Props) {
       </div>
 
       {status === "error" && (
-        <p className="text-red-400 text-[13px]">Something went wrong — please try again.</p>
+        <p className="text-red-400 text-[13px]">Something went wrong. Please try again.</p>
       )}
 
       <button

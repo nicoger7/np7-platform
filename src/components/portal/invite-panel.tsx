@@ -91,7 +91,7 @@ export function InvitePanel({
     const r = await create({ inviteeEmail: email.trim(), inviteeName: name.trim() || undefined, note: note.trim() || undefined, send: true });
     if (r) {
       setSentTo(email.trim());
-      if (!r.emailed) setErr("Invite created, but the email couldn't be sent right now — copy the link below to share it directly.");
+      if (!r.emailed) setErr("Invite created, but the email couldn't be sent right now. Copy the link below to share it directly.");
       setEmail(""); setName(""); setNote("");
     }
   }
@@ -100,7 +100,7 @@ export function InvitePanel({
     try { await navigator.clipboard.writeText(url); setCopied(key); setTimeout(() => setCopied(null), 1800); } catch { /* ignore */ }
   }
 
-  const shareMsg = "Come join me on this NP7 windsurf trip 🌊 — here's the link:";
+  const shareMsg = "Come join me on this NP7 windsurf trip! 🌊 Here's the link:";
   async function ensureGenericThen(action: (url: string) => void) {
     let inv = generic;
     if (!inv) { const r = await create({}); inv = r?.invite ?? null; }
@@ -134,7 +134,7 @@ export function InvitePanel({
   return (
     <div>
       <p className="text-[14px] text-[#5a6b72] leading-relaxed">
-        Bring a friend on an NP7 trip — <span className="text-[#0f6e56] font-semibold">they get {fmt(rewardFriend)} off</span> and{" "}
+        Bring a friend on an NP7 trip: <span className="text-[#0f6e56] font-semibold">they get {fmt(rewardFriend)} off</span> and{" "}
         <span className="text-[#0f6e56] font-semibold">you get a {fmt(rewardInviter)} credit</span> once they book.
       </p>
 
@@ -158,7 +158,7 @@ export function InvitePanel({
 
       {/* Secondary: share a link directly */}
       <button onClick={() => setShowLink((s) => !s)} className="mt-3 text-[13px] font-semibold text-[#00afdb]">
-        {showLink ? "– Hide link sharing" : "Or share a link directly →"}
+        {showLink ? "Hide link sharing" : "Or share a link directly →"}
       </button>
       {showLink && (
         <div className="mt-2">

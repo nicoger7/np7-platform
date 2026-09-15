@@ -60,7 +60,7 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: Exp[]
     setBusy(false);
     const j = await res.json().catch(() => ({}));
     if (res.ok) { track("voucher_buy", { amount, currency, experience: expId || "any" }); setDone({ code: j.voucher?.code, amount: j.voucher?.amount ?? amount, currency: j.voucher?.currency ?? currency, pay: j.pay ?? null }); }
-    else { setError(j.error || "Couldn't create the voucher — please try again."); }
+    else { setError(j.error || "Couldn't create the voucher. Please try again."); }
   }
 
   const input = "w-full px-4 py-3 rounded-xl border border-[#dde6e9] text-[15px] text-[#00374a] outline-none focus:border-[#00afdb] bg-white";
@@ -128,10 +128,10 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: Exp[]
             <label className={label}>Voucher amount</label>
             <div className="flex items-baseline justify-between mb-2">
               <span className="text-[34px] font-black text-[#00374a]">{fmtVoucherMoney(amount, currency)}</span>
-              <span className="text-[12px] text-[#9aa6ac]">€200 – €10,000</span>
+              <span className="text-[12px] text-[#9aa6ac]">€200 to €10,000</span>
             </div>
             <input type="range" min={0} max={AMOUNTS.length - 1} step={1} value={idx} onChange={(e) => setIdx(Number(e.target.value))} className="w-full accent-[#00afdb] cursor-pointer" />
-            <p className="text-[12px] text-[#9aa6ac] mt-1.5">{over5k ? "Valid for 2 years." : "Valid for 1 year."} A value voucher — usable on any available NP7 Experience.</p>
+            <p className="text-[12px] text-[#9aa6ac] mt-1.5">{over5k ? "Valid for 2 years." : "Valid for 1 year."} A value voucher, usable on any available NP7 Experience.</p>
           </>
         ) : expPkgs.length > 0 ? (
           <>
@@ -149,14 +149,14 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: Exp[]
               })}
             </div>
             <div className="text-[34px] font-black text-[#00374a] leading-none mt-4 mb-1.5">{fmtVoucherMoney(amount, currency)}</div>
-            <p className="text-[13px] text-[#5a6b72]">The <strong>{selectedPkg?.name}</strong> package for <strong>{selectedExp?.title}</strong> — they pick the week when they book.</p>
+            <p className="text-[13px] text-[#5a6b72]">The <strong>{selectedPkg?.name}</strong> package for <strong>{selectedExp?.title}</strong>. They pick the week when they book.</p>
             <p className="text-[12px] text-[#9aa6ac] mt-1.5">Valid for 1 year.</p>
           </>
         ) : (
           <>
             <label className={label}>Your gift</label>
             <div className="text-[34px] font-black text-[#00374a] leading-none mb-1.5">{fmtVoucherMoney(amount, currency)}</div>
-            <p className="text-[13px] text-[#5a6b72]">The complete <strong>{selectedExp?.title}</strong> experience — they pick the week &amp; package when they book.</p>
+            <p className="text-[13px] text-[#5a6b72]">The complete <strong>{selectedExp?.title}</strong> experience. They pick the week &amp; package when they book.</p>
             <p className="text-[12px] text-[#9aa6ac] mt-1.5">Valid for 1 year.</p>
           </>
         )}
@@ -164,7 +164,7 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: Exp[]
 
       {/* Buyer */}
       <div className="border-t border-[#f3ede2] pt-5">
-        <p className="text-[13px] text-[#8a9aa0] mb-3">Your details — where we&apos;ll send the confirmation.</p>
+        <p className="text-[13px] text-[#8a9aa0] mb-3">Your details: where we&apos;ll send the confirmation.</p>
         <div className="grid sm:grid-cols-2 gap-3">
           <div><label className={label}>Your name</label><input className={input} value={buyerName} onChange={(e) => setBuyerName(e.target.value)} placeholder="Your name" /></div>
           <div><label className={label}>Your email</label><input className={input} type="email" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} placeholder="you@email.com" /></div>
@@ -173,12 +173,12 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: Exp[]
 
       {/* Recipient */}
       <div className="border-t border-[#f3ede2] pt-5">
-        <p className="text-[13px] text-[#8a9aa0] mb-3">Who&apos;s it for? (optional — you can also keep it for yourself)</p>
+        <p className="text-[13px] text-[#8a9aa0] mb-3">Who&apos;s it for? (Optional, or keep it for yourself.)</p>
         <div className="grid sm:grid-cols-2 gap-3">
           <div><label className={label}>Recipient name</label><input className={input} value={recipientName} onChange={(e) => setRecipientName(e.target.value)} placeholder="Their name" /></div>
           <div><label className={label}>Recipient email</label><input className={input} value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder="optional" /></div>
         </div>
-        <div className="mt-3"><label className={label}>Personal message</label><textarea className={`${input} min-h-[80px] resize-y`} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Add a note — it'll show on the printed voucher." /></div>
+        <div className="mt-3"><label className={label}>Personal message</label><textarea className={`${input} min-h-[80px] resize-y`} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Add a note. It'll show on the printed voucher." /></div>
       </div>
 
       {/* Nico call extra */}
@@ -187,7 +187,7 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: Exp[]
           <input type="checkbox" checked={nicoCall} onChange={(e) => setNicoCall(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#00afdb]" />
           <span>
             <span className="block text-[14px] font-bold text-[#00374a]">Have Nico call them with the news 🎉</span>
-            <span className="block text-[12.5px] text-[#6a7a80] mt-0.5">A personal phone call from Nico to share the gift — a lovely surprise. We&apos;ll arrange the timing with you.</span>
+            <span className="block text-[12.5px] text-[#6a7a80] mt-0.5">A personal phone call from Nico to share the gift, a lovely surprise. We&apos;ll arrange the timing with you.</span>
           </span>
         </label>
         {nicoCall && (
@@ -199,13 +199,13 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: Exp[]
       </div>
 
       <div className="rounded-xl bg-[#fff7ec] border border-[#f0e6d6] px-4 py-3 text-[12.5px] text-[#6a7a80] leading-relaxed">
-        Paid by bank transfer — we&apos;ll activate the voucher and email the printable PDF once it arrives. The voucher is pure value: it doesn&apos;t hold a spot, and it&apos;s used when the recipient books an available trip.
+        Paid by bank transfer. We&apos;ll activate the voucher and email the printable PDF once it arrives. The voucher is pure value: it doesn&apos;t hold a spot, and it&apos;s used when the recipient books an available trip.
       </div>
 
       {/* Art. 246a EGBGB pre-contract info: withdrawal right + existence and
           placement of the online withdrawal function (§ 356a BGB). */}
       <p className="text-[12px] text-[#8a9aa0] leading-relaxed">
-        Für den Gutscheinkauf gilt das gesetzliche 14-tägige Widerrufsrecht — Details in der{" "}
+        Für den Gutscheinkauf gilt das gesetzliche 14-tägige Widerrufsrecht. Details in der{" "}
         <a href="/widerrufsbelehrung" className="underline hover:text-[#00374a]">Widerrufsbelehrung</a>. Sie können Ihren
         Widerruf auch online über unsere <a href="/widerruf" className="underline hover:text-[#00374a]">Widerrufsfunktion</a> erklären.{" "}
         <em>The statutory 14-day right of withdrawal applies to voucher purchases.</em>

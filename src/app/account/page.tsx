@@ -22,7 +22,7 @@ import { NextStepHero } from "@/components/portal/next-step-hero";
 import { getMemberApplication } from "@/lib/signature";
 import { flags } from "@/lib/flags";
 
-export const metadata: Metadata = { title: "My account — NP7" };
+export const metadata: Metadata = { title: "My account · NP7" };
 export const dynamic = "force-dynamic";
 
 export default async function AccountHome() {
@@ -229,7 +229,7 @@ export default async function AccountHome() {
             name={first}
             tier={tier}
             level={progression?.level ? { label: progression.level, pct: progression.pct ?? 0 } : null}
-            subtitle="Welcome to your NP7 home — your trips, your gear and everything in between."
+            subtitle="Welcome to your NP7 home: your trips, your gear and everything in between."
           />
 
           {/* Anything past its date or due within a fortnight, before everything
@@ -290,9 +290,9 @@ export default async function AccountHome() {
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#ffd97a]">Signature Trips</p>
                   <p className="text-[14.5px] font-bold mt-0.5">
-                    {signatureApp.status === "accepted" ? "You're accepted 🎉 — we'll reach out with the details."
-                      : signatureApp.status === "shortlisted" ? "You've been shortlisted 🎉 — we'll be in touch."
-                      : "Your application is in — under review."}
+                    {signatureApp.status === "accepted" ? "You're accepted. 🎉 We'll reach out with the details."
+                      : signatureApp.status === "shortlisted" ? "You've been shortlisted. 🎉 We'll be in touch."
+                      : "Your application is in and under review."}
                   </p>
                 </div>
                 <span className="shrink-0 text-[12.5px] font-bold text-white/60 group-hover:text-white transition-colors">View →</span>

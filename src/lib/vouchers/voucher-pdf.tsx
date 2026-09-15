@@ -65,7 +65,7 @@ function VoucherDoc({ d }: { d: VoucherPdfData }) {
           </View>
 
           <Text style={s.steps}>
-            Redeem at np-seven.com — sign in (or create your free account) and enter this code on your trip, or simply reply to your confirmation email and we&apos;ll apply it.
+            Redeem at np-seven.com. Sign in (or create your free account) and enter this code on your trip, or simply reply to your confirmation email and we&apos;ll apply it.
             {d.validUntil ? `\nValid until ${d.validUntil}.` : ""}
           </Text>
         </View>

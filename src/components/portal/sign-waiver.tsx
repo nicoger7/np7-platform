@@ -47,7 +47,7 @@ export function SignWaiver({ bookingId, html, defaultName, signed, guardian }: {
         <div className="bg-white rounded-2xl border border-[#f0e6d6] p-8 max-w-[440px] text-center">
           <div className="mx-auto w-14 h-14 rounded-full bg-[#00afdb] grid place-items-center mb-4"><svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg></div>
           <h1 className="text-2xl font-black text-[#00374a] mb-2">Waiver signed ✓</h1>
-          <p className="text-[14px] text-[#5a6b72] mb-6">Thanks{signed?.name ? `, ${signed.name}` : name ? `, ${name}` : ""} — it&apos;s saved in your account and with our team.</p>
+          <p className="text-[14px] text-[#5a6b72] mb-6">Thanks{signed?.name ? `, ${signed.name}` : name ? `, ${name}` : ""}. It&apos;s saved in your account and with our team.</p>
           <a href="/account" className="inline-block px-7 py-3.5 rounded-full text-[13.5px] font-bold text-white bg-[#00afdb]">Back to my account</a>
         </div>
       </main>
@@ -64,7 +64,7 @@ export function SignWaiver({ bookingId, html, defaultName, signed, guardian }: {
           <h1 className="text-2xl font-black text-[#00374a] mt-3 mb-4">Your signed waiver</h1>
           <div className="flex items-center gap-2.5 bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-5">
             <span className="shrink-0 w-7 h-7 rounded-full bg-green-500 text-white grid place-items-center text-[14px] font-bold">✓</span>
-            <p className="text-[13.5px] text-green-800 flex-1"><strong>Signed by {signed.name}</strong> on {fmtSignedAt(signed.at)} — saved in your account and with our team.</p>
+            <p className="text-[13.5px] text-green-800 flex-1"><strong>Signed by {signed.name}</strong> on {fmtSignedAt(signed.at)}. Saved in your account and with our team.</p>
             {/* Their own copy. A waiver you can't take away with you is a
                 waiver you have to take our word for. */}
             {signed.documentUrl && (
@@ -93,8 +93,8 @@ export function SignWaiver({ bookingId, html, defaultName, signed, guardian }: {
           {guardian && (
             <div className="rounded-xl bg-[#fff8e8] border border-[#f2dfae] p-4 mb-4">
               <p className="text-[13.5px] text-[#8a6a2a] leading-relaxed">
-                <strong>{guardian.participant}</strong> is under 18, so this is signed by a parent or guardian —
-                you are agreeing on their behalf and confirming you have the authority to do so.
+                <strong>{guardian.participant}</strong> is under 18, so this is signed by a parent or guardian.
+                You are agreeing on their behalf and confirming you have the authority to do so.
               </p>
               <label className="block text-[12px] font-bold uppercase tracking-wide text-[#a5732a] mt-3 mb-1">Your relationship to {guardian.participant.split(/\s+/)[0]}</label>
               <input value={rel} onChange={(e) => setRel(e.target.value)} placeholder="e.g. mother, father, legal guardian"

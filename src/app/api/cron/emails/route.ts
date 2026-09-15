@@ -41,7 +41,7 @@ function fmtRange(start?: string | null, end?: string | null) {
   if (!start) return undefined;
   const s = new Date(start), e = end ? new Date(end) : null;
   const d = (x: Date) => x.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  return e ? `${d(s)} – ${d(e)} ${e.getFullYear()}` : `${d(s)} ${s.getFullYear()}`;
+  return e ? `${d(s)} - ${d(e)} ${e.getFullYear()}` : `${d(s)} ${s.getFullYear()}`;
 }
 
 export async function GET(req: NextRequest) {

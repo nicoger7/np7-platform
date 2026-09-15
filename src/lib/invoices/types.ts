@@ -130,7 +130,7 @@ export function formatInvoiceNumber(prefix: string | null, year: number, seq: nu
 
 /** Money formatter for PDF + UI. */
 export function formatMoney(amount: number | null | undefined, currency = "EUR"): string {
-  if (amount == null) return "—";
+  if (amount == null) return "-";
   const symbol = currency === "EUR" ? "€" : currency === "USD" ? "$" : `${currency} `;
   return `${symbol}${Number(amount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

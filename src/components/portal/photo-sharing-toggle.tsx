@@ -62,7 +62,7 @@ export function PhotoSharingToggle({ bookingId, initialShared }: { bookingId: st
           </span>
         </span>
       </button>
-      {error && <p className="mt-1.5 px-1 text-[12px] text-red-500" role="alert">Still {shared ? "shared" : "private"} — {error}</p>}
+      {error && <p className="mt-1.5 px-1 text-[12px] text-red-500" role="alert">Still {shared ? "shared" : "private"} · {error}</p>}
     </div>
   );
 }

@@ -88,7 +88,7 @@ export function CommunityProfile(p: Props) {
     <section className="bg-white rounded-2xl border border-[#f0e6d6] p-6">
       <h2 className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#00afdb] mb-1.5">Community profile</h2>
       <p className="text-[13.5px] text-[#6a7a80] mb-5 leading-relaxed">
-        How riders you share a week with see you. Nothing is shown until you switch it on — the switches are below, under &ldquo;Where can other members see me?&rdquo;.
+        How riders you share a week with see you. Nothing is shown until you switch it on. The switches are below, under &ldquo;Where can other members see me?&rdquo;.
       </p>
 
       {/* avatar + handle */}
@@ -138,7 +138,7 @@ export function CommunityProfile(p: Props) {
       {pickerOpen && (
         <div className="mt-4 rounded-xl border border-[#eef3f4] bg-[#fbfdfe] p-3">
           {p.photoChoices.length === 0 ? (
-            <p className="text-[13px] text-[#9aa6ac] py-2 text-center">Your trip photos appear here after your first week — until then you&apos;ll show with your initials.</p>
+            <p className="text-[13px] text-[#9aa6ac] py-2 text-center">Your trip photos appear here after your first week. Until then you&apos;ll show with your initials.</p>
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 max-h-[360px] overflow-y-auto">
               {p.photoChoices.map((src) => (
@@ -204,7 +204,7 @@ export function CommunityProfile(p: Props) {
         </div>
         {onButEmpty.length > 0 && (
           <p className="text-[12px] text-[#b8702a] mt-2.5 leading-relaxed">
-            {onButEmpty.join(", ")} {onButEmpty.length === 1 ? "is" : "are"} switched on but still empty — add your country &amp; date of birth in your <span className="font-semibold">Account</span>, and set your level in <span className="font-semibold">Your level</span> below, and they&apos;ll show here.
+            {onButEmpty.join(", ")} {onButEmpty.length === 1 ? "is" : "are"} switched on but still empty. Add your country &amp; date of birth in your <span className="font-semibold">Account</span>, and set your level in <span className="font-semibold">Your level</span> below, and they&apos;ll show here.
           </p>
         )}
         {isMinor && <p className="text-[12px] text-[#c4621a] mt-2">Under-18 riders are never listed in a trip crew, and your age is never shown.</p>}

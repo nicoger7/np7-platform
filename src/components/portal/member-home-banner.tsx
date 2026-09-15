@@ -37,7 +37,7 @@ function TierChip({ tier }: { tier: MemberTier }) {
             ))}
           </span>
           <span className="block text-[12px] font-semibold text-white/85">
-            {Number.isInteger(tier.trips) ? tier.trips : tier.trips.toFixed(2)} trip{tier.trips === 1 ? "" : "s"} ridden{tier.toNext ? ` — ${Number.isInteger(tier.toNext) ? tier.toNext : tier.toNext.toFixed(2)} more to ${tier.nextLabel}` : " — top tier"}
+            {Number.isInteger(tier.trips) ? tier.trips : tier.trips.toFixed(2)} trip{tier.trips === 1 ? "" : "s"} ridden{tier.toNext ? ` · ${Number.isInteger(tier.toNext) ? tier.toNext : tier.toNext.toFixed(2)} more to ${tier.nextLabel}` : " · top tier"}
           </span>
           <span className="block text-[11px] text-[#7fd9f2] mt-1.5">Your status &amp; perks →</span>
         </span>

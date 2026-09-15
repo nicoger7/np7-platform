@@ -168,13 +168,13 @@ export function recommendFin(i: FinInputs, t: FinTuning = DEFAULT_TUNING): FinRe
   ];
   if (Math.abs(sailAdj) >= 0.25) {
     notes.push(sailAdj > 0
-      ? `+${round05(sailAdj)} — ${i.sailSqm.toFixed(1)} m² is more sail than the typical ~${typicalSail.toFixed(1)} m²`
-      : `−${round05(Math.abs(sailAdj))} — ${i.sailSqm.toFixed(1)} m² is less sail than the typical ~${typicalSail.toFixed(1)} m²`);
+      ? `+${round05(sailAdj)} · ${i.sailSqm.toFixed(1)} m² is more sail than the typical ~${typicalSail.toFixed(1)} m²`
+      : `−${round05(Math.abs(sailAdj))} · ${i.sailSqm.toFixed(1)} m² is less sail than the typical ~${typicalSail.toFixed(1)} m²`);
   }
   if (Math.abs(weightAdj) >= 0.25) notes.push(`${i.weightKg} kg: ${weightAdj > 0 ? "+" : "−"}${round05(Math.abs(weightAdj))} for your weight`);
   if (windAdj !== 0) notes.push(windAdj > 0 ? `+${windAdj} for light-wind lift & early planing` : `−${Math.abs(windAdj)} for strong-wind control`);
-  if (levelAdj !== 0) notes.push(levelAdj > 0 ? `+${levelAdj} — a touch more fin makes planing and upwind easier` : `−${Math.abs(levelAdj)} — pro trim for top-end control`);
-  if (capped) notes.push(`Your factors add up to ${rawAdj > 0 ? "+" : "−"}${round05(Math.abs(rawAdj))} — capped at ${rawAdj > 0 ? "+" : "−"}${t.adjRange} off the middle, so further tweaks won't move the number here`);
+  if (levelAdj !== 0) notes.push(levelAdj > 0 ? `+${levelAdj} · a touch more fin makes planing and upwind easier` : `−${Math.abs(levelAdj)} · pro trim for top-end control`);
+  if (capped) notes.push(`Your factors add up to ${rawAdj > 0 ? "+" : "−"}${round05(Math.abs(rawAdj))}, capped at ${rawAdj > 0 ? "+" : "−"}${t.adjRange} off the middle, so further tweaks won't move the number here`);
   notes.push(`Never below ${hardMin} or above ${hardMax} on this board`);
 
   // the OK sail window narrows as level and board pedigree rise
@@ -184,7 +184,7 @@ export function recommendFin(i: FinInputs, t: FinTuning = DEFAULT_TUNING): FinRe
   const comboHi = typicalSail + Math.max(0, t.comboSlackUp - tighten.up + widen);
   const comboWarning =
     i.sailSqm > comboHi || i.sailSqm < comboLo
-      ? `Unusual combo — a ${i.boardWidthCm} cm ${i.boardType ?? "slalom"} board at your level usually carries ${comboLo.toFixed(1)}–${comboHi.toFixed(1)} m². The number still computes, but double-check the pairing.`
+      ? `Unusual combo: a ${i.boardWidthCm} cm ${i.boardType ?? "slalom"} board at your level usually carries ${comboLo.toFixed(1)}-${comboHi.toFixed(1)} m². The number still computes, but double-check the pairing.`
       : null;
 
   return { idealCm: ideal, middleCm: round05(middle), hardMinCm: hardMin, hardMaxCm: hardMax, sailOkLo: Math.round(comboLo * 10) / 10, sailOkHi: Math.round(comboHi * 10) / 10, notes, comboWarning };

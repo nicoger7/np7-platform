@@ -4,7 +4,7 @@ import { BlogIndexView } from "./blog-index";
 export const metadata: Metadata = {
   title: "Magazine",
   description:
-    "Spotguides, gear reviews, technique guides and stories from the water — by Nico Prien (GER-7) and the NP7 crew.",
+    "Spotguides, gear reviews, technique guides and stories from the water, by Nico Prien (GER-7) and the NP7 crew.",
   alternates: { canonical: "/blog" },
 };
 

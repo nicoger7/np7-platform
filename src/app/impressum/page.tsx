@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getLegalEntity } from "@/lib/legal";
 import { LegalShell } from "@/components/shared/legal-shell";
 
-export const metadata: Metadata = { title: "Impressum — NP7", robots: { index: true } };
+export const metadata: Metadata = { title: "Impressum · NP7", robots: { index: true } };
 export const revalidate = 86400;
 
 export default async function ImpressumPage() {
@@ -13,7 +13,7 @@ export default async function ImpressumPage() {
     <LegalShell title="Impressum">
       <p className="note">
         Angaben gemäß § 5 TMG / § 18 MStV. The details below are maintained in the admin company
-        settings — fill any blanks there. Bookings &amp; payments are currently operated by our partner
+        settings. Fill any blanks there. Bookings &amp; payments are currently operated by our partner
         Surfcenter; see <a href="/terms">Terms</a> for the booking party.
       </p>
 

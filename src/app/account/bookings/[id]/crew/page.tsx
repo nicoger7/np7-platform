@@ -9,7 +9,7 @@ import { LevelBadge } from "@/components/shared/level-badge";
 import { CrewVisibilityToggle } from "@/components/portal/crew-visibility-toggle";
 import { EMPTY_VISIBILITY, type PublicProfile } from "@/lib/member-profile";
 
-export const metadata: Metadata = { title: "Your crew — NP7" };
+export const metadata: Metadata = { title: "Your crew · NP7" };
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ id: string }> };
@@ -62,7 +62,7 @@ export default async function CrewPage({ params }: Props) {
           {roster.profiles.length === 0 ? (
             <div className="bg-white rounded-2xl border border-[#f0e6d6] p-8 text-center">
               <p className="text-[15px] text-[#6a7a80] mb-2">No one&apos;s shared a profile for this trip yet.</p>
-              <p className="text-[13.5px] text-[#9aa6ac]">Be the first — <Link href="/account/profile" className="font-semibold text-[#00afdb] hover:underline">turn on your community profile</Link> and your crew will see you here.</p>
+              <p className="text-[13.5px] text-[#9aa6ac]">Be the first: <Link href="/account/profile" className="font-semibold text-[#00afdb] hover:underline">turn on your community profile</Link> and your crew will see you here.</p>
             </div>
           ) : (
             <>
@@ -79,7 +79,7 @@ export default async function CrewPage({ params }: Props) {
           )}
 
           <p className="text-[12.5px] text-[#9aa6ac] mt-8 leading-relaxed max-w-[640px]">
-            You&apos;re shown to your crew by default — use the toggle above to hide yourself. Choose exactly which details (city, level, age) appear in <Link href="/account/profile" className="font-semibold text-[#00afdb] hover:underline">your profile</Link>.
+            You&apos;re shown to your crew by default. Use the toggle above to hide yourself. Choose exactly which details (city, level, age) appear in <Link href="/account/profile" className="font-semibold text-[#00afdb] hover:underline">your profile</Link>.
           </p>
         </div>
       </main>

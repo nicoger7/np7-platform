@@ -213,7 +213,7 @@ export function SpotMap({ spots, cluster = false, height = 420, linkLabel = "Vie
             (s.destName && !destMeta ? `<div style="color:#6a7a80;font-size:12px;margin-top:1px">${s.destName}</div>` : "") +
             (destMeta
               ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid #e8eef0">` +
-                  (s.destName ? `<div style="color:#6a7a80;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em">${s.destName} — the destination</div>` : "") +
+                  (s.destName ? `<div style="color:#6a7a80;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em">${s.destName} · the destination</div>` : "") +
                   `<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:3px;font-size:11.5px;color:#5a6b72">${meta.join("")}</div>` +
                 `</div>`
               : "") +

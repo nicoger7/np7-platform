@@ -78,11 +78,11 @@ export function BuyBox({
           disabled={soldOut || !unitGross}
           className="px-7 py-3.5 rounded-full bg-[#c2ff38] text-black text-sm font-black uppercase tracking-wide disabled:opacity-40 hover:brightness-110 transition-all"
         >
-          {soldOut ? "Sold out" : `Add to cart — ${symbol}${unitGross.toLocaleString("en-US")}`}
+          {soldOut ? "Sold out" : `Add to cart · ${symbol}${unitGross.toLocaleString("en-US")}`}
         </button>
         {added && (
           <Link href="/hardware/cart" className="text-sm font-bold text-[#c2ff38] underline underline-offset-4">
-            Added ✓ — view cart
+            Added ✓ · view cart
           </Link>
         )}
       </div>

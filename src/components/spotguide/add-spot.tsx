@@ -63,7 +63,7 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
     else { const j = await res.json().catch(() => ({})); setError(j.error ?? "Could not submit."); }
   }
 
-  if (done) return <div className="rounded-2xl border border-[#cdeede] bg-[#f0faf4] p-5 text-[14px] text-[#1f7a4d] font-semibold">Your spot is in — it&apos;s now on this page under review, and only you can see it for now. Open it above to keep adding conditions, wind and photos; once a few riders confirm it, it goes live for everyone. 🤙</div>;
+  if (done) return <div className="rounded-2xl border border-[#cdeede] bg-[#f0faf4] p-5 text-[14px] text-[#1f7a4d] font-semibold">Your spot is in. It&apos;s now on this page under review, and only you can see it for now. Open it above to keep adding conditions, wind and photos; once a few riders confirm it, it goes live for everyone. 🤙</div>;
 
   if (!open) {
     return (
@@ -71,7 +71,7 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
         className="w-full rounded-2xl border-2 border-dashed p-5 text-left transition-colors hover:bg-white"
         style={{ borderColor: "#e2d8c6" }}>
         <span className="text-[15px] font-extrabold text-[#00374a]">{destName ? `Know a spot in ${destName} we're missing?` : "Know a spot we're missing? Add it"}</span>
-        <span className="block text-[13px] text-[#6a7a80] mt-0.5">{sg.loggedIn ? (chooseDest ? "Add it to any destination — or name a whole new area. Members verify it before it's public." : "Add it — other members verify it before it goes public.") : "Sign up (seconds) to add a spot — members verify it before it goes public."}</span>
+        <span className="block text-[13px] text-[#6a7a80] mt-0.5">{sg.loggedIn ? (chooseDest ? "Add it to any destination, or name a whole new area. Members verify it before it's public." : "Add it. Other members verify it before it goes public.") : "Sign up (seconds) to add a spot. Members verify it before it goes public."}</span>
       </button>
     );
   }
@@ -96,11 +96,11 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
           </div>
           {destChoice === "__new__" && (
             <div className="mt-2 space-y-2 rounded-xl border border-[#ece3d3] bg-[#fdfaf3] p-3">
-              <p className="text-[12px] text-[#6a7a80] leading-snug">Name the <b className="text-[#00374a]">specific spot area</b> a rider would know — a bay, beach or town. <b>Not</b> the country or a whole coastline; the country has its own field.</p>
-              <input className={input} placeholder="Spot area — bay / beach / town (e.g. Prasonisi) *" value={newArea} onChange={(e) => setNewArea(e.target.value)} />
+              <p className="text-[12px] text-[#6a7a80] leading-snug">Name the <b className="text-[#00374a]">specific spot area</b> a rider would know: a bay, beach or town. <b>Not</b> the country or a whole coastline; the country has its own field.</p>
+              <input className={input} placeholder="Spot area · bay / beach / town (e.g. Prasonisi) *" value={newArea} onChange={(e) => setNewArea(e.target.value)} />
               <div className="grid grid-cols-2 gap-2">
                 <input className={input} placeholder="Country (e.g. Greece) *" value={newCountry} onChange={(e) => setNewCountry(e.target.value)} />
-                <input className={input} placeholder="Region / coast — optional" value={newRegion} onChange={(e) => setNewRegion(e.target.value)} />
+                <input className={input} placeholder="Region / coast (optional)" value={newRegion} onChange={(e) => setNewRegion(e.target.value)} />
               </div>
             </div>
           )}
@@ -108,9 +108,9 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
       )}
       <input className={input} placeholder="Spot name *" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus />
       <input className={input} placeholder="One-line summary" value={f.summary} onChange={(e) => setF({ ...f, summary: e.target.value })} />
-      <textarea className={`${input} min-h-[80px] resize-y`} placeholder="What's it like here — wind, water, launch, hazards…" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
+      <textarea className={`${input} min-h-[80px] resize-y`} placeholder="What's it like here: wind, water, launch, hazards…" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} />
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Levels it suits <span className="normal-case tracking-normal text-[#c3b9a6]">— pick any that fit</span></p>
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mb-1.5">Levels it suits <span className="normal-case tracking-normal text-[#c3b9a6]">(pick any that fit)</span></p>
         <LevelPicker multiple values={f.levels} onValues={(v) => setF({ ...f, levels: v })} accent={accent} />
       </div>
       <div>
@@ -133,7 +133,7 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
         </div>
         <div className="flex items-center gap-2 mt-2">
           <input value={customTag} onChange={(e) => setCustomTag(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomTag(); } }}
-            placeholder="Add your own — e.g. shallow reef, expert-only, no-kite zone…" className={`${input} text-[13px]`} />
+            placeholder="Add your own, e.g. shallow reef, expert-only, no-kite zone…" className={`${input} text-[13px]`} />
           <button type="button" onClick={addCustomTag} className="shrink-0 px-3 py-2 rounded-lg text-[13px] font-bold" style={{ border: `1px solid ${accent}`, color: accent }}>Add</button>
         </div>
       </div>

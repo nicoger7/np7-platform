@@ -46,7 +46,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   const minor = isMinorOn(booking.participant_dob, eventStart) === true;
   if (minor && !(booking.guardian_name ?? "").trim()) {
-    return NextResponse.json({ error: "This booking is for a participant under 18 and has no guardian on file — please contact us before signing." }, { status: 409 });
+    return NextResponse.json({ error: "This booking is for a participant under 18 and has no guardian on file. Please contact us before signing." }, { status: 409 });
   }
   const signedAs = minor ? "guardian" : "participant";
   const guardianRelationship = minor
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       firstName: firstName || "",
       lastName: rest.join(" "),
       experienceTitle: booking.exp_experiences?.title ?? "your trip",
-      dates: ed ? [fmt(ed.date_start), fmt(ed.date_end)].filter(Boolean).join(" – ") : "",
+      dates: ed ? [fmt(ed.date_start), fmt(ed.date_end)].filter(Boolean).join(" - ") : "",
       signedDate: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }),
     });
   } catch {
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ip, userAgent: ua,
         version: WAIVER_VERSION,
         experienceTitle: booking.exp_experiences?.title ?? "NP7 trip",
-        dates: ed ? [fmt(ed.date_start), fmt(ed.date_end)].filter(Boolean).join(" – ") : "",
+        dates: ed ? [fmt(ed.date_start), fmt(ed.date_end)].filter(Boolean).join(" - ") : "",
         bookingRef: id,
         companyName: cs?.legal_name || cs?.company_name || "NP7",
       });

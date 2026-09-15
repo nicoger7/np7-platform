@@ -49,14 +49,14 @@ export type Criterion = { key: string; label: string; hint: string };
 export const SPOT_CRITERIA: Criterion[] = [
   { key: "safety", label: "Safety", hint: "Onshore & safe vs offshore wind, rocks, currents, hazards." },
   { key: "beauty", label: "View", hint: "Scenery / landscape and the all-round vibe on the water." },
-  { key: "infrastructure", label: "Infrastructure", hint: "School, rental, repair, parking, beach bar — what's on the ground." },
+  { key: "infrastructure", label: "Infrastructure", hint: "School, rental, repair, parking, beach bar: what's on the ground." },
   { key: "family", label: "Family-friendly", hint: "Shallow areas, easy launch, room for kids & non-sailors." },
 ];
 
 /** DESTINATION star criteria (whole-trip). Wind is not rated — it's the spots'
     objective climatology aggregated. */
 export const DESTINATION_CRITERIA: Criterion[] = [
-  { key: "stay_food", label: "Stay & food", hint: "Accommodation and eating — where you sleep and dine." },
+  { key: "stay_food", label: "Stay & food", hint: "Accommodation and eating: where you sleep and dine." },
   { key: "no_wind_days", label: "No-wind days", hint: "What there is to do when the wind doesn't show." },
   { key: "family", label: "Family-friendly", hint: "How well it works for families and non-sailing partners." },
   { key: "value", label: "Value for money", hint: "What you get for what you spend." },
@@ -79,8 +79,8 @@ export const DESTINATION_CRITERIA_KEYS = DESTINATION_CRITERIA.map((c) => c.key);
 export const CONDITIONS = [
   { key: "flat", label: "Flat water" },
   { key: "chop", label: "Choppy" },
-  { key: "small_waves", label: "Small waves (0.5–1 m)" },
-  { key: "medium_waves", label: "Medium waves (1–2 m)" },
+  { key: "small_waves", label: "Small waves (0.5-1 m)" },
+  { key: "medium_waves", label: "Medium waves (1-2 m)" },
   { key: "big_waves", label: "Big waves (2 m+)" },
   { key: "shallow", label: "Shallow" },
   { key: "deep", label: "Deep water" },
@@ -167,7 +167,7 @@ export const PHOTO_FLAG_THRESHOLD = 3;
 export const VERIFICATION_META: Record<Verification, { label: string; short: string; color: string }> = {
   pending: { label: "Awaiting verification", short: "Pending", color: "#9aa6ac" },
   community: { label: "Verified by members who've sailed here", short: "Community", color: "#1f9e57" },
-  np7: { label: "Tested by NP7 — we've been here", short: "✓ Verified", color: "#00afdb" },
+  np7: { label: "Tested by NP7: we've been here", short: "✓ Verified", color: "#00afdb" },
 };
 
 export function isPublicVerification(v: string | null | undefined): boolean {
@@ -348,7 +348,7 @@ export function levelRangeLabel(min?: string | null, max?: string | null): strin
   if (lo && hi && lo === hi) return lo;
   if (lo && hi) {
     if (lo === LEVELS[0] && hi === LEVELS[LEVELS.length - 1]) return "All levels";
-    return `${lo}–${hi}`;
+    return `${lo}-${hi}`;
   }
   return lo ?? hi;
 }

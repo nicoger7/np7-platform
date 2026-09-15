@@ -152,11 +152,11 @@ export function WindStatsChart({ stats, compact = false, accent = "#00afdb" }: {
         <span className="text-[10.5px] text-[#9aa6ac] ml-auto">
           {(view.source ?? "").startsWith("NP7")
             ? <>% planing days · {view.source}</>
-            : <>% of sailing hours (09–18) · {view.source} · modeled</>}
+            : <>% of sailing hours (09-18) · {view.source} · modeled</>}
         </span>
       </div>
       {!(view.source ?? "").startsWith("NP7") && (
-        <p className="text-[10px] text-[#b3a994] mt-1 leading-snug">Modeled estimate — coarse models can under-read wind-acceleration spots (Canaries, Tarifa…).</p>
+        <p className="text-[10px] text-[#b3a994] mt-1 leading-snug">Modeled estimate. Coarse models can under-read wind-acceleration spots (Canaries, Tarifa…).</p>
       )}
     </div>
   );

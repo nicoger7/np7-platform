@@ -12,10 +12,10 @@ import type { TaglinePair } from "@/lib/taglines";
 const STORAGE = "/cdn/assets";
 
 const experiences = [
-  { title: "OBX Wind — Coaching Week", location: "Hatteras Island, North Carolina", dates: "Oct 10–16, 2026", status: "last-spots" as const, statusLabel: "Interest open", url: "https://www.np-seven.com/survey/join-obx-wind-2026-17f9cd" },
-  { title: "NP7 Bonaire — Week 1", location: "Bonaire, Caribbean", dates: "Nov 30 – Dec 6, 2026", status: "available" as const, statusLabel: "Available", url: "https://surfcenter-experience.com/event/np7-bonaire-experience-2026-30nov-to-6dec/" },
-  { title: "NP7 Bonaire — Week 2", location: "Bonaire, Caribbean", dates: "Dec 7–13, 2026", status: "fully-booked" as const, statusLabel: "Fully booked", url: "https://surfcenter-experience.com/event/np7-bonaire-experience-2026-7-to-14-december/" },
-  { title: "NP7 Bonaire — Week 3", location: "Bonaire, Caribbean", dates: "Dec 14–20, 2026", status: "available" as const, statusLabel: "Available", url: "https://surfcenter-experience.com/event/np7-bonaire-experience-2026-14-to-20-december/" },
+  { title: "OBX Wind Coaching Week", location: "Hatteras Island, North Carolina", dates: "Oct 10-16, 2026", status: "last-spots" as const, statusLabel: "Interest open", url: "https://www.np-seven.com/survey/join-obx-wind-2026-17f9cd" },
+  { title: "NP7 Bonaire Week 1", location: "Bonaire, Caribbean", dates: "Nov 30 - Dec 6, 2026", status: "available" as const, statusLabel: "Available", url: "https://surfcenter-experience.com/event/np7-bonaire-experience-2026-30nov-to-6dec/" },
+  { title: "NP7 Bonaire Week 2", location: "Bonaire, Caribbean", dates: "Dec 7-13, 2026", status: "fully-booked" as const, statusLabel: "Fully booked", url: "https://surfcenter-experience.com/event/np7-bonaire-experience-2026-7-to-14-december/" },
+  { title: "NP7 Bonaire Week 3", location: "Bonaire, Caribbean", dates: "Dec 14-20, 2026", status: "available" as const, statusLabel: "Available", url: "https://surfcenter-experience.com/event/np7-bonaire-experience-2026-14-to-20-december/" },
 ];
 
 const products = [

@@ -19,7 +19,7 @@ export function ForecastPanel({ spotId, np7Models, tally, accent = "#00afdb" }: 
   const voted = np7Models.length > 0 || tally.length > 0;
   const teaser = np7Models.length
     ? `NP7 rides ${np7Models.map((id) => forecastLabel(id)).join(" + ")}`
-    : top ? `Riders trust ${top.label}` : "No votes yet — be the first";
+    : top ? `Riders trust ${top.label}` : "No votes yet. Be the first";
   return (
     <Foldout icon={FoldIconWind} label="Best forecast here" value={teaser} valueCta={!voted} accent={accent}>
       {np7Models.length > 0 && (
@@ -49,7 +49,7 @@ export function ForecastPanel({ spotId, np7Models, tally, accent = "#00afdb" }: 
           </div>
         </div>
       ) : (
-        <p className="text-[12px] text-[#9aa6ac]">No votes yet — be the first.</p>
+        <p className="text-[12px] text-[#9aa6ac]">No votes yet. Be the first.</p>
       )}
 
       {/* vote right where the result shows — your pick is ticked, tap to change */}

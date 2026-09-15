@@ -5,9 +5,9 @@ import { LaunchLanding } from "./_launch-landing";
 
 export const metadata: Metadata = {
   // absolute → the "%s · NP7" root template doesn't append a second "NP7".
-  title: { absolute: "NP7 — Windsurf trips, spots & gear" },
+  title: { absolute: "NP7 · Windsurf trips, spots & gear" },
   description:
-    "Two worlds, one passion. NP7 Experience — premium watersports travel. NP7 Hardware — custom boards & fins.",
+    "Two worlds, one passion. NP7 Experience: premium watersports travel. NP7 Hardware: custom boards & fins.",
 };
 
 import { cdn } from "@/lib/cdn";
@@ -45,7 +45,7 @@ export default async function LandingPage() {
       expCta: "Enter Experience",
       expPhoto: EXP_PHOTO,
       hwEyebrow: "BOARDS · FINS · CUSTOM",
-      hwTagline: "Custom boards & fins — shaped on the bench, finished by hand.",
+      hwTagline: "Custom boards & fins, shaped on the bench and finished by hand.",
       hwCta: "Enter Hardware",
     };
     try {

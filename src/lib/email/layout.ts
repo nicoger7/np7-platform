@@ -39,7 +39,7 @@ const THEMES: Record<Division, {
     hero: `${STORAGE}/hero/windsurf-hero-poster.jpg`,
     headerBg: "#00374a", headerFade: "rgba(0,40,58,0.82)",
     footerBg: "#00374a", footerText: "#9fb3bb", footerStrong: "#cfe0e5",
-    tagline: "Windsurf trips & spots — by Nico Prien.",
+    tagline: "Windsurf trips & spots by Nico Prien.",
     contactEmail: "experience@np-seven.com",
   },
   hardware: {
@@ -50,7 +50,7 @@ const THEMES: Record<Division, {
     hero: null,
     headerBg: "#0c0c0e", headerFade: "rgba(8,8,12,0.85)",
     footerBg: "#0c0c0e", footerText: "#8d8d8d", footerStrong: "#c6ff3a",
-    tagline: "Custom windsurf boards & fins — shaped on the bench, finished by hand.",
+    tagline: "Custom windsurf boards & fins: shaped on the bench, finished by hand.",
     contactEmail: "performance@np-seven.com",
   },
 };
@@ -104,7 +104,7 @@ export function emailLayout(opts: { division?: Division; preheader?: string; hea
   <tr><td style="padding:26px 32px 30px;color:#33434a;font-size:15px;line-height:1.6;">${bodyHtml}</td></tr>
   <tr><td style="background:${t.footerBg};padding:22px 32px;color:${t.footerText};font-size:12px;line-height:1.6;">
     <strong style="color:${t.footerStrong};">NP7 GmbH</strong> · Germany · ${t.contactEmail}<br>
-    ${esc(t.tagline)}${unsubscribeUrl ? `<br><span style="color:${t.footerText};">You're receiving this because you subscribed — <a href="${unsubscribeUrl}" style="color:${t.footerStrong};text-decoration:underline;">unsubscribe</a>.</span>` : ""}
+    ${esc(t.tagline)}${unsubscribeUrl ? `<br><span style="color:${t.footerText};">You're receiving this because you subscribed. <a href="${unsubscribeUrl}" style="color:${t.footerStrong};text-decoration:underline;">Unsubscribe</a>.</span>` : ""}
   </td></tr>
 </table>
 <div style="color:#9aa6ac;font-size:11px;padding:16px 8px 0;">© 2026 NP7 GmbH</div>

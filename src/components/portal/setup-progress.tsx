@@ -68,11 +68,11 @@ export function SetupProgress({ steps }: { steps: SetupStep[] }) {
           <span className="shrink-0 grid place-items-center w-11 h-11 rounded-full bg-white text-[22px] shadow-[0_4px_14px_rgba(15,110,86,0.15)]" aria-hidden>🤙</span>
           <div className="min-w-0">
             <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#0f6e56]">All set</p>
-            <h2 className="text-[17px] font-black tracking-[-0.01em] text-[#00374a] mt-0.5">You&apos;re all set — your NP7 home is ready</h2>
+            <h2 className="text-[17px] font-black tracking-[-0.01em] text-[#00374a] mt-0.5">You&apos;re all set. Your NP7 home is ready</h2>
           </div>
         </div>
         <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mt-3">
-          Profile complete. Everything you need for your trips lives here now — payments, prep, your crew and your photos.
+          Profile complete. Everything you need for your trips lives here now: payments, prep, your crew and your photos.
         </p>
       </section>
     );
@@ -84,7 +84,7 @@ export function SetupProgress({ steps }: { steps: SetupStep[] }) {
         <div>
           <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#9aa6ac]">Get set up</p>
           <h2 className="text-[17px] font-black tracking-[-0.01em] text-[#00374a] mt-0.5">
-            You&apos;re {pct}% there — {remaining} {remaining === 1 ? "step" : "steps"} to go
+            You&apos;re {pct}% there · {remaining} {remaining === 1 ? "step" : "steps"} to go
           </h2>
         </div>
         <span className="shrink-0 text-[13px] font-bold text-[#00afdb]">{done}/{total}</span>
@@ -171,7 +171,7 @@ function HandleStep({ step }: { step: SetupStep }) {
         body: JSON.stringify({ username: handle }),
       });
       const j = await r.json().catch(() => ({}));
-      if (!r.ok) { setErr(j.error || "That one didn't work — try another."); return; }
+      if (!r.ok) { setErr(j.error || "That one didn't work. Try another."); return; }
       window.location.reload(); // the step (and the progress bar) recompute server-side
     } catch { setErr("Couldn't save just now."); }
     finally { setBusy(false); }

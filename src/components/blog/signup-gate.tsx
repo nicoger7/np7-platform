@@ -31,11 +31,11 @@ export function SignupGate({ accent = "#00afdb" }: { accent?: string }) {
         </span>
 
         <h2 className="text-2xl sm:text-[30px] font-black tracking-[-0.02em] text-[#00374a]">
-          Keep reading — it&apos;s free
+          Keep reading, it&apos;s free
         </h2>
         <p className="mt-3 text-[15.5px] text-[#6a7a80] leading-relaxed max-w-[440px] mx-auto">
           Create a free NP7 account to finish this story and unlock every spotguide, review and
-          technique guide. No payment — you&apos;re one tap from the full library.
+          technique guide. No payment. You&apos;re one tap from the full library.
         </p>
 
         <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[13px] font-semibold text-[#5a6b72]">
@@ -68,7 +68,7 @@ export function SignupGate({ accent = "#00afdb" }: { accent?: string }) {
         <AuthModal
           source="blog_gate"
           initialMode={open === "register" ? "register" : "login"}
-          title={open === "register" ? "Join NP7 — free" : "Welcome back"}
+          title={open === "register" ? "Join NP7 · free" : "Welcome back"}
           subtitle={open === "register" ? "One tap to finish reading and unlock the library" : "Log in to keep reading"}
           onClose={() => setOpen(null)}
           onLoggedIn={() => { setOpen(null); router.refresh(); }}

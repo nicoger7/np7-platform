@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
 
   // Stripe Checkout session for the deposit (REST API, form-encoded).
   const origin = publicOrigin();
-  const editionLabel = edition?.label ? ` — ${edition.label}` : "";
+  const editionLabel = edition?.label ? ` · ${edition.label}` : "";
 
   // Members get a Stripe Customer so they can opt to save their card.
   if (member && !stripeCustomerId) {

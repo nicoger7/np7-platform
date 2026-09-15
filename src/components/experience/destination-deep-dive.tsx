@@ -43,7 +43,7 @@ function YearWind({ stats, season, tripMonths }: { stats: WindStats | null; seas
     return { m: i + 1, label: MONTH_LABELS[i], pct: Math.round(Number(mm?.dayPct ?? (mm?.pct as Record<string, number> | undefined)?.["4"] ?? 0)) };
   });
   if (rows.every((r) => r.pct === 0)) return null;
-  const years = stats?.period ? `${String(stats.period.start).slice(0, 4)}–${String(stats.period.end).slice(0, 4)}` : "";
+  const years = stats?.period ? `${String(stats.period.start).slice(0, 4)}-${String(stats.period.end).slice(0, 4)}` : "";
   // Highlight the strongest month INSIDE the stated wind season. ERA5 reads
   // synoptic winter wind in full but under-reads a summer thermal — so the raw
   // maximum crowned February in Alaçatı, directly contradicting the
@@ -72,7 +72,7 @@ function YearWind({ stats, season, tripMonths }: { stats: WindStats | null; seas
         ))}
       </div>
       <p className="text-[11.5px] text-white/45 leading-snug mt-3">
-        Share of days with sailing wind (11+ kn, 09–18h){years ? `. Open-Meteo ERA5, ${years}` : ""} — measured, not our estimate.
+        Share of days with sailing wind (11+ kn, 09-18h){years ? `. Open-Meteo ERA5, ${years}` : ""}. Measured, not our estimate.
         {trip.size > 0 && <>{" "}Highlighted: when our weeks run.</>}
       </p>
     </div>
@@ -261,7 +261,7 @@ export async function DestinationDeepDive({ slug }: { slug: string }) {
               ))}
             </div>
             <p className="mt-7 text-center text-[12.5px] text-white/60 max-w-[560px] mx-auto leading-relaxed">
-              Wind is nature, not a promise — but {d.name} stacks the odds in your favour, and we plan every day around the forecast to chase the best of it together.
+              Wind is nature, not a promise. But {d.name} stacks the odds in your favour, and we plan every day around the forecast to chase the best of it together.
             </p>
           </div>
         </div>

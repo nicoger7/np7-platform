@@ -169,7 +169,7 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
                           </div>
                         ))}
                         {whereQ.trim() !== "" && whereResults.dests.length === 0 && whereResults.groups.length === 0 && (
-                          <p className="px-4 py-3 text-[12.5px] text-[#9aa6ac]">Nothing matches — try another spelling.</p>
+                          <p className="px-4 py-3 text-[12.5px] text-[#9aa6ac]">Nothing matches. Try another spelling.</p>
                         )}
                       </div>
                     </div>
@@ -200,7 +200,7 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
       )}
 
       {filtered.length === 0 ? (
-        <p className="text-[14px] text-[#6a7a80] py-10 text-center">No destinations match those filters yet — try clearing one.</p>
+        <p className="text-[14px] text-[#6a7a80] py-10 text-center">No destinations match those filters yet. Try clearing one.</p>
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((d) => {

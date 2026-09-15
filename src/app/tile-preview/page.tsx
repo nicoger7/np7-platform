@@ -17,7 +17,7 @@ export default function TilePreviewPage() {
   return (
     <div className="min-h-screen bg-[#f4f7f8] p-6 sm:p-10">
       <div className="max-w-[720px] mx-auto space-y-8">
-        <h1 className="text-[#0a2a33] text-2xl font-black">Placement editor — QA harness</h1>
+        <h1 className="text-[#0a2a33] text-2xl font-black">Placement editor · QA harness</h1>
 
         <section>
           <h2 className="text-[#0a2a33] text-sm font-bold uppercase tracking-[0.12em] mb-3">Card placement</h2>

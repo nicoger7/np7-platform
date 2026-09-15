@@ -70,9 +70,9 @@ export const EDIT_FIELD_LABEL: Record<EditableField, string> = {
 
 /** Render a stored field value for display in review UIs. */
 export function humanEditValue(field: string, v: unknown): string {
-  if (field === "pin") { const p = v as { lat?: number; lng?: number }; return p?.lat != null ? `${p.lat}, ${p.lng}` : "—"; }
-  if (field === "conditions") return Array.isArray(v) ? v.map((c) => conditionLabel(String(c))).join(" · ") || "—" : "—";
-  return v == null || v === "" ? "—" : String(v);
+  if (field === "pin") { const p = v as { lat?: number; lng?: number }; return p?.lat != null ? `${p.lat}, ${p.lng}` : "(empty)"; }
+  if (field === "conditions") return Array.isArray(v) ? v.map((c) => conditionLabel(String(c))).join(" · ") || "(empty)" : "(empty)";
+  return v == null || v === "" ? "(empty)" : String(v);
 }
 
 // Tunable criteria. Earned local-specialist standing at a destination requires

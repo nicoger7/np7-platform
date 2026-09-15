@@ -33,7 +33,7 @@ export async function GuideNotes({ blogPostId, slug, accent }: { blogPostId: str
         Community tips
       </h2>
       <p className="text-[13.5px] text-[#6a7a80] mb-4">
-        Tips from the NP7 crew. Got one? Add it below — we review every tip before it shows.
+        Tips from the NP7 crew. Got one? Add it below. We review every tip before it shows.
       </p>
 
       {notes.length > 0 && (

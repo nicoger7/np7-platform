@@ -9,7 +9,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const d = await getSpotguideDestination(slug);
   if (!d) return { title: "Spotguide" };
-  const description = d.tagline ?? `Windsurf spots in ${d.name}, rated by NP7 and the crew — conditions, wind windows and the forecast that actually works.`;
+  const description = d.tagline ?? `Windsurf spots in ${d.name}, rated by NP7 and the crew: conditions, wind windows and the forecast that actually works.`;
   return {
     // bare title — the root layout template appends "· NP7"
     title: `${d.name} windsurf spotguide`,

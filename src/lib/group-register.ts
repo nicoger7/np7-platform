@@ -157,7 +157,7 @@ export async function validateCompanions(
   | { ok: false; error: string; blocked?: { index: number; firstName: string; email: string } }
 > {
   if (raw.length > MAX_COMPANIONS) {
-    return { ok: false, error: `You can add up to ${MAX_COMPANIONS} people here — for a bigger group, email us and we'll set it up.` };
+    return { ok: false, error: `You can add up to ${MAX_COMPANIONS} people here. For a bigger group, email us and we'll set it up.` };
   }
 
   const seen = new Set<string>([ctx.payerEmail.trim().toLowerCase()]);
@@ -170,11 +170,11 @@ export async function validateCompanions(
     const packageId = (c.packageId ?? "").trim();
 
     if (!firstName) return { ok: false, error: "Every person needs a first name." };
-    if (!EMAIL_RE.test(email)) return { ok: false, error: `${firstName} needs a valid email address — that's how they get their own trip page.` };
+    if (!EMAIL_RE.test(email)) return { ok: false, error: `${firstName} needs a valid email address. That's how they get their own trip page.` };
     if (!packageId) return { ok: false, error: `Choose a package for ${firstName}.` };
     // The same inbox twice would collapse into one contact and one of the two
     // spots would silently vanish.
-    if (seen.has(email)) return { ok: false, error: `${email} is already on this booking — each person needs their own email address.` };
+    if (seen.has(email)) return { ok: false, error: `${email} is already on this booking. Each person needs their own email address.` };
     seen.add(email);
 
     // Gear rides along raw: what it MEANS depends on the package behind it,
@@ -202,10 +202,10 @@ export async function validateCompanions(
     const p = byId.get(c.packageId);
     const issue = companionPackageIssue(p, { experienceId: ctx.experienceId, editionId: ctx.editionId });
     if (issue === "unavailable") {
-      return { ok: false, error: `The package chosen for ${c.firstName} isn't available — please pick another.` };
+      return { ok: false, error: `The package chosen for ${c.firstName} isn't available. Please pick another.` };
     }
     if (issue === "other-week") {
-      return { ok: false, error: `The package chosen for ${c.firstName} isn't offered in this week — please pick another.` };
+      return { ok: false, error: `The package chosen for ${c.firstName} isn't offered in this week. Please pick another.` };
     }
     companions.push({
       ...c,

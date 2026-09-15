@@ -101,7 +101,7 @@ export function ShareSheet({ photo, photos, trip, onClose }: {
           <div className="space-y-5 min-w-0">
             {pickable.length > 0 && (
               <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-wide text-[#b0791e] mb-2">Photo <span className="normal-case tracking-normal text-[#c3b9a6] font-medium">— tap to change</span></p>
+                <p className="text-[11px] font-black uppercase tracking-wide text-[#b0791e] mb-2">Photo <span className="normal-case tracking-normal text-[#c3b9a6] font-medium">· tap to change</span></p>
                 {/* Wrapping grid (NOT a horizontal scroll strip) — flows onto rows and
                     caps its height, so it never drags the modal sideways. */}
                 <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto pr-0.5">
@@ -136,7 +136,7 @@ export function ShareSheet({ photo, photos, trip, onClose }: {
             </div>
 
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wide text-[#b0791e] mb-2">Your caption <span className="normal-case tracking-normal text-[#c3b9a6] font-medium">— optional</span></p>
+              <p className="text-[11px] font-black uppercase tracking-wide text-[#b0791e] mb-2">Your caption <span className="normal-case tracking-normal text-[#c3b9a6] font-medium">· optional</span></p>
               <input value={caption} onChange={(e) => setCaption(e.target.value.slice(0, 42))} placeholder="e.g. Best week on the water 🌊"
                 className="w-full rounded-xl border border-[#d8e3e6] px-3.5 py-3 text-[15px] outline-none focus:border-[#00afdb] transition-colors" />
               <p className="text-[11px] text-[#9aa6ac] mt-1 text-right">{caption.length}/42</p>
@@ -157,7 +157,7 @@ export function ShareSheet({ photo, photos, trip, onClose }: {
               <button onClick={() => go("download")} disabled={busy} className="w-full rounded-full text-[13.5px] font-bold text-[#00374a] bg-white border border-[#dde6e9] py-2.5 hover:border-[#00afdb] disabled:opacity-50 transition-colors">
                 Download instead
               </button>
-              <p className="text-[11.5px] text-[#9aa6ac] text-center">Posts open your phone&apos;s share sheet — Instagram, WhatsApp, wherever. 🤙</p>
+              <p className="text-[11.5px] text-[#9aa6ac] text-center">Posts open your phone&apos;s share sheet: Instagram, WhatsApp, wherever. 🤙</p>
             </div>
           </div>
         </div>

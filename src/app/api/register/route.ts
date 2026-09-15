@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
   // click off a pre-filled screen, which is legitimately instant.
   const memberProbe = await getPortalUser({ allowPreview: false }).catch(() => null);
   if (!memberProbe && Number.isFinite(filledMs) && filledMs > 0 && filledMs < 1500) {
-    return bad("That went through a little too fast — please try again.", 429);
+    return bad("That went through a little too fast. Please try again.", 429);
   }
 
   const { experienceId, editionId, packageId } = body;

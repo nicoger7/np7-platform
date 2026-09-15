@@ -84,7 +84,7 @@ export function FindYourFit({ segments, accent = HW_ACCENT }: Props) {
             Which rider are you?
           </h2>
           <p className="text-[16px] text-white/65 leading-relaxed">
-            Tap the profile that sounds like you — and see how this board fits your riding.
+            Tap the profile that sounds like you, and see how this board fits your riding.
           </p>
         </div>
 

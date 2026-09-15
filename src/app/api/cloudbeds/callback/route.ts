@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 <body style="font-family:system-ui;display:grid;place-items:center;min-height:90vh;background:#f7fbfc;color:#00374a">
 <div style="text-align:center">
 <h1 style="font-size:20px">NP7 × Cloudbeds</h1>
-<p>${hasCode ? "Authorization received — you can close this window. The NP7 team takes it from here." : "Connection endpoint is live. Nothing to do here."}</p>
+<p>${hasCode ? "Authorization received. You can close this window. The NP7 team takes it from here." : "Connection endpoint is live. Nothing to do here."}</p>
 </div></body>`,
     { headers: { "Content-Type": "text/html; charset=utf-8" } },
   );

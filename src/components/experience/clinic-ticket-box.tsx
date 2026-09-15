@@ -21,7 +21,7 @@ function fmtRange(start: string, end: string | null): string {
   const d = (x: Date) => x.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
   if (!end || end === start) return `${d(s)} ${s.getUTCFullYear()}`;
   const e = new Date(end);
-  return `${d(s)} – ${d(e)} ${e.getUTCFullYear()}`;
+  return `${d(s)} - ${d(e)} ${e.getUTCFullYear()}`;
 }
 
 function toTicketDate(d: EventInfo["dates"][number]): TicketDate {
@@ -68,7 +68,7 @@ export async function ClinicTicketBox({
     return (
       <div className="rounded-2xl bg-white border border-[#cfe9d9] p-7 text-center">
         <p className="text-[15px] font-black text-[#1a7f60]">You&apos;re in 🤙</p>
-        <p className="text-[13.5px] text-[#6a7a80] mt-2">Your spot is booked — check your inbox for the details.</p>
+        <p className="text-[13.5px] text-[#6a7a80] mt-2">Your spot is booked. Check your inbox for the details.</p>
       </div>
     );
   }
@@ -79,7 +79,7 @@ export async function ClinicTicketBox({
         <p className="text-[15px] font-bold text-[#00374a]">{over ? "This clinic has run" : "Dates coming soon"}</p>
         <p className="text-[13.5px] text-[#6a7a80] mt-2">
           {over
-            ? "New dates are in the works — check back, or ping us and we'll tell you first."
+            ? "New dates are in the works. Check back soon, or ping us and we'll tell you first."
             : "Not open for booking yet. Check back shortly."}
         </p>
       </div>

@@ -46,7 +46,7 @@ export function SpotNoteForm({ slug, spotName, accent }: { slug: string; spotNam
     setBusy(false);
   }
 
-  if (done) return <p className="mt-4 text-[13px] font-semibold" style={{ color: accent }}>Thanks — your note is in for review. 🤙</p>;
+  if (done) return <p className="mt-4 text-[13px] font-semibold" style={{ color: accent }}>Thanks! Your note is in for review. 🤙</p>;
   if (loggedIn === null) return null;
 
   if (!loggedIn) {
@@ -84,7 +84,7 @@ export function SpotNoteForm({ slug, spotName, accent }: { slug: string; spotNam
         onChange={(e) => setText(e.target.value)}
         rows={3}
         maxLength={1200}
-        placeholder={isGuide ? "Share a tip about this guide — what worked for you, a gotcha, a related drill…" : "Share a tip about this spot — best wind, hazards, where to launch…"}
+        placeholder={isGuide ? "Share a tip about this guide: what worked for you, a gotcha, a related drill…" : "Share a tip about this spot: best wind, hazards, where to launch…"}
         className="w-full px-3.5 py-2.5 rounded-lg border border-[#dde6e9] text-[14px] text-[#00374a] outline-none focus:border-[#9aa6ac]"
       />
       {error && <p className="text-[12px] text-red-500 mt-1">{error}</p>}

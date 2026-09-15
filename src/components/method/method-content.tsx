@@ -75,7 +75,7 @@ function CoachingLoop() {
         ))}
       </div>
       <p className="mt-3.5 text-[12.5px] font-bold text-[#0a7f9e] flex items-center gap-2">
-        <span aria-hidden className="inline-block">↻</span> Every session building on the last — that&apos;s why an experience beats a lesson.
+        <span aria-hidden className="inline-block">↻</span> Every session building on the last. That&apos;s why an experience beats a lesson.
       </p>
     </Reveal>
   );

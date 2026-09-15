@@ -34,7 +34,7 @@ export default function ReturnForm({ token, lines }: { token: string; lines: Ret
     });
     setSubmitting(false);
     if (!res.ok) {
-      setError((await res.json()).error || "Something went wrong — please try again or reply to your order email.");
+      setError((await res.json()).error || "Something went wrong. Please try again or reply to your order email.");
       setStep("select");
       return;
     }
@@ -48,8 +48,8 @@ export default function ReturnForm({ token, lines }: { token: string; lines: Ret
       <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
         <h2 className="text-lg font-bold mb-2">Return registered ✓</h2>
         <p className="text-sm text-white/70 leading-relaxed">
-          We&apos;ve emailed you a confirmation. We&apos;ll review it and send return instructions —
-          for boards and bulky gear we arrange the pickup, don&apos;t ship anything yourself.
+          We&apos;ve emailed you a confirmation. We&apos;ll review it and send return instructions. For boards and bulky
+          gear we arrange the pickup, so don&apos;t ship anything yourself.
           Refunds go to your original payment method within 14 days of the return.
         </p>
       </div>
@@ -61,7 +61,7 @@ export default function ReturnForm({ token, lines }: { token: string; lines: Ret
       <h2 className="text-lg font-bold mb-1">Return items / withdraw from purchase</h2>
       <p className="text-xs text-white/50 mb-5 leading-relaxed">
         You can withdraw from your purchase within 14 days of delivery, no reason needed.
-        Pick what goes back — we&apos;ll confirm by email right away.
+        Pick what goes back. We&apos;ll confirm by email right away.
       </p>
 
       {step === "select" && (

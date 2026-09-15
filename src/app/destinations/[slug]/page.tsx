@@ -107,12 +107,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // short-circuits AFTER metadata and the page body have already run, so every
   // crawler hit on a dead /destinations/… URL was paying a full render (measured:
   // 42 kB of Bonaire markup behind an HTTP 404). Bail before touching the DB.
-  if (!flags.showExperience) return { title: "Destination — NP7" };
+  if (!flags.showExperience) return { title: "Destination · NP7" };
   const { slug } = await params;
   const res = await getDestination(slug).catch(() => null);
-  if (!res) return { title: "Destination — NP7" };
+  if (!res) return { title: "Destination · NP7" };
   const d = res.destination;
-  return { title: `${d.name} — NP7 Destinations`, description: d.tagline || d.intro || `Windsurf ${d.name}` };
+  return { title: `${d.name} · NP7 Destinations`, description: d.tagline || d.intro || `Windsurf ${d.name}` };
 }
 
 export default async function DestinationPage({ params }: Props) {
@@ -268,7 +268,7 @@ export default async function DestinationPage({ params }: Props) {
               <Reveal className="mt-9 text-center">
                 <p className="inline-flex items-start gap-2 text-[13.5px] text-white/60 max-w-[600px] mx-auto leading-relaxed">
                   <svg className="w-4 h-4 mt-0.5 shrink-0 text-[#ffc42e]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v4M12 16h.01" /></svg>
-                  <span>Wind is nature, not a promise — we can&apos;t guarantee it. But {d.name} stacks the odds in your favour, and we plan every day around the forecast to chase the best of it together.</span>
+                  <span>Wind is nature, not a promise. We can&apos;t guarantee it. But {d.name} stacks the odds in your favour, and we plan every day around the forecast to chase the best of it together.</span>
                 </p>
               </Reveal>
             </div>
@@ -327,7 +327,7 @@ export default async function DestinationPage({ params }: Props) {
             <Reveal className="mb-12 text-center max-w-[640px] mx-auto">
               <p className="text-[11px] font-bold tracking-[0.28em] text-[#f47b20] mb-3">ON THE GROUND</p>
               <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Local partners</h2>
-              <p className="text-[15px] text-[#6a7a80] mt-3 leading-relaxed">The spots you&apos;ll actually be at — where you stay, where you ride, where you refuel.</p>
+              <p className="text-[15px] text-[#6a7a80] mt-3 leading-relaxed">The spots you&apos;ll actually be at: where you stay, where you ride, where you refuel.</p>
               <div className="h-[3px] w-14 rounded-full mx-auto mt-5" style={{ background: SUN_TO_SEA }} />
             </Reveal>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">

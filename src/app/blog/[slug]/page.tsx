@@ -84,7 +84,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .eq("slug", slug).eq("status", "published").maybeSingle();
   const data = raw as unknown as Post | null;
   if (!data) return { title: "Post not found" };
-  const description = data.excerpt || `${data.title} — stories, guides & reviews from the NP7 crew.`;
+  const description = data.excerpt || `${data.title}: stories, guides & reviews from the NP7 crew.`;
   return {
     // bare title — the root layout template appends "· NP7"
     title: data.title,
@@ -320,7 +320,7 @@ export default async function BlogPostPage({ params }: Props) {
             <div>
               <p className="text-[10.5px] font-black uppercase tracking-[0.18em] text-[#b0791e]">In the Spotguide</p>
               <p className="text-[17px] font-black text-[#00374a] mt-0.5">{clusterDest.name}</p>
-              <p className="text-[12.5px] font-semibold text-[#6a7a80]">{[clusterDest.region, clusterDest.country].filter(Boolean).join(", ")} — conditions, season, spots &amp; local tips</p>
+              <p className="text-[12.5px] font-semibold text-[#6a7a80]">{[clusterDest.region, clusterDest.country].filter(Boolean).join(", ")}: conditions, season, spots &amp; local tips</p>
             </div>
             <span className="shrink-0 text-[#00afdb] font-black group-hover:translate-x-0.5 transition-transform">→</span>
           </Link>

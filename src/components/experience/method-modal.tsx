@@ -68,7 +68,7 @@ export function MethodModal() {
         <span className="min-w-0 flex-1">
           <span className="block text-[17px] sm:text-[21px] font-black tracking-[-0.02em] text-white">The NP7 Method</span>
           <span aria-hidden className="block h-[2.5px] w-full rounded-full origin-left scale-x-[0.18] group-hover:scale-x-100 transition-transform duration-300 my-1.5" style={{ background: "linear-gradient(90deg, #ffc42e, #f47b20 55%, #00afdb)" }} />
-          <span className="block text-[12px] sm:text-[12.5px] font-semibold text-white/60 group-hover:text-white/80 transition-colors">Seven dimensions · one rider — read the full method</span>
+          <span className="block text-[12px] sm:text-[12.5px] font-semibold text-white/60 group-hover:text-white/80 transition-colors">Seven dimensions · one rider. Read the full method</span>
         </span>
         {/* chevron chip */}
         <span className="shrink-0 grid place-items-center w-9 h-9 rounded-full border border-white/15 bg-white/[0.07] text-white/80 transition-all group-hover:bg-[#ffc42e]/15 group-hover:text-[#ffc42e] group-hover:translate-x-0.5">

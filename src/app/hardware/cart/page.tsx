@@ -17,7 +17,7 @@ export default function CartPage() {
         {cart.items.length === 0 ? (
           <div className="rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
             <p className="text-2xl font-black mb-2">Nothing here yet.</p>
-            <p className="text-white/50 text-sm mb-6">The wind won&apos;t wait — go find the gear that fits your riding.</p>
+            <p className="text-white/50 text-sm mb-6">The wind won&apos;t wait. Go find the gear that fits your riding.</p>
             <Link href="/hardware" className="inline-block px-7 py-3.5 rounded-full bg-[#c2ff38] text-black text-sm font-black uppercase tracking-wide hover:brightness-110 transition-all">
               Browse the gear
             </Link>

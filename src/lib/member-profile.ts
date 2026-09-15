@@ -161,6 +161,6 @@ export function normalizeUsername(raw: unknown): { value: string } | { error: st
   if (typeof raw !== "string") return { error: "Invalid username." };
   const v = raw.trim().replace(/^@+/, "").toLowerCase();
   if (v === "") return { value: "" }; // clearing the handle is allowed
-  if (!USERNAME_RE.test(v)) return { error: "3–20 characters: letters, numbers, underscore." };
+  if (!USERNAME_RE.test(v)) return { error: "3-20 characters: letters, numbers, underscore." };
   return { value: v };
 }

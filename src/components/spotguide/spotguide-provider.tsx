@@ -107,8 +107,8 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
         <AuthModal
           source="spotguide"
           initialMode={auth}
-          title={auth === "login" ? "Welcome back" : "Join NP7 — free"}
-          subtitle={auth === "login" ? "Log in to rate spots and unlock every guide." : "It takes a few seconds — then rate spots and unlock every guide."}
+          title={auth === "login" ? "Welcome back" : "Join NP7 · free"}
+          subtitle={auth === "login" ? "Log in to rate spots and unlock every guide." : "It takes a few seconds. Then rate spots and unlock every guide."}
           onClose={() => setAuth(false)}
           onLoggedIn={() => { setAuth(false); load(); }}
         />

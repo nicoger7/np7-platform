@@ -178,7 +178,7 @@ export function SurveyInfoButtons({ info }: { info: SurveyInfo }) {
                 <div className="relative">
                   <p className="text-[10.5px] font-black uppercase tracking-[0.2em] text-[#8fe6f2]">The NP7 Method</p>
                   <h3 className="text-[22px] sm:text-[26px] font-black text-white leading-[1.12] tracking-[-0.02em] mt-2">
-                    Not just a session — a system
+                    Not just a session. A system.
                   </h3>
                   {info.method.intro && (
                     <p className="text-[14.5px] text-white/80 leading-[1.6] mt-3 [text-wrap:pretty]">{info.method.intro}</p>

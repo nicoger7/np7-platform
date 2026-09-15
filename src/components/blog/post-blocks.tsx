@@ -351,7 +351,7 @@ function ComparisonTable({ matrix, accent }: { matrix: ComparisonMatrix; accent:
             <tr key={ri} className={ri % 2 === 0 ? "bg-white" : "bg-[#fdfaf3]"}>
               <th className="px-4 py-3 text-[13px] font-bold text-[#00374a] whitespace-nowrap">{r.label}</th>
               {matrix.columns.map((_, ci) => (
-                <td key={ci} className="px-4 py-3 text-[13.5px] text-[#5a6b72] text-center">{r.values[ci] || "—"}</td>
+                <td key={ci} className="px-4 py-3 text-[13.5px] text-[#5a6b72] text-center">{r.values[ci] || "n/a"}</td>
               ))}
             </tr>
           ))}

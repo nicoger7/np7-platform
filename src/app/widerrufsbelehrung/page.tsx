@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getLegalEntity, addressLine } from "@/lib/legal";
 import { LegalShell } from "@/components/shared/legal-shell";
 
-export const metadata: Metadata = { title: "Widerrufsbelehrung — NP7", robots: { index: true } };
+export const metadata: Metadata = { title: "Widerrufsbelehrung · NP7", robots: { index: true } };
 export const revalidate = 86400;
 
 /**
@@ -21,7 +21,7 @@ export default async function WiderrufsbelehrungPage() {
   return (
     <LegalShell title="Widerrufsbelehrung">
       <p className="note">
-        Gilt für online geschlossene Verträge mit gesetzlichem Widerrufsrecht — derzeit insbesondere den
+        Gilt für online geschlossene Verträge mit gesetzlichem Widerrufsrecht, derzeit insbesondere den
         Kauf von <strong>Wertgutscheinen</strong>. <em>English summary at the end.</em>
       </p>
 
@@ -61,17 +61,17 @@ export default async function WiderrufsbelehrungPage() {
       <h2>Muster-Widerrufsformular</h2>
       <p className="note">
         Wenn Sie den Vertrag widerrufen wollen, füllen Sie bitte dieses Formular aus und senden Sie es
-        zurück — oder nutzen Sie einfach die <Link href="/widerruf">Online-Widerrufsfunktion</Link>.
+        zurück. Oder nutzen Sie einfach die <Link href="/widerruf">Online-Widerrufsfunktion</Link>.
       </p>
       <p>
         An {e.legalName}{addr ? `, ${addr}` : ""}{e.email ? `, E-Mail: ${e.email}` : ""}:<br /><br />
         Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der
         folgenden Waren (*) / die Erbringung der folgenden Dienstleistung (*)<br /><br />
-        — Bestellt am (*) / erhalten am (*):<br />
-        — Name des/der Verbraucher(s):<br />
-        — Anschrift des/der Verbraucher(s):<br />
-        — Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier):<br />
-        — Datum:<br /><br />
+        · Bestellt am (*) / erhalten am (*):<br />
+        · Name des/der Verbraucher(s):<br />
+        · Anschrift des/der Verbraucher(s):<br />
+        · Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier):<br />
+        · Datum:<br /><br />
         (*) Unzutreffendes streichen.
       </p>
 
@@ -81,13 +81,13 @@ export default async function WiderrufsbelehrungPage() {
         Widerrufsrecht (§ 312 Abs. 6 BGB); es gelten stattdessen die gesetzlichen Rücktrittsrechte
         (§ 651h BGB) und unsere vertraglichen Stornobedingungen. Für <strong>Veranstaltungen und
         Clinics mit festem Termin</strong> besteht ebenfalls kein gesetzliches Widerrufsrecht
-        (§ 312g Abs. 2 Nr. 9 BGB). Unsere kulanten Erstattungsregelungen — etwa die 14-tägige
-        Rückerstattbarkeit von Anzahlungen — bleiben davon unberührt.
+        (§ 312g Abs. 2 Nr. 9 BGB). Unsere kulanten Erstattungsregelungen, etwa die 14-tägige
+        Rückerstattbarkeit von Anzahlungen, bleiben davon unberührt.
       </p>
 
       <h2>English summary</h2>
       <p>
-        Value gift vouchers bought online carry the statutory 14-day right of withdrawal — exercise it
+        Value gift vouchers bought online carry the statutory 14-day right of withdrawal. Exercise it
         by any unequivocal statement or via the <Link href="/widerruf">online withdrawal function</Link>;
         we confirm receipt with date and time by email, and refund within 14 days using your original
         payment method. Package-travel trips and fixed-date events are excluded from the statutory

@@ -76,7 +76,7 @@ export function CookieConsent() {
       <div className="pointer-events-auto max-w-[760px] mx-auto rounded-2xl bg-[#00374a] text-white shadow-[0_12px_40px_rgba(0,0,0,0.3)] border border-white/10 p-4 sm:p-5">
         <p className="text-[13px] leading-relaxed text-white/85">
           We use essential cookies to run the site. With your consent we also measure how the site is
-          used (first-party, no ad networks) and — only if you choose — use marketing cookies like the
+          used (first-party, no ad networks) and, only if you choose, use marketing cookies like the
           Meta Pixel to make our ads more relevant.{" "}
           <a href="/privacy" className="font-semibold text-[#5fd0e8] hover:underline">Privacy policy</a>
         </p>
@@ -91,7 +91,7 @@ export function CookieConsent() {
               </span>
             </div>
             <Toggle on={analytics} onChange={setAnalytics} label="Analytics" desc="First-party measurement of pages and the booking funnel. No third-party tools." />
-            <Toggle on={marketing} onChange={setMarketing} label="Marketing" desc="Meta (Facebook) Pixel — shares your actions with Meta to measure & target our ads." />
+            <Toggle on={marketing} onChange={setMarketing} label="Marketing" desc="Meta (Facebook) Pixel: shares your actions with Meta to measure & target our ads." />
           </div>
         )}
 

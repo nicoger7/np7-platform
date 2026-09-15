@@ -28,10 +28,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     .eq("slug", slug)
     .eq("status", "published")
     .maybeSingle();
-  if (!data) return { title: { absolute: "Product not found — NP7 Hardware" } };
+  if (!data) return { title: { absolute: "Product not found · NP7 Hardware" } };
   return {
-    title: { absolute: `${data.name} — NP7 Hardware` },
-    description: data.description ?? `${data.name} — custom windsurf hardware by NP7`,
+    title: { absolute: `${data.name} · NP7 Hardware` },
+    description: data.description ?? `${data.name}: custom windsurf hardware by NP7`,
   };
 }
 
@@ -314,7 +314,7 @@ function BuyModule({ product, buyVariants, productAvailable, image }: { product:
           </div>
 
           <p className="text-[13px] text-white/35 mt-5">
-            Have questions? Use the enquiry form above — we respond within 24 hours.
+            Have questions? Use the enquiry form above. We respond within 24 hours.
           </p>
         </Reveal>
       </div>

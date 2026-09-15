@@ -32,7 +32,7 @@ export default function WithdrawPage() {
         <p className="text-xs font-bold tracking-[0.2em] uppercase text-[#c2ff38] mb-1">NP7 Hardware</p>
         <h1 className="text-3xl font-black mb-3">Withdraw from a purchase</h1>
         <p className="text-sm text-white/60 mb-8 leading-relaxed">
-          You can withdraw from your order within 14 days of delivery — no reason needed.
+          You can withdraw from your order within 14 days of delivery. No reason needed.
           Enter your order details and declare the return on the next page; you&apos;ll get an
           email confirmation immediately.
         </p>
@@ -61,8 +61,8 @@ export default function WithdrawPage() {
           </button>
         </div>
         <p className="text-xs text-white/40 mt-8 leading-relaxed">
-          Prefer email? A plain message to the address in your order confirmation counts too —
-          this page is just the fastest way.
+          Prefer email? A plain message to the address in your order confirmation counts too.
+          This page is just the fastest way.
         </p>
       </div>
     </main>

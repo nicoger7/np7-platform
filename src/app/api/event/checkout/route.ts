@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
   const adultsOnly = edition?.adults_only === true;
   const adultConfirmed = body.adultConfirmed === true;
   if (adultsOnly && !adultConfirmed) {
-    return bad("Please confirm the participant is 18 or over — this clinic is for adults.", 400);
+    return bad("Please confirm the participant is 18 or over. This clinic is for adults.", 400);
   }
   /*
    * A date of birth arrives ONLY when the buyer ticked "under 18"; its absence
@@ -281,7 +281,7 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sold = ((taken ?? []) as any[]).filter(holdsASpot).length;
     if (sold >= cap) {
-      return bad(row?.label ? `${row.label} is fully booked — no spots left.` : "This date is fully booked — no spots left.", 409);
+      return bad(row?.label ? `${row.label} is fully booked. No spots left.` : "This date is fully booked. No spots left.", 409);
     }
   }
   /*
@@ -299,7 +299,7 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sold = ((taken ?? []) as any[]).filter(holdsASpot).length;
     if (sold >= edition.max_spots) {
-      return bad(edition.label ? `${edition.label} is fully booked — no spots left.` : "This clinic is fully booked — no spots left.", 409);
+      return bad(edition.label ? `${edition.label} is fully booked. No spots left.` : "This clinic is fully booked. No spots left.", 409);
     }
   }
 

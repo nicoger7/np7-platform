@@ -1219,8 +1219,16 @@ function ResponsesSection({ survey, invites, fmtMoney, onRemove }: { survey: Sur
                     )}
                   </div>
                   <div className="text-[13px] text-[#5a6b72] mt-1 space-y-0.5">
+                    {/* The decline note below accepts BOTH separators on purpose. The
+                        rider-facing writer moved from an em dash to a middle dot when the
+                        dashes were swept out of the copy; rows already in the database
+                        still carry the old one, and reading only one silently drops half
+                        the notes. */}
                     {isDecline(r) ? (
-                      <p className="text-[#a5432a] font-semibold">Can&apos;t make it this time{r.looking_for && r.looking_for.includes("—") ? ` — ${r.looking_for.split("—").slice(1).join("—").trim()}` : ""}</p>
+                      <p className="text-[#a5432a] font-semibold">Can&apos;t make it this time{(() => {
+                        const note = (r.looking_for ?? "").replace(/^[^—·]*[—·]\s*/, "").trim();
+                        return r.looking_for && /[—·]/.test(r.looking_for) && note ? ` · ${note}` : "";
+                      })()}</p>
                     ) : !r.other_destinations.length && !r.top_destination && !r.looking_for ? (
                       // Not a decline and not an answer — they opened it and left
                       // nothing. "In for: —" read like a deliberate opt-out.

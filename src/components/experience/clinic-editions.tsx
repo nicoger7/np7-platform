@@ -60,7 +60,7 @@ export function ClinicEditions({
             {travels ? "Same coaching, different coast" : "Which one suits you?"}
           </h2>
           <p className="text-[15.5px] text-[#6a7a80] mb-7 text-center max-w-[54ch] mx-auto">
-            Everything below — the spot, the dates, your coach and the price — changes with the one you pick.
+            Everything below changes with the one you pick: the spot, the dates, your coach and the price.
           </p>
           <div role="tablist" aria-label="Choose a clinic" className="flex flex-wrap justify-center gap-2.5">
             {runs.map((r, i) => {

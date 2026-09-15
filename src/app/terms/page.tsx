@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { getLegalEntity } from "@/lib/legal";
 import { LegalShell } from "@/components/shared/legal-shell";
 
-export const metadata: Metadata = { title: "Terms — NP7", robots: { index: true } };
+export const metadata: Metadata = { title: "Terms · NP7", robots: { index: true } };
 export const revalidate = 86400;
 
 export default async function TermsPage() {
@@ -12,7 +12,7 @@ export default async function TermsPage() {
   return (
     <LegalShell title="Terms" updated="21 June 2026">
       <p className="note">
-        <strong>Draft — have your travel-law counsel review before go-live.</strong> Surfcenter is currently our
+        <strong>Draft: have your travel-law counsel review before go-live.</strong> Surfcenter is currently our
         booking &amp; payment partner and carries the insolvency protection (Sicherungsschein); the trip terms and
         the cancellation scale below are NP7&apos;s own.
       </p>
@@ -21,15 +21,15 @@ export default async function TermsPage() {
       <p>Trips are run under the NP7 Experience programme, with <strong>Surfcenter</strong> currently acting as our booking &amp; payment partner and providing the statutory pre-contractual information and insolvency-protection certificate (Sicherungsschein) before any prepayment. The trip terms, prices and cancellation policy below are ours. {e.legalName} provides the NP7 brand, coaching and this platform.</p>
 
       <h2>2. Registration &amp; securing your spot</h2>
-      <p>Registering is free and places you as a lead — it does not hold a spot. A spot is secured only once the <strong>deposit</strong> is received. The remaining balance is paid in milestones — a <strong>downpayment</strong> (50% of the trip total) and then the <strong>final balance</strong> — by bank transfer, each due by the date shown in your account. You may always pay any milestone sooner.</p>
+      <p>Registering is free and places you as a lead. It does not hold a spot. A spot is secured only once the <strong>deposit</strong> is received. The remaining balance is paid by bank transfer in two milestones: a <strong>downpayment</strong> (50% of the trip total) and then the <strong>final balance</strong>, each due by the date shown in your account. You may always pay any milestone sooner.</p>
 
       <h2>3. Cancellation</h2>
       <p>You can cancel any time before the trip. The cancellation fee follows what you&apos;ve paid, on a graduated scale:</p>
       <ul>
-        <li><strong>Before the deposit, or within its refund window</strong> (14 days after it&apos;s paid) — free; any deposit is refunded in full.</li>
-        <li><strong>After the deposit&apos;s refund window</strong> — the deposit is kept as the cancellation fee; nothing further is owed.</li>
-        <li><strong>After the 50% downpayment</strong> — the cancellation fee is the amount paid (50% of the trip).</li>
-        <li><strong>After the final balance</strong> — the cancellation fee is the full amount.</li>
+        <li><strong>Before the deposit, or within its refund window</strong> (14 days after it&apos;s paid): free; any deposit is refunded in full.</li>
+        <li><strong>After the deposit&apos;s refund window</strong>: the deposit is kept as the cancellation fee; nothing further is owed.</li>
+        <li><strong>After the 50% downpayment</strong>: the cancellation fee is the amount paid (50% of the trip).</li>
+        <li><strong>After the final balance</strong>: the cancellation fee is the full amount.</li>
       </ul>
       <p>Instead of cancelling, you may <strong>transfer your booking</strong> to another person who meets the trip&apos;s requirements, provided you tell us in reasonable time; you and the substitute are jointly liable for the price and any transfer costs (§651e BGB).</p>
       <p>If <strong>unavoidable, extraordinary circumstances</strong> at or near the destination significantly affect the trip or the journey to it, you may cancel <strong>free of charge</strong> and we refund everything paid, within 14 days (§651h(3) BGB).</p>

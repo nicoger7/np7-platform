@@ -41,9 +41,9 @@ export function ProfileForm({ profile }: { profile: MemberProfile }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
-      else setError(data.error || "Couldn't save — please try again.");
+      else setError(data.error || "Couldn't save. Please try again.");
     } catch {
-      setError("Couldn't save — please check your connection and try again.");
+      setError("Couldn't save. Please check your connection and try again.");
     } finally {
       setSaving(false);
     }
@@ -53,7 +53,7 @@ export function ProfileForm({ profile }: { profile: MemberProfile }) {
     e.preventDefault(); setPwBusy(true); setPwMsg("");
     const { error } = await supabase.auth.updateUser({ password: pw });
     setPwBusy(false);
-    setPwMsg(error ? error.message : "Password set — you can now log in with it.");
+    setPwMsg(error ? error.message : "Password set. You can now log in with it.");
     if (!error) setPw("");
   }
 
@@ -86,7 +86,7 @@ export function ProfileForm({ profile }: { profile: MemberProfile }) {
           <p className="text-[13px] text-[#6a7a80] mb-4 max-w-[52ch]">
             {hasBilling
               ? "This is the name and address that appears on your invoices."
-              : "We only need this for your invoice — it takes a moment and means your paperwork is complete when you pay."}
+              : "We only need this for your invoice. It takes a moment and means your paperwork is complete when you pay."}
           </p>
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2"><label className={label}>Street and number</label><input className={field} value={f.billing_address} onChange={(e) => set("billing_address", e.target.value)} placeholder="Graskamp 8" /></div>
@@ -109,7 +109,7 @@ export function ProfileForm({ profile }: { profile: MemberProfile }) {
 
       <section className="bg-white rounded-2xl border border-[#f0e6d6] p-6">
         <h2 className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#00afdb] mb-2">Set a password</h2>
-        <p className="text-[13.5px] text-[#6a7a80] mb-4 leading-relaxed">Optional — you can always log in with an email link. Set a password if you prefer.</p>
+        <p className="text-[13.5px] text-[#6a7a80] mb-4 leading-relaxed">Optional. You can always log in with an email link, so set a password only if you prefer one.</p>
         <form onSubmit={setPassword} className="flex flex-wrap gap-3 items-center">
           <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="New password (min 6)" minLength={6} required className={`${field} max-w-[280px]`} />
           <button type="submit" disabled={pwBusy} className="px-6 py-3 rounded-full text-[14px] font-bold text-[#00374a] bg-[#eef3f4] hover:bg-[#e2eaec] disabled:opacity-60">{pwBusy ? "…" : "Set password"}</button>

@@ -61,7 +61,7 @@ function fmtRange(start?: string | null, end?: string | null) {
   const e = end ? new Date(end) : null;
   const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   const year = (e ?? s).getFullYear();
-  return e ? `${day(s)} – ${day(e)} ${year}` : `${day(s)} ${year}`;
+  return e ? `${day(s)} - ${day(e)} ${year}` : `${day(s)} ${year}`;
 }
 
 function money(n: number | null, currency: string | null) {

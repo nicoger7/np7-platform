@@ -20,7 +20,7 @@ import { NP7_LOGO } from "@/components/experience/ocean-header";
  * working at all behind a company mail server.
  */
 export const metadata = {
-  title: "Log in — NP7",
+  title: "Log in · NP7",
   // The token sits in the query string: keep it out of search engines, and out
   // of the Referer header of anything this page links to off-site.
   robots: { index: false, follow: false },

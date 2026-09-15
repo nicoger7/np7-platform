@@ -37,7 +37,7 @@ import { WhatsNext, buildWhatsNext } from "@/components/portal/whats-next";
 import { getSendTiming } from "@/lib/email/readiness";
 
 import { GuideCard } from "@/components/portal/guide-card";
-export const metadata: Metadata = { title: "My trip — NP7" };
+export const metadata: Metadata = { title: "My trip · NP7" };
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ id: string }> };
@@ -364,14 +364,14 @@ export default async function BookingDetail({ params }: Props) {
   if (tripEnded) {
     hero = { eyebrow: "Your week", title: "Relive it 🌊", body: "Your photos and video from the trip are ready below.", tone: "cyan" };
   } else if (tripStarted) {
-    hero = { eyebrow: "Happening now", title: "You're on the water 🌊", body: "Have an epic week — your crew, photos and trip details are all here.", ctaLabel: "See your crew", ctaHref: "#crew", tone: "cyan" };
+    hero = { eyebrow: "Happening now", title: "You're on the water 🌊", body: "Have an epic week. Your crew, photos and trip details are all here.", ctaLabel: "See your crew", ctaHref: "#crew", tone: "cyan" };
   } else if (isEvent) {
     // Never a deposit→balance story for a clinic: it was bought outright.
     hero = fullyPaid
       ? { eyebrow: "You're in", title: daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"} to go 🎉` : "You're in 🎉", body: `Your spot is paid and confirmed.${waiverSig ? "" : " One thing left: sign the waiver."}`, ctaLabel: waiverSig ? "Your documents" : "Sign the waiver", ctaHref: "#docs", tone: "green" }
       : eventPartPaid
         ? { eyebrow: "You're in", title: daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"} to go 🎉` : "Your spot is secured 🎉", body: `Your deposit is in and your spot is confirmed. The remaining ${money(eventOutstanding, cur)}${eventBalanceDueLabel ? ` is due ${eventBalanceDueLabel}` : " is due before the clinic"}.${waiverSig ? "" : " One thing left: sign the waiver."}`, ctaLabel: "See payment", ctaHref: "#payment", tone: "green" }
-        : { eyebrow: "Your next step", title: `Payment pending — ${money(total ?? 0, cur)}`, body: "Your spot isn't secured until the ticket is paid. If you started a payment and it didn't go through, just book again — or reply to your confirmation email and we'll sort it.", tone: "amber" };
+        : { eyebrow: "Your next step", title: `Payment pending · ${money(total ?? 0, cur)}`, body: "Your spot isn't secured until the ticket is paid. If you started a payment and it didn't go through, just book again, or reply to your confirmation email and we'll sort it.", tone: "amber" };
   } else if (fullyPaid) {
     hero = { eyebrow: "You're all set", title: daysToGo != null ? `${daysToGo} ${daysToGo === 1 ? "day" : "days"} to go 🎉` : "You're all set 🎉", body: "Everything's paid. Check your packing list and arrival info so you're ready to ride.", ctaLabel: "Open trip prep", ctaHref: "#prep", tone: "green" };
   } else if (step.kind === "awaiting") {
@@ -384,9 +384,9 @@ export default async function BookingDetail({ params }: Props) {
     // Honest loss-aversion: name the real date we hold the place until (from the
     // engine), then reassure with the 14-day refund. No fake scarcity.
     const heldUntil = step.dueDate ? new Date(step.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long" }) : null;
-    hero = { eyebrow: "Your next step", title: "Secure your spot", body: `Pay the ${money(step.amount, cur)} down-payment to lock in your place${heldUntil ? ` — we hold it for you until ${heldUntil}` : ""}. Fully refundable for 14 days.`, ctaLabel: "See how to pay", ctaHref: "#payment", tone: "coral" };
+    hero = { eyebrow: "Your next step", title: "Secure your spot", body: `Pay the ${money(step.amount, cur)} down-payment to lock in your place.${heldUntil ? ` We hold it for you until ${heldUntil}.` : ""} Fully refundable for 14 days.`, ctaLabel: "See how to pay", ctaHref: "#payment", tone: "coral" };
   } else if (step.kind === "balance") {
-    hero = { eyebrow: "Your next step", title: `Balance due — ${money(step.amount, cur)}`, body: `Pay by bank transfer${step.dueDate ? ` (due ${new Date(step.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})` : ""}. The bank details are in your payment plan.`, ctaLabel: "View payment plan", ctaHref: "#payment", tone: "amber" };
+    hero = { eyebrow: "Your next step", title: `Balance due · ${money(step.amount, cur)}`, body: `Pay by bank transfer${step.dueDate ? ` (due ${new Date(step.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})` : ""}. The bank details are in your payment plan.`, ctaLabel: "View payment plan", ctaHref: "#payment", tone: "amber" };
   } else {
     hero = { eyebrow: "You're all set", title: "You're set 🎉", body: "Everything's sorted for your trip.", ctaLabel: "Open trip prep", ctaHref: "#prep", tone: "green" };
   }
@@ -404,7 +404,7 @@ export default async function BookingDetail({ params }: Props) {
        * an $850 ticket showed "USD 300" while the hero and the panel below it
        * both said 850. What is owed on an event is simply what is unpaid.
        */
-      value: fullyPaid ? "Paid" : isEvent ? (money(eventOutstanding, cur) ?? "—") : nextMilestone ? (money(dueNow, cur) ?? "—") : "—",
+      value: fullyPaid ? "Paid" : isEvent ? (money(eventOutstanding, cur) ?? "Pending") : nextMilestone ? (money(dueNow, cur) ?? "Pending") : "Pending",
       sub: fullyPaid ? "all done" : isEvent ? (eventPartPaid ? "balance" : "to secure your spot") : awaitingTransfer ? "on its way" : dueShort ? `due ${dueShort}` : undefined,
       tone: fullyPaid ? "green" : !depositPaid ? "coral" : "amber",
       done: fullyPaid,
@@ -447,7 +447,7 @@ export default async function BookingDetail({ params }: Props) {
       // you to the section itself.
       key: "crew", label: "Crew", tab: isEvent ? "crew" : "trip", anchor: "crew",
       value: crew.going > 1 ? `${crew.going} going` : "Forming",
-      sub: crew.going > 1 ? "meet them" : "you're in early — bring a friend",
+      sub: crew.going > 1 ? "meet them" : "you're in early: bring a friend",
       tone: "cyan",
     },
   ];
@@ -495,7 +495,7 @@ export default async function BookingDetail({ params }: Props) {
   const coveredPaymentBody = (
     <div className="rounded-2xl border border-[#e8f1f4] bg-[#f7fbfc] px-5 py-6">
       <p className="text-[15px] font-bold text-[#00374a] leading-snug">
-        Nothing to pay here — {coverer?.payerName ?? "someone else"} is covering your spot.
+        Nothing to pay here. {coverer?.payerName ?? "someone else"} is covering your spot.
       </p>
       <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-1.5">
         Your trip is part of a group booking. Questions about payment? {payerFirst} has the details.
@@ -507,7 +507,7 @@ export default async function BookingDetail({ params }: Props) {
   );
   const paymentBody = b.covered_by_booking_id ? coveredPaymentBody : (
     <>
-      <Row label="Package" value={b.pkg?.name ?? "—"} />
+      {b.pkg?.name && <Row label="Package" value={b.pkg.name} />}
       {addonsTotal > 0 && <Row label="Confirmed add-ons" value={`+ ${money(addonsTotal, cur)}`} />}
       {priceLabel.kind === "discount" && (
         <Row label="Your rate" value={
@@ -528,7 +528,7 @@ export default async function BookingDetail({ params }: Props) {
       )}
       {coveredList.length > 0 && (
         <p className="mt-3 text-[12.5px] text-[#6a7a80] leading-snug">
-          This plan covers <strong className="text-[#00374a]">{coveredList.length + 1} spots</strong> — yours and {coveredList.map((c) => (c.guestName ?? "a fellow rider").split(" ")[0]).join(", ")}. One plan, one invoice.
+          This plan covers <strong className="text-[#00374a]">{coveredList.length + 1} spots</strong>: yours and {coveredList.map((c) => (c.guestName ?? "a fellow rider").split(" ")[0]).join(", ")}. One plan, one invoice.
         </p>
       )}
       <div className="mt-3.5">
@@ -639,7 +639,7 @@ export default async function BookingDetail({ params }: Props) {
     </div>
   ) : (
     <div>
-      <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mb-3">Every participant signs a short waiver &amp; health declaration before the trip — it takes a minute, right here in your account.</p>
+      <p className="text-[13.5px] text-[#5a6b72] leading-relaxed mb-3">Every participant signs a short waiver &amp; health declaration before the trip. It takes a minute, right here in your account.</p>
       <Link href={`/account/bookings/${b.id}/waiver`} className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-[13px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">Sign your waiver →</Link>
     </div>
   );
@@ -846,7 +846,7 @@ export default async function BookingDetail({ params }: Props) {
       <DocLink
         href={`/account/bookings/${b.id}/confirmation`}
         label={secured ? (isEvent ? "Your ticket" : "Trip confirmation") : "Booking summary"}
-        sub={secured ? `Your confirmed ${isEvent ? "ticket" : "booking"} (print / save as PDF)` : "What you picked — not a confirmation until your spot is secured"}
+        sub={secured ? `Your confirmed ${isEvent ? "ticket" : "booking"} (print / save as PDF)` : "What you picked, not a confirmation until your spot is secured"}
       />
       {/* A one-day coaching clinic is not a package tour: no travel, no
           accommodation, nothing bundled. Handing the buyer a package-travel
@@ -858,7 +858,7 @@ export default async function BookingDetail({ params }: Props) {
         <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-2 whitespace-pre-line">{cancellation}</p>
       </details>
       <div className="mt-3 pt-3 border-t border-[#f3ede2]">
-        <p className="text-[14px] text-[#5a6b72] leading-relaxed">Need anything? We&apos;re here for you personally — reply to any of our emails or reach us at <a href="mailto:experience@np-seven.com" className="text-[#00afdb] font-semibold">experience@np-seven.com</a>.</p>
+        <p className="text-[14px] text-[#5a6b72] leading-relaxed">Need anything? We&apos;re here for you personally. Reply to any of our emails or reach us at <a href="mailto:experience@np-seven.com" className="text-[#00afdb] font-semibold">experience@np-seven.com</a>.</p>
       </div>
     </>
   );
@@ -997,7 +997,7 @@ function TripSoFar({ title, items, weeks, daysToGo }: { title: string; items: { 
           </span>
         ))}
       </div>
-      {togo && <p className="mt-3.5 pt-3 border-t border-[#f3ede2] text-[13px] text-[#6a7a80]">Everything&apos;s coming together — <strong className="text-[#00374a]">{togo}</strong>.</p>}
+      {togo && <p className="mt-3.5 pt-3 border-t border-[#f3ede2] text-[13px] text-[#6a7a80]">Everything&apos;s coming together. <strong className="text-[#00374a]">{togo}</strong>.</p>}
     </div>
   );
 }

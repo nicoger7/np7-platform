@@ -10,7 +10,7 @@ import { PrintButton } from "@/components/portal/print-button";
 
 // Deliberately generic: the page is a confirmation only once the spot is held,
 // and the tab title must not promise more than the document does.
-export const metadata: Metadata = { title: "Your booking — NP7" };
+export const metadata: Metadata = { title: "Your booking · NP7" };
 export const dynamic = "force-dynamic";
 
 const STANDARD_INCLUDED = [
@@ -143,8 +143,8 @@ export default async function ConfirmationPage({ params }: { params: Promise<{ i
               <p className="text-[13px] font-bold text-[#00374a]">This is not a booking confirmation yet.</p>
               <p className="text-[12.5px] text-[#5a6b72] mt-1 leading-relaxed">
                 It&apos;s a summary of what you picked, so you have it in writing. Your spot is held
-                once the {plan.find((m) => m.status !== "paid")?.kind === "deposit" ? "deposit" : "down-payment"} reaches us —
-                we&apos;ll send the confirmation then, and no place is reserved until we do.
+                once the {plan.find((m) => m.status !== "paid")?.kind === "deposit" ? "deposit" : "down-payment"} reaches us.
+                We&apos;ll send the confirmation then, and no place is reserved until we do.
               </p>
             </div>
           )}
@@ -181,7 +181,7 @@ export default async function ConfirmationPage({ params }: { params: Promise<{ i
             )}
             <table className="w-full mt-4 text-[14px]">
               <tbody>
-                <tr className="border-b border-[#eef2f3]"><td className="py-2.5 text-[#6a7a80]">{isEvent ? "Ticket" : "Package (per person)"}</td><td className="py-2.5 text-right font-bold text-[#00374a]">{money(b.agreed_price, cur) ?? "—"}</td></tr>
+                <tr className="border-b border-[#eef2f3]"><td className="py-2.5 text-[#6a7a80]">{isEvent ? "Ticket" : "Package (per person)"}</td><td className="py-2.5 text-right font-bold text-[#00374a]">{money(b.agreed_price, cur) ?? "on request"}</td></tr>
                 {/* Extra nights and other confirmed extras — itemised on the
                     trip page; here the one line that makes the total add up. */}
                 {addonsTotal > 0 && (
@@ -232,7 +232,7 @@ export default async function ConfirmationPage({ params }: { params: Promise<{ i
           {/* legal */}
           <div className="mt-8 pt-6 border-t border-[#eef2f3] text-[12px] text-[#8a9aa0] leading-relaxed">
             {isEvent ? (
-              <p className="mb-2"><strong className="text-[#5a6b72]">What this is:</strong> a coaching service — on-water coaching for the dates above. No travel, accommodation or transport is sold with it, so this is not package travel under EU Directive 2015/2302 / §651a BGB and no insolvency certificate applies. You arrange your own travel, stay and equipment. Participation requires the signed waiver in your account; for a participant under 18 a parent or guardian must sign it.</p>
+              <p className="mb-2"><strong className="text-[#5a6b72]">What this is:</strong> a coaching service (on-water coaching for the dates above). No travel, accommodation or transport is sold with it, so this is not package travel under EU Directive 2015/2302 / §651a BGB and no insolvency certificate applies. You arrange your own travel, stay and equipment. Participation requires the signed waiver in your account; for a participant under 18 a parent or guardian must sign it.</p>
             ) : (
               <p className="mb-2"><strong className="text-[#5a6b72]">Package travel:</strong> This trip is a package within the meaning of EU Directive 2015/2302 / §651a BGB. Your statutory pre-contractual information and your rights are set out in the <Link href="/experience/legal/package-travel" className="text-[#00afdb] font-semibold">standard information form</Link>. The insolvency-protection certificate (Sicherungsschein) and full terms accompany your booking.</p>
             )}
@@ -240,7 +240,7 @@ export default async function ConfirmationPage({ params }: { params: Promise<{ i
               Document generated {new Date().toLocaleDateString("en-GB")}.{" "}
               {secured
                 ? "This is your booking summary; binding terms are those agreed at booking."
-                : "This is a summary of your selection, not a booking confirmation — prices and availability are held only once the securing payment reaches us."}
+                : "This is a summary of your selection, not a booking confirmation. Prices and availability are held only once the securing payment reaches us."}
             </p>
           </div>
         </article>

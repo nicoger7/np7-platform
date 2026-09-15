@@ -19,12 +19,12 @@ export const DEFAULT_WEEK_TITLE = "The best week of your windsurf year";
  *  Same field, same editor — only the words you start from differ. */
 export const DEFAULT_CLINIC_TITLE = "What you'll take home";
 export const DEFAULT_CLINIC_INFO =
-  "Every session is built around the wind and around you: we watch the forecast, pick the window, and spend it on the water with a coach beside you — video, feedback, and one clear thing to work on next.";
+  "Every session is built around the wind and around you. We watch the forecast, pick the window, and spend it on the water with a coach beside you. Video, feedback, and one clear thing to work on next.";
 
 /** The paragraph under the "Your week" intro. Every NP7 week works this way,
  *  so it reads as the standard promise until a trip has something truer. */
 export const DEFAULT_WEEK_INFO =
-  "Every day is built around the wind. We watch the forecast together, pick the best window, and spend it on the water with a coach beside you — video, feedback and a plan for tomorrow. When the wind takes a break, so do we: the place, the food, the people.";
+  "Every day is built around the wind. We watch the forecast together, pick the best window, and spend it on the water with a coach beside you: video, feedback and a plan for tomorrow. When the wind takes a break, so do we: the place, the food, the people.";
 
 /**
  * The caveat under the day-by-day.
@@ -35,13 +35,13 @@ export const DEFAULT_WEEK_INFO =
  * `exp_content.program_note` overrides it per experience.
  */
 export const DEFAULT_PROGRAM_NOTE =
-  "This is what the ideal week looks like — the exact day-to-day depends on the wind. We chase the best conditions and adapt as we go.";
+  "This is what the ideal week looks like. The exact day-to-day depends on the wind. We chase the best conditions and adapt as we go.";
 
 export const DEFAULT_CLINIC_PROGRAM_NOTE =
-  "This is what a great clinic looks like — the exact running order depends on the wind. We watch the forecast together and move the days around to catch the best of it.";
+  "This is what a great clinic looks like. The exact running order depends on the wind. We watch the forecast together and move the days around to catch the best of it.";
 
 export const DEFAULT_METHOD_INTRO =
-  "Nico's proven coaching approach, developed teaching hundreds of thousands of windsurfers through YouTube and camps worldwide. Complex movements, broken into clear, actionable steps — tailored to you.";
+  "Nico's proven coaching approach, developed teaching hundreds of thousands of windsurfers through YouTube and camps worldwide. Complex movements, broken into clear and actionable steps, tailored to you.";
 
 export type OutcomeItem = { icon?: string; t?: string; d?: string };
 export type MethodStep = { t?: string; d?: string; gameChanger?: boolean };
@@ -49,22 +49,22 @@ export type ProgramItem = { title?: string; description?: string };
 export type FaqItem = { q?: string; a?: string };
 
 export const DEFAULT_OUTCOMES: OutcomeItem[] = [
-  { icon: "bolt", t: "Real confidence on the water", d: "Comfortable in more wind and chop than you arrived in — stance locked, fear gone." },
-  { icon: "gauge", t: "Control & speed", d: "Effortless, controlled, faster riding — from straight-line speed to clean transitions." },
+  { icon: "bolt", t: "Real confidence on the water", d: "Comfortable in more wind and chop than you arrived in: stance locked, fear gone." },
+  { icon: "gauge", t: "Control & speed", d: "Effortless, controlled, faster riding. From straight-line speed to clean transitions." },
   { icon: "rotate", t: "Better jibes", d: "The move everyone wants, broken into steps that finally click." },
   { icon: "idea", t: "A year's worth of knowledge", d: "Maneuver know-how, equipment insights, and your personal roadmap for what to work on next." },
   { icon: "globe", t: "Friends from all over the world", d: "A hand-picked crew of people who love this as much as you do." },
-  { icon: "camera", t: "Your week on photo & video", d: "We shoot the whole week — you take the proof home." },
+  { icon: "camera", t: "Your week on photo & video", d: "We shoot the whole week. You take the proof home." },
 ];
 
 export const DEFAULT_METHOD_STEPS: MethodStep[] = [
-  { t: "Structured coaching scheme", d: "Every session builds on the last. Level groups, clear progression, no random tips — a system that compounds through the week.", gameChanger: false },
+  { t: "Structured coaching scheme", d: "Every session builds on the last. Level groups, clear progression, no random tips: a system that compounds through the week.", gameChanger: false },
   { t: "Daily focus points", d: "You always know the one thing to work on next session. Simple, personal, and it sticks.", gameChanger: false },
-  { t: "Video analysis", d: "We film you on the water and break it down frame-by-frame each evening. Seeing yourself is what makes it click — riders call it the single biggest unlock of the week.", gameChanger: true },
+  { t: "Video analysis", d: "We film you on the water and break it down frame-by-frame each evening. Seeing yourself is what makes it click. Riders call it the single biggest unlock of the week.", gameChanger: true },
 ];
 
 export const DEFAULT_DAILY_PROGRAM: ProgramItem[] = [
-  { title: "Arrival · Registration · Warm-up", description: "Land, transfer to your hotel and settle into the vibe. Collect your gear and ease into your first session — no pressure, just feel the spot." },
+  { title: "Arrival · Registration · Warm-up", description: "Land, transfer to your hotel and settle into the vibe. Collect your gear and ease into your first session. No pressure, just feel the spot." },
   { title: "First coaching block + baseline video", description: "Level groups are set. Morning on-water coaching, then your first video analysis so we know exactly where you're starting from." },
   { title: "Technique day + sunset session", description: "Focused drills on your personal goals, followed by an optional golden-hour freeride and a group dinner." },
   { title: "Activity morning + afternoon ride", description: "A break from the straps: explore the destination, then back on the water when the wind fills in." },
@@ -73,12 +73,12 @@ export const DEFAULT_DAILY_PROGRAM: ProgramItem[] = [
 ];
 
 export const DEFAULT_FAQ: FaqItem[] = [
-  { q: "What's not included?", a: "Flights, airport transfers and dinners. Book your own flights (we'll guide you on the best arrival times), we're happy to arrange your airport transfer for you, and dinners are out together as a group — everyone covers their own." },
-  { q: "I'm travelling solo — will I fit in?", a: "Absolutely — most guests come alone. Shared meals and a friendly crew mean you'll know everyone by day two." },
+  { q: "What's not included?", a: "Flights, airport transfers and dinners. Book your own flights (we'll guide you on the best arrival times), we're happy to arrange your airport transfer for you, and dinners are out together as a group. Everyone covers their own." },
+  { q: "I'm travelling solo. Will I fit in?", a: "Absolutely. Most guests come alone. Shared meals and a friendly crew mean you'll know everyone by day two." },
   { q: "What level do I need to be?", a: "Anything from total beginner to semi-pro. We group by level so you're always with the right people." },
-  { q: "Is gear included?", a: "Yes — pro windsurf gear rental is included in every package. Bring your own harness if you like." },
-  { q: "Can I arrive earlier or leave later?", a: "Yes — you can add extra hotel nights with us at any time after booking. Just tell us your flight dates and we'll arrange it." },
-  { q: "How does booking work?", a: "Reserve your spot in seconds — just your name and contact details, nothing more. We then contact you personally to sort every detail, and you pay by invoice: a down-payment to secure your place, with the balance due before the trip." },
+  { q: "Is gear included?", a: "Yes. Pro windsurf gear rental is included in every package. Bring your own harness if you like." },
+  { q: "Can I arrive earlier or leave later?", a: "Yes. You can add extra hotel nights with us at any time after booking. Just tell us your flight dates and we'll arrange it." },
+  { q: "How does booking work?", a: "Reserve your spot in seconds: just your name and contact details, nothing more. We then contact you personally to sort every detail, and you pay by invoice: a down-payment to secure your place, with the balance due before the trip." },
 ];
 
 /** Recursively sort object keys, so jsonb round-trips compare equal. Postgres

@@ -44,7 +44,7 @@ function fmtRange(start: string, end: string | null): string {
   if (!end || end === start) return `${d(s)} ${s.getFullYear()}`;
   const e = new Date(end);
   const short = (x: Date) => x.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  return `${short(s)} – ${short(e)} ${e.getFullYear()}`;
+  return `${short(s)} - ${short(e)} ${e.getFullYear()}`;
 }
 
 function toTicketDate(d: EventInfo["dates"][number]): TicketDate {
@@ -165,12 +165,12 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
             <div className="mb-6 rounded-2xl bg-[#eafaf0] border border-[#bfe8cf] px-5 py-4">
               {paidConfirmed ? (
                 <>
-                  <p className="text-[15px] font-bold text-[#1f7a45]">You&apos;re in — see you on the water! 🌊</p>
-                  <p className="text-[13.5px] text-[#3a6a4e] mt-1">Check your email for the details{event.mode === "standby" ? " — we&apos;ll confirm your date soon" : ""}.</p>
+                  <p className="text-[15px] font-bold text-[#1f7a45]">You&apos;re in. See you on the water! 🌊</p>
+                  <p className="text-[13.5px] text-[#3a6a4e] mt-1">Check your email for the details{event.mode === "standby" ? ". We&apos;ll confirm your date soon" : ""}.</p>
                 </>
               ) : (
                 <>
-                  <p className="text-[15px] font-bold text-[#1f7a45]">Payment received — setting up your spot…</p>
+                  <p className="text-[15px] font-bold text-[#1f7a45]">Payment received. Setting up your spot…</p>
                   <p className="text-[13.5px] text-[#3a6a4e] mt-1">This takes a few seconds. Your confirmation email is on its way.</p>
                 </>
               )}
@@ -187,7 +187,7 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
           {about ? (
             <p className="text-[16.5px] leading-[1.6] text-[#3a4a50] whitespace-pre-line [text-wrap:pretty]">{about}</p>
           ) : (
-            <p className="text-[16.5px] leading-[1.6] text-[#3a4a50]">A focused NP7 {span.noun} on the water. Bring your gear and your stoke — we&apos;ll handle the rest.</p>
+            <p className="text-[16.5px] leading-[1.6] text-[#3a4a50]">A focused NP7 {span.noun} on the water. Bring your gear and your stoke. We&apos;ll handle the rest.</p>
           )}
 
           {/* THE COACHING — this is why an NP7 day is different from a normal session */}
@@ -195,9 +195,9 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_80%_10%,rgba(0,175,219,0.28),transparent_55%)]" aria-hidden />
             <div className="relative">
               <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#8fe6f2]">Coaching that changes your riding</p>
-              <h2 className="text-2xl sm:text-3xl font-black tracking-[-0.02em] mt-2">Not just a {span.adj} — the NP7 Method</h2>
+              <h2 className="text-2xl sm:text-3xl font-black tracking-[-0.02em] mt-2">Not just a {span.adj}: the NP7 Method</h2>
               <p className="text-[15px] text-white/75 leading-relaxed mt-3 max-w-[560px]">
-                Every move broken into steps that click, video analysis so you see yourself, and a focus point you take home. It&apos;s the whole rider — technique, fundamentals, mindset and the fun that keeps you coming back.
+                Every move broken into steps that click, video analysis so you see yourself, and a focus point you take home. It&apos;s the whole rider: technique, fundamentals, mindset and the fun that keeps you coming back.
               </p>
               <div className="mt-5"><MethodModal /></div>
             </div>
@@ -267,7 +267,7 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
           ) : (
             <div className="rounded-2xl bg-white border border-[#e3e9ec] p-7 text-center">
               <p className="text-[15px] font-bold text-[#00374a]">{over ? "This clinic has run" : "Dates coming soon"}</p>
-              <p className="text-[13.5px] text-[#6a7a80] mt-2">{over ? "New dates are in the works — check back, or ping us and we'll tell you first." : "This event isn\u2019t open for booking yet. Check back shortly."}</p>
+              <p className="text-[13.5px] text-[#6a7a80] mt-2">{over ? "New dates are in the works. Check back soon, or ping us and we'll tell you first." : "This event isn\u2019t open for booking yet. Check back shortly."}</p>
             </div>
           )}
 

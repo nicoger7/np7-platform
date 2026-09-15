@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   for (const l of body.lines as { variant_id: string; quantity: number }[]) {
     const total = sellable.reduce((a, loc) => a + availableAt(l.variant_id, loc.id), 0);
     if (Number(l.quantity) > total) {
-      return NextResponse.json({ error: "Not enough stock for one of your items — adjust the quantity in your cart." }, { status: 409 });
+      return NextResponse.json({ error: "Not enough stock for one of your items. Adjust the quantity in your cart." }, { status: 409 });
     }
   }
 
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     }
     if (remaining > 0) {
       await db.from("hw_orders").delete().eq("id", order.id);   // cascades lines + reservations
-      return NextResponse.json({ error: "Someone was faster — an item just sold out. Your card was not charged." }, { status: 409 });
+      return NextResponse.json({ error: "Someone was faster and an item just sold out. Your card was not charged." }, { status: 409 });
     }
   }
   await logOrderEvent(db, order.id, "stock_reserved", "system", { channel: "web" });

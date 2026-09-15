@@ -217,8 +217,8 @@ function fmtRange(start: string | null, end: string | null): string {
   const s = new Date(start);
   const e = end ? new Date(end) : null;
   const mon = (d: Date) => d.toLocaleDateString("en-GB", { month: "short" });
-  if (e && s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) return `${s.getDate()}–${e.getDate()} ${mon(e)} ${e.getFullYear()}`;
-  if (e) return `${s.getDate()} ${mon(s)} – ${e.getDate()} ${mon(e)} ${e.getFullYear()}`;
+  if (e && s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear()) return `${s.getDate()}-${e.getDate()} ${mon(e)} ${e.getFullYear()}`;
+  if (e) return `${s.getDate()} ${mon(s)} - ${e.getDate()} ${mon(e)} ${e.getFullYear()}`;
   return s.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 function fmtMoney(n: number | null | undefined, currency = "EUR"): string {
@@ -299,8 +299,8 @@ export async function grantInviteReward(inviteId: string): Promise<string | null
   }
 
   try {
-    const inviterVoucher = await issueCredit(invite.inviter_contact_id, invite.reward_inviter_amount, "Referral reward — thanks for inviting a friend.");
-    const friendVoucher = await issueCredit(invite.invited_contact_id, invite.reward_friend_amount, "Welcome credit — invited by a friend.");
+    const inviterVoucher = await issueCredit(invite.inviter_contact_id, invite.reward_inviter_amount, "Referral reward for inviting a friend.");
+    const friendVoucher = await issueCredit(invite.invited_contact_id, invite.reward_friend_amount, "Welcome credit for joining through a friend.");
     await db.from("trip_invites").update({
       reward_status: "granted",
       reward_inviter_voucher_id: inviterVoucher,

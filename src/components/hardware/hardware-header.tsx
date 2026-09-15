@@ -9,12 +9,12 @@ import { CartBadge } from "@/components/hardware/cart";
 
 const NAV = [
   // absolute paths so the links also work from /hardware/* subpages
-  { label: "Boards", href: "/hardware#products", sub: "Freeride · slalom · wave — shaped on the bench" },
+  { label: "Boards", href: "/hardware#products", sub: "Freeride · slalom · wave, shaped on the bench" },
   { label: "Fins", href: "/hardware/fins", sub: "Slalom fins + the fin selector" },
-  { label: "Workshop", href: "/hardware#workshop", sub: "Inside the build — carbon, layups, hand-finish" },
+  { label: "Workshop", href: "/hardware#workshop", sub: "Inside the build: carbon, layups, hand-finish" },
   // right-aligned, next to the account button + CTA
   { label: "Magazine", href: "/blog", side: "right" as const, sub: "Guides, tests & technique" },
-  { label: "About", href: "/about?from=hardware", side: "right" as const, sub: "Nico Prien — GER-7" },
+  { label: "About", href: "/about?from=hardware", side: "right" as const, sub: "Nico Prien · GER-7" },
 ];
 
 const leftNav = NAV.filter((n) => n.side !== "right");

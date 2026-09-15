@@ -227,7 +227,7 @@ function WindRose({ window: w }: { window: WindWindow }) {
 
 function FrequencyBars({ avail, accent }: { avail: ConditionsAvail; accent: string }) {
   const level = (f: string) => (f === "often" ? 3 : f === "sometimes" ? 2 : f === "never" ? 1 : 0);
-  const label = (f: string) => (f === "often" ? "Often" : f === "sometimes" ? "Sometimes" : f === "never" ? "Never" : "—");
+  const label = (f: string) => (f === "often" ? "Often" : f === "sometimes" ? "Sometimes" : f === "never" ? "Never" : "Unknown");
   return (
     <div className="space-y-2">
       {CONDITION_TYPES.map((t) => {

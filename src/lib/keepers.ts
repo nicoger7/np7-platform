@@ -26,5 +26,5 @@ export function keeperNoun(kind: "photo" | "video", n = KEEPER_LIMIT): string {
 
 /** The one sentence shown when someone tries to keep a fourth. */
 export function keeperLimitMessage(kind: "photo" | "video"): string {
-  return `You can keep ${keeperNoun(kind)} forever — unstar one to swap it.`;
+  return `You can keep ${keeperNoun(kind)} forever. Unstar one to swap it.`;
 }

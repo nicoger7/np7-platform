@@ -274,12 +274,12 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                       never sleep. */}
                   {flightsSaved ? (
                     <p className="text-[12.5px] text-[#5a6b72] leading-snug">
-                      When do you want to <strong>check in and check out</strong>? Pre-filled from your flights ({fmtDay(flights?.arrivalDate)} → {fmtDay(flights?.departureDate)}) — adjust freely. Your week covers {fmtDay(covered.start)}–{fmtDay(covered.end)}; only {u}s outside that are charged as extra.
+                      When do you want to <strong>check in and check out</strong>? Pre-filled from your flights ({fmtDay(flights?.arrivalDate)} → {fmtDay(flights?.departureDate)}), and you can adjust freely. Your week covers {fmtDay(covered.start)} to {fmtDay(covered.end)}; only {u}s outside that are charged as extra.
                     </p>
                   ) : (
                     <div className="rounded-lg bg-[#eef6f8] p-3 text-[12.5px] text-[#4a5b62] leading-snug">
                       <p className="font-bold text-[#00374a] mb-0.5">When do you want the room?</p>
-                      <p>Set your check-in and check-out below — we calculate the extra {plural(u, 2)} automatically. Tip: add your flight dates first and we&apos;ll pre-fill this.</p>
+                      <p>Set your check-in and check-out below. We work out the extra {plural(u, 2)} automatically. Tip: add your flight dates first and we&apos;ll pre-fill this.</p>
                       <button onClick={goToFlights} className="mt-1.5 inline-flex items-center gap-1 font-bold text-[#00afdb] hover:underline">Add flight dates →</button>
                     </div>
                   )}
@@ -293,7 +293,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                     {total > 0 ? (
                       <><strong>{[before > 0 ? `${before} ${plural(u, before)} before` : "", after > 0 ? `${after} ${plural(u, after)} after` : ""].filter(Boolean).join(" + ")}</strong> = {total} extra {plural(u, total)}{price != null ? ` · ${money(price)}` : ""}</>
                     ) : (
-                      <span className="text-[#8a9aa0]">Those dates are within the trip week — no extra {plural(u, 2)} yet. Arrive earlier or leave later to add some.</span>
+                      <span className="text-[#8a9aa0]">Those dates are within the trip week, so no extra {plural(u, 2)} yet. Arrive earlier or leave later to add some.</span>
                     )}
                   </p>
                   <div className="flex gap-2">
@@ -319,7 +319,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                 {a.payment_mode === "direct" ? (
                   <p className="text-[12.5px] text-[#5a6b72] mt-0.5">
                     <span className="font-bold text-[#00374a]">Nothing to pay now</span>
-                    {a.payment_note ? <span className="block text-[12px] mt-0.5">{a.payment_note}</span> : <span className="block text-[12px] mt-0.5">We arrange it — you settle it directly.</span>}
+                    {a.payment_note ? <span className="block text-[12px] mt-0.5">{a.payment_note}</span> : <span className="block text-[12px] mt-0.5">We arrange it. You settle it directly.</span>}
                   </p>
                 ) : (
                   a.sell_price != null && <p className="text-[12.5px] text-[#5a6b72] mt-0.5"><span className="font-bold text-[#00374a]">{money(a.sell_price)}</span></p>
@@ -335,7 +335,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
           </div>
         );
       })}
-      <p className="text-[12px] text-[#9aa6ac] mt-1">Requests aren&apos;t charged automatically — we confirm availability first, then add it to your balance.</p>
+      <p className="text-[12px] text-[#9aa6ac] mt-1">Requests aren&apos;t charged automatically. We confirm availability first, then add it to your balance.</p>
     </div>
   );
 
@@ -359,13 +359,13 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
   // the package sets one), then extras. Labels adapt to the package so it never
   // says "deposit" when the securing payment is really the down-payment.
   const steps: { key: "flights" | "secure" | "extras" | "confirm" | "book" | "group"; t: string; d: string }[] = [
-    { key: "flights", t: "Your arrival", d: "Tell us when you get in and head off — flying or not. Times that fit the week; no rush before the down-payment." },
-    { key: "secure", t: securingLabel, d: depositPaid ? "Your spot is secured ✓" : `Pay the ${hasDeposit ? "deposit" : "down-payment"} to lock in your place — refundable for 14 days.` },
-    { key: "extras", t: "Request extras", d: "Want extra nights, gear or more? Request them — or choose none." },
+    { key: "flights", t: "Your arrival", d: "Tell us when you get in and head off, flying or not. Times that fit the week; no rush before the down-payment." },
+    { key: "secure", t: securingLabel, d: depositPaid ? "Your spot is secured ✓" : `Pay the ${hasDeposit ? "deposit" : "down-payment"} to lock in your place. Refundable for 14 days.` },
+    { key: "extras", t: "Request extras", d: "Want extra nights, gear or more? Request them, or choose none." },
     { key: "confirm", t: "We confirm", d: "We'll confirm availability and add it to your trip." },
     { key: "book", t: "Book your flights", d: "Once your dates are set, lock in your flights." },
     // Only when a group chat exists for this edition.
-    ...(hasGroup ? [{ key: "group" as const, t: "Join the group chat", d: "Meet your crew before you go — say hi in the WhatsApp group." }] : []),
+    ...(hasGroup ? [{ key: "group" as const, t: "Join the group chat", d: "Meet your crew before you go. Say hi in the WhatsApp group." }] : []),
   ];
 
   return (
@@ -379,13 +379,13 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
         const open = (isFlights && showFlights) || (isExtras && showOffers) || (isGroup && showGroup);
         const toggle = isFlights ? () => setShowFlights((v) => !v) : isGroup ? () => setShowGroup((v) => !v) : () => setShowOffers((v) => !v);
         const subline = isFlights
-          ? (flightsSaved ? "Arrival added — tap to view or edit" : "Tap to add your arrival & departure")
+          ? (flightsSaved ? "Arrival added · tap to view or edit" : "Tap to add your arrival & departure")
           : isGroup
-          ? (joined ? "You're in the group ✓ — tap to open" : "Tap to open the group & mark yourself in")
+          ? (joined ? "You're in the group ✓ · tap to open" : "Tap to open the group & mark yourself in")
           : isExtras
-          ? (resolved ? (active.length ? `${active.length} requested — tap to manage` : "No extras — tap to change") : "Tap to add extra nights, gear & more")
+          ? (resolved ? (active.length ? `${active.length} requested · tap to manage` : "No extras · tap to change") : "Tap to add extra nights, gear & more")
           : s.key === "confirm" && addonsConfirmed
-          ? (active.length > 0 ? "All your extras are confirmed and added to your trip." : "No extras to confirm — you're all set.")
+          ? (active.length > 0 ? "All your extras are confirmed and added to your trip." : "No extras to confirm. You're all set.")
           : s.d;
 
         // One consistent row grammar for every step: [status] [title + sub] [affordance].
@@ -425,7 +425,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
               <div className="px-4 pb-4 pt-3 border-t border-[#f3ede2]">
                 <div className="rounded-lg bg-[#eef6f8] p-3 mb-3 text-[13px] text-[#4a5b62] space-y-1.5">
                   <p className="font-bold text-[#00374a]">You book your own travel</p>
-                  <p className="leading-snug">We don&apos;t book travel for you — choose times that fit the week and add them here. Happy to advise on the best arrival/departure if you&apos;re unsure. Not flying? Tell us anyway, so we know when to expect you.</p>
+                  <p className="leading-snug">We don&apos;t book travel for you. Choose times that fit the week and add them here. Happy to advise on the best arrival/departure if you&apos;re unsure. Not flying? Tell us anyway, so we know when to expect you.</p>
                   {arrival?.airportCode && (
                     <p>Airport: <strong className="text-[#00374a]">{arrival.airportCode}</strong>{arrival.airportDistance ? ` · ${arrival.airportDistance}` : ""}</p>
                   )}
@@ -464,7 +464,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                     </div>
                     {isSelfArriving(flightForm) && (
                       <p className="text-[12.5px] text-[#6a7a80] -mt-1">
-                        No flight number needed — just let us know when you&apos;ll arrive and head off, so we can plan transfers and the first evening around you.
+                        No flight number needed. Just let us know when you&apos;ll arrive and head off, so we can plan transfers and the first evening around you.
                       </p>
                     )}
                     <FlightFields legend={isSelfArriving(flightForm) ? "Arriving" : "Arrival"} form={flightForm} setFF={setFF}
@@ -486,7 +486,7 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                 {offer.length > 0 ? <Offers /> : <p className="text-[13px] text-[#8a9aa0]">No optional extras for this trip.</p>}
                 {!resolved && (
                   <>
-                    <button onClick={chooseNone} disabled={busy === "none"} className="mt-3 text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a] underline underline-offset-2">{busy === "none" ? "…" : "No extras needed — I'm all set"}</button>
+                    <button onClick={chooseNone} disabled={busy === "none"} className="mt-3 text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a] underline underline-offset-2">{busy === "none" ? "…" : "No extras needed. I'm all set"}</button>
                     {noneErr && <p className="mt-2 text-[12.5px] text-[#c0392b] leading-snug">{noneErr}</p>}
                   </>
                 )}
@@ -512,13 +512,13 @@ export function TripAddons({ bookingId, depositPaid, hasDeposit, securingLabel, 
                     })}
                   </div>
                 )}
-                {noneChosen && active.length === 0 && <p className="mt-2 text-[13px] text-[#5a6b72]">✓ No extras needed — you&apos;re all set.</p>}
+                {noneChosen && active.length === 0 && <p className="mt-2 text-[13px] text-[#5a6b72]">✓ No extras needed. You&apos;re all set.</p>}
               </div>
             )}
 
             {open && isGroup && (
               <div className="px-4 pb-4 pt-3 border-t border-[#f3ede2] space-y-3">
-                <p className="text-[13px] text-[#4a5b62] leading-snug">Your whole crew for this week is in here — coaches and riders. Great for questions, plans and getting to know each other before you arrive.</p>
+                <p className="text-[13px] text-[#4a5b62] leading-snug">Your whole crew for this week is in here, coaches and riders. Great for questions, plans and getting to know each other before you arrive.</p>
                 <a href={groupLink ?? "#"} target="_blank" rel="noopener"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13px] font-bold text-white bg-[#1aa851] hover:bg-[#149247] transition-colors">
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.946C.16 5.335 5.495 0 12.05 0a11.817 11.817 0 018.413 3.488 11.824 11.824 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.205zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.074-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z" /></svg>
@@ -543,7 +543,7 @@ function FlightSummary({ label, date, time, no }: { label: string; date?: string
   return (
     <div className="flex justify-between gap-3">
       <span className="text-[#6a7a80]">{label}</span>
-      <span className="font-semibold text-[#00374a] text-right">{parts.length ? parts.join(" · ") : "—"}</span>
+      <span className="font-semibold text-[#00374a] text-right">{parts.length ? parts.join(" · ") : "Not set"}</span>
     </div>
   );
 }

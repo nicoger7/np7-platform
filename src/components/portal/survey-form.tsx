@@ -36,7 +36,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
   const armedDate = armed && armed !== "none" ? armed : null;
   const fmt = (n: number) => new Intl.NumberFormat("en-IE", { style: "currency", currency: survey.currency || "EUR", maximumFractionDigits: 0 }).format(n);
   const fmtDay = (s: string, withYear = false) => new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}) });
-  const fmtWeek = (start: string | null, end: string | null) => (start && end ? `${fmtDay(start)} – ${fmtDay(end, true)}` : start || end ? fmtDay((start || end)!, true) : "");
+  const fmtWeek = (start: string | null, end: string | null) => (start && end ? `${fmtDay(start)} - ${fmtDay(end, true)}` : start || end ? fmtDay((start || end)!, true) : "");
 
   const [topDest, setTopDest] = useState<string | null>(existing?.top_destination ?? null);
   const [alsoDest, setAlsoDest] = useState<Set<string>>(() => {
@@ -89,7 +89,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
   const complete = doneCount === applicable.length;
   // start already part-filled — being invited is progress, not zero (endowed progress)
   const pct = Math.round((0.18 + 0.82 * (applicable.length ? doneCount / applicable.length : 0)) * 100);
-  const progressLabel = complete ? "Ready to send 🤙" : doneCount === 0 ? "You're invited — take a look 👇" : "Almost there…";
+  const progressLabel = complete ? "Ready to send 🤙" : doneCount === 0 ? "You're invited · take a look 👇" : "Almost there…";
 
   // ── Scroll-zoom (Ken Burns) on the trip images + gentle reveal ─────────────
   useEffect(() => {
@@ -160,7 +160,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
       <div className="rounded-3xl border border-[#bfe6d7] bg-[#f1faf5] p-9 text-center shadow-[0_16px_40px_rgba(20,120,80,0.08)]">
         <div className="text-5xl mb-3">🤙</div>
         <h2 className="text-[24px] font-black text-[#00374a]">Thank you{contactName ? `, ${contactName.split(/\s+/)[0]}` : ""}!</h2>
-        <p className="text-[14.5px] text-[#5a6b72] mt-2.5 max-w-[440px] mx-auto leading-relaxed">{preview ? "This is the confirmation members see. (Preview — nothing was saved.)" : "Your answers are in. This genuinely shapes which trips we run — I'll be in touch if it comes together. 🌊"}</p>
+        <p className="text-[14.5px] text-[#5a6b72] mt-2.5 max-w-[440px] mx-auto leading-relaxed">{preview ? "This is the confirmation members see. (Preview only, nothing was saved.)" : "Your answers are in. This genuinely shapes which trips we run, and I'll be in touch if it comes together. 🌊"}</p>
         {pickedTrips > 0 && !preview && <p className="text-[13px] text-[#1f7a4d] font-bold mt-3">You're in for {pickedTrips} trip{pickedTrips === 1 ? "" : "s"}.</p>}
       </div>
     );
@@ -192,7 +192,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
           <span className="shrink-0 text-[12px] font-bold text-[#8a6a1e] tabular-nums w-[132px] text-right">{progressLabel}</span>
         </div>
         {pickedTrips > 0 && (
-          <p className="text-[12px] font-black text-[#1f9e57] mt-1.5">🤙 You&apos;re in for {pickedTrips} trip{pickedTrips === 1 ? "" : "s"}{hasTrips ? " — pick more, run more" : ""}.</p>
+          <p className="text-[12px] font-black text-[#1f9e57] mt-1.5">🤙 You&apos;re in for {pickedTrips} trip{pickedTrips === 1 ? "" : "s"}{hasTrips ? " · pick more, run more" : ""}.</p>
         )}
       </div>
 
@@ -201,7 +201,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
         {hasTrips && (
           <section data-reveal>
             <p className={label}>Which trips would you join?</p>
-            <p className="text-[13.5px] text-[#8a97a0] mt-1 mb-4">Tick every date that would work for you — the more you pick, the more likely we run the one you want.{chosen.size >= 2 ? <> <span className="font-semibold text-[#b0791e]">Star ⭐ your favourite.</span></> : null}</p>
+            <p className="text-[13.5px] text-[#8a97a0] mt-1 mb-4">Tick every date that would work for you. The more you pick, the more likely we run the one you want.{chosen.size >= 2 ? <> <span className="font-semibold text-[#b0791e]">Star ⭐ your favourite.</span></> : null}</p>
             <div className={many ? "grid sm:grid-cols-2 gap-3.5" : "space-y-4"}>
               {tripGroups.map((g, gi) => {
                 const anyOn = g.periods.some((p) => chosen.has(p.key));
@@ -235,7 +235,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
                       <span role="button" tabIndex={0}
                         onClick={(e) => { e.stopPropagation(); e.preventDefault(); setTopDest(singleTop ? null : singleKey); }}
                         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); e.preventDefault(); setTopDest(singleTop ? null : singleKey); } }}
-                        title={singleTop ? "Your favourite — tap to unstar" : "Make this my favourite"}
+                        title={singleTop ? "Your favourite · tap to unstar" : "Make this my favourite"}
                         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-bold mb-2 transition-all ${singleTop ? "bg-[#ffc42e] text-[#00374a] shadow-[0_4px_12px_rgba(240,165,0,0.4)]" : "border border-[#ecdcbb] text-[#8a6a1e] opacity-70 hover:opacity-100"}`}>
                         {singleTop ? "⭐ My favourite" : "☆ Make this my favourite"}
                       </span>
@@ -256,7 +256,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
                               {/* the TOP-PICK star: only on selected dates, once there's a real choice */}
                               {on && chosen.size >= 2 && (
                                 <button type="button" onClick={() => setTopDest(isTop ? null : p.key)}
-                                  title={isTop ? "Your favourite — tap to unstar" : "Make this my favourite"}
+                                  title={isTop ? "Your favourite · tap to unstar" : "Make this my favourite"}
                                   aria-label={isTop ? "Unstar this date" : "Star this date as favourite"}
                                   className={`grid place-items-center w-8 h-8 rounded-full text-[15px] transition-all ${isTop ? "bg-[#ffc42e] shadow-[0_4px_12px_rgba(240,165,0,0.4)] scale-105" : "border border-[#ecdcbb] opacity-60 hover:opacity-100"}`}>
                                   {isTop ? "⭐" : "☆"}
@@ -278,7 +278,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
                 );
               })}
             </div>
-            {overlapNote && <p className="text-[12px] text-[#a58a5e] mt-3">Some of your picks overlap in dates — no problem. Tell us all you&apos;d join and we&apos;ll help you land on one if both happen.</p>}
+            {overlapNote && <p className="text-[12px] text-[#a58a5e] mt-3">Some of your picks overlap in dates, and that&apos;s fine. Tell us all you&apos;d join and we&apos;ll help you land on one if both happen.</p>}
           </section>
         )}
 
@@ -317,7 +317,7 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
         {!hasTrips && survey.weeks.length > 0 && (
           <section data-reveal className={card}>
             <p className={label}>When could you go?</p>
-            <p className="text-[13px] text-[#8a97a0] mt-1 mb-3">Tick every week that could work — the more the better.</p>
+            <p className="text-[13px] text-[#8a97a0] mt-1 mb-3">Tick every week that could work. The more the better.</p>
             <div className="grid sm:grid-cols-2 gap-2.5">
               {survey.weeks.map((w) => {
                 const on = weeks.has(w.key);
@@ -364,9 +364,9 @@ export function SurveyForm({ survey, token, contactName, existing, preview = fal
         <button type="button" onClick={submit} disabled={busy}
           className="w-full rounded-full text-white text-[15.5px] font-black py-4 disabled:opacity-50 transition-transform hover:-translate-y-0.5 shadow-[0_12px_30px_rgba(240,123,32,0.26)]"
           style={{ background: "linear-gradient(135deg,#f7b733 0%,#f47b20 55%,#e0590f 100%)" }}>
-          {busy ? "Sending…" : existing ? "Update my answers" : pickedTrips > 0 ? `Send my answers — ${pickedTrips} trip${pickedTrips === 1 ? "" : "s"}` : "Send my answers"}
+          {busy ? "Sending…" : existing ? "Update my answers" : pickedTrips > 0 ? `Send my answers · ${pickedTrips} trip${pickedTrips === 1 ? "" : "s"}` : "Send my answers"}
         </button>
-        <p className="text-[12px] text-[#a58a5e] text-center">Private — only Nico &amp; the NP7 team see this.</p>
+        <p className="text-[12px] text-[#a58a5e] text-center">Private: only Nico &amp; the NP7 team see this.</p>
       </div>
     </div>
   );

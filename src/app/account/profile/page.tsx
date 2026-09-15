@@ -9,7 +9,7 @@ import { CommunityProfile } from "@/components/portal/community-profile";
 import { TierStatusCard } from "@/components/portal/tier-status-card";
 import { getMemberTier } from "@/lib/member-tier";
 
-export const metadata: Metadata = { title: "Profile — NP7" };
+export const metadata: Metadata = { title: "Profile · NP7" };
 export const dynamic = "force-dynamic";
 
 /** Profile = your PUBLIC, crew-facing identity (avatar, handle, level, what others
@@ -33,7 +33,7 @@ export default async function ProfilePage() {
         <div className="max-w-[760px] mx-auto px-5 sm:px-8 py-10 sm:py-14">
           <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a] mb-1.5">Your profile</h1>
           <p className="text-[15px] text-[#6a7a80] mb-8">
-            How other NP7 riders see you on trips, reviews and spot notes — you choose exactly what&apos;s shown.{" "}
+            How other NP7 riders see you on trips, reviews and spot notes. You choose exactly what&apos;s shown.{" "}
             <Link href="/account/settings" className="font-semibold text-[#00afdb] hover:underline">Manage your private details →</Link>
           </p>
           {profile ? (

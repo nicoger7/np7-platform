@@ -142,7 +142,7 @@ export function GuestReviews({ items }: { items: GuestReviewItem[] }) {
                       Response from NP7
                     </p>
                     <p className="text-[14px] text-[#00374a] leading-relaxed whitespace-pre-line">{open.reply}</p>
-                    <p className="mt-2 text-[12px] text-[#6a7a80] font-semibold">— Nico &amp; the NP7 team</p>
+                    <p className="mt-2 text-[12px] text-[#6a7a80] font-semibold">Nico &amp; the NP7 team</p>
                   </div>
                 )}
 

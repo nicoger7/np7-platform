@@ -75,14 +75,14 @@ export function destinationWindFacts(stats: WindStats | null | undefined): { pro
   if (set.size === 12) best = { start: 1, len: 12 };
   const end = ((best.start - 1 + best.len - 1) % 12) + 1;
   // an 11-month "season" is a year with one shy month — call it what it is
-  const season = best.len >= 11 ? "Year-round" : best.len === 1 ? MONTH_FULL[best.start - 1] : `${MONTH_FULL[best.start - 1]}–${MONTH_FULL[end - 1]}`;
+  const season = best.len >= 11 ? "Year-round" : best.len === 1 ? MONTH_FULL[best.start - 1] : `${MONTH_FULL[best.start - 1]}-${MONTH_FULL[end - 1]}`;
   const meanPct = Math.round(windy.reduce((t, m) => t + (m.pct["4"] ?? 0), 0) / windy.length / 5) * 5;
   const speeds = windy.map((m) => m.avgWind).filter((v) => Number.isFinite(v));
   const lo = Math.round(Math.min(...speeds)), hi = Math.round(Math.max(...speeds));
   return {
     probability: `${meanPct}% of days`,
     season,
-    speed: lo === hi ? `~${lo} knots avg` : `${lo}–${hi} knots avg`,
+    speed: lo === hi ? `~${lo} knots avg` : `${lo}-${hi} knots avg`,
   };
 }
 
@@ -101,7 +101,7 @@ export function windySeasonLabel(windy: number[]): string | null {
     if (len > bestLen) { bestLen = len; bestStart = s; }
   }
   const end = ((bestStart - 1 + bestLen - 1) % 12) + 1;
-  return bestLen === 1 ? MONTH_LABELS[bestStart - 1] : `${MONTH_LABELS[bestStart - 1]}–${MONTH_LABELS[end - 1]}`;
+  return bestLen === 1 ? MONTH_LABELS[bestStart - 1] : `${MONTH_LABELS[bestStart - 1]}-${MONTH_LABELS[end - 1]}`;
 }
 
 /** The single windiest month — most planing wind (4+ Bft, tie-break 3+). */
@@ -283,7 +283,7 @@ export async function fetchWindStats(lat: number, lng: number, opts?: { accelera
     }
     if (best) {
       return {
-        source: "Open-Meteo · accelerated (offshore)", unit: "kn", window: "09–18 local",
+        source: "Open-Meteo · accelerated (offshore)", unit: "kn", window: "09-18 local",
         period: { start: hiStart, end: endStr }, months: best.months,
         summary: { windyMonths: best.windyMonths, warmestMonth: best.warmestMonth, warmestTemp: best.warmestTemp },
         fetchedAt: new Date().toISOString(),
@@ -304,7 +304,7 @@ export async function fetchWindStats(lat: number, lng: number, opts?: { accelera
   if (!data) throw new Error("No wind data for this location");
   const agg = monthsFromHourly(data);
   return {
-    source, unit: "kn", window: "09–18 local", period: { start: startStr, end: endStr },
+    source, unit: "kn", window: "09-18 local", period: { start: startStr, end: endStr },
     months: agg.months, summary: { windyMonths: agg.windyMonths, warmestMonth: agg.warmestMonth, warmestTemp: agg.warmestTemp },
     fetchedAt: new Date().toISOString(),
   };

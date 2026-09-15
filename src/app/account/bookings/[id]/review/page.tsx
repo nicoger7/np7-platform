@@ -7,7 +7,7 @@ import { fmtDates } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { ReviewForm } from "@/components/portal/review-form";
 
-export const metadata: Metadata = { title: "Leave a review — NP7" };
+export const metadata: Metadata = { title: "Leave a review · NP7" };
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ id: string }> };

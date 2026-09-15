@@ -56,10 +56,10 @@ export function ReviewForm({ bookingId, gallery, hasHotel }: { bookingId: string
         }),
       });
       const json = await res.json();
-      if (!res.ok) { setError(json.error ?? "Something went wrong — please try again."); setBusy(false); return; }
+      if (!res.ok) { setError(json.error ?? "Something went wrong. Please try again."); setBusy(false); return; }
       setDone(true);
     } catch {
-      setError("Something went wrong — please try again.");
+      setError("Something went wrong. Please try again.");
       setBusy(false);
     }
   }

@@ -57,7 +57,7 @@ export default function CheckoutPage() {
     });
     const d = await res.json();
     setSubmitting(false);
-    if (!res.ok) { setError(d.error || "Something went wrong — nothing was ordered."); return; }
+    if (!res.ok) { setError(d.error || "Something went wrong. Nothing was ordered."); return; }
     cart.clear();
     router.push(`/orders/${d.token}?placed=1`);
   }
@@ -71,7 +71,7 @@ export default function CheckoutPage() {
         <p className={`${eyebrow} mb-2`}>// NP7 HARDWARE</p>
         <h1 className="text-4xl sm:text-5xl font-black tracking-[-0.02em] mb-2">Almost on the water.</h1>
         <p className="text-white/50 text-sm mb-10 max-w-md">
-          Tell us where the gear lands — we handle the rest. Next stop: your first session on it.
+          Tell us where the gear lands. We handle the rest. Next stop: your first session on it.
         </p>
 
         {cart.items.length === 0 ? (
@@ -117,7 +117,7 @@ export default function CheckoutPage() {
                 <p className={`${eyebrow} mb-2`}>// PAYMENT</p>
                 <p className="text-sm font-bold mb-1">Bank transfer (Vorkasse)</p>
                 <p className="text-xs text-white/50 leading-relaxed">
-                  Bank details land with your confirmation — your gear is packed the moment the
+                  Bank details land with your confirmation. Your gear is packed the moment the
                   transfer arrives. Card &amp; PayPal are coming soon.
                 </p>
               </div>
@@ -133,8 +133,8 @@ export default function CheckoutPage() {
 
               {nonVariantItems.length > 0 && (
                 <p className="text-xs text-amber-400">
-                  {nonVariantItems.map((i) => i.name).join(", ")}: this product has no selectable size yet —
-                  please re-add it from its product page.
+                  {nonVariantItems.map((i) => i.name).join(", ")}: this product has no selectable size yet.
+                  Please re-add it from its product page.
                 </p>
               )}
               {error && <p className="text-sm text-red-400">{error}</p>}
@@ -183,7 +183,7 @@ export default function CheckoutPage() {
                   </p>
                 ))}
               </div>
-              <p className="text-[10px] text-white/35 mt-3">Shipping confirmed with your order — free EU shipping on boards.</p>
+              <p className="text-[10px] text-white/35 mt-3">Shipping confirmed with your order. Free EU shipping on boards.</p>
             </div>
           </div>
         )}

@@ -113,7 +113,7 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
 
   const profileBadge = profileLevel && inputs.level === profileLevel.level && (
     <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold text-white/50 mt-2">
-      <span className="w-1.5 h-1.5 rounded-full bg-white/60" /> From your NP7 profile — {profileLevel.rank}
+      <span className="w-1.5 h-1.5 rounded-full bg-white/60" /> From your NP7 profile · {profileLevel.rank}
     </span>
   );
 
@@ -133,13 +133,13 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
               {boardTypePicker()}
               {noFinsYet && (
                 <p className="mt-3 text-[13px] leading-snug text-white/60 rounded-xl border border-white/12 px-3.5 py-2.5 max-w-[460px]">
-                  <span className="font-bold text-white/85">No {boardType} fins yet</span> — they&apos;re in the shaping
+                  <span className="font-bold text-white/85">No {boardType} fins yet</span>. They&apos;re in the shaping
                   queue. Riding freeride, freerace or slalom too? Carry on.
                 </p>
               )}
             </div>
             <div>
-              <p className={label}>02 · Your weight — <span className="normal-case">{inputs.weightKg} kg</span></p>
+              <p className={label}>02 · Your weight: <span className="normal-case">{inputs.weightKg} kg</span></p>
               <Range min={50} max={115} value={inputs.weightKg} onChange={(v) => set("weightKg", v)} ariaLabel="Your weight in kilograms" />
             </div>
             <div>
@@ -167,7 +167,7 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
           {/* Regler bench */}
           <div>
             <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-2" style={{ color: PINK }}>// DIAL IT IN</p>
-            <h3 className="text-2xl sm:text-3xl font-black tracking-[-0.02em] text-white">Move the Regler — the fin follows.</h3>
+            <h3 className="text-2xl sm:text-3xl font-black tracking-[-0.02em] text-white">Move the Regler. The fin follows.</h3>
 
             <div className="mt-8 space-y-7 max-w-[560px]">
               <div>
@@ -175,7 +175,7 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
                 {boardTypePicker(true)}
                 {noFinsYet && (
                   <p className="mt-2.5 text-[12.5px] leading-snug text-white/55">
-                    <span className="font-semibold text-white/75">No {boardType} fins yet</span> — the numbers below
+                    <span className="font-semibold text-white/75">No {boardType} fins yet</span>. The numbers below
                     apply to the race side of the range.
                   </p>
                 )}
@@ -193,7 +193,7 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
                   <p className={readout}>{inputs.sailSqm.toFixed(1)} m²</p>
                 </div>
                 <Range min={4.5} max={10} step={0.1} value={inputs.sailSqm} onChange={(v) => set("sailSqm", v)} ariaLabel="Sail size in square metres" />
-                <p className="text-[11.5px] text-white/35 mt-1">usual range for this setup: {result.sailOkLo.toFixed(1)}–{result.sailOkHi.toFixed(1)} m²</p>
+                <p className="text-[11.5px] text-white/35 mt-1">usual range for this setup: {result.sailOkLo.toFixed(1)}-{result.sailOkHi.toFixed(1)} m²</p>
               </div>
               <div>
                 <p className={label}>Wind</p>
@@ -235,7 +235,7 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
 
             <ul className="mt-5 space-y-1.5">
               {result.notes.map((n) => (
-                <li key={n} className="text-[12.5px] text-white/55 leading-snug flex gap-2"><span aria-hidden className="text-white/30">—</span>{n}</li>
+                <li key={n} className="text-[12.5px] text-white/55 leading-snug flex gap-2"><span aria-hidden className="text-white/30">·</span>{n}</li>
               ))}
             </ul>
 
@@ -251,11 +251,11 @@ export function FinSelector({ fins }: { fins: SelectorFin[] }) {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-[12.5px] text-white/45 mt-1.5">Size options land in the shop soon — this is the size to ask for.</p>
+                  <p className="text-[12.5px] text-white/45 mt-1.5">Size options land in the shop soon. This is the size to ask for.</p>
                 )}
                 {fin.slug && (
                   <Link href={`/hardware/${fin.slug}`} className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-[13.5px] font-bold text-black hover:-translate-y-0.5 transition-all" style={{ background: LIME }}>
-                    {fin.price != null ? `View — €${fin.price.toLocaleString("en-US")}` : "View the fin"} →
+                    {fin.price != null ? `View · €${fin.price.toLocaleString("en-US")}` : "View the fin"} →
                   </Link>
                 )}
               </div>

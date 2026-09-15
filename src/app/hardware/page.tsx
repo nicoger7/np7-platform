@@ -9,7 +9,7 @@ import { BONE, RED, INK, INK_SOFT, SAND, sandGrainOverlay, carbonWeave } from "@
 import { SandingSurface } from "@/components/hardware/sanding-surface";
 
 export const metadata: Metadata = {
-  title: { absolute: "NP7 Hardware — Custom Windsurf Boards & Fins" },
+  title: { absolute: "NP7 Hardware · Custom Windsurf Boards & Fins" },
   description:
     "Custom windsurf boards and fins, shaped on the bench by Nico Prien (GER-7). Carbon, hand-finished, built to ride.",
 };
@@ -144,7 +144,7 @@ export default async function HardwarePage() {
           </Reveal>
           <Reveal from="up" delay={200}>
             <p className="text-[16px] sm:text-[19px] text-white/65 max-w-[520px] font-medium">
-              Custom windsurf boards &amp; fins — shaped on the bench by Nico Prien, finished by hand.
+              Custom windsurf boards &amp; fins, shaped on the bench by Nico Prien and finished by hand.
             </p>
           </Reveal>
           <Reveal from="up" delay={280}>
@@ -274,7 +274,7 @@ export default async function HardwarePage() {
               <div>
                 <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-3" style={{ color: PINK }}>// THE WORKSHOP</p>
                 <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] mb-6 leading-[1.05]">Shaped on the bench.<br />Not stamped in a mould.</h2>
-                <p className="text-[16px] leading-relaxed mb-4" style={{ color: INK_SOFT }}>Every NP7 board and fin starts with a session and a sketch. Nico rides, tests and refines, then shapes and hand-finishes each piece — carbon dust, sweat and all.</p>
+                <p className="text-[16px] leading-relaxed mb-4" style={{ color: INK_SOFT }}>Every NP7 board and fin starts with a session and a sketch. Nico rides, tests and refines, then shapes and hand-finishes each piece. Carbon dust, sweat and all.</p>
                 <p className="text-[16px] leading-relaxed mb-8" style={{ color: INK_SOFT }}>Raw performance, finished with the details that make it yours. No committees, no compromises.</p>
                 <Link href="#products" className="inline-block px-7 py-4 rounded-full text-[14px] font-bold text-black bg-[#161510] hover:-translate-y-0.5 transition-all" style={{ color: LIME }}>Shop the range</Link>
               </div>

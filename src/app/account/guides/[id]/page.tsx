@@ -7,7 +7,7 @@ import { getGuideForMember, markGuideOpened, type GuideBlock } from "@/lib/porta
 import { fmtDates } from "@/lib/portal-status";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 
-export const metadata: Metadata = { title: "Your focus points — NP7" };
+export const metadata: Metadata = { title: "Your focus points · NP7" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -111,7 +111,7 @@ export default async function GuidePage({ params }: Props) {
               <div className="flex items-center gap-3 mt-5">
                 <CoachFace cutout={guide.coach?.cutout ?? null} />
                 <p className="text-[13.5px] font-semibold text-white leading-snug">
-                  {firstName ? `${firstName}, these` : "These"} are the moves {coachFirst ? <>coach <span className="text-[#ffc42e]">{coachFirst}</span> picked</> : "your coach picked"} for you. Read them before you rig — keep them in your head on the water. 🌊
+                  {firstName ? `${firstName}, these` : "These"} are the moves {coachFirst ? <>coach <span className="text-[#ffc42e]">{coachFirst}</span> picked</> : "your coach picked"} for you. Read them before you rig. Keep them in your head on the water. 🌊
                 </p>
               </div>
               {/* Chapter pills — the guide at a glance, each one a jump mark. */}
@@ -222,7 +222,7 @@ export default async function GuidePage({ params }: Props) {
           {/* The short version — what to murmur to yourself while rigging. */}
           {n > 1 && (
             <section className="mt-6 rounded-2xl border border-[#f0e6d6] bg-white p-5 sm:p-6">
-              <p className="text-[11px] font-bold tracking-[0.22em] uppercase text-[#b0791e] mb-3">Before you rig — the short version</p>
+              <p className="text-[11px] font-bold tracking-[0.22em] uppercase text-[#b0791e] mb-3">Before you rig · the short version</p>
               <ol className="space-y-2">
                 {guide.focus_points.map((fp, i) => (
                   <li key={i} className="flex items-baseline gap-2.5 text-[14px] text-[#00374a]">
@@ -260,7 +260,7 @@ export default async function GuidePage({ params }: Props) {
                 Take {n === 1 ? "it" : "them"} into the Wind Coach app
               </h2>
               <p className="text-[13.5px] text-white/75 leading-relaxed mt-2 max-w-[46ch] mx-auto">
-                Drills, video and progressions for {n === 1 ? "this focus point" : "every focus point above"} — so the week
+                Drills, video and progressions for {n === 1 ? "this focus point" : "every focus point above"}, so the week
                 keeps paying off long after you fly home.
               </p>
               <a

@@ -12,7 +12,7 @@ export default function PromoPreviewPage() {
   return (
     <div className="min-h-screen bg-[#f4f7f8] p-6">
       <div className="max-w-[1400px] mx-auto">
-        <h1 className="text-[#0a2a33] text-2xl font-black mb-3">Promo Studio — QA harness</h1>
+        <h1 className="text-[#0a2a33] text-2xl font-black mb-3">Promo Studio · QA harness</h1>
         <PromoStudio />
       </div>
     </div>

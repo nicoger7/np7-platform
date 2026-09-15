@@ -35,17 +35,17 @@ export function VerifyDestination({ destId, name, initial, isOwn, accent = "#00a
 
   return (
     <section className="rounded-2xl border-2 border-dashed border-[#e2d0a8] bg-[#fdf8ee] p-5 sm:p-6">
-      <p className="text-[12px] font-black uppercase tracking-[0.16em] text-[#b0791e]">Proposed area — riders decide</p>
+      <p className="text-[12px] font-black uppercase tracking-[0.16em] text-[#b0791e]">Proposed area · riders decide</p>
       {published ? (
-        <p className="mt-2 text-[15px] font-bold text-[#1f9e57]">{name} is now officially in the guide — thanks! 🎉</p>
+        <p className="mt-2 text-[15px] font-bold text-[#1f9e57]">{name} is now officially in the guide. Thanks! 🎉</p>
       ) : isOwn ? (
         <p className="mt-2 text-[13.5px] text-[#6a7a80]">
-          You proposed this area. It goes live once <b>{COMMUNITY_VERIFY_THRESHOLD} riders confirm it</b> (or one of its spots gets verified) — share it with someone who knows the place. 🤙
+          You proposed this area. It goes live once <b>{COMMUNITY_VERIFY_THRESHOLD} riders confirm it</b> (or one of its spots gets verified). Share it with someone who knows the place. 🤙
         </p>
       ) : (
         <>
           <p className="mt-2 text-[13.5px] text-[#6a7a80]">
-            A member proposed <b>{name}</b> as a windsurf area. Been here? Your word makes it official —
+            A member proposed <b>{name}</b> as a windsurf area. Been here? Your word makes it official:
             <span className="font-bold" style={{ color: accent }}> {state.confirms}/{COMMUNITY_VERIFY_THRESHOLD} confirms</span>.
             Verifying its spots below counts too.
           </p>

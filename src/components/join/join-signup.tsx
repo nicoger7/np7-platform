@@ -68,7 +68,7 @@ export function JoinSignup({
         <p className="text-[14px] text-[#0f6e56] mt-1.5 leading-relaxed">
           {reserved
             ? <>We&apos;ve sent a sign-in link to <strong>{email.trim()}</strong>. Open it to access your account and secure your spot.</>
-            : <>We&apos;ve emailed the full details to <strong>{email.trim()}</strong>. No rush — reserve your spot whenever you&apos;re ready.</>}
+            : <>We&apos;ve emailed the full details to <strong>{email.trim()}</strong>. No rush. Reserve your spot whenever you&apos;re ready.</>}
         </p>
         <a href="/account/login" className="inline-block mt-3 rounded-lg bg-[#00374a] text-white text-[14px] font-semibold px-5 py-2.5">Go to my account</a>
       </div>

@@ -52,7 +52,7 @@ export async function PortalChrome({ section }: { section?: "experience" | "hard
     <>
       {isPreview && (
         <div className="sticky top-0 z-[60] bg-[#b97608] text-white text-center text-[12.5px] font-semibold py-1.5 px-4">
-          Admin preview · read-only — this is the member’s own view. Actions are disabled.
+          Admin preview · read-only. This is the member’s own view. Actions are disabled.
         </div>
       )}
       {siteLive ? (

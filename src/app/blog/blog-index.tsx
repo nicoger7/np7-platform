@@ -81,7 +81,7 @@ export async function BlogIndexView({ world: activeWorld }: { world: BlogWorld }
           <h1 className="text-4xl sm:text-6xl font-black tracking-[-0.03em]">The NP7 Magazine</h1>
           <span className="block h-1.5 w-28 rounded-full mt-4" style={{ background: chrome.stripe }} />
           <p className="mt-5 text-[16px] sm:text-[18px] text-white/70 max-w-[600px]">
-            Spotguides, gear reviews, technique guides and stories — written between sessions by Nico and the crew.
+            Spotguides, gear reviews, technique guides and stories, written between sessions by Nico and the crew.
           </p>
 
           {/* one shared tab bar (identical on the Spotguide product) so switching
@@ -112,7 +112,7 @@ export async function BlogIndexView({ world: activeWorld }: { world: BlogWorld }
             </div>
           )}
           {posts.length === 0 ? (
-            <p className="text-center text-[#5a6b72] py-20">No stories here yet — check back soon.</p>
+            <p className="text-center text-[#5a6b72] py-20">No stories here yet. Check back soon.</p>
           ) : (
             <>
               {/* featured — newest in this filter */}

@@ -68,7 +68,7 @@ async function invoiceRecipient(booking: any): Promise<{ contact: InvoiceContact
     .maybeSingle();
   // A billing contact that has gone missing must not silently address the
   // invoice to the traveller instead — that would be a wrong document, quietly.
-  if (!data) throw new Error(`billing_contact_id ${billToId} not found — cannot address this invoice`);
+  if (!data) throw new Error(`Cannot address this invoice: billing_contact_id ${billToId} was not found.`);
   return { contact: data as InvoiceContact, billToId };
 }
 
@@ -561,7 +561,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   if ((booking as any).covered_by_booking_id && type !== "booking_confirmation") {
     const payer = await getCoverer(getDb(), bookingId);
     throw new Error(
-      `This booking is covered by ${payer?.payerName ?? "another booking"} — generate invoices on the payer's booking.`
+      `This booking is covered by ${payer?.payerName ?? "another booking"}. Generate invoices on the payer's booking.`
     );
   }
   // The payer's documents bill the WHOLE group: own trip + every covered one
@@ -689,7 +689,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   // reference — or returns it unchanged when the amount already matches.
   let existingProforma: DocumentRow | null = null;
   if (isProforma) {
-    if (proformaAmt <= 0) throw new Error("Nothing to request — this booking has no outstanding amount for this stage.");
+    if (proformaAmt <= 0) throw new Error("Nothing to request: this booking has no outstanding amount for this stage.");
     const admin0 = getDb();
     const { data: existing } = await admin0
       .from("documents").select("*")
@@ -704,16 +704,16 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   // Don't issue an invoice for a stage that doesn't exist in this plan
   // (e.g. a deposit invoice when the package has deposit = 0 → 2-stage plan).
   if (type === "deposit_invoice" && depositAmt <= 0) {
-    throw new Error("This booking has no deposit stage (deposit = 0) — nothing to invoice. Issue the down-payment invoice instead.");
+    throw new Error("This booking has no deposit stage (deposit = 0), so there is nothing to invoice. Issue the down-payment invoice instead.");
   }
   if (type === "downpayment_invoice" && downpaymentAmt <= 0) {
-    throw new Error("This booking has no down-payment stage — nothing to invoice.");
+    throw new Error("This booking has no down-payment stage, so there is nothing to invoice.");
   }
   if (type === "final_invoice" && uninvoiced <= 0.005) {
-    throw new Error("This booking has no outstanding final balance — nothing to invoice.");
+    throw new Error("This booking has no outstanding final balance, so there is nothing to invoice.");
   }
   if (type === "addon_invoice" && addonAmt <= 0) {
-    throw new Error("No un-invoiced add-ons on this booking — every confirmed extra is already on an invoice.");
+    throw new Error("No un-invoiced add-ons on this booking. Every confirmed extra is already on an invoice.");
   }
 
   /*
@@ -748,7 +748,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       throw new Error("A hand-set invoice amount has to be a positive number.");
     }
     if (!String(input.amountReason ?? "").trim()) {
-      throw new Error("Say why this amount differs from the calculated one — it is stored on the invoice.");
+      throw new Error("Say why this amount differs from the calculated one. The reason is stored on the invoice.");
     }
     if (amount == null) {
       throw new Error("This document type has no amount to override.");
@@ -766,7 +766,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       .from("documents").select("*").eq("id", input.reuseDocumentId).maybeSingle();
     if (!existing) throw new Error(`No document ${input.reuseDocumentId} to re-issue.`);
     if ((existing as DocumentRow & { sent_at?: string | null }).sent_at) {
-      throw new Error("That invoice has already been sent — correct it with a credit note, not by rewriting it.");
+      throw new Error("That invoice has already been sent. Correct it with a credit note, not by rewriting it.");
     }
     reuseRow = existing as DocumentRow;
   }
@@ -910,8 +910,8 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
               : ed?.kind === "event"
               ? "Invoice"
               : "Final Invoice"
-          } – ${exp.title}${ed?.label ? " · " + ed.label : ""}`
-        : `Booking Confirmation – ${exp.title}${ed?.label ? " · " + ed.label : ""}`,
+          }: ${exp.title}${ed?.label ? " · " + ed.label : ""}`
+        : `Booking Confirmation: ${exp.title}${ed?.label ? " · " + ed.label : ""}`,
       file_path: filePath,
       amount,
       currency,
@@ -1024,7 +1024,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
           division,
           type,
           invoice_number: burnedNumber,
-          title: `Voided – ${type.replace(/_/g, " ")} could not be issued`,
+          title: `Voided: ${type.replace(/_/g, " ")} could not be issued`,
           status: "void",
           issued_at: new Date().toISOString(),
           meta: { void_reason: "generation failed after the number was allocated", error: reason },

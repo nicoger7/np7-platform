@@ -403,7 +403,7 @@ export async function joinSurveyByOpenToken(openToken: string, nameRaw: string, 
       accepts_marketing: optIn,
       marketing_opt_in_at: optIn ? new Date().toISOString() : null,
     }).select("id").single();
-    if (error || !created) return { error: "Something went wrong — please try again." };
+    if (error || !created) return { error: "Something went wrong. Please try again." };
     contactId = String(created.id);
   } else if (optIn) {
     // Existing contact who ticked: upgrade. Only ever upgrade — an unticked box
@@ -436,7 +436,7 @@ async function findOrCreateOpenInvite(surveyId: string, contactId: string, first
     survey_id: surveyId, contact_id: contactId,
     token: generateSurveyToken(firstName), source: "open_link",
   }).select("token").single();
-  if (invErr || !inv) return { error: "Something went wrong — please try again." };
+  if (invErr || !inv) return { error: "Something went wrong. Please try again." };
   return { token: String(inv.token) };
 }
 
@@ -544,7 +544,7 @@ export function surveyInviteVars(survey: Survey | null, contactName: string | nu
   const dated = survey?.destinations.filter((d) => d.start || d.end) ?? [];
   if (survey && dated.length && survey.email_date_buttons !== false) {
     const fmt = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-    const range = (a?: string | null, b?: string | null) => a && b ? `${+a.slice(8, 10)}–${fmt(b)}` : fmt((a ?? b)!);
+    const range = (a?: string | null, b?: string | null) => a && b ? `${+a.slice(8, 10)}-${fmt(b)}` : fmt((a ?? b)!);
     // No default prefix: an empty CTA means the button is JUST the date.
     // With more than one place, the place becomes a HEADING and the buttons
     // carry only their dates. Repeating "(Lake Garda)" on every button made a
@@ -553,7 +553,7 @@ export function surveyInviteVars(survey: Survey | null, contactName: string | nu
     const places = new Set(dated.map((d) => d.label).filter(Boolean));
     const grouped = places.size > 1;
     vars.quickChoices = JSON.stringify(dated.map((d) => ({
-      label: `${cta ? `${cta} — ` : ""}${range(d.start, d.end)}${!grouped && dated.length > 1 && d.label ? ` (${d.label})` : ""}`,
+      label: `${cta ? `${cta} · ` : ""}${range(d.start, d.end)}${!grouped && dated.length > 1 && d.label ? ` (${d.label})` : ""}`,
       url: `${url}?pick=${encodeURIComponent(d.key)}`,
       group: grouped ? (d.label ?? null) : null,
     })));
@@ -610,7 +610,7 @@ export async function sendSurveyReminderEmail(inviteId: string, url: string, sub
     templateKey: "survey_invite",
     vars,
     dedupeKey: `survey_remind:${inviteId}`,
-    subjectOverride: subject?.trim() || `Quick reminder 🤙 — ${survey?.title ?? "your NP7 invite"}`,
+    subjectOverride: subject?.trim() || `Quick reminder 🤙: ${survey?.title ?? "your NP7 invite"}`,
     manual: true,
   });
   if (res.status === "sent") {

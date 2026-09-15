@@ -55,7 +55,7 @@ function SkillRow({ s, onLog, onUndo, busyId, logError }: { s: ProgressSkill } &
     : <Ico name="lock" size={18} color="#c0ccd0" />;
   const sub =
     s.state === "coach" ? "coach-verified" : s.state === "windcoach" ? "Wind Coach App verified"
-    : s.state === "self" ? "logged — get it verified on a trip" : s.state === "available" ? "ready to learn"
+    : s.state === "self" ? "logged · get it verified on a trip" : s.state === "available" ? "ready to learn"
     : `unlocks after ${s.prereqLabel ?? "the previous skill"}`;
   const right =
     s.state === "coach" ? <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-[3px] rounded-full" style={{ background: GOLD_BG, color: GOLD_TX }}><Ico name="check" size={13} color={GOLD} />Coach</span>
@@ -163,12 +163,12 @@ function TrackCard({ track, onLog, onUndo, busyId, logError }: { track: Track } 
       <div className="text-[13.5px] text-[#6a7a80] mb-0.5">
         <span className="font-black text-[15px] text-[#00374a]">{track.label}</span> &nbsp;·&nbsp; {track.verified}/{track.total} mastered
       </div>
-      <div className="text-[11.5px] text-[#9aa6ac] mb-2.5">Log what you can do — a coach on a trip (or the Wind Coach App) makes it count.</div>
+      <div className="text-[11.5px] text-[#9aa6ac] mb-2.5">Log what you can do. A coach on a trip (or the Wind Coach App) makes it count.</div>
 
       {isSide && (
         <div className="flex items-start gap-2 rounded-lg px-3 py-2 mb-2.5 text-[11.5px]" style={{ background: "#f6f3ee", color: "#8a949a" }}>
           <span className="shrink-0 mt-px"><Ico name="target" size={14} color="#b3bcc1" /></span>
-          <span>Side quest — extra mastery that shows on your profile. It doesn&rsquo;t move your core rank.</span>
+          <span>Side quest: extra mastery that shows on your profile. It doesn&rsquo;t move your core rank.</span>
         </div>
       )}
 
@@ -200,7 +200,7 @@ function TrackCard({ track, onLog, onUndo, busyId, logError }: { track: Track } 
 
       {next && (
         <div className="mt-3 pt-2.5 border-t border-[#f4ecdd] text-[12px] text-[#8a9aa0] flex items-center gap-1.5">
-          <Ico name="target" size={14} color={CYAN} /> Next up: <span className="font-bold text-[#00374a]">{next.label}</span> — get it coach-verified on a trip
+          <Ico name="target" size={14} color={CYAN} /> Next up: <span className="font-bold text-[#00374a]">{next.label}</span> · get it coach-verified on a trip
         </div>
       )}
     </div>
@@ -237,7 +237,7 @@ export function ProgressionView({ progression, avatarUrl, initials }: { progress
   const onUndo = (id: string) => runLog("DELETE", id);
 
   const toNextLabel = mastered
-    ? "Every core skill mastered — you're at the top"
+    ? "Every core skill mastered · you're at the top"
     : nextLevel
       ? `${toNext} ${toNext === 1 ? "skill" : "skills"} to ${nextLevel}`
       : `${toNext} ${toNext === 1 ? "skill" : "skills"} to full mastery`;
@@ -294,7 +294,7 @@ export function ProgressionView({ progression, avatarUrl, initials }: { progress
           verification year-round between trips. */}
       <div className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 mt-3" style={{ background: GOLD_BG, border: "1px solid #ecdcae" }}>
         <span className="shrink-0"><Ico name="check" size={20} color={GOLD} /></span>
-        <span className="text-[12.5px] flex-1" style={{ color: GOLD_TX }}>Coach-verified on an NP7 trip is the gold standard — the surest way to climb the ranks.</span>
+        <span className="text-[12.5px] flex-1" style={{ color: GOLD_TX }}>Coach-verified on an NP7 trip is the gold standard, the surest way to climb the ranks.</span>
         <Link href="/experience" className="text-[12px] font-bold text-white rounded-full px-3 py-1.5 whitespace-nowrap" style={{ background: CYAN }}>Book a trip</Link>
       </div>
       {/* Wind Coach verification isn't built yet — flip this to true when the
@@ -303,7 +303,7 @@ export function ProgressionView({ progression, avatarUrl, initials }: { progress
       {SHOW_WINDCOACH && (
         <a href={WINDCOACH_URL} target="_blank" rel="noopener" className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 mt-2 hover:brightness-[0.99] transition-all" style={{ background: "#efeafb", border: "1px solid #ddd2f2" }}>
           <span className="shrink-0"><Ico name="video" size={20} color={PURPLE} /></span>
-          <span className="text-[12.5px] flex-1" style={{ color: "#4a3b7a" }}>Between trips, keep progressing with <strong>Wind Coach</strong> — get your skills video-verified year-round.</span>
+          <span className="text-[12.5px] flex-1" style={{ color: "#4a3b7a" }}>Between trips, keep progressing with <strong>Wind Coach</strong> and get your skills video-verified year-round.</span>
           <span className="inline-flex items-center gap-1 text-[12px] font-bold text-white rounded-full px-3 py-1.5 whitespace-nowrap" style={{ background: PURPLE }}>Open Wind Coach ↗</span>
         </a>
       )}
@@ -344,7 +344,7 @@ export function ProgressionView({ progression, avatarUrl, initials }: { progress
       <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4 text-[11.5px] text-[#9aa6ac] items-center">
         <span className="inline-flex items-center gap-1"><Ico name="check" size={13} color={GOLD} /> coach-verified (trip)</span>
         <span className="inline-flex items-center gap-1"><Ico name="video" size={13} color={PURPLE} /> Wind Coach App video</span>
-        <span className="inline-flex items-center gap-1"><Ico name="circle" size={13} /> “I can do this” logs a skill — verification makes it count</span>
+        <span className="inline-flex items-center gap-1"><Ico name="circle" size={13} /> “I can do this” logs a skill · verification makes it count</span>
       </div>
     </div>
   );

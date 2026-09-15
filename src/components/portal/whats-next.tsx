@@ -152,7 +152,7 @@ export function buildWhatsNext(input: {
       // down-payment on something larger.
       label: m.kind === "final" ? `Balance · ${money(m.amount)}` : `${isEvent ? "Ticket" : m.kind === "deposit" ? "Deposit" : "Down-payment"} · ${money(m.amount)}`,
       short: m.kind === "final" ? "Balance" : isEvent ? "Ticket" : m.kind === "deposit" ? "Deposit" : "Down-payment",
-      detail: paid ? "Received — thank you." : m.kind === "final" ? "Bank transfer, details in your payment plan." : "Secures your spot. Fully refundable for 14 days.",
+      detail: paid ? "Received, thank you." : m.kind === "final" ? "Bank transfer, details in your payment plan." : "Secures your spot. Fully refundable for 14 days.",
       done: paid,
       due: asking && m.status === "due",
       href: paid ? undefined : "#payment",
@@ -167,7 +167,7 @@ export function buildWhatsNext(input: {
       label: "Your crew forms",
       short: "Your crew",
       detail: whatsappLink
-        ? (joinedGroup ? "You're in the group chat." : "The WhatsApp group is open — join it to meet the others.")
+        ? (joinedGroup ? "You're in the group chat." : "The WhatsApp group is open. Join it to meet the others.")
         : `We introduce the crew and open the WhatsApp group around ${fmt(crew) ?? "two months before"}.`,
       done: !!joinedGroup,
       href: whatsappLink && !joinedGroup ? whatsappLink : undefined,
@@ -197,7 +197,7 @@ export function buildWhatsNext(input: {
     drafts.push({
       when: start,
       last: true,
-      label: end ? `Trip · ${fmt(start)} – ${fmt(end)}` : `Trip · ${fmt(start)}`,
+      label: end ? `Trip · ${fmt(start)} - ${fmt(end)}` : `Trip · ${fmt(start)}`,
       short: "Your trip",
       detail: depositPaid || fullyPaid ? "Your spot is held." : "Held for you once the down-payment is in.",
     });

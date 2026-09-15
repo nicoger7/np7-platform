@@ -53,7 +53,7 @@ export function checkIban(raw: string | null | undefined): IbanCheck {
   if (expected && iban.length !== expected) {
     return {
       ok: false,
-      reason: `A ${country} IBAN is ${expected} characters — this one is ${iban.length}. ${
+      reason: `A ${country} IBAN is ${expected} characters. This one is ${iban.length}. ${
         iban.length < expected
           ? `${expected - iban.length} digit${expected - iban.length === 1 ? " is" : "s are"} missing. Check it against a bank statement.`
           : `${iban.length - expected} too many.`
@@ -61,7 +61,7 @@ export function checkIban(raw: string | null | undefined): IbanCheck {
     };
   }
   if (mod97(iban) !== 1) {
-    return { ok: false, reason: "That IBAN fails its own checksum — a digit is wrong or two are swapped. Copy it from your bank." };
+    return { ok: false, reason: "That IBAN fails its own checksum. A digit is wrong or two are swapped. Copy it from your bank." };
   }
   return { ok: true };
 }

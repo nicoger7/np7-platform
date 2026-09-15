@@ -12,7 +12,7 @@ import { flags } from "@/lib/flags";
 
 export const metadata: Metadata = {
   title: "Windsurf Spotguide",
-  description: "Honest windsurf spot guides, rated by NP7 and the crew. Real conditions, the forecast that works, and where to ride — destination by destination.",
+  description: "Honest windsurf spot guides, rated by NP7 and the crew. Real conditions, the forecast that works, and where to ride, destination by destination.",
   alternates: { canonical: "/spotguide" },
 };
 export const revalidate = 3600;
@@ -34,7 +34,7 @@ export default async function SpotguideIndex() {
     const d = destBySlug.get(p.destSlug);
     if (!d) return p;
     const level = d.level_min && d.level_max && d.level_min !== d.level_max
-      ? `${d.level_min}–${d.level_max}`
+      ? `${d.level_min}-${d.level_max}`
       : d.level_min || d.level_max || null;
     return {
       ...p,
@@ -64,7 +64,7 @@ export default async function SpotguideIndex() {
             <h1 className="text-4xl sm:text-6xl font-black tracking-[-0.03em]">Where to ride</h1>
             <span className="block h-1.5 w-28 rounded-full mt-4" style={{ background: chrome.stripe }} />
             <p className="mt-5 text-[16px] sm:text-[18px] text-white/75 max-w-[640px] leading-relaxed">
-              The windsurf community, mapping its world. Riders everywhere sharing the spots they know best — home waters, honest ratings, and the local knowledge no forecast app can give you. Explore it, then add yours.
+              The windsurf community, mapping its world. Riders everywhere sharing the spots they know best: home waters, honest ratings, and the local knowledge no forecast app can give you. Explore it, then add yours.
             </p>
             <div className="mt-8">
               <MagazineTabs active="spotguide" accent={chrome.accent} onAccent={chrome.onAccent} />
@@ -76,14 +76,14 @@ export default async function SpotguideIndex() {
           {dests.length === 0 ? (
             <div className="text-center py-20">
               <p className="text-[17px] font-bold text-[#00374a]">The guide is being built.</p>
-              <p className="text-[14px] text-[#6a7a80] mt-1">Check back soon — spots are on the way.</p>
+              <p className="text-[14px] text-[#6a7a80] mt-1">Check back soon. Spots are on the way.</p>
             </div>
           ) : (
             <>
               {/* Lead with contribution while the guide is young — it matters more than browsing right now. */}
               <div className="mb-10">
                 <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-1">Help build the guide</h2>
-                <p className="text-[13.5px] text-[#6a7a80] mb-3">Know a spot — or a whole destination we don&apos;t cover yet? Add it. Members verify it before it goes public.</p>
+                <p className="text-[13.5px] text-[#6a7a80] mb-3">Know a spot, or a whole destination we don&apos;t cover yet? Add it. Members verify it before it goes public.</p>
                 <ContributeSpot destinations={dests.map((d) => ({ id: d.id, name: d.name }))} accent={chrome.accent} />
               </div>
 

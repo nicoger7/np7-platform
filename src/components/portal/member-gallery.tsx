@@ -194,7 +194,7 @@ export function MemberGallery({
       const res = await fetch(`/api/portal/bookings/${bookingId}/photo-download`, { method: "POST" });
       if (!res.ok) {
         setRemaining(0);
-        setErr(res.status === 403 ? "You've used all your downloads — the gallery stays available to view." : "Couldn't start the download. Please try again.");
+        setErr(res.status === 403 ? "You've used all your downloads. The gallery stays available to view." : "Couldn't start the download. Please try again.");
         setZipping(false);
         return;
       }
@@ -266,7 +266,7 @@ export function MemberGallery({
             <svg className="w-4.5 h-4.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" /><path d="M16 6l-4-4-4 4" /><path d="M12 2v14" /></svg>
             Share your trip 🤙
           </button>
-          <p className="text-[12px] text-[#9aa6ac] mt-1.5">Post a branded card to your story — or tap the share icon on any photo.</p>
+          <p className="text-[12px] text-[#9aa6ac] mt-1.5">Post a branded card to your story, or tap the share icon on any photo.</p>
         </div>
       )}
       {keeperBookingId && (
@@ -306,10 +306,10 @@ export function MemberGallery({
     <>
       {keeperBookingId && (
         <div className="rounded-2xl border border-[#f6d9a8] bg-[#fff8ec] px-4 py-3 mb-4">
-          <p className="text-[13.5px] font-bold text-[#00374a]">⭐ Choose your keepers — {keepers.size} of {KEEPER_LIMIT} kept</p>
+          <p className="text-[13.5px] font-bold text-[#00374a]">⭐ Choose your keepers · {keepers.size} of {KEEPER_LIMIT} kept</p>
           <p className="text-[12.5px] text-[#8a6a2a] mt-0.5 leading-snug">
             Photos stay for a year after the trip (videos 3 months). Star up to {KEEPER_LIMIT} to keep forever
-            {keepers.size >= KEEPER_LIMIT ? " — unstar one to swap it." : "."}
+            {keepers.size >= KEEPER_LIMIT ? ". Unstar one to swap it." : "."}
           </p>
           {/* The star reverted — say why here, next to the keepers explainer, so the
               member knows the photo is NOT protected yet and stars it again. */}

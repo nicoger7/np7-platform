@@ -30,9 +30,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ? await getSurvey(token.slice(PREVIEW_PREFIX.length))
       : (await getSurveyForToken(token))?.survey ?? (await getSurveyByOpenToken(token));
     const label = (survey?.eyebrow ?? "").trim();
-    return { ...base, title: `NP7 — ${label || "a private invitation"}` };
+    return { ...base, title: `NP7 · ${label || "a private invitation"}` };
   } catch {
-    return { ...base, title: "NP7 — a private invitation" };
+    return { ...base, title: "NP7 · a private invitation" };
   }
 }
 export const dynamic = "force-dynamic";
@@ -137,7 +137,7 @@ export default async function SurveyPage({ params, searchParams }: Props) {
       {!isPreview && !isOpenLink && <StampOpened url={`/api/survey/${token}/opened`} />}
       {isPreview && (
         <div className="sticky top-0 z-30 bg-[#0a2a33] text-white text-[12.5px] font-bold text-center py-2 px-4">
-          👁 Preview — exactly what an invited member sees. Try it end-to-end; nothing you submit here is saved.
+          👁 Preview: exactly what an invited member sees. Try it end-to-end; nothing you submit here is saved.
         </div>
       )}
       {/* Immersive, aspirational hero — a real windsurf backdrop under a deep
@@ -173,7 +173,7 @@ export default async function SurveyPage({ params, searchParams }: Props) {
             <p className="text-[14px] mt-6 font-semibold" style={{ color: "#ffe0a0" }}>
               {survey.personal_note
                 ? survey.personal_note.replaceAll("{name}", firstName)
-                : `Hey ${firstName} — you're one of the few we're asking. 🤙`}
+                : `Hey ${firstName}, you're one of the few we're asking. 🤙`}
             </p>
           )}
         </div>
@@ -183,7 +183,7 @@ export default async function SurveyPage({ params, searchParams }: Props) {
         {survey.status === "closed" && !isPreview ? (
           <div className="rounded-2xl border border-[#ecdcbb] bg-white p-8 text-center shadow-[0_10px_30px_rgba(120,90,20,0.06)]">
             <h2 className="text-[19px] font-black text-[#00374a]">This invitation has closed</h2>
-            <p className="text-[14px] text-[#6a7a80] mt-2">Thanks for your interest — keep an eye on your inbox for what&apos;s next. 🌊</p>
+            <p className="text-[14px] text-[#6a7a80] mt-2">Thanks for your interest. Keep an eye on your inbox for what&apos;s next. 🌊</p>
           </div>
         ) : isOpenLink ? (
           <SurveyJoin openToken={token} />
@@ -194,7 +194,7 @@ export default async function SurveyPage({ params, searchParams }: Props) {
               : <SurveyForm survey={survey} token={token} contactName={contactName} existing={response} preview={isPreview} infoByKey={infoByKey} armed={armed} />}
             {!user && !isPreview && (
               <p className="text-[12.5px] text-[#9a8a6a] text-center mt-6">
-                Have an NP7 account? <Link href="/account" className="font-semibold text-[#b0791e] hover:underline">Log in</Link> — not required, this invitation is already personal to you.
+                Have an NP7 account? <Link href="/account" className="font-semibold text-[#b0791e] hover:underline">Log in</Link>. Not required though, this invitation is already personal to you.
               </p>
             )}
           </>

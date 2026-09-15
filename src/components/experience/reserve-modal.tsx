@@ -339,7 +339,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
         setSubmitting(false);
         return;
       }
-      if (!res.ok) { setError(json.error ?? "Something went wrong — please try again."); setSubmitting(false); return; }
+      if (!res.ok) { setError(json.error ?? "Something went wrong. Please try again."); setSubmitting(false); return; }
       track("register", { package: ctx.packageId, member });
       if (typeof json.bookingId === "string") setBookingId(json.bookingId);
       /* What the server actually created, never what was typed.
@@ -352,7 +352,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
       setRegistered(true);
       setSubmitting(false);
     } catch {
-      setError("Something went wrong — please try again.");
+      setError("Something went wrong. Please try again.");
       setSubmitting(false);
     } finally {
       inFlight.current = false;
@@ -669,7 +669,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
               <p className="text-[27px] font-black tracking-[-0.02em] text-[#00afdb] leading-none">Free today</p>
               {/* The second line follows the roster: quoting the payer's own
                   seat under a total for two reads as two prices for one thing. */}
-              <p className="text-[13px] text-[#5a6b72] mt-1.5">No card needed — pay <strong className="text-[#00374a]">{fmt(0)}</strong> to register.<br />
+              <p className="text-[13px] text-[#5a6b72] mt-1.5">No card needed. Pay <strong className="text-[#00374a]">{fmt(0)}</strong> to register.<br />
                 {roster.length > 0
                   ? <>{roster.length + 1} spots, from <strong className="text-[#00374a]">{money(groupTotal)}</strong> paid later.</>
                   : <>{ctx.level} · {ctx.accommodation}, from <strong className="text-[#00374a]">{fmt(ctx.price)}</strong> paid later.</>}
@@ -714,7 +714,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#9aa6ac] mb-2.5">How it works</p>
               <ol className="space-y-2">
                 {[
-                  "Register free today — no payment, no commitment.",
+                  "Register free today. No payment, no commitment.",
                   "We email you how it works & set up your account.",
                   // The securing step, with THIS package's real numbers (deposit if
                   // one is set; otherwise the catch-up downpayment) — generic if
@@ -724,7 +724,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                       ? `Secure ${spotsWord} with the refundable ${fmt(quote.deposit)} deposit · ${quote.refundDays} days to change your mind.${quote.milestones.some((m) => m.kind === "downpayment") ? ` Your ${quote.downpaymentPercent}% downpayment tops it up within ${quote.refundDays} days of signing up.` : ""}`
                       : `Secure ${spotsWord} with the ${quote.downpaymentPercent}% downpayment${quote.milestones[0] ? ` (${fmt(quote.milestones[0].amount)})` : ""}, due within ${quote.refundDays} days, so you've got time to sort flights first.`
                     : "Secure your spot with the refundable downpayment, no rush, you've got time.",
-                  "Plan it in your account — flights, extra nights & your team.",
+                  "Plan it in your account: flights, extra nights & your team.",
                   "Pay the balance later, then show up & ride.",
                 ].map((t, i) => (
                   <li key={i} className="flex items-start gap-2.5 text-[13px] text-[#5a6b72] leading-snug">
@@ -777,7 +777,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
 
                 <label className="flex items-start gap-2.5 mb-5 cursor-pointer">
                   <input type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#00afdb]" />
-                  <span className="text-[12.5px] text-[#5a6b72] leading-snug">Keep me posted on trips, tips &amp; the odd offer. <span className="text-[#9aa6ac]">(optional — you&apos;ll still get everything about your booking)</span></span>
+                  <span className="text-[12.5px] text-[#5a6b72] leading-snug">Keep me posted on trips, tips &amp; the odd offer. <span className="text-[#9aa6ac]">(optional: you&apos;ll still get everything about your booking)</span></span>
                 </label>
 
                 {error && <p className="text-[13px] text-red-500 mb-4">{error}</p>}

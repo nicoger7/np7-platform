@@ -90,7 +90,7 @@ export function fmtDates(start?: string | null, end?: string | null) {
   if (!start) return "Dates to be confirmed";
   const s = new Date(start), e = end ? new Date(end) : null;
   const d = (x: Date) => x.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-  return e ? `${d(s)} – ${d(e)} ${e.getFullYear()}` : `${d(s)} ${s.getFullYear()}`;
+  return e ? `${d(s)} - ${d(e)} ${e.getFullYear()}` : `${d(s)} ${s.getFullYear()}`;
 }
 
 export function money(n: number | null | undefined, currency?: string | null) {

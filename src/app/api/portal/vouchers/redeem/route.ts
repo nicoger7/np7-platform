@@ -87,7 +87,7 @@ export async function POST(req: Request) {
   const outstanding = total > 0 ? round(Math.max(0, total - paid)) : null;
   if (outstanding != null && outstanding <= 0) {
     return NextResponse.json(
-      { error: "This trip is already fully paid — there's nothing left for the voucher to cover." },
+      { error: "This trip is already fully paid. There's nothing left for the voucher to cover." },
       { status: 409 }
     );
   }

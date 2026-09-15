@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   const text = (body.body ?? "").trim();
   if (!slug || !spotName) return NextResponse.json({ error: "Missing spot." }, { status: 400 });
   if (text.length < 4) return NextResponse.json({ error: "Please write a little more." }, { status: 400 });
-  if (text.length > 1200) return NextResponse.json({ error: "That's a bit long — keep it under 1200 characters." }, { status: 400 });
+  if (text.length > 1200) return NextResponse.json({ error: "That's a bit long. Keep it under 1200 characters." }, { status: 400 });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;

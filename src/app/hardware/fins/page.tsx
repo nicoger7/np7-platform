@@ -9,8 +9,8 @@ import { NP7_LOGO } from "@/components/experience/ocean-header";
 import { GRAIN, PINK, sandGrainOverlay, carbonWeave } from "@/components/hardware/theme";
 
 export const metadata: Metadata = {
-  title: { absolute: "Fins — NP7 Hardware" },
-  description: "Slalom fins shaped, foiled and sanded on the bench by Nico Prien (GER-7) — and a selector that dials the right size to your board, sail and wind.",
+  title: { absolute: "Fins · NP7 Hardware" },
+  description: "Slalom fins shaped, foiled and sanded on the bench by Nico Prien (GER-7), plus a selector that dials the right size to your board, sail and wind.",
 };
 
 export const revalidate = 3600;
@@ -105,12 +105,12 @@ export default async function FinsPage() {
         <div aria-hidden className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 60% 45% at 78% 30%, rgba(228,228,224,0.14), transparent 65%), radial-gradient(ellipse 40% 30% at 62% 75%, rgba(228,228,224,0.07), transparent 60%)" }} />
         <div aria-hidden className="absolute inset-0 pointer-events-none" style={{ backgroundImage: GRAIN, opacity: 0.16 }} />
         <div className="relative max-w-[1200px] mx-auto px-6 sm:px-8">
-          <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-4" style={{ color: PINK }}>// FINS — THE QUIVER</p>
+          <p className="font-mono text-[11px] font-bold tracking-[0.25em] uppercase mb-4" style={{ color: PINK }}>// FINS · THE QUIVER</p>
           <h1 className="text-5xl sm:text-7xl font-black tracking-[-0.03em] uppercase leading-[0.95] max-w-[720px]">
             Shaped<br />to bite.
           </h1>
           <p className="mt-6 text-[16px] sm:text-[18px] text-white/60 max-w-[520px] font-medium">
-            Cut, foiled and wet-sanded on the bench — the dust barely settled. Every fin tested at GER-7 race pace before it ships.
+            Cut, foiled and wet-sanded on the bench. The dust has barely settled. Every fin tested at GER-7 race pace before it ships.
           </p>
           <div className="mt-8">
             <a href="#selector" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[14px] font-bold text-black hover:-translate-y-0.5 transition-all" style={{ backgroundColor: "#c6ff3a" }}>
@@ -120,7 +120,7 @@ export default async function FinsPage() {
           {/* disciplines — slalom rides first, the rest is in the shaping queue */}
           <div className="mt-8 flex flex-wrap items-center gap-2.5">
             <span className="px-4 py-2 rounded-full text-[12px] font-bold uppercase tracking-[0.12em] text-black bg-white">Slalom</span>
-            <span className="px-4 py-2 rounded-full text-[12px] font-bold uppercase tracking-[0.12em] text-white/30 border border-white/12">Freerace — in the queue</span>
+            <span className="px-4 py-2 rounded-full text-[12px] font-bold uppercase tracking-[0.12em] text-white/30 border border-white/12">Freerace · in the queue</span>
           </div>
         </div>
       </section>
@@ -140,7 +140,7 @@ export default async function FinsPage() {
           </Reveal>
 
           {fins.length === 0 ? (
-            <p className="text-[15px] text-[rgba(20,20,18,0.55)]">The first fins are on the bench — check back shortly.</p>
+            <p className="text-[15px] text-[rgba(20,20,18,0.55)]">The first fins are on the bench. Check back shortly.</p>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {fins.map((f, i) => (
@@ -180,7 +180,7 @@ export default async function FinsPage() {
                         </div>
                       )}
                       <div className="flex items-center justify-between mt-4">
-                        <span className="text-[18px] font-black text-[#141412]">{f.price != null ? `€${Number(f.price).toLocaleString("en-US")}` : "—"}</span>
+                        <span className="text-[18px] font-black text-[#141412]">{f.price != null ? `€${Number(f.price).toLocaleString("en-US")}` : "TBA"}</span>
                         <span className="text-[11.5px] font-bold uppercase tracking-[0.14em] text-[rgba(20,20,18,0.5)] group-hover:text-[#141412] transition-colors">View →</span>
                       </div>
                     </div>

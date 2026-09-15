@@ -5,7 +5,7 @@ import { getPortalUser } from "@/lib/auth";
 import { flags } from "@/lib/flags";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 
-export const metadata: Metadata = { title: "My gear — NP7" };
+export const metadata: Metadata = { title: "My gear · NP7" };
 export const dynamic = "force-dynamic";
 
 export default async function GearPage() {

@@ -64,12 +64,12 @@ function levelGuide(level: string): { title: string; blurb: string } | null {
   if (/beginner|starter|first/.test(l))
     return {
       title: "Beginner",
-      blurb: "Never windsurfed, or just a few lessons in — you'll nail the basics: getting going, steering and using the harness, with your own dedicated beginner coach (not the head coach).",
+      blurb: "Never windsurfed, or just a few lessons in? You'll nail the basics: getting going, steering and using the harness, with your own dedicated beginner coach (not the head coach).",
     };
   if (/advanced|pro|inter/.test(l))
     return {
       title: "Advanced",
-      blurb: "You've got the basics down. Now level up: planing, footstraps, the power jibe, controlled and light-wind planing and more — plus deep-dive theory and gear & technique workshops with head coach Nico.",
+      blurb: "You've got the basics down. Now level up: planing, footstraps, the power jibe, controlled and light-wind planing and more. Plus deep-dive theory and gear & technique workshops with head coach Nico.",
     };
   return null;
 }
@@ -319,7 +319,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
             const info = levelGuide(level);
             return info ? (
               <div className="mt-3 rounded-xl bg-[#f7fbfc] border border-[#e6eef0] px-4 py-3">
-                <p className="text-[13px] text-[#4a5b62] leading-relaxed"><span className="font-bold text-[#00374a]">{info.title}</span> — {info.blurb}</p>
+                <p className="text-[13px] text-[#4a5b62] leading-relaxed"><span className="font-bold text-[#00374a]">{info.title}</span>. {info.blurb}</p>
               </div>
             ) : null;
           })()}
@@ -376,7 +376,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
                             {sold && <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-[#9aa6ac]">Sold out</span>}
                           </span>
                           {g.key === "__none" && (
-                            <span className="block text-[12px] text-[#7a8a90]">Coaching &amp; program only — you sort your own stay</span>
+                            <span className="block text-[12px] text-[#7a8a90]">Coaching &amp; program only. You sort your own stay.</span>
                           )}
                         </span>
                       </span>
@@ -521,7 +521,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
             add-on on the booking, so every money surface already knows it */}
         {extras.length > 0 && (
           <div>
-            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">4 · Extras — optional</p>
+            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-[#9aa6ac] mb-3">4 · Extras (optional)</p>
             <div className="space-y-2">
               {extras.map((x) => {
                 const on = pickedExtras.has(x.id);
@@ -600,7 +600,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
                 <s className="block text-[14px] font-semibold text-white/35 leading-none mb-1">{fmt(selected.price)}</s>
               )}
               <span className="block text-3xl font-black tracking-[-0.02em] tabular-nums leading-none">
-                {selected ? fmt((launch ? lp(selected.price) : selected.price) + extrasSum + gearAdjustment(quote?.gear, gear, gear === "rental" ? rentalTier : null)) : "—"}
+                {selected ? fmt((launch ? lp(selected.price) : selected.price) + extrasSum + gearAdjustment(quote?.gear, gear, gear === "rental" ? rentalTier : null)) : "-"}
               </span>
             </span>
           </div>
@@ -626,7 +626,7 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
               <div key={`${m.kind}-${m.dueDate ?? m.dueLabel}`} className="flex items-start justify-between gap-3 text-[12.5px]">
                 <span className="min-w-0">
                   <span className="block text-white/75">
-                    {m.kind === "deposit" ? "Deposit — secures your spot" : m.kind === "downpayment" ? `Downpayment · ${quote.downpaymentPercent}%` : "Final balance"}
+                    {m.kind === "deposit" ? "Deposit · secures your spot" : m.kind === "downpayment" ? `Downpayment · ${quote.downpaymentPercent}%` : "Final balance"}
                   </span>
                   <span className="block text-[11px] text-white/40">{m.dueLabel}</span>
                 </span>
@@ -641,10 +641,10 @@ export function PackagePicker({ packages, extras = [], currency = "EUR", reserve
           disabled={!reserve || !selected}
           className="w-full px-7 py-4 rounded-full text-[14px] font-bold bg-[#00afdb] text-white shadow-[0_4px_20px_rgba(0,175,219,0.35)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all disabled:opacity-60"
         >
-          Reserve my spot — free
+          Reserve my spot · free
         </button>
         <p className="text-[12px] text-white/40 text-center mt-3">
-          Register free today — your payment plan is shown before you confirm
+          Register free today. Your payment plan is shown before you confirm.
         </p>
         </div>
       </aside>

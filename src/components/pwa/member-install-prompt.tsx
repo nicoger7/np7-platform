@@ -29,7 +29,7 @@ export function MemberInstallPrompt({ env }: { env: "experience" | "hardware" })
     <InstallPrompt
       storageKey="member"
       appName="NP7"
-      tagline="Open NP7 like an app — your trips & level, one tap away"
+      tagline="Open NP7 like an app: your trips & level, one tap away"
       iconSrc="/icons/icon-192.png"
       theme={THEMES[env]}
     />

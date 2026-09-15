@@ -10,7 +10,7 @@ import { BrandedTile } from "@/components/experience/branded-tile";
 import { placeFromLocation, flagFromLocation } from "@/lib/experience-tile";
 import { customFlagRules } from "@/lib/flag-store";
 
-export const metadata: Metadata = { title: "My trips — NP7" };
+export const metadata: Metadata = { title: "My trips · NP7" };
 export const dynamic = "force-dynamic";
 
 export default async function MyTrips() {
@@ -34,13 +34,13 @@ export default async function MyTrips() {
             <MemberHomeBanner
               images={bannerImages}
               title="My trips"
-              subtitle={bookings.length ? "Tap a trip to manage everything — payment, prep, photos and more." : "Your booked trips will show up here."}
+              subtitle={bookings.length ? "Tap a trip to manage everything: payment, prep, photos and more." : "Your booked trips will show up here."}
             />
           </div>
 
           {bookings.length === 0 ? (
             <div className="bg-white rounded-2xl border border-[#f0e6d6] p-8 text-center">
-              <p className="text-[15px] text-[#6a7a80] mb-5">No trips yet — your next adventure is waiting.</p>
+              <p className="text-[15px] text-[#6a7a80] mb-5">No trips yet. Your next adventure is waiting.</p>
               <Link href="/experience" className="inline-block px-7 py-3.5 rounded-full text-[14px] font-bold text-white bg-[#00afdb]">Explore experiences</Link>
             </div>
           ) : (
@@ -79,7 +79,7 @@ export default async function MyTrips() {
                       </p>
                       {b.pkg?.name && <p className="text-[13px] text-[#9aa6ac] mt-1.5">{b.pkg.name.replace(/^[A-Za-z0-9]+\s*[-–—]\s*/, "").trim() || b.pkg.name}</p>}
                       <div className="flex items-center justify-between mt-4 pt-4 border-t border-[#f3ede2]">
-                        <span className="text-[14px] font-bold text-[#00374a]">{money(b.agreed_price, b.experience?.currency) ?? "—"}</span>
+                        <span className="text-[14px] font-bold text-[#00374a]">{money(b.agreed_price, b.experience?.currency) ?? ""}</span>
                         <span className="inline-flex items-center gap-1.5 text-[12px] font-bold text-[#00afdb] group-hover:gap-2.5 transition-all">
                           Manage trip
                           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>

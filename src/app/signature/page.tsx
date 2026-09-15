@@ -14,14 +14,14 @@ import { getMemberApplication, verifyApplications } from "@/lib/signature";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Signature Trips — invite-only windsurf expeditions",
-  description: "NP7's most special windsurf trips — small, hand-picked crews in one-of-a-kind places, each built from scratch. Premium, small-group and by application only.",
+  title: "Signature Trips: invite-only windsurf expeditions",
+  description: "NP7's most special windsurf trips: small, hand-picked crews in one-of-a-kind places, each built from scratch. Premium, small-group and by application only.",
   // Link-only for now: reachable at /signature but kept out of search + sitemap
   // while the Experience world isn't public on main. (Flip to index later.)
   robots: { index: false, follow: false },
   alternates: { canonical: "/signature" },
   openGraph: {
-    title: "Signature Trips — invite-only windsurf expeditions by NP7",
+    title: "Signature Trips: invite-only windsurf expeditions by NP7",
     description: "Small, hand-picked, unforgettable. Apply to join an NP7 Signature Trip.",
     url: "/signature",
     images: [{ url: cdn("hero/windsurf-hero-poster.jpg") }],
@@ -104,7 +104,7 @@ export default async function SignatureTripsPage() {
               <span className={`inline-flex items-center gap-2 uppercase ${EYEBROW}`} style={{ color: "#ffd97a" }}><span aria-hidden>✦</span> By application only</span>
               <h1 className="text-[46px] sm:text-6xl lg:text-[70px] font-black text-white leading-[0.96] tracking-[-0.035em] mt-4 drop-shadow-[0_4px_30px_rgba(0,0,0,0.35)]">Signature Trips</h1>
               <p className="mt-5 text-[17px] sm:text-[20px] text-white/85 max-w-[580px] font-medium leading-relaxed">
-                Our most special windsurf trips — small, hand-picked crews and one-of-a-kind places, each built from scratch. No two the same. Think Madagascar, Mauritius — spots most people never reach.
+                Our most special windsurf trips: small, hand-picked crews and one-of-a-kind places, each built from scratch. No two the same. Think Madagascar and Mauritius, spots most people never reach.
               </p>
               <a href="#apply" className="inline-flex items-center gap-2 mt-8 px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white shadow-[0_8px_30px_rgba(255,255,255,0.2)] hover:-translate-y-0.5 transition-all">
                 Apply for a spot
@@ -122,10 +122,10 @@ export default async function SignatureTripsPage() {
                 <p className={`${EYEBROW} mb-3`}>NOT YOUR AVERAGE TRIP</p>
                 <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-white mb-4">The trips we don&apos;t put on the website</h2>
                 <p className="text-[16px] sm:text-[17px] text-white/70 leading-relaxed">
-                  A Signature Trip isn&apos;t a package you book — it&apos;s a small group we put together ourselves. We keep the crew tight and the vibe right, because the people make the trip. That&apos;s why these run <strong className="text-white/90">by application</strong>: we want to know who&apos;s coming.
+                  A Signature Trip isn&apos;t a package you book. It&apos;s a small group we put together ourselves. We keep the crew tight and the vibe right, because the people make the trip. That&apos;s why these run <strong className="text-white/90">by application</strong>: we want to know who&apos;s coming.
                 </p>
                 <p className="text-[15px] text-white/55 leading-relaxed mt-4">
-                  This is the very top of what we do — no compromises, nothing left to chance. The kind of week you&apos;ll be telling stories about for years.
+                  This is the very top of what we do. No compromises, nothing left to chance. The kind of week you&apos;ll be telling stories about for years.
                 </p>
               </Reveal>
             </div>
@@ -137,7 +137,7 @@ export default async function SignatureTripsPage() {
               <Reveal className="text-center max-w-[620px] mx-auto mb-8">
                 <p className={`${EYEBROW} mb-3`}>NO TWO ALIKE</p>
                 <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-white">Every trip is one of a kind</h2>
-                <p className="text-[15px] text-white/65 mt-3 leading-relaxed">We never run the same trip twice. Each one is built from scratch — a place worth the journey, a stay chosen just for it, the locals who make it, and a crew that fits.</p>
+                <p className="text-[15px] text-white/65 mt-3 leading-relaxed">We never run the same trip twice. Each one is built from scratch: a place worth the journey, a stay chosen just for it, the locals who make it, and a crew that fits.</p>
               </Reveal>
               <Reveal>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -158,7 +158,7 @@ export default async function SignatureTripsPage() {
               <Reveal className="text-center max-w-[600px] mx-auto mb-9">
                 <p className={`${EYEBROW} mb-3`}>WHERE WE&apos;VE BEEN</p>
                 <h2 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-white">Our last Signature Trip</h2>
-                <p className="text-[15px] text-white/65 mt-3 leading-relaxed">One trip, two islands — Madagascar &amp; Mauritius. Emerald lagoons, empty walls, a beachfront villa, and a crew that clicked from day one.</p>
+                <p className="text-[15px] text-white/65 mt-3 leading-relaxed">One trip, two islands: Madagascar &amp; Mauritius. Emerald lagoons, empty walls, a beachfront villa, and a crew that clicked from day one.</p>
               </Reveal>
               <Reveal>
                 <div className="relative rounded-[22px] overflow-hidden h-[300px] sm:h-[440px] border border-white/10">
@@ -184,9 +184,9 @@ export default async function SignatureTripsPage() {
                 <div className="rounded-[24px] bg-white/[0.05] border border-white/10 backdrop-blur-sm p-7 sm:p-9">
                   <p className={`${EYEBROW} mb-5`}>HOW IT WORKS</p>
                   <div className="space-y-5">
-                    <Step n="1" title="Apply" body="A few details and a short video or voice note — tell us who you are and why this trip." />
-                    <Step n="2" title="We review it personally" body="Every application comes straight to the team — no bots, no forms lost in an inbox." />
-                    <Step n="3" title="We talk" body="If there's a fit, we'll reach out — often just a quick call to say hello." />
+                    <Step n="1" title="Apply" body="A few details and a short video or voice note. Tell us who you are and why this trip." />
+                    <Step n="2" title="We review it personally" body="Every application comes straight to the team. No bots, no forms lost in an inbox." />
+                    <Step n="3" title="We talk" body="If there's a fit, we'll reach out, often just a quick call to say hello." />
                     <Step n="4" title="You're invited" body="Get the details of the trip and your spot. That's when the countdown begins. 🌊" />
                   </div>
                 </div>
@@ -200,7 +200,7 @@ export default async function SignatureTripsPage() {
               <Reveal className="text-center max-w-[600px] mx-auto mb-9">
                 <p className={`${EYEBROW} mb-3`}>YOUR TURN</p>
                 <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-white mb-3">Apply for a Signature Trip</h2>
-                <p className="text-[15px] text-white/70">Two minutes. The pitch is the part that matters — we&apos;d rather hear you than read a CV.</p>
+                <p className="text-[15px] text-white/70">Two minutes. The pitch is the part that matters. We&apos;d rather hear you than read a CV.</p>
               </Reveal>
               <SignatureApply loggedIn={!!user} prefill={prefill} existing={existing} />
             </div>

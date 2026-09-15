@@ -147,7 +147,7 @@ export function EditionBooking({
           <div className="text-center">
             <span className="inline-block px-3 py-1 rounded-full text-[12px] font-bold text-white bg-[#f47b20] mb-3">Fully booked</span>
             <h3 className="text-[20px] font-black text-[#00374a] mb-1.5">{multi ? "This week is fully booked" : "This trip is fully booked"}</h3>
-            <p className="text-[14px] text-[#5a6b72] leading-relaxed">Every spot is taken — but you&apos;ve still got options.</p>
+            <p className="text-[14px] text-[#5a6b72] leading-relaxed">Every spot is taken. You&apos;ve still got options.</p>
           </div>
 
           {/* This season's other open weeks — book now, spot secured with the down-payment. */}
@@ -188,7 +188,7 @@ export function EditionBooking({
           )}
 
           <div className="mt-5 pt-4 border-t border-[#f0e6d6] flex flex-col sm:flex-row items-center justify-center gap-2.5 sm:gap-4 text-center">
-            <a href={`mailto:experience@np-seven.com?subject=Waitlist: ${experienceTitle}${ed?.label ? " · " + ed.label : ""}`} className="text-[13px] font-bold text-[#5a6b72] hover:text-[#00374a] transition-colors">Waitlist this week — tell me if a spot opens</a>
+            <a href={`mailto:experience@np-seven.com?subject=Waitlist: ${experienceTitle}${ed?.label ? " · " + ed.label : ""}`} className="text-[13px] font-bold text-[#5a6b72] hover:text-[#00374a] transition-colors">Waitlist this week · tell me if a spot opens</a>
             {showAllTrips && <span className="hidden sm:inline text-[#d3dbde]">·</span>}
             {showAllTrips && (
               <a href="/experience" className="text-[13px] font-bold text-[#00afdb] hover:underline">Explore other trips →</a>
@@ -252,7 +252,7 @@ function WeekInterestForm({ experienceId, editionId }: { experienceId: string; e
   if (state === "done") {
     return (
       <p className="text-center text-[15px] font-bold text-[#00374a]">
-        You&apos;re on the list — we&apos;ll email you the packages the moment this week opens for booking.
+        You&apos;re on the list. We&apos;ll email you the packages the moment this week opens for booking.
       </p>
     );
   }
@@ -270,8 +270,8 @@ function WeekInterestForm({ experienceId, editionId }: { experienceId: string; e
           {state === "busy" ? "Saving…" : "Keep me posted"}
         </button>
       </form>
-      {state === "error" && <p className="mt-2 text-[12.5px] font-semibold text-[#c2410c]">Something went wrong — please try again.</p>}
-      <p className="mt-2 text-[11.5px] text-[#8a9aa0]">No commitment — we&apos;ll only email you about this trip.</p>
+      {state === "error" && <p className="mt-2 text-[12.5px] font-semibold text-[#c2410c]">Something went wrong. Please try again.</p>}
+      <p className="mt-2 text-[11.5px] text-[#8a9aa0]">No commitment. We&apos;ll only email you about this trip.</p>
     </div>
   );
 }

@@ -160,7 +160,7 @@ async function onDepositPaid(bookingId: string, origin: string): Promise<void> {
       x.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
     const s = new Date(dateStart);
     const e = dateEnd ? new Date(dateEnd) : null;
-    dates = e ? `${d(s)} – ${d(e)} ${e.getFullYear()}` : `${d(s)} ${s.getFullYear()}`;
+    dates = e ? `${d(s)} - ${d(e)} ${e.getFullYear()}` : `${d(s)} ${s.getFullYear()}`;
   }
 
   // Generate + FILE the deposit invoice and booking confirmation PDFs (best-effort).
@@ -206,7 +206,7 @@ function fmtEventDates(start?: string | null, end?: string | null): string | und
   const full: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short", year: "numeric" };
   if (!end || end === start) return d(start, full);
   const sameMonth = start.slice(0, 7) === end.slice(0, 7);
-  return `${d(start, sameMonth ? { weekday: "short", day: "numeric" } : { weekday: "short", day: "numeric", month: "short" })} – ${d(end, full)}`;
+  return `${d(start, sameMonth ? { weekday: "short", day: "numeric" } : { weekday: "short", day: "numeric", month: "short" })} - ${d(end, full)}`;
 }
 
 async function onEventPayment(

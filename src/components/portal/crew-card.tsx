@@ -55,7 +55,7 @@ export function CrewCard({
         <div className="rounded-2xl border border-[#c7e7f0] bg-gradient-to-br from-[#ecfaff] to-[#f3fbfd] p-4 sm:p-5">
           <p className="text-[18px] font-black tracking-[-0.02em] text-[#00374a] leading-tight">{going > 1 ? `${going} riders going` : "Your crew"}</p>
           <p className="text-[13px] text-[#5a7a86] mt-1.5">
-            No one&apos;s shared a profile yet — <Link href="/account/profile" className="font-bold text-[#00849e] hover:underline">share yours</Link> to break the ice.
+            No one&apos;s shared a profile yet. <Link href="/account/profile" className="font-bold text-[#00849e] hover:underline">Share yours</Link> to break the ice.
           </p>
         </div>
       )}

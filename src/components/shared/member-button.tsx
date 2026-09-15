@@ -156,7 +156,7 @@ export function MemberButton({
           ) : (
             <div className="p-4">
               <p className="text-[14px] font-extrabold text-[#00374a]">My NP7</p>
-              <p className="text-[12.5px] text-[#8a9aa0] mt-0.5 mb-3">Trips, photos &amp; your progression — all in one place.</p>
+              <p className="text-[12.5px] text-[#8a9aa0] mt-0.5 mb-3">Trips, photos &amp; your progression, all in one place.</p>
               <button
                 type="button"
                 onClick={() => { setMenuOpen(false); setAuth("login"); }}

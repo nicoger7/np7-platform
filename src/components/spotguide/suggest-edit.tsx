@@ -68,9 +68,9 @@ export function SuggestEdit({ spotId, current, accent = "#00afdb" }: { spotId: s
 
   if (result) {
     const { applied, pending } = result;
-    const msg = applied > 0 && pending === 0 ? "Fixed — that's live now. 🤙"
+    const msg = applied > 0 && pending === 0 ? "Fixed, that's live now. 🤙"
       : applied > 0 ? "Some fixes are live; the rest the crew will review and fold in. 🙏"
-      : "Thanks — the crew will review it and fold it in. 🙏";
+      : "Thanks! The crew will review it and fold it in. 🙏";
     return (
       <div className="mt-2 rounded-xl border border-[#cdeede] bg-[#f0faf4] p-3.5">
         <p className="text-[13px] font-semibold text-[#1f7a4d]">{msg}</p>
@@ -103,7 +103,7 @@ export function SuggestEdit({ spotId, current, accent = "#00afdb" }: { spotId: s
       <div>
         <textarea className={`${input} min-h-[96px] resize-y`} value={info} onChange={(e) => setInfo(e.target.value)} autoFocus
           placeholder="What should we add or fix? e.g. “there's also a snack bar by the launch”, “the inside is shallower than it says at low tide”." />
-        <p className="text-[11px] text-[#9aa6ac] mt-1">You&apos;re not rewriting the text — just tell us what to add or correct. Once enough members confirm it, we fold it into the description.</p>
+        <p className="text-[11px] text-[#9aa6ac] mt-1">You&apos;re not rewriting the text, just tell us what to add or correct. Once enough members confirm it, we fold it into the description.</p>
       </div>
 
       {/* Optional canonical fixes — toggle them on; your text is never lost */}
@@ -125,7 +125,7 @@ export function SuggestEdit({ spotId, current, accent = "#00afdb" }: { spotId: s
         </div>
       )}
       {(nameOn || pinOn) && (
-        <input className={input} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why? (optional — helps others confirm the name / pin fix)" />
+        <input className={input} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why? (optional, helps others confirm the name / pin fix)" />
       )}
 
       {error && <p className="text-[12.5px] text-red-500">{error}</p>}

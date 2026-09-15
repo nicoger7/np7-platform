@@ -2,7 +2,7 @@ import Link from "next/link";
 import { NP7_LOGO } from "@/components/experience/ocean-header";
 import { AuthForm } from "@/components/shared/auth-form";
 
-export const metadata = { title: "Log in — NP7" };
+export const metadata = { title: "Log in · NP7" };
 
 /**
  * Fallback auth page (the popup is the primary entry point). Reached by no-JS

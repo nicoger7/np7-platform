@@ -41,7 +41,7 @@ export function InstallIosModal({
         </div>
 
         <p className="mt-1 text-sm" style={{ color: theme.surfaceMuted }}>
-          Open it like an app — full screen, one tap from your phone.
+          Open it like an app. Full screen, one tap from your phone.
         </p>
 
         <ol className="mt-5 space-y-4">
@@ -55,7 +55,7 @@ export function InstallIosModal({
             <PlusIcon color={theme.accent} />.
           </Step>
           <Step n={3} theme={theme}>
-            Tap <strong>Add</strong> — done. {appName} now lives on your home screen.
+            Tap <strong>Add</strong> and you&apos;re done. {appName} now lives on your home screen.
           </Step>
         </ol>
 

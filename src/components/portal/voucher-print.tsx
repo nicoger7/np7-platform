@@ -55,7 +55,7 @@ export function VoucherPrint({
 
           <div className="h-[3px] w-full rounded-full mb-5" style={{ background: "linear-gradient(90deg,#ffc42e,#f47b20,#00afdb)" }} />
           <p className="text-[13px] text-[#6a7a80] leading-relaxed">
-            <strong className="text-[#00374a]">How to redeem:</strong> create a free account at <strong>np-seven.com</strong>, start a booking for this trip and enter the voucher code{by ? <> — valid until <strong>{by}</strong></> : ""}. Questions? experience@np-seven.com
+            <strong className="text-[#00374a]">How to redeem:</strong> create a free account at <strong>np-seven.com</strong>, start a booking for this trip and enter the voucher code{by ? <>, valid until <strong>{by}</strong></> : ""}. Questions? experience@np-seven.com
           </p>
         </div>
       </div>

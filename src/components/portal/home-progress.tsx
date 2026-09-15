@@ -105,10 +105,10 @@ export function HomeProgress({ progression, selfLevel, avatarUrl, initials }: { 
         /* Pure newbie — nothing logged or verified: an invitation, not a wall of empty bars. */
         <>
           <p className="mt-4 text-[13px] text-[#cde4ec] leading-relaxed">
-            <strong className="text-white">Log what you can already do</strong> to start filling your ladder — then a coach on the water (or the <strong className="text-white">Wind Coach App</strong>) makes it count toward your rank.
+            <strong className="text-white">Log what you can already do</strong> to start filling your ladder. Then a coach on the water (or the <strong className="text-white">Wind Coach App</strong>) makes it count toward your rank.
           </p>
           <div className="flex items-center justify-between gap-4 mt-4 pt-3.5" style={{ borderTop: "1px solid rgba(255,255,255,.12)" }}>
-            <span className="text-[12px] text-[#9fc9d6]">6 ranks to climb — Beginner → Pro</span>
+            <span className="text-[12px] text-[#9fc9d6]">6 ranks to climb · Beginner → Pro</span>
             <span className="inline-flex items-center gap-1 text-[13px] font-bold text-white group-hover:gap-2 transition-all">
               Start now
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
@@ -141,7 +141,7 @@ export function HomeProgress({ progression, selfLevel, avatarUrl, initials }: { 
               {mastered && side && sideRemaining > 0 && (
                 <p className="mt-3 text-[12.5px] text-[#cde4ec] flex items-center gap-1.5">
                   <Target className="w-3.5 h-3.5 shrink-0" style={{ color: GOLD }} />
-                  Next challenge: <span className="font-bold text-white">{side.label}</span> — {sideRemaining} to go
+                  Next challenge: <span className="font-bold text-white">{side.label}</span> · {sideRemaining} to go
                 </p>
               )}
               <div className="flex items-center justify-between gap-4 mt-3 pt-3.5" style={{ borderTop: "1px solid rgba(255,255,255,.12)" }}>

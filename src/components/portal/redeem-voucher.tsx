@@ -42,7 +42,7 @@ export function RedeemVoucher({ bookingId }: { bookingId: string }) {
       : null;
     return (
       <div className="text-[12.5px] font-semibold text-green-600">
-        ✓ Voucher applied — your payment plan has been updated.
+        ✓ Voucher applied. Your payment plan has been updated.
         {surplus && (
           <span className="block font-normal text-[#8a9aa0] mt-0.5">
             It covered the full balance; the remaining {surplus} isn&apos;t carried over.

@@ -21,9 +21,9 @@ function fmtRange(start?: string | null, end?: string | null): string {
   const f = (d: string, o: Intl.DateTimeFormatOptions) => new Date(d + "T00:00:00").toLocaleDateString("en-GB", o);
   const full: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" };
   if (start && end) {
-    if (start.slice(0, 7) === end.slice(0, 7)) return `${+start.slice(8, 10)} – ${f(end, full)}`;
-    if (start.slice(0, 4) === end.slice(0, 4)) return `${f(start, { day: "numeric", month: "short" })} – ${f(end, full)}`;
-    return `${f(start, full)} – ${f(end, full)}`;
+    if (start.slice(0, 7) === end.slice(0, 7)) return `${+start.slice(8, 10)}-${f(end, full)}`;
+    if (start.slice(0, 4) === end.slice(0, 4)) return `${f(start, { day: "numeric", month: "short" })} - ${f(end, full)}`;
+    return `${f(start, full)} - ${f(end, full)}`;
   }
   return f((start ?? end)!, full);
 }
@@ -51,7 +51,7 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
   const [pending, setPending] = useState(!!armed);
   const [msg, setMsg] = useState(() => {
     const lf = existing?.looking_for ?? "";
-    return lf.startsWith(DECLINE_NOTE) ? lf.slice(DECLINE_NOTE.length).replace(/^\s*—\s*/, "") : lf;
+    return lf.startsWith(DECLINE_NOTE) ? lf.slice(DECLINE_NOTE.length).replace(/^\s*[—·]\s*/, "") : lf;
   });
   const [flash, setFlash] = useState<null | "saved" | "error">(justSaved ? "saved" : null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -67,7 +67,7 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
   async function persist(nextPicks: Set<string>, nextDeclined: boolean, nextMsg: string, nextTop: string | null) {
     if (preview) { showSaved(); return; }
     const looking_for = nextDeclined
-      ? (nextMsg.trim() ? `${DECLINE_NOTE} — ${nextMsg.trim()}` : DECLINE_NOTE)
+      ? (nextMsg.trim() ? `${DECLINE_NOTE} · ${nextMsg.trim()}` : DECLINE_NOTE)
       : (nextMsg.trim() || null);
     // the starred date is the top pick; a single pick is implicitly the favourite
     const top = nextDeclined ? null : (nextTop && nextPicks.has(nextTop) ? nextTop : nextPicks.size === 1 ? [...nextPicks][0] : null);
@@ -108,7 +108,7 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
       {/* floating save state — the whole page is autosave, this is the receipt */}
       <div className={`pointer-events-none fixed top-4 inset-x-0 z-40 flex justify-center transition-all duration-300 ${flash ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-3"}`}>
         <span className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-black text-white shadow-lg ${flash === "error" ? "bg-[#c0392b]" : "bg-[#1f9e57]"}`}>
-          {flash === "error" ? "Hmm — that didn't save. Try again?" : "Saved ✓ — nothing else to do"}
+          {flash === "error" ? "Hmm, that didn't save. Try again?" : "Saved ✓ · nothing else to do"}
         </span>
       </div>
 
@@ -141,18 +141,18 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
             rider they're on the list. The confirm button above is the truth. */}
         {declined && !pending ? (
           <>
-            <h2 className="text-[24px] sm:text-[30px] font-black tracking-[-0.02em] text-[#00374a]">All good — thanks for telling us 🤙</h2>
-            <p className="text-[14.5px] text-[#6a7a80] mt-2">Changed your mind? Just tap a date below — it saves instantly.</p>
+            <h2 className="text-[24px] sm:text-[30px] font-black tracking-[-0.02em] text-[#00374a]">All good. Thanks for telling us 🤙</h2>
+            <p className="text-[14.5px] text-[#6a7a80] mt-2">Changed your mind? Just tap a date below. It saves instantly.</p>
           </>
         ) : picks.size > 0 && !pending ? (
           <>
             <h2 className="text-[24px] sm:text-[30px] font-black tracking-[-0.02em] text-[#1f9e57]">You&apos;re on the list 🌊</h2>
-            <p className="text-[14.5px] text-[#6a7a80] mt-2">No commitment — this just tells us who&apos;s keen. Tap to adjust anytime.{picks.size >= 2 && !topKey ? <> <span className="font-semibold text-[#b0791e]">Star ⭐ your favourite.</span></> : null}</p>
+            <p className="text-[14.5px] text-[#6a7a80] mt-2">No commitment. This just tells us who&apos;s keen, and you can adjust it anytime.{picks.size >= 2 && !topKey ? <> <span className="font-semibold text-[#b0791e]">Star ⭐ your favourite.</span></> : null}</p>
           </>
         ) : (
           <>
             <h2 className="text-[24px] sm:text-[30px] font-black tracking-[-0.02em] text-[#00374a]">Would you join? One tap.</h2>
-            <p className="text-[14.5px] text-[#6a7a80] mt-2">No commitment, no forms — just tell us if you&apos;d be in.</p>
+            <p className="text-[14.5px] text-[#6a7a80] mt-2">No commitment, no forms. Just tell us if you&apos;d be in.</p>
           </>
         )}
       </div>
@@ -230,7 +230,7 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
                   <span role="button" tabIndex={0}
                     onClick={(e) => { e.stopPropagation(); e.preventDefault(); star(d.key); }}
                     onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); e.preventDefault(); star(d.key); } }}
-                    title={topKey === d.key ? "Your favourite — tap to unstar" : "Make this my favourite"}
+                    title={topKey === d.key ? "Your favourite · tap to unstar" : "Make this my favourite"}
                     className={`shrink-0 grid place-items-center w-9 h-9 rounded-full text-[16px] transition-all ${topKey === d.key ? "bg-[#ffc42e] shadow-[0_4px_12px_rgba(240,165,0,0.4)] scale-105" : "border border-[#e2d8c6] opacity-60 hover:opacity-100"}`}>
                     {topKey === d.key ? "⭐" : "☆"}
                   </span>
@@ -264,7 +264,7 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
       {answered && (
         <div className="mt-6">
           <label className="block text-[12px] font-black uppercase tracking-[0.1em] text-[#b0791e] mb-1.5">
-            Anything we should know? <span className="normal-case tracking-normal font-medium text-[#c3b9a6]">— optional, saves as you type</span>
+            Anything we should know? <span className="normal-case tracking-normal font-medium text-[#c3b9a6]">(optional, saves as you type)</span>
           </label>
           <input value={msg} onChange={(e) => onMsg(e.target.value.slice(0, 300))}
             placeholder={declined ? "e.g. keep me posted for other dates 🤙" : "e.g. only if my buddy Jens comes too 😄"}
@@ -272,7 +272,7 @@ export function SurveyQuick({ survey, token, existing, preview = false, justSave
         </div>
       )}
 
-      <p className="text-[12px] text-[#b9ac91] text-center mt-7">Every tap saves by itself — you can close this page whenever. 🌊</p>
+      <p className="text-[12px] text-[#b9ac91] text-center mt-7">Every tap saves by itself. Close this page whenever you like. 🌊</p>
     </div>
   );
 }

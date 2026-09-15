@@ -4,7 +4,7 @@ import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { VoucherPrint } from "@/components/portal/voucher-print";
 
-export const metadata: Metadata = { title: "Your gift voucher — NP7" };
+export const metadata: Metadata = { title: "Your gift voucher · NP7" };
 export const dynamic = "force-dynamic";
 
 export default async function VoucherPrintPage({ params }: { params: Promise<{ id: string }> }) {

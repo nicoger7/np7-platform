@@ -25,7 +25,7 @@ export function ExplainerVideo({ url, title = "Nico walks you through the week" 
       <div className="relative max-w-[1000px] mx-auto px-6 sm:px-8 text-center">
         <p className="text-[11px] font-bold tracking-[0.22em] text-[#8fe6f2] mb-3">WATCH THE TRIP</p>
         <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-white">{title}</h2>
-        <p className="text-white/55 text-[14.5px] mt-3 max-w-[520px] mx-auto">A few minutes with Nico on what the week actually looks like — the spot, the coaching, the vibe.</p>
+        <p className="text-white/55 text-[14.5px] mt-3 max-w-[520px] mx-auto">A few minutes with Nico on what the week actually looks like: the spot, the coaching, the vibe.</p>
 
         <div className="mt-9 relative rounded-3xl overflow-hidden shadow-[0_24px_70px_rgba(0,15,22,0.5)] aspect-video bg-black">
           {playing ? (

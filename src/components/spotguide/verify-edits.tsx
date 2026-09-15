@@ -41,7 +41,7 @@ export function VerifyEdits({ destId, accent = "#00afdb" }: { destId: string; ac
         className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5 text-left hover:bg-[#fdf8ee] transition-colors">
         <span className="min-w-0">
           <span className="block text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac]">Help review corrections <span style={{ color: accent }}>({edits.length})</span></span>
-          <span className="block text-[12.5px] text-[#6a7a80]">Members suggested fixes — know the spot? Confirm what&apos;s right.</span>
+          <span className="block text-[12.5px] text-[#6a7a80]">Members suggested fixes. Know the spot? Confirm what&apos;s right.</span>
         </span>
         <svg className={`w-5 h-5 shrink-0 text-[#9aa6ac] transition-transform ${open ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
       </button>
@@ -67,9 +67,9 @@ export function VerifyEdits({ destId, accent = "#00afdb" }: { destId: string; ac
             </div>
             <div className="mt-3">
               {e.outcome === "applied" ? (
-                <span className="text-[13px] font-bold text-[#1f9e57]">Applied — thanks! 🎉</span>
+                <span className="text-[13px] font-bold text-[#1f9e57]">Applied, thanks! 🎉</span>
               ) : e.outcome === "approved" ? (
-                <span className="text-[13px] font-bold text-[#1f9e57]">Accepted — we&apos;ll fold it in. 🙏</span>
+                <span className="text-[13px] font-bold text-[#1f9e57]">Accepted. We&apos;ll fold it in. 🙏</span>
               ) : e.isOwn ? (
                 <span className="text-[12.5px] text-[#9aa6ac]">Your suggestion · awaiting other members</span>
               ) : e.iConfirmed ? (
