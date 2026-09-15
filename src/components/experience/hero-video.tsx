@@ -110,11 +110,20 @@ export function HeroVideo({
             // Seamless loop: seek back BEFORE the window ends. A mid-playback
             // seek fires no state change, so YouTube shows no play/pause bezel
             // — the ENDED path did, every single loop.
+            //
+            // The window has to stop SHORT of the real duration, and the
+            // obvious way to set `end` is to type the video's length into the
+            // box. That makes the guard a race the clip wins: the poll lands
+            // at 55.5s on a 56s video, misses, the clip ends on its own and
+            // YouTube draws its end screen over the hero. So clamp to just
+            // inside the duration and give the poll a whole tick of margin.
             if (e) {
+              const dur = Number(ev.target.getDuration?.()) || 0;
+              const stop = dur > 0 ? Math.min(e, dur - 0.5) : e;
               loopTimer = window.setInterval(() => {
                 try {
                   const t = ev.target.getCurrentTime?.();
-                  if (typeof t === "number" && t >= e - 0.4) ev.target.seekTo(s, true);
+                  if (typeof t === "number" && t >= stop - 0.65) ev.target.seekTo(s, true);
                 } catch { /* player mid-teardown */ }
               }, 250);
             }
@@ -122,23 +131,22 @@ export function HeroVideo({
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           onStateChange: (ev: { data: number; target: any }) => {
             if (ev.data === YT.PlayerState.PLAYING) setPlaying(true);
-            // Backstop for clips that reach their natural end (no `end` set).
-            if (ev.data === YT.PlayerState.ENDED) {
-              ev.target.seekTo(s, true);
+            // Nobody stops this on purpose — the overlay is pointer-events:none
+            // — but browsers do (tab switch, battery saver, offscreen), and a
+            // stopped YouTube player draws its own play button over the hero.
+            //
+            // Hide FIRST, then recover. Waiting to see whether the resume takes
+            // left the bezel standing for the whole wait, and a player that
+            // comes back as BUFFERING rather than PAUSED never tripped the
+            // check at all, so the button simply stayed. The poster IS the hero
+            // photo, so dropping to it costs a cross-fade nobody can see, and
+            // PLAYING fades the video straight back in.
+            if (ev.data === YT.PlayerState.PAUSED || ev.data === YT.PlayerState.ENDED) {
+              setPlaying(false);
+              // Only a clip that actually ran out needs winding back; a pause
+              // picks up where it stopped.
+              if (ev.data === YT.PlayerState.ENDED) ev.target.seekTo(s, true);
               ev.target.playVideo();
-            }
-            // The overlay is pointer-events:none, so nobody pauses this on
-            // purpose — browsers do (tab switch, battery saver, offscreen).
-            // A paused YouTube player shows its big play button, so a pause
-            // never gets to stand: resume, and when the browser refuses,
-            // fade back to the poster so the button can't show.
-            if (ev.data === YT.PlayerState.PAUSED) {
-              ev.target.playVideo();
-              window.setTimeout(() => {
-                try {
-                  if (playerRef.current?.getPlayerState?.() === YT.PlayerState.PAUSED) setPlaying(false);
-                } catch { /* player mid-teardown */ }
-              }, 900);
             }
           },
         },
@@ -161,8 +169,11 @@ export function HeroVideo({
       {poster && (
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url('${poster}')` }} />
       )}
+      {/* Fade IN, cut OUT. Fading out is a fade-in for whatever YouTube has
+          drawn underneath the hero, which is the one thing this wrapper exists
+          to keep off the page. */}
       {id && show && hasSegment && (
-        <div className={`absolute inset-0 transition-opacity duration-700 ${playing ? "opacity-100" : "opacity-0"}`}>
+        <div className={`absolute inset-0 transition-opacity ${playing ? "opacity-100 duration-700" : "opacity-0 duration-0"}`}>
           {/* replaced in place by the API-managed iframe */}
           <div ref={hostRef} className={COVER_CLASS} />
         </div>
