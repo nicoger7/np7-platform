@@ -330,6 +330,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
   const [correcting, setCorrecting] = useState<{ id: string; mode: CorrectionMode } | null>(null);
   // Which document is on its way to the guest right now.
   const [sendingDoc, setSendingDoc] = useState<string | null>(null);
+  const [reprinting, setReprinting] = useState<string | null>(null);
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [rowEdit, setRowEdit] = useState({ amount: "", type: "final", status: "paid", method: "", reference: "" });
   const [contactBusy, setContactBusy] = useState(false);
@@ -474,6 +475,43 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     else {
       const j = await res.json().catch(() => ({}));
       setGenError(j.error || "Couldn't void this document.");
+    }
+  }
+
+  /**
+   * Reprint a numbered invoice that nobody has seen yet, keeping its number.
+   *
+   * The API has supported this since it was written and nothing could reach
+   * it, which is exactly how Chris Janson's booking ended up with three voided
+   * invoices: the figures on NP7-XP-2026-0062 were wrong, the only buttons on
+   * offer were Storno and Cancel, so the number was thrown away and a new one
+   * minted. Four times. Reprinting is the honest repair while `sent_at` is
+   * null: the sequence stays gapless and no second document has to explain a
+   * first one that was never delivered.
+   *
+   * Once it has been sent it is the guest's document and only a Storno will
+   * do, so the button is not offered then and the generator refuses anyway.
+   */
+  async function reprintDocument(doc: BookingDocument) {
+    if (!confirm(
+      `Reprint ${doc.invoice_number ?? "this invoice"} with today's figures?\n\n` +
+      "It keeps its number and replaces the PDF. Only for paper nobody has received."
+    )) return;
+    setGenError(null);
+    setReprinting(doc.id);
+    try {
+      const res = await fetch(`/api/admin/bookings/${id}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: doc.type, reuseDocumentId: doc.id }),
+      });
+      if (res.ok) fetchDocuments();
+      else {
+        const j = await res.json().catch(() => ({}));
+        setGenError(j.error || "Couldn't reprint this invoice.");
+      }
+    } finally {
+      setReprinting(null);
     }
   }
 
@@ -1342,6 +1380,22 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
     if (allowance && !allowance.blocker && allowance.canCredit) {
       const credit: MenuItem = { label: "Credit note…", hint: `Take an amount off it${allowance.credited ? ` (${formatMoney(allowance.remaining)} left)` : ""}`, tone: "warn", run: () => setCorrecting({ id: doc.id, mode: "credit" }) };
       if (allowance.canStorno) items.push(credit); else quick.push(credit);
+    }
+    /* Reprint sits ABOVE Cancel and Storno because it is the cheapest correct
+       answer whenever the paper has not gone out: it keeps the number, burns
+       none, and leaves nothing for a later document to explain. It is offered
+       under exactly the condition that makes it honest, an issued tax invoice
+       nobody has received and no correction already names. */
+    /* Not add-on invoices: their lines are stamped `invoiced_in` the moment the
+       first one is issued, so a reprint finds nothing left to bill and the
+       generator refuses with "No un-invoiced add-ons" — true, and useless as an
+       explanation. A Storno is the right repair there. */
+    const REPRINTABLE_TYPES = ["deposit_invoice", "downpayment_invoice", "final_invoice"];
+    const reprintable = isTaxLike && doc.status === "issued" && !doc.sent_at
+      && REPRINTABLE_TYPES.includes(doc.type)
+      && !(st && (st.reversed || st.credits.length > 0));
+    if (reprintable) {
+      quick.push({ label: reprinting === doc.id ? "Reprinting…" : "Reprint", hint: "Redo the PDF with today's figures, same number. Only while the guest has not received it.", run: () => reprintDocument(doc) });
     }
     if (cancellable) {
       items.push({ label: isTaxLike ? "Cancel unsent…" : "Void", hint: isTaxLike ? "Only for paper nobody has seen; the number stays" : undefined, tone: "danger", run: () => voidDocument(doc.id, isTaxLike) });
