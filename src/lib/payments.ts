@@ -61,6 +61,13 @@ export type BookingPaymentState = {
 export type Milestone = {
   kind: MilestoneKind;
   label: string;
+  /** The stage's name WITHOUT the claim its full label makes about the trip
+   *  ("Downpayment", not "Downpayment · 50% of your trip"). Used wherever the
+   *  figure shown beside it is not the whole stage — a remainder after a part
+   *  payment — because a label describing the stage over a number describing
+   *  what is left of it is how a page ends up saying "50% of your trip: €1,227"
+   *  on an €8,003 trip. */
+  shortLabel: string;
   /** Amount due AT this milestone. */
   amount: number;
   /** Cumulative amount that should have been paid by the end of this milestone. */
@@ -76,6 +83,47 @@ export type Milestone = {
    *  collapsed into this one. Display only: the invoice engine never sees it. */
   mergedFrom?: MilestoneKind[];
 };
+
+/**
+ * WHAT A STAGE CAME TO, decided once, for everyone who asks.
+ *
+ * A stage is settled by either of two things, and both mean the same: a stage
+ * INVOICE that has been issued and paid, or a PAYMENT recorded against that
+ * stage. Once settled, it is a historical fact — the percentage formula must
+ * stop recomputing it from a trip total that has since grown.
+ *
+ * Indrek Orro is why the payment half exists. He paid EUR 2,775 on 12 February
+ * in the old system, so no down-payment invoice row was ever created here. In
+ * September we added eight nights, the trip went 5,550 → 8,003, the formula
+ * recomputed 50 % of the new total, and his page told him a down-payment was
+ * overdue with EUR 1,227 outstanding. Ten live bookings read that way.
+ *
+ * The two figures describe ONE stage, so they are compared, never summed.
+ * This lives here, and nowhere else, because it used to live in two places
+ * (the portal and the Stripe webhook) that were free to disagree about what a
+ * guest owes — one of them draws the page, the other sizes the Pay button.
+ */
+export function settledStagesFrom(
+  stageDocs: { type?: string | null; amount?: number | null }[],
+  payments: { type?: string | null; status?: string | null; direction?: string | null; amount?: number | null }[],
+): { deposit: number; downpayment: number } {
+  const out = { deposit: 0, downpayment: 0 };
+  const byDoc = { deposit: 0, downpayment: 0 };
+  for (const d of stageDocs) {
+    if (d.type === "deposit_invoice") byDoc.deposit += Number(d.amount) || 0;
+    if (d.type === "downpayment_invoice") byDoc.downpayment += Number(d.amount) || 0;
+  }
+  const byPay = { deposit: 0, downpayment: 0 };
+  for (const p of payments) {
+    if (String(p.status ?? "").toLowerCase() !== "paid") continue;
+    if (p.direction && p.direction !== "revenue") continue;
+    if (p.type === "deposit") byPay.deposit += Number(p.amount) || 0;
+    if (p.type === "downpayment") byPay.downpayment += Number(p.amount) || 0;
+  }
+  out.deposit = round(Math.max(byDoc.deposit, byPay.deposit));
+  out.downpayment = round(Math.max(byDoc.downpayment, byPay.downpayment));
+  return out;
+}
 
 export const PAYMENT_DEFAULTS = {
   deposit: 300,
@@ -192,6 +240,7 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
     {
       kind: "deposit",
       label: "Deposit · secures your spot",
+      shortLabel: "Deposit",
       amount: depositAmt,
       cumulative: depositAmt,
       dueDate: null,
@@ -201,7 +250,20 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
     },
     {
       kind: "downpayment",
-      label: `Downpayment · ${dpPct}% of your trip`,
+      /*
+       * The percentage is a CLAIM, so only make it where it is true.
+       *
+       * Once a stage is pinned by what was actually settled (see
+       * settledStages), the figure is a historical fact and the current trip
+       * total has moved on underneath it. Indrek Orro's page read
+       * "Downpayment · 50% of your trip" above EUR 2,775 on an EUR 8,003 trip,
+       * because eight nights were added after he paid. 2,775 was the right
+       * number and "50% of your trip" was simply false about it.
+       */
+      label: settledDown != null && settledDown > 0
+        ? "Downpayment · secured your spot"
+        : `Downpayment · ${dpPct}% of your trip`,
+      shortLabel: "Downpayment",
       amount: downpaymentAmt,
       cumulative: downpaymentTarget,
       dueDate: downpaymentDue,
@@ -219,6 +281,7 @@ export function computePaymentPlan(cfg: PackagePaymentConfig, state: BookingPaym
     {
       kind: "final",
       label: "Final balance",
+      shortLabel: "Final balance",
       amount: finalAmt,
       cumulative: total,
       dueDate: finalDue,
@@ -268,6 +331,7 @@ export function mergeSameDayStages(plan: Milestone[]): Milestone[] {
     // plan for "what is still outstanding" already looks at the last stage.
     kind: "final",
     label: "Full amount",
+    shortLabel: "Full amount",
     amount: round(down.amount + fin.amount),
     cumulative: fin.cumulative,
     // Inherit the earlier stage's status, since that is the one falling due now.

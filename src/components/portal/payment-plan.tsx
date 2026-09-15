@@ -96,7 +96,12 @@ export function PaymentPlan({
               </span>
               <div className="min-w-0 flex-1 mt-[3px]">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-[14px] font-bold text-[#00374a] leading-snug">{m.label}</p>
+                  {/* A remainder is not the stage, so it does not get the
+                      stage's label: "Downpayment · 50% of your trip" over
+                      €1,227 of an €8,003 trip is a sentence the guest has to
+                      disprove with a calculator. The grey line underneath
+                      carries the rest of the story. */}
+                  <p className="text-[14px] font-bold text-[#00374a] leading-snug">{showLeft ? `${m.shortLabel} · still to send` : m.label}</p>
                   <p className="text-[14px] font-extrabold text-[#00374a] tabular-nums shrink-0 pl-1">{money(showLeft ? left : m.amount, currency)}</p>
                 </div>
                 <p className={`text-[12.5px] leading-snug mt-0.5 ${m.status === "paid" ? "text-green-600 font-semibold" : m.status === "due" ? "text-[#c9620f] font-semibold" : "text-[#9aa6ac]"}`}>

@@ -638,10 +638,46 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
    * the balance came from two definitions. Credit notes are left out here: they
    * correct the invoice they name, they do not pre-bill the trip.
    */
-  const { data: priorDocs } = await getDb().from("documents").select("id,invoice_number,amount,type,status").eq("booking_id", bookingId).eq("status", "issued");
-  const prior = ((priorDocs ?? []) as { id: string; invoice_number: string | null; amount: number | null; type: string }[])
-    .filter((d) => d.id !== input.reuseDocumentId && ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice"].includes(d.type) && Number(d.amount) > 0);
-  const priorInvoiced = { total: round2(prior.reduce((n, d) => n + Number(d.amount), 0)), numbers: prior.map((d) => d.invoice_number).filter((n): n is string => !!n) };
+  const { data: priorDocs } = await getDb().from("documents").select("id,invoice_number,amount,type,status,meta").eq("booking_id", bookingId).eq("status", "issued");
+  type PriorDoc = { id: string; invoice_number: string | null; amount: number | null; type: string; meta?: Record<string, unknown> | null };
+  const issuedDocs = (priorDocs ?? []) as PriorDoc[];
+  /*
+   * A CREDITED INVOICE STANDS FOR NOTHING, AND THE PAPER HAS TO SAY SO.
+   *
+   * The amount above nets credit notes (issuedInvoiceTotal includes them, so a
+   * storno releases the trip to be invoiced again). This list did not, and the
+   * two definitions met on one page. Chris Janson's NP7-XP-2026-0062:
+   *
+   *   Amount                                        3,990.00
+   *   Less: already invoiced (NP7-XP-2026-0054)    -3,990.00
+   *   Balance due                                   3,990.00
+   *
+   * because 0054 had been fully credited by 0058 — gone from the amount, still
+   * counted here. Worse, "already invoiced 3,990" then swallowed the guest's
+   * 1,995: receivedApplied is received MINUS prior invoiced, so the payments
+   * line vanished from the paper entirely and a man who had paid half his trip
+   * was billed for all of it. Three invoices were voided by hand trying to get
+   * a fourth to come out right.
+   *
+   * A credit note reduces the invoice it names. Reduced to nothing, that
+   * invoice leaves this list, number included.
+   */
+  const creditedByDoc = new Map<string, number>();
+  for (const d of issuedDocs) {
+    if (d.type !== "credit_note") continue;
+    const target = String((d.meta as { original_document_id?: unknown } | null)?.original_document_id ?? "");
+    if (!target) continue;
+    creditedByDoc.set(target, round2((creditedByDoc.get(target) ?? 0) + Math.abs(Number(d.amount) || 0)));
+  }
+  const prior = issuedDocs
+    .filter((d) => d.id !== input.reuseDocumentId && ["deposit_invoice", "downpayment_invoice", "final_invoice", "addon_invoice"].includes(d.type))
+    .map((d) => ({ ...d, standing: round2((Number(d.amount) || 0) - (creditedByDoc.get(d.id) ?? 0)) }))
+    // A full Storno stamps `reversed_at` on the invoice it kills, and that
+    // stamp is authoritative even where the credit note carries no
+    // `original_document_id` to net against (older reversals).
+    .filter((d) => !(d.meta as { reversed_at?: unknown } | null)?.reversed_at)
+    .filter((d) => d.standing > 0.005);
+  const priorInvoiced = { total: round2(prior.reduce((n, d) => n + d.standing, 0)), numbers: prior.map((d) => d.invoice_number).filter((n): n is string => !!n) };
 
   // Add-on invoice: bills exactly the confirmed extras nothing has invoiced
   // yet — an interim document for things added AFTER the down-payment, so the

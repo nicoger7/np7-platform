@@ -10,6 +10,7 @@ import {
 import { deriveSuggestedLevel, type SkillTag } from "@/lib/member-level";
 import { buildProgression, type CatalogSkill, type Achievement, type Progression } from "@/lib/progression";
 import { sumReceived } from "@/lib/payment-totals";
+import { settledStagesFrom } from "@/lib/payments";
 import type { PackagePaymentConfig } from "@/lib/payments";
 import { paymentPicture, type PaymentStep } from "@/lib/portal-next-step";
 import { canSayNotSent, type LinkRow } from "@/lib/bank-transfer";
@@ -159,12 +160,29 @@ export async function getBookingPaymentInputs(bookingIds: string[]): Promise<Map
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   try {
-    const [pkgRes, docRes, coveredRes, flightRes] = await Promise.all([
+    const [pkgRes, docRes, stagePayRes, coveredRes, flightRes] = await Promise.all([
       db.from("exp_bookings").select("id, exp_packages(deposit,downpayment_percent,final_days_before,deposit_refund_days)").in("id", bookingIds),
       // Settled stage invoices are the agreement: once a down-payment invoice is
       // paid, the percentage formula must stop second-guessing it.
       db.from("documents").select("booking_id, type, amount").in("booking_id", bookingIds)
         .eq("status", "issued").not("paid_at", "is", null).in("type", ["deposit_invoice", "downpayment_invoice"]),
+      /*
+       * A PAID STAGE IS SETTLED WHETHER OR NOT THIS PLATFORM INVOICED IT.
+       *
+       * Indrek Orro paid his EUR 2,775 down-payment on 12 February, in the old
+       * system, so no `downpayment_invoice` row exists for it. In September we
+       * added eight nights, the trip went from EUR 5,550 to EUR 8,003, and
+       * because the stage was pinned by nothing the formula recomputed 50 % of
+       * the NEW total: his trip page told him a down-payment of EUR 4,002 was
+       * due, EUR 1,227 of it outstanding, and stamped it "past its date". He had
+       * paid that stage on time, seven months earlier.
+       *
+       * A payment typed `deposit` or `downpayment` is the same agreement a
+       * stage invoice is, so it pins the stage the same way. Ten live bookings
+       * were reading wrong on this the day it was found.
+       */
+      db.from("exp_payments").select("booking_id, type, amount, status, direction").in("booking_id", bookingIds)
+        .eq("status", "paid").in("type", ["deposit", "downpayment"]),
       db.from("exp_bookings").select("id, covered_by_booking_id, agreed_price").in("covered_by_booking_id", bookingIds),
       // Bank transfers the guest has started and Stripe has not confirmed. They
       // are NOT money received — that stays the ledger's job — but a page that
@@ -179,12 +197,21 @@ export async function getBookingPaymentInputs(bookingIds: string[]): Promise<Map
       const e = out.get(r.id);
       if (e) e.cfg = (r.exp_packages as PackagePaymentConfig | null) ?? null;
     }
+    // Group both sources per booking, then let settledStagesFrom decide — it is
+    // the single definition of what a stage came to, shared with the Stripe
+    // webhook so the page and the Pay button can never disagree.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const d of (docRes.data ?? []) as any[]) {
-      const e = out.get(d.booking_id);
+    const stageDocsBy = new Map<string, any[]>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stagePaysBy = new Map<string, any[]>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const d of (docRes.data ?? []) as any[]) stageDocsBy.set(d.booking_id, [...(stageDocsBy.get(d.booking_id) ?? []), d]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const p of (stagePayRes.data ?? []) as any[]) stagePaysBy.set(p.booking_id, [...(stagePaysBy.get(p.booking_id) ?? []), p]);
+    for (const id of bookingIds) {
+      const e = out.get(id);
       if (!e) continue;
-      if (d.type === "deposit_invoice") e.settledStages.deposit += Number(d.amount) || 0;
-      if (d.type === "downpayment_invoice") e.settledStages.downpayment += Number(d.amount) || 0;
+      e.settledStages = settledStagesFrom(stageDocsBy.get(id) ?? [], stagePaysBy.get(id) ?? []);
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const l of (flightRes.data ?? []) as any[]) {

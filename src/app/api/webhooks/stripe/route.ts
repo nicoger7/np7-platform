@@ -19,7 +19,7 @@ import { feeAllowedOnCard, cardRegionFromCard, cardFee } from "@/lib/card-fee";
 import { publicOrigin } from "@/lib/public-origin";
 import { sumReceived } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
-import { computePaymentPlan } from "@/lib/payments";
+import { computePaymentPlan, settledStagesFrom } from "@/lib/payments";
 import { addressFromStripe, fillGaps, type BillingAddress, type StripeAddress } from "@/lib/billing-address";
 // ─── Stripe signature verification (no stripe npm package needed) ─────────────
 
@@ -587,15 +587,12 @@ async function onTripLinkPayment(session: Record<string, unknown>, bookingId: st
   const received = sumReceived(pays);
   const total = (Number(booking.agreed_price) || 0) + addons;
   const pkg = booking.exp_packages ?? {};
-  // A SETTLED down-payment invoice fixes that stage's figure (the Jens Hahn
-  // rule in payments.ts; the same filter the member's own plan uses), so the
-  // plan is asked with what was agreed rather than a percentage of a total
-  // that has grown since.
-  const settled = { deposit: null as number | null, downpayment: null as number | null };
-  for (const d of stageDocs) {
-    if (d.type === "deposit_invoice") settled.deposit = (settled.deposit ?? 0) + (Number(d.amount) || 0);
-    if (d.type === "downpayment_invoice") settled.downpayment = (settled.downpayment ?? 0) + (Number(d.amount) || 0);
-  }
+  // A SETTLED stage fixes its own figure (the Jens Hahn rule), so the plan is
+  // asked with what was agreed rather than a percentage of a total that has
+  // grown since. ONE definition, shared with the page the guest is looking at
+  // — this used to be a second copy here, and a copy is a future disagreement
+  // between the amount we draw and the amount we charge.
+  const settled = settledStagesFrom(stageDocs, pays);
   const plan = computePaymentPlan(
     { deposit: booking.exp_editions?.deposit ?? pkg.deposit ?? null, deposit_refund_days: pkg.deposit_refund_days ?? null, downpayment_percent: pkg.downpayment_percent ?? null, final_days_before: pkg.final_days_before ?? null },
     { total, paidAmount: received, editionStart: booking.exp_editions?.date_start ?? null, bookedAt: booking.created_at ?? null, depositReceived: booking.deposit_received ?? null, downpaymentReceived: booking.downpayment_received ?? null, finalPaymentReceived: booking.final_payment_received ?? null, settledStages: settled },

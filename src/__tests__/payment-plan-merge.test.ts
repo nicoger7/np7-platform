@@ -97,7 +97,7 @@ describe("what must never be merged away", () => {
   });
 
   it("does nothing when a stage is missing entirely", () => {
-    const onlyFinal = [{ kind: "final" as const, label: "Final balance", amount: 100, cumulative: 100, dueDate: "2026-10-01", dueLabel: "x", status: "due" as const }];
+    const onlyFinal = [{ kind: "final" as const, label: "Final balance", shortLabel: "Final balance", amount: 100, cumulative: 100, dueDate: "2026-10-01", dueLabel: "x", status: "due" as const }];
     expect(mergeSameDayStages(onlyFinal)).toEqual(onlyFinal);
     expect(mergeSameDayStages([])).toEqual([]);
   });

@@ -364,6 +364,7 @@ export default async function BookingDetail({ params }: Props) {
   const eventCancelMilestones: Milestone[] = [{
     kind: "deposit",
     label: "Ticket",
+    shortLabel: "Ticket",
     amount: total ?? 0,
     cumulative: total ?? 0,
     dueDate: null,
