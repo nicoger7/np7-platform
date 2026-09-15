@@ -53,13 +53,28 @@ function money(n: number | null) {
   return n != null ? `€${Number(n).toLocaleString("en-US")}` : "";
 }
 
-/** Add-ons billed by time around the trip week. Accommodation is charged per
-    night, gear rental per day; both are worked out from the member's flight
-    dates (any time outside the trip week is "extra"). Everything else is a flat
-    request. */
+/*
+ * Add-ons billed by time around the trip week: an extra hotel night is priced
+ * per night, and the count comes from the member's flight dates (any night
+ * outside the trip week is extra).
+ *
+ * GEAR IS NOT IN THIS LIST, and it used to be. There is no column saying how a
+ * component is priced, so the unit was guessed from the category, and the guess
+ * was wrong for almost every gear row NP7 sells: "Gear Rental" at 485.10 is the
+ * whole week and its own description says so, "Gear Rental Slalom 6 Days" is
+ * 2,580 for six days, and "Gear Rental Beginner" is 330 for the week. Exactly
+ * one row in the category is genuinely per day and its name says "Day ×1". So
+ * the page was telling a guest 485.10 per day for something that costs 485.10
+ * for seven, and inviting them to pick dates to multiply it.
+ *
+ * Gear is now a flat request like the airport transfers, which is what every
+ * one of those rows actually is. The period lives in the name and the
+ * description, where NP7 already writes it. The real fix is a "priced per"
+ * field on the component so nobody has to guess again; this stops the page
+ * lying in the meantime.
+ */
 const PERIOD: Record<string, { unit: string; add: string }> = {
   accommodation: { unit: "night", add: "Choose dates" },
-  gear: { unit: "day", add: "Choose dates" },
 };
 const plural = (unit: string, n: number) => `${unit}${n !== 1 ? "s" : ""}`;
 
