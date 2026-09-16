@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { destinationWindFacts, type WindStats } from "@/lib/wind-stats";
+import { destinationWindFacts, statsAreBlind, type WindStats } from "@/lib/wind-stats";
 import { WindStatsChart } from "@/components/spotguide/wind-stats-chart";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
@@ -258,7 +258,17 @@ export default async function DestinationPage({ params }: Props) {
                       </span>
                     ))}
                   </div>
-                  {windStats && (
+                  {/* The blindness guard, which this call site was missing while
+                      the other three had it. Lake Garda is the case it was
+                      written for and the case it was not protecting: the model
+                      reads a best month of 39% sailable days at Torbole, where
+                      the Ora blows nearly every summer afternoon, so the page
+                      published a bar chart saying the opposite of the truth to
+                      people deciding whether to come. statsAreBlind() has named
+                      Garda's Ora in its comment since it was written. Blind
+                      means we say nothing here and the hand-typed wind copy
+                      above stands on its own. */}
+                  {windStats && !statsAreBlind(windStats) && (
                     <div className="mt-5 overflow-x-auto">
                       <WindStatsChart stats={windStats} accent="#ffc42e" />
                     </div>
