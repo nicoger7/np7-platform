@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NewsletterSignup } from "@/components/experience/newsletter-signup";
 import { flags } from "@/lib/flags";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
@@ -314,10 +315,7 @@ export default async function ExperienceOverviewPage() {
           <div className="max-w-[480px] mx-auto text-center px-6 mb-16">
             <h2 className="text-3xl font-black tracking-[-0.03em] mb-3">Catch the next wave</h2>
             <p className="text-white/45 mb-7 text-[15px]">New experiences and early-bird dates, straight to your inbox.</p>
-            <form className="flex gap-2">
-              <input type="email" placeholder="your@email.com" className="flex-1 px-5 py-3.5 rounded-full border border-white/15 bg-white/[0.06] text-white text-sm outline-none focus:border-[#00afdb] placeholder:text-white/30" />
-              <button type="submit" className="px-6 py-3.5 rounded-full text-[13px] font-bold bg-[#ffc42e] text-[#00374a] shadow-[0_4px_14px_rgba(255,196,46,0.26)] hover:bg-[#ffce52] transition-colors">Subscribe</button>
-            </form>
+            <NewsletterSignup />
           </div>
           <div className="max-w-[1200px] mx-auto px-6 sm:px-8 border-t border-white/[0.07] pt-7 flex flex-col sm:flex-row items-center justify-between gap-4 text-[12px] text-white/40">
             <div className="flex items-center gap-3">

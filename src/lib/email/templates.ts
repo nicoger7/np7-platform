@@ -412,6 +412,24 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /* The double opt-in confirmation. No greeting by name on purpose: at this
+     point all we have is an address somebody typed, and we do not yet know it
+     belongs to the person reading. The last line matters legally as much as
+     practically, because a wrongly-entered address must have a way to end this
+     that is not a click saying "yes". */
+  newsletter_confirm: (v, opts) => ({
+    subject: `Confirm your NP7 newsletter`,
+    html: emailLayout({
+      ...opts,
+      preheader: "One tap to confirm, and you are on the list.",
+      bodyHtml:
+        p(`Someone, we hope you, asked for the NP7 newsletter: new experiences and early-bird dates, and nothing else.`) +
+        p(`German law wants us to hear it from you rather than from a form, so one tap and it is done:`) +
+        (v.confirmLink ? emailButton("Yes, sign me up", v.confirmLink) : "") +
+        p(`If this was not you, ignore this email. Nothing is saved and you will not hear from us again.`),
+    }),
+  }),
+
   account_magic_link: (v, opts) => ({
     subject: `Your NP7 login link`,
     html: emailLayout({

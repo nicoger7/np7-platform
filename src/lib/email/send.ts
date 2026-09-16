@@ -60,7 +60,11 @@ type SendResult = { status: "sent" | "failed" | "skipped"; id?: string; error?: 
 // somebody's IBAN is silently suppressed wherever EMAIL_LIFECYCLE_LIVE is
 // unset, and their only copy of their bank details is the browser tab they are
 // looking at.
-const SOFT_LAUNCH_ALLOWED = new Set(["account_magic_link", "team_invite", "password_reset", "reservation_received", "trip_invite", "group_spot_covered", "voucher_purchased", "voucher_gift", "cancellation_confirmed", "invoice_sent", "payment_shortfall_reminder", "transfer_instructions", "transfer_failed", "withdrawal_received", "skills_verified"]);
+const SOFT_LAUNCH_ALLOWED = new Set(["account_magic_link", "team_invite", "password_reset", "reservation_received", "trip_invite", "group_spot_covered", "voucher_purchased", "voucher_gift", "cancellation_confirmed", "invoice_sent", "payment_shortfall_reminder", "transfer_instructions", "transfer_failed", "withdrawal_received", "skills_verified",
+  /* A double opt-in confirmation is the signup, not lifecycle marketing. Held
+     back, the address sits pending for ever and the form is broken again in a
+     new way: the visitor is told to check an inbox nothing was sent to. */
+  "newsletter_confirm"]);
 function lifecycleSuppressed(templateKey: string): boolean {
   const live = process.env.EMAIL_LIFECYCLE_LIVE === "true" || process.env.EMAIL_LIFECYCLE_LIVE === "1";
   return !live && !SOFT_LAUNCH_ALLOWED.has(templateKey);
