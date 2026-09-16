@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { BrandSwitch } from "./brand-switch";
 import { MemberButton } from "@/components/shared/member-button";
 import { NP7_LOGO } from "@/components/shared/brand";
+import { HashLink } from "@/components/shared/hash-link";
 
 // re-exported for the many call sites that import it from here
 export { NP7_LOGO };
@@ -115,7 +116,7 @@ export function OceanHeader({
           )}
           <nav className="hidden lg:flex items-center gap-7 ml-1">
             {leftNav.map((n) => (
-              <Link key={n.href} href={n.href} className={navLink}>{n.label}</Link>
+              <HashLink key={n.href} href={n.href} className={navLink}>{n.label}</HashLink>
             ))}
           </nav>
         </div>
@@ -124,16 +125,16 @@ export function OceanHeader({
         <div className="flex items-center gap-2.5 sm:gap-5">
           <nav className="hidden lg:flex items-center gap-7">
             {rightNav.map((n) => (
-              <Link key={n.href} href={n.href} className={navLink}>{n.label}</Link>
+              <HashLink key={n.href} href={n.href} className={navLink}>{n.label}</HashLink>
             ))}
           </nav>
           {showExperience && (
-            <Link
+            <HashLink
               href={bookHref}
               className="hidden sm:inline-block shrink-0 px-5 py-2.5 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.4)] hover:bg-[#15c0ec] hover:-translate-y-0.5 transition-all"
             >
               Book a trip
-            </Link>
+            </HashLink>
           )}
           {/* account lives in the far-right corner, after the CTA */}
           <MemberButton section="experience" />
@@ -159,14 +160,14 @@ export function OceanHeader({
         <div className="relative lg:hidden border-t border-white/10 bg-[#00374a]">
           <nav className="max-w-[1200px] mx-auto px-5 py-2 flex flex-col">
             {visibleNav.map((n) => (
-              <Link key={n.href} href={n.href} onClick={() => setMenuOpen(false)} className="py-3.5 text-[15px] font-semibold text-white/85 hover:text-white border-b border-white/5">
+              <HashLink key={n.href} href={n.href} onClick={() => setMenuOpen(false)} className="py-3.5 text-[15px] font-semibold text-white/85 hover:text-white border-b border-white/5">
                 {n.label}
-              </Link>
+              </HashLink>
             ))}
             {showExperience && (
-              <Link href={bookHref} onClick={() => setMenuOpen(false)} className="mt-3 mb-1 inline-flex justify-center px-5 py-3 rounded-full text-[14px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.4)]">
+              <HashLink href={bookHref} onClick={() => setMenuOpen(false)} className="mt-3 mb-1 inline-flex justify-center px-5 py-3 rounded-full text-[14px] font-bold text-white bg-[#00afdb] shadow-[0_4px_18px_rgba(0,175,219,0.4)]">
                 Book a trip
-              </Link>
+              </HashLink>
             )}
           </nav>
         </div>
