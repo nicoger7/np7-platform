@@ -19,6 +19,18 @@
         "dev:preview"
       ],
       "port": 3210
+    },
+    {
+      "name": "np7-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "start",
+        "--",
+        "-p",
+        "3020"
+      ],
+      "port": 3020
     }
   ]
 }

@@ -176,7 +176,7 @@ export default async function ExperienceOverviewPage() {
           pClassName="mt-5 text-[16px] sm:text-[19px] text-white/85 max-w-[520px] font-medium"
         />
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-          <Link
+          <a
             href="#experiences"
             /* A WHITE glow under a white pill only works over dark water. Over Bonaire
                midday it spread into a haze around the button and read as a rendering
@@ -184,13 +184,13 @@ export default async function ExperienceOverviewPage() {
             className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white shadow-[0_6px_20px_rgba(0,25,35,0.3)] hover:-translate-y-0.5 transition-all"
           >
             {hero.cta1}
-          </Link>
-          <Link
+          </a>
+          <a
             href="#destinations"
             className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/50 hover:bg-white/10 transition-all"
           >
             {hero.cta2}
-          </Link>
+          </a>
         </div>
       </HeroFindYourFit>
 
@@ -304,7 +304,7 @@ export default async function ExperienceOverviewPage() {
               <p className="text-[11px] font-bold tracking-[0.25em] text-[#ffc42e] mb-4">THE NP7 VIBE</p>
               <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.03em] mb-6 leading-[1.08]">You arrive solo.<br />You leave with a crew.</h2>
               <p className="text-[17px] text-white/75 leading-relaxed">Good people, shared sunset sessions and dinners together, and coaching from one of the world&apos;s best. Most riders come once — then rebook with the friends they made.</p>
-              <Link href="#experiences" className="inline-block mt-9 px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">Find your trip</Link>
+              <a href="#experiences" className="inline-block mt-9 px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">Find your trip</a>
             </Reveal>
           </div>
         </section>
@@ -329,8 +329,8 @@ export default async function ExperienceOverviewPage() {
             </div>
             <div className="flex flex-wrap justify-center sm:justify-end gap-x-5 gap-y-2">
               <Link href="/hardware" className="hover:text-white transition-colors">Hardware</Link>
-              <Link href="#" className="hover:text-white transition-colors">Instagram</Link>
-              <Link href="#" className="hover:text-white transition-colors">YouTube</Link>
+              <a href="#" className="hover:text-white transition-colors">Instagram</a>
+              <a href="#" className="hover:text-white transition-colors">YouTube</a>
               <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-white transition-colors">Withdraw from contract</Link>
             </div>
           </div>

@@ -149,12 +149,12 @@ export default async function HardwarePage() {
           </Reveal>
           <Reveal from="up" delay={280}>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-              <Link href="#products" className="px-7 py-4 rounded-full text-[14px] font-bold text-black bg-[#c6ff3a] hover:-translate-y-0.5 transition-all">
+              <a href="#products" className="px-7 py-4 rounded-full text-[14px] font-bold text-black bg-[#c6ff3a] hover:-translate-y-0.5 transition-all">
                 Shop the range
-              </Link>
-              <Link href="#workshop" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border border-white/25 hover:border-white/60 transition-all">
+              </a>
+              <a href="#workshop" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border border-white/25 hover:border-white/60 transition-all">
                 Inside the workshop
-              </Link>
+              </a>
             </div>
           </Reveal>
           <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/35 animate-bounce">
@@ -276,7 +276,7 @@ export default async function HardwarePage() {
                 <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] mb-6 leading-[1.05]">Shaped on the bench.<br />Not stamped in a mould.</h2>
                 <p className="text-[16px] leading-relaxed mb-4" style={{ color: INK_SOFT }}>Every NP7 board and fin starts with a session and a sketch. Nico rides, tests and refines, then shapes and hand-finishes each piece. Carbon dust, sweat and all.</p>
                 <p className="text-[16px] leading-relaxed mb-8" style={{ color: INK_SOFT }}>Raw performance, finished with the details that make it yours. No committees, no compromises.</p>
-                <Link href="#products" className="inline-block px-7 py-4 rounded-full text-[14px] font-bold text-black bg-[#161510] hover:-translate-y-0.5 transition-all" style={{ color: LIME }}>Shop the range</Link>
+                <a href="#products" className="inline-block px-7 py-4 rounded-full text-[14px] font-bold text-black bg-[#161510] hover:-translate-y-0.5 transition-all" style={{ color: LIME }}>Shop the range</a>
               </div>
             </Reveal>
           </div>
@@ -289,7 +289,7 @@ export default async function HardwarePage() {
         <div className="relative max-w-[640px] mx-auto px-6 text-center">
           <h2 className="text-3xl sm:text-5xl font-black tracking-[-0.02em] mb-5">Build yours.</h2>
           <p className="text-[17px] text-white/55 mb-9">Your weight, your style, your spots. Tell us how you ride and we&apos;ll shape it.</p>
-          <Link href="#" className="inline-block px-8 py-4 rounded-full text-[14px] font-bold text-black bg-[#c6ff3a] hover:-translate-y-0.5 transition-all">Start a custom build</Link>
+          <a href="#" className="inline-block px-8 py-4 rounded-full text-[14px] font-bold text-black bg-[#c6ff3a] hover:-translate-y-0.5 transition-all">Start a custom build</a>
         </div>
       </section>
 
@@ -305,8 +305,8 @@ export default async function HardwarePage() {
           </div>
           <div className="flex flex-wrap justify-center sm:justify-end gap-x-5 gap-y-2 uppercase tracking-wider">
             <Link href="/experience" className="hover:text-[#c6ff3a] transition-colors">Experience</Link>
-            <Link href="#" className="hover:text-[#c6ff3a] transition-colors">Instagram</Link>
-            <Link href="#" className="hover:text-[#c6ff3a] transition-colors">YouTube</Link>
+            <a href="#" className="hover:text-[#c6ff3a] transition-colors">Instagram</a>
+            <a href="#" className="hover:text-[#c6ff3a] transition-colors">YouTube</a>
             <Link href="/widerruf" className="text-white/70 underline underline-offset-2 hover:text-[#c6ff3a] transition-colors">Withdraw from contract</Link>
           </div>
         </div>

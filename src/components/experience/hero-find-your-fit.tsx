@@ -292,7 +292,19 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
   const fitDetails = SEGMENTS.map((s, i) => {
     const on = i === active;
     return (
-      <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy col-start-1 row-start-1 flex flex-col items-center justify-center text-center" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(20px)", pointerEvents: on ? "auto" : "none" }}>
+      /* pointerEvents on the ACTIVE card is left UNSET, never "auto".
+       *
+       * `pointer-events: none` on an ancestor is undone by any descendant that
+       * says "auto" — that is the rule, not a quirk. fitRef switches the whole
+       * Find-your-fit stage off while the hero owns the screen (line ~253), and
+       * this card said "auto" straight through it, so an invisible card sat on
+       * top of the hero at z-10 and ate every click: "Explore experiences" and
+       * "See destinations" did nothing at all, on a landing page.
+       *
+       * Unset means inherit, so the card is clickable exactly when the stage is,
+       * and the two gates stop contradicting each other. Inactive cards still
+       * say "none" so only the scene on screen can be clicked. */
+      <div key={s.id} aria-hidden={!on} className="fyf-card fyf-copy col-start-1 row-start-1 flex flex-col items-center justify-center text-center" style={{ opacity: on ? 1 : 0, transform: on ? "none" : "translateY(20px)", pointerEvents: on ? undefined : "none" }}>
         <h3 className="text-[26px] sm:text-5xl font-black tracking-[-0.02em] text-white leading-[1.06] mb-2.5 sm:mb-4">{s.title}</h3>
         <p className="text-[14.5px] sm:text-[19px] text-white/90 leading-relaxed mb-4 sm:mb-6 max-w-[620px] mx-auto">{s.body}</p>
         <div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 sm:gap-y-2 mb-5 sm:mb-7 max-w-[680px] mx-auto">
@@ -305,10 +317,13 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
             </span>
           ))}
         </div>
-        <Link href="#experiences" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[14px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_6px_22px_rgba(255,196,46,0.32)] hover:bg-[#ffce52] hover:-translate-y-0.5 transition-all">
+        {/* A plain <a>: a same-page anchor is the browser's own job, and
+            next/link only preventDefaults it to redo the scroll itself. See
+            src/__tests__/no-hash-next-link.test.ts. */}
+        <a href="#experiences" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-[14px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_6px_22px_rgba(255,196,46,0.32)] hover:bg-[#ffce52] hover:-translate-y-0.5 transition-all">
           {s.cta}
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-        </Link>
+        </a>
       </div>
     );
   });
@@ -482,10 +497,10 @@ function FitDetail({ s, overlay }: { s: Segment; overlay?: boolean }) {
             </li>
           ))}
         </ul>
-        <Link href="#experiences" className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_4px_16px_rgba(255,196,46,0.28)] hover:bg-[#ffce52] hover:-translate-y-0.5 transition-all">
+        <a href="#experiences" className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13.5px] font-bold text-[#00374a] bg-[#ffc42e] shadow-[0_4px_16px_rgba(255,196,46,0.28)] hover:bg-[#ffce52] hover:-translate-y-0.5 transition-all">
           {s.cta}
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-        </Link>
+        </a>
       </div>
     </div>
   );

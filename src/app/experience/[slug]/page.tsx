@@ -348,8 +348,14 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
   // Launch price per week — computed server-side once; the picker only displays it.
   const launchByEdition: Record<string, { pct: number; until: string } | null> = {};
   for (const e of allEditions) launchByEdition[e.id] = activeLaunch(e as never);
-  // Tier perks (migration 169): the signed-in member's ladder discount vs the
-  // launch price — the single best advantage wins, they never stack.
+  // Tier perks (migration 169): the signed-in member's ladder discount and the
+  // launch price. They ADD. bestAdvantage() sums them (launch 5 + Crew 5 = 10),
+  // which is where the 10% on the live site comes from, and every booking taken
+  // through this page has been priced that way.
+  //
+  // This comment used to say the better one wins and they never stack. It never
+  // did. Whether it SHOULD is a pricing decision and Nico's to make, so the
+  // behaviour is left exactly as it is and the comment now describes it.
   let perkRules: TierPerkRule[] = [];
   if (viewerTier) {
     const { data: perkRows } = await sb.from("exp_tier_perks")
@@ -1143,16 +1149,16 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                   Fully booked · join the waitlist
                 </Link>
               ) : (
-                <Link href="#packages" data-track="reserve_cta" data-track-label="hero" className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">
+                <a href="#packages" data-track="reserve_cta" data-track-label="hero" className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">
                   {money(fromPrice, experience.currency) ? `Reserve your spot · from ${money(fromPrice, experience.currency)}` : "Reserve your spot"}
-                </Link>
+                </a>
               )}
               {reviewAvg != null ? (
-                <Link href="#reviews" className="inline-flex items-center gap-2 px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">
+                <a href="#reviews" className="inline-flex items-center gap-2 px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">
                   <span className="text-[#ffd24a]">★</span> {reviewAvg.toFixed(1)} · {reviewCount} review{reviewCount === 1 ? "" : "s"}
-                </Link>
+                </a>
               ) : (
-                <Link href="#method" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">How it works</Link>
+                <a href="#method" className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">How it works</a>
               )}
             </div>
           </Reveal>
@@ -1692,7 +1698,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
               </h2>
               <p className="text-[17px] text-white/55 mb-9">{clinic ? "Pick the clinic that suits you, grab your seat, and we'll be in touch with everything you need before you fly." : hasDeposit ? `Reserve with a ${depositPretty} deposit — just your name and contact details. After payment, we'll reach out personally to sort every detail.` : "Reserve your spot in seconds — just your name and contact details, no payment yet. We'll then reach out personally to sort every detail."}</p>
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <Link href="#packages" data-track="reserve_cta" data-track-label="final" className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">{clinic ? "Get your spot" : hasDeposit ? `Reserve my spot · ${depositPretty}` : "Reserve my spot"}</Link>
+                <a href="#packages" data-track="reserve_cta" data-track-label="final" className="px-8 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white hover:-translate-y-0.5 transition-all">{clinic ? "Get your spot" : hasDeposit ? `Reserve my spot · ${depositPretty}` : "Reserve my spot"}</a>
                 <Link href={`mailto:experience@np-seven.com?subject=Question: ${experience.title}`} className="px-8 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/40 hover:bg-white/10 transition-all">Ask us anything</Link>
               </div>
             </>
