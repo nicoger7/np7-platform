@@ -59,7 +59,11 @@ export default function PaymentsPage() {
 function PaymentsInner() {
   const params = useSearchParams();
   const initial = params.get("view");
-  const [view, setView] = useState<View>(isView(initial) ? initial : "unmatched");
+  // "All" is the default, not "To match". The page is the whole bank account and
+  // the question asked of it is usually "did this land?", which a filtered view
+  // answers with silence: a payment that IS matched simply is not there, and it
+  // reads as missing rather than done.
+  const [view, setView] = useState<View>(isView(initial) ? initial : "all");
   const [offBankOpen, setOffBankOpen] = useState(false);
   /* What the last off-bank payment did beyond landing: the real invoice it
      issued and mailed to the guest, the request opened for the rest. */

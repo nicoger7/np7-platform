@@ -45,9 +45,46 @@ type StripeCharge = {
   payment_intent?: string | null;
   receipt_email?: string | null;
   billing_details?: { name?: string | null; email?: string | null };
+  /** Expanded on the list call, so a bank transfer still has a payer. */
+  customer?: string | { id?: string; name?: string | null; email?: string | null } | null;
   metadata?: Record<string, string>;
   balance_transaction?: string | null;
 };
+
+/** First of these that is actually something. Stripe hands back "" and " ". */
+const firstFilled = (...vals: (string | null | undefined)[]): string | null => {
+  for (const v of vals) {
+    const t = (v ?? "").trim();
+    if (t) return t;
+  }
+  return null;
+};
+
+/**
+ * WHO PAID, when Stripe does not say.
+ *
+ * `billing_details.name` is the CARDHOLDER, so it is empty for every payment
+ * that is not a card. Sven Heinsohn's EUR 2,895 bank transfer landed in the
+ * Payments list with a dash where the payer should be: the money arrived
+ * through a virtual IBAN, no card, no cardholder, no name. Two older charges
+ * had the same gap, and one stored a single space.
+ *
+ * The Customer is the honest second source, because /api/reserve creates it
+ * with the guest's real name and stamps contact_id on it, so expanding it
+ * costs one field on a call we already make. Email last: it is not a name,
+ * but it is a person, and "—" is neither.
+ */
+type PayerFields = Pick<StripeCharge, "billing_details" | "customer" | "receipt_email">;
+function payerOf(c: PayerFields): string | null {
+  const cust = typeof c.customer === "object" && c.customer ? c.customer : null;
+  return firstFilled(
+    c.billing_details?.name,
+    cust?.name,
+    c.billing_details?.email,
+    c.receipt_email,
+    cust?.email,
+  );
+}
 
 function normalise(c: StripeCharge): NormalisedTransaction | null {
   // Only money that actually arrived. A failed or uncaptured charge is not a
@@ -66,7 +103,7 @@ function normalise(c: StripeCharge): NormalisedTransaction | null {
     executedAt: new Date(c.created * 1000).toISOString(),
     amount: Math.round(gross * 100) / 100,
     currency: String(c.currency || "eur").toUpperCase(),
-    counterparty: c.billing_details?.name ?? null,
+    counterparty: payerOf(c),
     counterpartyIban: null,
     /* Everything the matcher might read, in one string: our own checkout
        metadata first (booking_id / contact_id are exact), then the description
@@ -99,6 +136,8 @@ export async function stripeCharges(since: string, maxPages = 20): Promise<{ ok:
     const params: Record<string, string> = {
       limit: "100",
       "created[gte]": String(createdGte),
+      // The Customer carries the name a non-card payment has nowhere else.
+      "expand[]": "data.customer",
     };
     if (startingAfter) params.starting_after = startingAfter;
 
@@ -115,3 +154,6 @@ export async function stripeCharges(since: string, maxPages = 20): Promise<{ ok:
   }
   return { ok: true, transactions: out };
 }
+
+/** Exposed for the payer-resolution tests. */
+export const __testing = { payerOf };
