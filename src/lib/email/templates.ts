@@ -61,8 +61,43 @@ export type EmailVars = {
   /** Formatted securing-payment amount (e.g. "€1,399.50") and its deadline. */
   downpayment?: string;
   dueDate?: string;
+  /** ISO date (yyyy-mm-dd) the trip starts. Lets a mail say how far away it
+   *  really is at the moment it is sent, instead of assuming its ideal date. */
+  startDate?: string;
+  /** "yes" for an event (clinic). Its guests get no packing-list or arrival
+   *  mail, so no mail may promise one. */
+  event?: string;
+  /** Derived in renderTemplate from startDate: "about three weeks away". */
+  timeAway?: string;
+  /** Derived in renderTemplate: "yes" when more pre-trip mail follows. */
+  moreToFollow?: string;
   [k: string]: string | undefined;
 };
+
+/**
+ * How far away a date is, in words a guest would use, counted at send time.
+ *
+ * The crew mail said "about two months away" whatever day it went out. Its
+ * ideal day is 60 days before, but a late booking or a catch-up send lands it
+ * much later: for OBX Wind it would have told guests two months, three weeks
+ * before they flew.
+ */
+export function timeAwayPhrase(startDate: string | null | undefined, now = new Date()): string {
+  if (!startDate) return "coming up";
+  const start = Date.UTC(+startDate.slice(0, 4), +startDate.slice(5, 7) - 1, +startDate.slice(8, 10));
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const d = Math.round((start - today) / 86_400_000);
+  if (!Number.isFinite(d)) return "coming up";
+  if (d <= 0) return "here";
+  if (d === 1) return "tomorrow";
+  if (d < 7) return "just days away";
+  if (d < 14) return "about a week away";
+  if (d < 21) return "about two weeks away";
+  if (d < 28) return "about three weeks away";
+  if (d < 46) return "about a month away";
+  if (d < 76) return "about two months away";
+  return "a few months away";
+}
 
 type Built = { subject: string; html: string };
 type LayoutOpts = { division?: Division; headerImage?: string | null; headerPosition?: number | null };
@@ -744,12 +779,16 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       preheader: "Meet the people you'll be riding with. The group chat is open.",
       bodyHtml:
         greet(v) +
-        p(`<strong>${esc(v.experienceTitle || "Your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} is about two months away, and the crew is taking shape.`) +
+        p(`<strong>${esc(v.experienceTitle || "Your trip")}</strong>${v.dates ? " (" + esc(v.dates) + ")" : ""} is ${esc(v.timeAway || "coming up")}, and the crew is taking shape.`) +
         p(`This is the good bit: people start comparing flights, sorting shared transfers, and arguing about sail sizes long before anyone lands.`) +
         (v.whatsappLink
           ? p(`<strong>Come and say hi:</strong>`) + emailButton("Join the group chat", v.whatsappLink)
           : "") +
-        p(`No rush on anything else. Your packing list and arrival details follow closer to the trip.`) +
+        // Only a promise we keep: an event's guests get no packing-list or
+        // arrival mail, so they are not told one is coming.
+        (v.moreToFollow
+          ? p(`No rush on anything else. Your packing list and arrival details follow closer to the trip.`)
+          : p(`Questions before then? Just reply to this email.`)) +
         (v.bookingLink ? emailButton("Open my trip details", v.bookingLink) : "") +
         p(`See you on the water.<br>Nico & the NP7 team`),
     }),
@@ -1092,6 +1131,10 @@ export function renderTemplate(
   const vars: EmailVars = {
     ...rawVars,
     firstName: String(rawVars.firstName ?? "").trim() || "there",
+    // Worked out here, once, so the code template and an edited body say the
+    // same thing. A caller may still pass its own.
+    timeAway: rawVars.timeAway ?? timeAwayPhrase(rawVars.startDate),
+    moreToFollow: rawVars.moreToFollow ?? (rawVars.event ? undefined : "yes"),
   };
 
   // survey_invite ignores a global BODY override: its text is edited per survey

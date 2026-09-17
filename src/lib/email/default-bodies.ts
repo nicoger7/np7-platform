@@ -360,10 +360,11 @@ export const DEFAULT_BODIES: Record<string, string> = {
 
   crew_forming:
     P("Hey {{firstName}} 🤙") +
-    P("<strong>{{experienceTitle}}</strong>{{?dates}} ({{dates}}){{/dates}} is about two months away, and the crew is taking shape.") +
+    P("<strong>{{experienceTitle}}</strong>{{?dates}} ({{dates}}){{/dates}} is {{timeAway}}, and the crew is taking shape.") +
     P("This is the good bit: people start comparing flights, sorting shared transfers, and arguing about sail sizes long before anyone lands.") +
     "{{?whatsappLink}}" + P("<strong>Come and say hi:</strong>") + BTN("Join the group chat", "whatsappLink") + "{{/whatsappLink}}" +
-    P("No rush on anything else. Your packing list and arrival details follow closer to the trip.") +
+    "{{?moreToFollow}}" + P("No rush on anything else. Your packing list and arrival details follow closer to the trip.") + "{{/moreToFollow}}" +
+    "{{?event}}" + P("Questions before then? Just reply to this email.") + "{{/event}}" +
     BTN("Open my trip details", "bookingLink") +
     P("See you on the water." + SIGN),
 

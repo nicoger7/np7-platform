@@ -107,7 +107,9 @@ export function MailReadiness({ editionId, onInherited, headless = false }: {
       <p className="text-xs admin-faint mb-3">
         {r.blockingMissing > 0
           ? `${r.blockingMissing} mail${r.blockingMissing > 1 ? "s" : ""} will be held back until this is filled in.`
-          : "Everything the scheduled mails need is in place."}
+          : r.items.length === 0
+            ? "None of this week's scheduled mails needs extra content."
+            : "Everything the scheduled mails need is in place."}
       </p>
 
       {holds.length > 0 && (
@@ -134,13 +136,19 @@ export function MailReadiness({ editionId, onInherited, headless = false }: {
       <div className="space-y-2">
         {r.items.map((i) => (
           <div key={i.key} className="flex items-start gap-2.5">
-            <span className={`mt-0.5 text-xs ${i.present ? "text-green-400" : i.blocks.length ? "text-red-400" : "text-amber-400"}`}>
-              {i.present ? "✓" : i.blocks.length ? "✕" : "!"}
+            {/* Optional content is not a warning. The pre-trip note says
+                "(optional)" on Branding and the mail simply leaves that
+                paragraph out, yet this showed it with the same amber "!" as a
+                real problem. Only content that HOLDS a mail back is flagged;
+                optional content reads as optional. */}
+            <span className={`mt-0.5 text-xs ${i.present ? "text-green-400" : i.blocks.length ? "text-red-400" : "admin-faint"}`}>
+              {i.present ? "✓" : i.blocks.length ? "✕" : "○"}
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[13px] admin-heading font-semibold">
                 {i.label}
-                {!i.present && <span className="ml-2 text-[11px] font-normal">{due(i)}</span>}
+                {!i.present && i.blocks.length === 0 && <span className="ml-2 text-[11px] font-normal admin-faint">optional</span>}
+                {!i.present && i.blocks.length > 0 && <span className="ml-2 text-[11px] font-normal">{due(i)}</span>}
               </p>
               {!i.present && (
                 <p className="text-[11px] admin-faint">

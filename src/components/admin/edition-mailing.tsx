@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MailReadiness } from "@/components/admin/mail-readiness";
 import { useMailConfirm } from "@/components/admin/mail-confirm";
@@ -33,6 +33,8 @@ type Scheduled = {
   missing: string[]; uses: Uses[]; sent: number; lastSent: string | null;
   /** Condition-driven mail an admin may hand-send: who it reaches + how many qualify now. */
   manualSendable?: boolean; manualTargets?: string | null; manualEligible?: number;
+  /** Switched off for THIS week only, on this tab. The Emails switch is global. */
+  skippedThisWeek?: boolean;
 };
 type Data = {
   startDate: string | null; endDate: string | null;
@@ -77,6 +79,37 @@ export function EditionMailing({ editionId }: { editionId: string }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   // One dialog for every admin action that writes to a guest (Nico, 14 Sep 2026).
   const { ask: askMail, dialog: mailDialog } = useMailConfirm();
+
+  /* Hover to see the mail, click to open it full size: the Email Log's
+     behaviour, so the two previews in the admin work the same way. Rendered
+     from THIS week's content before anything is sent. */
+  const [preview, setPreview] = useState<{ key: string; top: number } | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewUrl = (key: string) => `/api/admin/editions/${editionId}/mailing/preview?key=${encodeURIComponent(key)}`;
+  const showPreview = (key: string, clientY: number) => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    const h = 520, pad = 16;
+    setPreview({ key, top: Math.min(Math.max(clientY - h / 3, pad), window.innerHeight - h - pad) });
+  };
+  const keepPreview = () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
+  const hidePreview = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setPreview(null), 220);
+  };
+
+  /** "Don't send this mail for this week." Writes nothing to a guest, so no
+   *  confirmation dialog; it is undone by the same switch. */
+  async function setSkip(key: string, name: string, value: boolean) {
+    setMsg(null);
+    const r = await fetch(`/api/admin/editions/${editionId}/mailing`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ skip: key, value }),
+    }).catch(() => null);
+    const j = r ? await r.json().catch(() => ({})) : {};
+    if (!r || !r.ok) { setMsg(j.error || "Couldn't change that."); return; }
+    setMsg(value ? `${name} won't be sent for this week.` : `${name} is back on for this week.`);
+    await load();
+  }
 
   const load = useCallback(async () => {
     const x = await fetch(`/api/admin/editions/${editionId}/mailing`).then((r) => r.json());
@@ -155,7 +188,8 @@ export function EditionMailing({ editionId }: { editionId: string }) {
       <div className="rounded-xl overflow-hidden mb-5" style={{ border: "1px solid var(--admin-border)" }}>
         {dated.map((m, i) => (
           <MailRow key={m.key} m={m} i={i} editionId={editionId} securedGuests={d.securedGuests} lifecycleLive={d.lifecycleLive}
-            isOpen={open.has(m.key)} onToggle={() => toggle(m.key)} sending={sending} onSendNow={sendNow} onSaved={load} />
+            isOpen={open.has(m.key)} onToggle={() => toggle(m.key)} sending={sending} onSendNow={sendNow} onSaved={load}
+            onPreview={showPreview} onPreviewLeave={hidePreview} previewUrl={previewUrl(m.key)} onSkip={setSkip} />
         ))}
       </div>
 
@@ -170,7 +204,8 @@ export function EditionMailing({ editionId }: { editionId: string }) {
           <div className="rounded-xl overflow-hidden mb-4" style={{ border: "1px solid var(--admin-border)" }}>
             {conditional.map((m, i) => (
               <MailRow key={m.key} m={m} i={i} editionId={editionId} securedGuests={d.securedGuests} lifecycleLive={d.lifecycleLive}
-                isOpen={open.has(m.key)} onToggle={() => toggle(m.key)} sending={sending} onSendNow={sendNow} onSaved={load} />
+                isOpen={open.has(m.key)} onToggle={() => toggle(m.key)} sending={sending} onSendNow={sendNow} onSaved={load}
+            onPreview={showPreview} onPreviewLeave={hidePreview} previewUrl={previewUrl(m.key)} onSkip={setSkip} />
             ))}
           </div>
         </>
@@ -196,6 +231,16 @@ export function EditionMailing({ editionId }: { editionId: string }) {
         Every send is logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.
         Wording and on/off switches live in <Link href="/admin/emails" className="text-[#0aa3c7] hover:underline">Emails</Link>.
       </p>
+      {preview && (
+        <div
+          className="hidden md:block fixed right-6 z-50 rounded-xl overflow-hidden shadow-2xl"
+          style={{ top: preview.top, width: 400, height: 520, border: "1px solid var(--admin-border)", backgroundColor: "#fff" }}
+          onMouseEnter={keepPreview}
+          onMouseLeave={hidePreview}
+        >
+          <iframe title="Email preview" src={previewUrl(preview.key)} sandbox="" className="w-full h-full bg-white" />
+        </div>
+      )}
       {mailDialog}
     </div>
   );
@@ -210,14 +255,19 @@ export function EditionMailing({ editionId }: { editionId: string }) {
  * save refreshed the data. A stable key does not help; the type itself changes.
  */
 function MailRow({
-  m, i, editionId, securedGuests, lifecycleLive, isOpen, onToggle, sending, onSendNow, onSaved,
+  m, i, editionId, securedGuests, lifecycleLive, isOpen, onToggle, sending, onSendNow, onSaved, onPreview, onPreviewLeave, previewUrl, onSkip,
 }: {
   m: Scheduled; i: number; editionId: string; securedGuests: number; lifecycleLive: boolean;
   isOpen: boolean; onToggle: () => void; sending: string | null;
   onSendNow: (key: string, name: string, guests: number, targets?: string, early?: { dueAt: string | null; daysAway: number | null }) => void; onSaved: () => void;
+  onPreview: (key: string, clientY: number) => void; onPreviewLeave: () => void; previewUrl: string;
+  onSkip: (key: string, name: string, value: boolean) => void;
 }) {
   const gone = m.sent > 0;
-  const blocked = m.missing.length > 0;
+  const skippedHere = !!m.skippedThisWeek;
+  // A mail switched off for this week offers no send button, the same way a
+  // mail missing its content offers none.
+  const blocked = m.missing.length > 0 || skippedHere;
   const past = m.windowPassed;
   const off = !m.enabled || (m.kind === "lifecycle" && !lifecycleLive);
   // A dateless mail says "when…" even if it carries a lead — a row reading
@@ -241,14 +291,28 @@ function MailRow({
                 {!m.enabled ? "off" : "paused"}
               </span>
             )}
+            {skippedHere && (
+              <span className="shrink-0 text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-500">
+                off this week
+              </span>
+            )}
             <svg className={`w-3.5 h-3.5 admin-faint transition-transform ${isOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6" /></svg>
           </span>
           <span className="block text-[11.5px] admin-faint">{m.trigger}</span>
-          {blocked && !gone && (
-            <span className="block text-[11.5px] text-amber-500 mt-0.5">Held — needs {m.missing.join(", ")}</span>
+          {m.missing.length > 0 && !gone && !skippedHere && (
+            <span className="block text-[11.5px] text-amber-500 mt-0.5">Held, needs {m.missing.join(", ")}</span>
           )}
         </button>
         <span className="shrink-0 text-right">
+          <button
+            type="button"
+            onMouseEnter={(e) => onPreview(m.key, e.clientY)}
+            onMouseLeave={onPreviewLeave}
+            onClick={() => window.open(previewUrl, "_blank")}
+            title="Hover to preview · click to open full size"
+            className="block ml-auto mb-0.5 text-[12px] font-bold admin-muted hover:text-[#0aa3c7] hover:underline">
+            Preview
+          </button>
           {/* A passed window used to be a dead end: the cron won't fire it any
               more and there was nothing to press. */}
           {!gone && past && !blocked && m.whenKind === "date" && (
@@ -277,7 +341,9 @@ function MailRow({
               {sending === m.key ? "Sending…" : `Send now${(m.manualEligible ?? 0) > 0 ? ` → ${m.manualEligible}` : ""}`}
             </button>
           )}
-          {gone ? (
+          {skippedHere && !gone ? (
+            <span className="block text-[12.5px] text-amber-500">Won&apos;t send</span>
+          ) : gone ? (
             <>
               <span className="block text-[12.5px] font-bold text-green-500">Sent to {m.sent}</span>
               <span className="block text-[11px] admin-faint">{fmt(m.lastSent)}</span>
@@ -304,14 +370,33 @@ function MailRow({
                 ? <>The nightly job counts {m.daysAfterEnd} days from the day the trip ends, which is {fmt(m.dueAt)}. Nobody presses anything.</>
                 : <>No date: the nightly job checks every night and sends it the first night the condition is true. That&apos;s why there&apos;s nothing to count down to.</>}
             {" "}
-            {!m.enabled
-              ? <>It is <strong>switched off</strong> — nothing goes out until you turn it back on.</>
+            {skippedHere
+              ? <>It is <strong>switched off for this week</strong>, so no guest on this week gets it. Other weeks are not affected.</>
+              : !m.enabled
+              ? <>It is <strong>switched off</strong> everywhere, nothing goes out until you turn it back on.</>
               : m.kind === "lifecycle" && !lifecycleLive
                 ? <>The switch is on, but the whole lifecycle pipeline is <strong>paused</strong>, so it is worked out and held.</>
                 : <>It is <strong>live</strong>.</>}
             {" "}
             <Link href={`/admin/emails/${m.key}`} className="text-[#0aa3c7] hover:underline">Wording &amp; switch →</Link>
           </p>
+
+          {!gone && (
+            <label className="flex items-start gap-2.5 mb-3 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={skippedHere}
+                onChange={(e) => onSkip(m.key, m.name, e.target.checked)}
+                className="mt-0.5 accent-amber-500"
+              />
+              <span className="text-[12.5px]">
+                <span className="font-semibold admin-heading">Don&apos;t send this for this week</span>
+                <span className="block text-[11.5px] admin-faint">
+                  Only this week. Nothing is used up: switch it back on while its date is still ahead and it goes out as normal.
+                </span>
+              </span>
+            </label>
+          )}
 
           {m.timing && <TimingField t={m.timing} templateKey={m.key} onSaved={onSaved} />}
 

@@ -296,8 +296,10 @@ export const mailAppliesTo = (
 };
 
 export const CONTENT_LABELS: Record<ContentKey, { label: string; where: string }> = {
-  packingList: { label: "Packing list", where: "Edition → Details, or the experience's Event Content" },
-  preTripNote: { label: "Pre-trip note", where: "Edition → Details, or the experience's Event Content" },
+  // Branding, not Details: that is where the edition's textareas actually are.
+  // The panel said Details for as long as it existed, and Details has neither.
+  packingList: { label: "Packing list", where: "Edition → Branding, or the experience's Event Content" },
+  preTripNote: { label: "Pre-trip note", where: "Edition → Branding, or the experience's Event Content" },
   whatsappLink: { label: "WhatsApp group link", where: "Edition → Details" },
   finalDetailsNote: { label: "Final-details note", where: "Edition → Mailing (the 3-days-before mail)" },
 };
@@ -451,15 +453,29 @@ export async function getEditionReadiness(editionId: string, now = new Date()): 
     };
   });
 
+  /*
+   * Only content some mail this week will actually send.
+   *
+   * For OBX Wind (an event) the panel showed a "!" on Packing list, Pre-trip
+   * note and Final-details note. No event mail uses any of them: they belong to
+   * the planning and countdown mails, which do not go to events. So they were
+   * warnings with no consequence, pointing at fields you cannot need, and the
+   * final-details note could not even be filled in, because it is edited from
+   * the 3-days-before mail's row and an event has no such row. A trip uses all
+   * four, so nothing changes for trips. The inherited values the Branding tab
+   * reads are separate and unaffected.
+   */
+  const used = items.filter((i) => i.blocks.length > 0 || i.degrades.length > 0);
+
   return {
     editionId,
     startDate,
     kind,
     inherited,
     daysToStart,
-    items,
-    blockingMissing: items.filter((i) => !i.present && i.blocks.length > 0).length,
-    softMissing: items.filter((i) => !i.present && i.blocks.length === 0 && i.degrades.length > 0).length,
+    items: used,
+    blockingMissing: used.filter((i) => !i.present && i.blocks.length > 0).length,
+    softMissing: used.filter((i) => !i.present && i.blocks.length === 0 && i.degrades.length > 0).length,
   };
 }
 

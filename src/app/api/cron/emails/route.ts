@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
 
   const { data: bookings } = await db
     .from("exp_bookings")
-    .select("id,covered_by_booking_id,status,experience_id,edition_id,agreed_price,deposit_received,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title,slug),exp_editions(kind,date_start,date_end,deposit,whatsapp_group_link),exp_packages(deposit,deposit_refund_days,downpayment_percent,final_days_before)")
+    .select("id,covered_by_booking_id,status,experience_id,edition_id,agreed_price,deposit_received,downpayment_received,final_payment_received,created_at,contacts(name,email),exp_experiences(title,slug),exp_editions(kind,date_start,date_end,deposit,whatsapp_group_link,mail_skip),exp_packages(deposit,deposit_refund_days,downpayment_percent,final_days_before)")
     .not("status", "in", "(lost)");
 
   // Pre-trip content (packing list + personal note) per experience — written once
@@ -351,6 +351,10 @@ export async function GET(req: NextRequest) {
       downpayment: securing ? money(securing.amount) : undefined,
       dueDate: securing?.dueDate ? fmtDay(securing.dueDate) : undefined,
       dates: fmtRange(start, end),
+      // Lets the crew mail say how far away the trip really is today, and not
+      // promise an event guest a packing-list mail that never comes.
+      startDate: start ?? undefined,
+      event: isEvent ? "yes" : undefined,
       whatsappLink: b.exp_editions?.whatsapp_group_link ?? undefined,
       reviewLink: `${origin}/account/bookings/${b.id}/review`,
       // Only set when a STORED guide exists — the template renders the CTA off
@@ -371,6 +375,13 @@ export async function GET(req: NextRequest) {
       packingList: (editionPacking.get(b.edition_id ?? "") || c.packing_list || "") || undefined,
     };
     const send = async (templateKey: string, dedupeKey: string) => {
+      // Switched off for THIS week on the Mailing tab. Returns before sendEmail,
+      // so the dedupe key is never burned: switch it back on while the window
+      // is still open and the next run sends it as if nothing happened.
+      const skip = (b.exp_editions as { mail_skip?: string[] | null } | null)?.mail_skip ?? [];
+      if (skip.includes(templateKey)) {
+        return { status: "skipped" as const, error: `switched off for this week` };
+      }
       // Templates degrade silently — an empty packing list just drops the
       // section — so a mail whose REQUIRED content is missing would go out
       // hollow and unlogged. Hold it instead: the dedupe key is untouched, so

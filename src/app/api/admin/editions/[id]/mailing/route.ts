@@ -29,7 +29,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const db = createAdminClient() as any;
 
   const { startDate, kind, values, inherited, source } = await resolveEditionContent(id);
-  const { data: ed } = await db.from("exp_editions").select("date_start, date_end").eq("id", id).maybeSingle();
+  const { data: ed } = await db.from("exp_editions").select("date_start, date_end, mail_skip").eq("id", id).maybeSingle();
+  const skipped = new Set<string>(((ed?.mail_skip ?? []) as string[]).filter(Boolean));
 
   const { data: bookings } = await db
     .from("exp_bookings")
@@ -129,6 +130,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       timing: t ? { anchor: t.anchor, days: t.days, defaultDays: t.defaultDays, windowClose: t.windowClose, overridden: t.overridden } : null,
       kind: a.kind,
       enabled: enabledByKey.get(a.key) ?? true,
+      // Switched off for THIS week only (Emails → switch is the global one).
+      skippedThisWeek: skipped.has(a.key),
       canDisable: !CANNOT_DISABLE.has(a.key),
       missing: (req?.blocking ?? []).filter((k) => !values[k]),
       // What this mail pulls in, so the row can be opened and filled in here
@@ -222,6 +225,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const db = createAdminClient() as any;
   const { values } = await resolveEditionContent(id);
 
+  // Switched off for this week means off, including a manual press: the same
+  // rule the global switch follows. A TEST copy to one address is still fine,
+  // it is how you look at a mail you have decided not to send.
+  if (!testTo) {
+    const { data: edSkip } = await db.from("exp_editions").select("mail_skip").eq("id", id).maybeSingle();
+    if (((edSkip?.mail_skip ?? []) as string[]).includes(templateKey)) {
+      return NextResponse.json({ error: "This mail is switched off for this week. Switch it back on first." }, { status: 409 });
+    }
+  }
+
   // Refuse rather than send a hollow mail — same rule the held-mail path uses.
   const missing = (MAIL_REQUIREMENTS[templateKey]?.blocking ?? []).filter((k) => !values[k]);
   if (missing.length) {
@@ -291,7 +304,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: bookings } = await db
     .from("exp_bookings")
-    .select("id, status, downpayment_received, contact_id, experience_id, contacts(name,email), exp_experiences(title), exp_editions(date_start,date_end,whatsapp_group_link)")
+    .select("id, status, downpayment_received, contact_id, experience_id, contacts(name,email), exp_experiences(title), exp_editions(kind,date_start,date_end,whatsapp_group_link)")
     .eq("edition_id", id);
 
   // The waiver reminder has a per-guest condition the dedupe key can't cover:
@@ -341,6 +354,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         finalDetailsNote: values.finalDetailsNote ?? undefined,
         packingList: values.packingList ?? undefined,
         whatsappLink: b.exp_editions?.whatsapp_group_link ?? values.whatsappLink ?? undefined,
+        startDate: s2 ?? undefined,
+        event: b.exp_editions?.kind === "event" ? "yes" : undefined,
         bookingLink: `${origin}/account`,
         tripLink: `${origin}/account/bookings/${b.id}`,
         ...nextSteps,
@@ -377,6 +392,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         finalDetailsNote: values.finalDetailsNote ?? undefined,
         packingList: values.packingList ?? undefined,
         whatsappLink: b.exp_editions?.whatsapp_group_link ?? values.whatsappLink ?? undefined,
+        startDate: s ?? undefined,
+        event: b.exp_editions?.kind === "event" ? "yes" : undefined,
         bookingLink: `${origin}/account`,
         tripLink: `${origin}/account/bookings/${b.id}`,
         waiverLink: `${origin}/account/bookings/${b.id}/waiver`,
@@ -412,6 +429,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if (denied) return denied;
   const { id } = await params;
   const body = await request.json().catch(() => ({} as Record<string, unknown>));
+
+  /* "Don't send this mail for this week": { skip: "<templateKey>", value: true|false }.
+     Only a key this panel schedules, for the same reason POST refuses unknown
+     keys. Read-modify-write on a small array; two admins toggling different
+     mails in the same second is not a real risk here. */
+  if (typeof body.skip === "string") {
+    const mailKey = body.skip;
+    if (!timingAnchor(mailKey) && !MANUAL_CONDITIONAL[mailKey]) {
+      return NextResponse.json({ error: "That isn't a scheduled mail." }, { status: 400 });
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = createAdminClient() as any;
+    const { data: cur, error: readErr } = await db.from("exp_editions").select("mail_skip").eq("id", id).maybeSingle();
+    if (readErr || !cur) return NextResponse.json({ error: readErr?.message ?? "Week not found." }, { status: 404 });
+    const next = new Set<string>(((cur.mail_skip ?? []) as string[]).filter(Boolean));
+    if (body.value === true) next.add(mailKey); else next.delete(mailKey);
+    const { error } = await db.from("exp_editions").update({ mail_skip: [...next] }).eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, skipped: next.has(mailKey) });
+  }
+
   const key = String(body.key ?? "") as ContentKey;
   const column = OVERRIDE_COLUMN[key];
   if (!column) return NextResponse.json({ error: "Unknown field." }, { status: 400 });

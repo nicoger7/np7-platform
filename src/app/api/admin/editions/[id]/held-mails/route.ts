@@ -55,6 +55,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { data: holds } = await db.from("mail_holds").select("*").in("id", holdIds).eq("edition_id", id);
   if (!holds?.length) return NextResponse.json({ error: "Those holds are no longer open." }, { status: 404 });
 
+  // A mail switched off for this week stays off here too: releasing a hold must
+  // not be a side door past the Mailing tab's switch.
+  const { data: edSkip } = await db.from("exp_editions").select("mail_skip").eq("id", id).maybeSingle();
+  const skip = new Set<string>(((edSkip?.mail_skip ?? []) as string[]).filter(Boolean));
+  const blockedBySkip = holds.filter((h: { template_key: string }) => skip.has(h.template_key));
+  if (blockedBySkip.length) {
+    return NextResponse.json(
+      { error: `${[...new Set(blockedBySkip.map((h: { template_key: string }) => h.template_key))].join(", ")} is switched off for this week. Switch it back on first.` },
+      { status: 409 },
+    );
+  }
+
   // Refuse rather than send another hollow mail — the content may still be missing.
   for (const h of holds) {
     if (!(await holdIsReady(h.template_key, id))) {
@@ -73,7 +85,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   for (const h of holds) {
     const { data: b } = await db
       .from("exp_bookings")
-      .select("id, contact_id, contacts(name,email), exp_experiences(title), exp_editions(date_start,date_end,whatsapp_group_link)")
+      .select("id, contact_id, contacts(name,email), exp_experiences(title), exp_editions(kind,date_start,date_end,whatsapp_group_link)")
       .eq("id", h.booking_id)
       .maybeSingle();
     const email = b?.contacts?.email;
@@ -92,6 +104,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         preTripNote: values.preTripNote ?? undefined,
         packingList: values.packingList ?? undefined,
         whatsappLink: b.exp_editions?.whatsapp_group_link ?? values.whatsappLink ?? undefined,
+        startDate: s ?? undefined,
+        event: b.exp_editions?.kind === "event" ? "yes" : undefined,
         bookingLink: `${origin}/account`,
         tripLink: `${origin}/account/bookings/${b.id}`,
         waiverLink: `${origin}/account/bookings/${b.id}/waiver`,

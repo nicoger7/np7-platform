@@ -1747,7 +1747,7 @@ export default function EditionDetailPage({
               </div>
 
               <div className="mt-4">
-                <label className="block text-xs font-medium admin-muted mb-1.5">Packing list for this week <span className="admin-faint font-normal">(optional)</span></label>
+                <label className="block text-xs font-medium admin-muted mb-1.5">Packing list for this week <span className="admin-faint font-normal">(uses the experience&apos;s list if left blank)</span></label>
                 <textarea value={brandPacking} onChange={(e) => setBrandPacking(e.target.value)} rows={5}
                   placeholder="One item per line — 5.0 sail, harness, booties, reef shoes…"
                   className="admin-input w-full px-3 py-2 rounded-lg border text-sm outline-none resize-y" />
