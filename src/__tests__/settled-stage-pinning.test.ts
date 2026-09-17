@@ -78,3 +78,32 @@ describe("settledStagesFrom is the one definition", () => {
     ])).toEqual({ deposit: 0, downpayment: 0 });
   });
 });
+
+describe("a stage cannot have been paid with more money than arrived", () => {
+  const paid = (type: string, amount: number) => ({ type, status: "paid", direction: "revenue", amount });
+
+  it("Richard Hood: a credit-noted downpayment invoice does not count twice", () => {
+    const s = settledStagesFrom([], [
+      paid("downpayment", 2542.8), // 204, the replacement
+      paid("downpayment", 2445),   // 202, cancelled
+      paid("refund", 2445),        // 202/credit
+    ]);
+    expect(s.downpayment).toBe(2542.8);
+    const plan = computePaymentPlan(CFG, { total: 4890, paidAmount: 2542.8, editionStart: "2026-12-07", bookedAt: "2026-06-08", settledStages: s });
+    expect(plan.find((m) => m.kind === "downpayment")!.amount).toBeLessThanOrEqual(4890);
+    expect(plan.find((m) => m.kind === "downpayment")!.amount).toBe(2542.8);
+  });
+
+  it("Indrek is unchanged: one clean downpayment still pins", () => {
+    expect(settledStagesFrom([], [paid("downpayment", 2775)])).toEqual({ deposit: 0, downpayment: 2775 });
+  });
+
+  it("an empty payment list does not wipe a paid stage invoice (a failed read is not zero money)", () => {
+    expect(settledStagesFrom([{ type: "downpayment_invoice", amount: 2775 }], [])).toEqual({ deposit: 0, downpayment: 2775 });
+  });
+
+  it("money moved on to cover another guest is not the payer's own stage", () => {
+    const s = settledStagesFrom([], [paid("downpayment", 3000), paid("partial", -2000)]);
+    expect(s.downpayment).toBe(1000);
+  });
+});

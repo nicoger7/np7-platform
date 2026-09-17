@@ -122,6 +122,29 @@ export function settledStagesFrom(
   }
   out.deposit = round(Math.max(byDoc.deposit, byPay.deposit));
   out.downpayment = round(Math.max(byDoc.downpayment, byPay.downpayment));
+
+  /*
+   * A STAGE CANNOT HAVE BEEN PAID WITH MORE MONEY THAN ARRIVED.
+   *
+   * Summing rows typed "downpayment" misses the row that cancels one. Richard
+   * Hood's downpayment invoice 202 (EUR 2,445) was credit-noted and replaced by
+   * 204 (EUR 2,542.80). All three rows are real, and attached to his booking
+   * they read as TWO paid downpayments, so the plan pinned his stage at
+   * EUR 4,987.80 on a EUR 4,890 trip. The credit note is typed "refund", not
+   * "downpayment", so nothing above could see it.
+   *
+   * So each stage is capped at the money actually received net of refunds and
+   * of anything moved on to cover another guest. Only when payment rows were
+   * given at all: an empty list means "not fetched", and capping a paid stage
+   * invoice to zero on a failed read would undo the pin it exists to provide.
+   */
+  const counted = payments.filter((p) => String(p.status ?? "").toLowerCase() === "paid" && (!p.direction || p.direction === "revenue"));
+  if (counted.length) {
+    const net = counted.reduce((n, p) => n + (p.type === "refund" ? -1 : 1) * (Number(p.amount) || 0), 0);
+    const cap = Math.max(0, net);
+    out.deposit = round(Math.min(out.deposit, cap));
+    out.downpayment = round(Math.min(out.downpayment, Math.max(0, cap - out.deposit)));
+  }
   return out;
 }
 

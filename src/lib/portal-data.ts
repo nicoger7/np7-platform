@@ -181,8 +181,10 @@ export async function getBookingPaymentInputs(bookingIds: string[]): Promise<Map
        * stage invoice is, so it pins the stage the same way. Ten live bookings
        * were reading wrong on this the day it was found.
        */
+      // Every paid row, not only the typed stage rows: the cap in
+      // settledStagesFrom nets refunds and allocations against them.
       db.from("exp_payments").select("booking_id, type, amount, status, direction").in("booking_id", bookingIds)
-        .eq("status", "paid").in("type", ["deposit", "downpayment"]),
+        .eq("status", "paid"),
       db.from("exp_bookings").select("id, covered_by_booking_id, agreed_price").in("covered_by_booking_id", bookingIds),
       // Bank transfers the guest has started and Stripe has not confirmed. They
       // are NOT money received — that stays the ledger's job — but a page that
