@@ -419,7 +419,11 @@ export function HeroFindYourFit({ src, poster, fallbackImages, fallbackFocus, ch
           }}
           aria-hidden
         />
-        <div ref={heroRef} className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6 will-change-transform"
+        {/* pt-16 = the header's own height, and justify-center splits it, so the
+            logo block sits in the middle of what you can actually SEE. Centred
+            on the full viewport it measured perfectly centred and looked 32px
+            high, because the fixed 64px header covers the top of that box. */}
+        <div ref={heroRef} className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center px-6 pt-16 will-change-transform"
           style={{ textShadow: "0 2px 20px rgba(0,20,28,0.5), 0 1px 3px rgba(0,20,28,0.4)" }}>{children}</div>
 
         {/* scroll cue */}

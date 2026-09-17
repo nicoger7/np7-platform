@@ -55,7 +55,7 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
  * the ordinary case and nothing changes.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type InvoiceContact = { id?: string | null; name: string | null; email: string | null; billing_address: string | null; billing_postal_code: string | null; billing_city: string | null; billing_country: string | null };
+type InvoiceContact = { id?: string | null; name: string | null; email: string | null; company_name?: string | null; vat_id?: string | null; billing_address: string | null; billing_postal_code: string | null; billing_city: string | null; billing_country: string | null };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function invoiceRecipient(booking: any): Promise<{ contact: InvoiceContact | null; billToId: string | null }> {
   const own = (booking?.contacts ?? null) as InvoiceContact | null;
@@ -63,7 +63,7 @@ async function invoiceRecipient(booking: any): Promise<{ contact: InvoiceContact
   if (!billToId) return { contact: own, billToId: null };
   const { data } = await getDb()
     .from("contacts")
-    .select("id, name, email, billing_address, billing_postal_code, billing_city, billing_country")
+    .select("id, name, email, company_name, vat_id, billing_address, billing_postal_code, billing_city, billing_country")
     .eq("id", billToId)
     .maybeSingle();
   // A billing contact that has gone missing must not silently address the
@@ -458,7 +458,7 @@ async function resolveBooking(bookingId: string): Promise<ResolvedBooking> {
       `id, contact_id, experience_id, edition_id, package_id, covered_by_booking_id,
        billing_contact_id,
        agreed_price, downpayment_received, final_payment_received, notes, created_at,
-       contacts(name, email, billing_address, billing_postal_code, billing_city, billing_country),
+       contacts(name, email, company_name, vat_id, billing_address, billing_postal_code, billing_city, billing_country),
        exp_experiences(title, slug),
        exp_editions(label, year, date_start, date_end, deposit, kind),
        exp_packages(name, deposit, downpayment_percent, final_days_before, deposit_refund_days, includes)`
@@ -860,6 +860,8 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
     },
     contact: {
       name: contact?.name ?? null,
+      companyName: contact?.company_name ?? null,
+      vatId: contact?.vat_id ?? null,
       billingAddress: contact?.billing_address ?? null,
       billingPostalCode: contact?.billing_postal_code ?? null,
       billingCity: contact?.billing_city ?? null,
@@ -1244,7 +1246,9 @@ export async function generateCreditNote(input: CreditNoteInput): Promise<Credit
       refundDue,
       contact: {
         name: contact?.name ?? null,
-        billingAddress: contact?.billing_address ?? null,
+        companyName: contact?.company_name ?? null,
+      vatId: contact?.vat_id ?? null,
+      billingAddress: contact?.billing_address ?? null,
         billingPostalCode: contact?.billing_postal_code ?? null,
         billingCity: contact?.billing_city ?? null,
         billingCountry: contact?.billing_country ?? null,

@@ -62,7 +62,7 @@ export async function PATCH(
   // Redact unless the caller is proven allowed. `access &&` did the
   // opposite: an unidentified caller saw the unredacted rows.
   if (!access || !effectiveCanSeeField(access, "contact_pii")) {
-    for (const f of ["email", "phone", "date_of_birth", "diet_allergies", "billing_address", "billing_postal_code", "billing_city", "billing_country"]) {
+    for (const f of ["email", "phone", "date_of_birth", "diet_allergies", "company_name", "vat_id", "billing_address", "billing_postal_code", "billing_city", "billing_country"]) {
       delete body[f];
     }
   }

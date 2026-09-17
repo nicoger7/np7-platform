@@ -153,6 +153,10 @@ export type InvoiceData = {
   };
   contact: {
     name: string | null;
+    /** Set when the customer is a company: it becomes the invoice recipient. */
+    companyName?: string | null;
+    /** The CUSTOMER's VAT number, printed for their records. */
+    vatId?: string | null;
     billingAddress: string | null;
     billingPostalCode: string | null;
     billingCity: string | null;
@@ -199,9 +203,21 @@ function servicePeriod(ed: InvoiceData["edition"]): string {
   return `${s} - ${e}`;
 }
 
-function buyerAddress(c: InvoiceData["contact"]): string {
+/**
+ * Who the invoice is made out to.
+ *
+ * Sec 14 UStG wants the RECIPIENT's full name and address, and when a company
+ * is paying, the recipient is the company. So the company's name leads and the
+ * person follows on an attention line: the guest still needs to see their own
+ * name, and their employer's bookkeeping needs the company's. With no company
+ * set this is exactly what it was, the person's name and address.
+ */
+export function buyerAddress(c: InvoiceData["contact"]): string {
+  const company = (c.companyName ?? "").trim();
+  const person = (c.name ?? "").trim();
   const parts = [
-    c.name,
+    company || person,
+    company && person ? `Attn. ${person}` : null,
     c.billingAddress,
     [c.billingPostalCode, c.billingCity].filter(Boolean).join(" "),
     c.billingCountry,
@@ -286,6 +302,7 @@ function BuyerBlock({ contact }: { contact: InvoiceData["contact"] }) {
       <Text style={s.buyerLabel}>Bill to:</Text>
       <View style={s.buyerData}>
         <Text>{buyerAddress(contact) || contact.name || "Not provided"}</Text>
+        {contact.vatId && <Text style={[s.smallText, { marginTop: 3 }]}>VAT ID: {contact.vatId}</Text>}
         {contact.email && <Text style={[s.smallText, { marginTop: 3 }]}>{contact.email}</Text>}
       </View>
     </View>

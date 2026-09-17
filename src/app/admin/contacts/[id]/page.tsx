@@ -33,6 +33,12 @@ interface Contact {
   diet_allergies: string | null;
   notes: string | null;
   date_of_birth: string | null;
+  company_name: string | null;
+  vat_id: string | null;
+  billing_address: string | null;
+  billing_postal_code: string | null;
+  billing_city: string | null;
+  billing_country: string | null;
   accepts_marketing: boolean;
   marketing_opt_in: boolean | null;
   marketing_opt_in_at: string | null;
@@ -143,6 +149,12 @@ export function ContactDetailPane({ contactId, onBack }: { contactId: string; on
       fields.phone = contact.phone;
       fields.date_of_birth = contact.date_of_birth;
       fields.diet_allergies = contact.diet_allergies;
+      fields.company_name = contact.company_name;
+      fields.vat_id = contact.vat_id;
+      fields.billing_address = contact.billing_address;
+      fields.billing_postal_code = contact.billing_postal_code;
+      fields.billing_city = contact.billing_city;
+      fields.billing_country = contact.billing_country;
     }
     const res = await fetch(`/api/admin/contacts/${id}`, {
       method: "PATCH",
@@ -318,6 +330,56 @@ export function ContactDetailPane({ contactId, onBack }: { contactId: string; on
           <label className={labelClass}>Diet / Allergies</label>
           <input className={inputClass} value={contact.diet_allergies || ""} onChange={(e) => update("diet_allergies", e.target.value || null)} placeholder="Any dietary requirements or allergies" />
         </div>
+
+        {/* Invoice address · deliberately quiet.
+            It is collected at Stripe checkout and written back here, and the
+            invoice generator reads exactly these columns, but until now there
+            was nowhere in the admin to SEE it, let alone correct a typo. Kept
+            low and folded away because it is looked at rarely: when an invoice
+            comes back wrong, or when a guest wants it on their company. */}
+        <details className="sm:col-span-2 rounded-lg" style={{ border: "1px solid var(--admin-border)" }}>
+          <summary className="cursor-pointer select-none px-3 py-2 text-[12.5px] font-semibold admin-muted">
+            Invoice address
+            <span className="ml-2 font-normal admin-faint">
+              {contact.billing_address || contact.company_name
+                ? [contact.company_name, contact.billing_city, contact.billing_country].filter(Boolean).join(" · ")
+                : "not set, invoices print the name only"}
+            </span>
+          </summary>
+          <div className="px-3 pb-3 pt-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <label className={labelClass}>Company (optional)</label>
+              <input className={inputClass} value={contact.company_name || ""} onChange={(e) => update("company_name", e.target.value || null)}
+                placeholder="Invoice goes to this name, with the person underneath" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className={labelClass}>Street and number</label>
+              <input className={inputClass} value={contact.billing_address || ""} onChange={(e) => update("billing_address", e.target.value || null)} />
+            </div>
+            <div>
+              <label className={labelClass}>Postcode</label>
+              <input className={inputClass} value={contact.billing_postal_code || ""} onChange={(e) => update("billing_postal_code", e.target.value || null)} />
+            </div>
+            <div>
+              <label className={labelClass}>City</label>
+              <input className={inputClass} value={contact.billing_city || ""} onChange={(e) => update("billing_city", e.target.value || null)} />
+            </div>
+            <div>
+              <label className={labelClass}>Country</label>
+              <input className={inputClass} value={contact.billing_country || ""} onChange={(e) => update("billing_country", e.target.value || null)} />
+            </div>
+            <div>
+              <label className={labelClass}>VAT number (optional)</label>
+              <input className={inputClass} value={contact.vat_id || ""} onChange={(e) => update("vat_id", e.target.value || null)}
+                placeholder="Theirs, for their records" />
+            </div>
+            <p className="sm:col-span-2 text-[11px] admin-faint leading-relaxed">
+              A German invoice over 250 euro must show who it is made out to and where they are. An invoice already
+              issued never changes; this is used by the next one. The VAT number changes no tax: trips run under the
+              margin scheme, which covers business customers too.
+            </p>
+          </div>
+        </details>
 
         {/* Level notes */}
         <div>
