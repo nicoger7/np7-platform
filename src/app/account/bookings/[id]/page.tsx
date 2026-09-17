@@ -88,13 +88,9 @@ export default async function BookingDetail({ params }: Props) {
   const baseTotal = b.agreed_price ?? null;
   const ownTotal = baseTotal != null ? baseTotal + addonsTotal : addonsTotal > 0 ? addonsTotal : null;
   const total = ownTotal != null ? ownTotal + coveredExtra : coveredExtra > 0 ? coveredExtra : null;
-  // What this member's price is made of. The discount comes from what was
-  // STORED on the booking (migration 248) and never from comparing against
-  // today's package price: the package has usually been edited since, which is
-  // how guests ended up being shown discounts nobody ever gave them.
-  const priceLabel = describePrice({
-    agreedPrice: b.agreed_price, packagePrice: b.pkg?.price ?? null, addonsTotal, stored: b.stored_price,
-  });
+  // How the member's price compares to the package list (+ confirmed add-ons):
+  // a discount, an exact match, or a negotiated "as discussed" figure.
+  const priceLabel = describePrice({ agreedPrice: b.agreed_price, packagePrice: b.pkg?.price ?? null, addonsTotal });
   const tripEnded = b.edition?.date_end ? new Date(b.edition.date_end) < new Date() : false;
   // waiver signature status (table from migration 031)
   const waiverSig = await (createAdminClient() as unknown as { from: (t: string) => { select: (s: string) => { eq: (c: string, v: string) => { maybeSingle: () => Promise<{ data: { signed_name: string; signed_at: string } | null }> } } } })
@@ -541,24 +537,13 @@ export default async function BookingDetail({ params }: Props) {
       {b.pkg?.name && <Row label="Package" value={b.pkg.name} />}
       {addonsTotal > 0 && <Row label="Confirmed add-ons" value={`+ ${money(addonsTotal, cur)}`} />}
       {priceLabel.kind === "discount" && (
-        <>
-          <Row label="Your rate" value={
-            <>
-              <span className="line-through text-[#9aa6ac] font-semibold mr-2">{money(priceLabel.list, cur)}</span>
-              {money(priceLabel.total, cur)}
-              <span className="ml-2 inline-block px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-green-100 text-green-700 align-middle">{priceLabel.percentOff}% off</span>
-            </>
-          } />
-          {/* Why they got it. A number on its own reads as luck; "Crew price"
-              reads as something they earned, which is the whole point of the
-              ladder. */}
-          {priceLabel.reason && (
-            <p className="mt-1.5 text-[12.5px] text-[#6a7a80] leading-snug">
-              {priceLabel.reason}
-              {priceLabel.amountOff ? ` and ${money(priceLabel.amountOff, cur)} off` : ""}
-            </p>
-          )}
-        </>
+        <Row label="Your rate" value={
+          <>
+            <span className="line-through text-[#9aa6ac] font-semibold mr-2">{money(priceLabel.list, cur)}</span>
+            {money(priceLabel.total, cur)}
+            <span className="ml-2 inline-block px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-green-100 text-green-700 align-middle">{priceLabel.percentOff}% off</span>
+          </>
+        } />
       )}
       {priceLabel.kind === "as_discussed" && (
         <Row label="Your price" value={
