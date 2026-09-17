@@ -531,6 +531,16 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
         // details by the flights endpoint below, so there is exactly one writer
         // and the guest never sees a date the admin has since changed.
         traveling_with: booking.traveling_with,
+        /* These four are editable on this page and were missing from the save,
+           so update() changed the screen, setDirty(true) lit the button, Save
+           reported success and sent nothing. "Invoice to" could never stick:
+           Niklas Heinen was pointed at Jana Wagner and read back "None". The
+           flight fields fail the same way, and the Prep tab's "Arrival added"
+           reads them. */
+        billing_contact_id: booking.billing_contact_id ?? null,
+        fly_in: booking.fly_in ?? null,
+        fly_out: booking.fly_out ?? null,
+        flight_info: booking.flight_info ?? null,
         wa_group: booking.wa_group,
         agreed_price: booking.agreed_price,
         deposit_invoice_sent: booking.deposit_invoice_sent,
