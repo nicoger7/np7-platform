@@ -90,7 +90,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // An event is a 1–2 day clinic: most of this series never fires for it, and
   // listing mails that cannot send reads as a to-do list of work that isn't
   // real. Same rule the cron and the readiness check use.
-  const scheduled = AUTOMATIONS.filter((a) => a.source === "scheduled" && mailAppliesTo(kind, a.key)).map((a) => {
+  const scheduled = AUTOMATIONS.filter((a) => a.source === "scheduled" && mailAppliesTo(kind, a.key, values)).map((a) => {
     const t = timingBy.get(a.key);
     const lead = t?.anchor === "before" ? t.days : undefined;
     const after = t?.anchor === "afterEnd" ? t.days : undefined;

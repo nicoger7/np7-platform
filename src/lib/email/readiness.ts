@@ -269,8 +269,31 @@ export const EVENT_SCHEDULED_MAILS = new Set([
 ]);
 
 /** Does this scheduled mail apply to an edition of this kind? */
-export const mailAppliesTo = (kind: string | null | undefined, templateKey: string): boolean =>
-  kind === "event" ? EVENT_SCHEDULED_MAILS.has(templateKey) : true;
+/*
+ * AN EVENT WITH A GROUP CHAT GETS THE GROUP-CHAT MAIL.
+ *
+ * Events were cut off from the whole pre-trip series on the premise that "an
+ * event is a 1-2 day clinic", and for those it is right. It was wrong for OBX
+ * Wind, a SEVEN-day clinic week (10-16 Oct 2026) with a WhatsApp group link
+ * filled in: the link was entered, the readiness panel ticked it, and no mail
+ * could ever carry it. The Mailing tab had no row for it, so there was no
+ * button, and nothing to explain why.
+ *
+ * So crew_forming applies to an event exactly when that event HAS a group chat.
+ * A one-day clinic without one is still never nagged for a link it does not
+ * need. This only decides what the tab shows and what readiness checks: the
+ * nightly cron still never sends the pre-trip series to an event on its own,
+ * so an admin pressing the button is the only way it goes out.
+ */
+export const mailAppliesTo = (
+  kind: string | null | undefined,
+  templateKey: string,
+  values?: Partial<Record<ContentKey, unknown>> | null,
+): boolean => {
+  if (kind !== "event") return true;
+  if (EVENT_SCHEDULED_MAILS.has(templateKey)) return true;
+  return templateKey === "crew_forming" && !!values?.whatsappLink;
+};
 
 export const CONTENT_LABELS: Record<ContentKey, { label: string; where: string }> = {
   packingList: { label: "Packing list", where: "Edition → Details, or the experience's Event Content" },
@@ -397,7 +420,7 @@ export async function getEditionReadiness(editionId: string, now = new Date()): 
 
     for (const [mail, req] of Object.entries(MAIL_REQUIREMENTS)) {
       // An event is never judged against the travelled-week series.
-      if (!mailAppliesTo(kind, mail)) continue;
+      if (!mailAppliesTo(kind, mail, values)) continue;
       const lead = timing.before[mail];
       if (req.blocking.includes(key)) {
         blocks.push(req.label);
