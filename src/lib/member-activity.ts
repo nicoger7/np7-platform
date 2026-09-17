@@ -36,6 +36,13 @@ export type ActivityItem = {
   href: string | null;
 };
 
+/** €2,445.00, and −€3,082.10 with a real minus sign in front of the currency,
+ *  not "€-3,082.1", which is what toLocaleString("en-US") on its own printed. */
+function eur(n: number): string {
+  const abs = Math.abs(n).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${n < 0 ? "\u2212" : ""}\u20AC${abs}`;
+}
+
 const LIMIT_PER_SOURCE = 60;
 
 /** How a member reached us, said in words. The raw column holds intake slugs. */
@@ -135,7 +142,7 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
       // of their own and are tied to the payer only through the booking, so
       // without it every one of them renders as "A member". Same embed shape the
       // add-ons query already uses.
-      safe(() => db.from("exp_payments").select("id, amount, received_at, created_at, contact_id, booking_id, contacts(name), exp_bookings(contact_id, contacts(name))").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
+      safe(() => db.from("exp_payments").select("id, amount, type, direction, status, unmatched, reference, notes, received_at, created_at, contact_id, booking_id, contacts(name), exp_bookings(contact_id, contacts(name))").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_waiver_signatures").select("id, signed_at, created_at, contact_id, booking_id, contacts(name)").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_booking_addons").select("id, label, requested_at, booking_id, source, exp_bookings(name, contact_id, contacts(name))").not("requested_at", "is", null).order("requested_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
       safe(() => db.from("exp_trip_applications").select("id, name, created_at, contact_id").order("created_at", { ascending: false }).limit(LIMIT_PER_SOURCE)),
@@ -163,10 +170,45 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const p of (payments.data ?? []) as any[]) {
-    push({ id: `payment:${p.id}`, at: p.received_at ?? p.created_at, kind: "trip", action: "Payment recorded",
-      subject: p.amount != null ? `€${Number(p.amount).toLocaleString("en-US")}` : null,
+    /*
+     * A PAYMENT ROW IS NOT ALWAYS A PAYMENT, AND NOT ALWAYS A MEMBER.
+     *
+     * This read only amount, so every row said "Payment recorded €X". On 16 Sep
+     * jibe imported invoice 202 (Bonaire 7-13 Dec, EUR 2,445) and its credit
+     * note from the accounting sheet, one second apart. The money was right,
+     * sumReceived counts a refund negative so the two cancel to zero, but the
+     * feed showed two identical "A member · Payment recorded · €2,445" lines:
+     * the credit note read as a second payment, and neither row belongs to a
+     * person yet, so both fell back to "A member".
+     *
+     * So: costs are not member activity; pending and cancelled rows are not
+     * money that arrived; a refund is a refund and reads negative; and a row
+     * nobody is attached to says what it IS (the sheet's reference and note)
+     * and opens Payments, where it can be matched, instead of pretending to be
+     * an anonymous member.
+     */
+    if (p.direction === "cost") continue;
+    if (p.status && p.status !== "paid") continue;
+    const refund = p.type === "refund";
+    const amt = p.amount != null ? Math.abs(Number(p.amount)) * (refund || Number(p.amount) < 0 ? -1 : 1) : null;
+    const who = nameOf(p) ?? p.exp_bookings?.contacts?.name ?? null;
+    const orphan = !who && !p.contact_id && !p.booking_id && !p.exp_bookings?.contact_id;
+    const detail = [p.reference ? `ref ${p.reference}` : null, p.notes ? String(p.notes).trim() : null].filter(Boolean).join(" · ");
+    /* An allocation is money moving between two guests of one group, not money
+       arriving: "alloc#3cfu45:thomas→mia" on the payer, "mia←thomas" on the
+       guest they cover. Each leg read "Payment recorded", the payer's as a
+       negative payment, which looks exactly like a mistake and is not one. */
+    const alloc = /^alloc#[^:]*:(.+?)(→|←)(.+)$/.exec(String(p.reference ?? ""));
+    const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
+    const action = alloc
+      ? (alloc[2] === "→" ? "Paid for another guest" : "Trip covered by another guest")
+      : refund ? "Refund recorded" : orphan ? "Unassigned payment" : "Payment recorded";
+    const allocNote = alloc ? `${alloc[2] === "→" ? "to" : "from"} ${cap(alloc[3].trim())}` : null;
+    push({ id: `payment:${p.id}`, at: p.received_at ?? p.created_at, kind: "trip",
+      action,
+      subject: [amt != null ? eur(amt) : null, allocNote, orphan && detail ? detail : null].filter(Boolean).join(" · ") || null,
       contactId: p.contact_id ?? p.exp_bookings?.contact_id ?? null,
-      contactName: nameOf(p) ?? p.exp_bookings?.contacts?.name ?? null,
+      contactName: orphan ? "Not matched yet" : who,
       href: p.booking_id ? `/admin/bookings/${p.booking_id}?tab=payments` : "/admin/payments" });
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
