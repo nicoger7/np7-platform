@@ -88,9 +88,13 @@ export default async function BookingDetail({ params }: Props) {
   const baseTotal = b.agreed_price ?? null;
   const ownTotal = baseTotal != null ? baseTotal + addonsTotal : addonsTotal > 0 ? addonsTotal : null;
   const total = ownTotal != null ? ownTotal + coveredExtra : coveredExtra > 0 ? coveredExtra : null;
-  // How the member's price compares to the package list (+ confirmed add-ons):
-  // a discount, an exact match, or a negotiated "as discussed" figure.
-  const priceLabel = describePrice({ agreedPrice: b.agreed_price, packagePrice: b.pkg?.price ?? null, addonsTotal });
+  // What this member's price is made of. The discount comes from what was
+  // STORED on the booking (migration 248) and never from comparing against
+  // today's package price: the package has usually been edited since, which is
+  // how guests ended up being shown discounts nobody ever gave them.
+  const priceLabel = describePrice({
+    agreedPrice: b.agreed_price, packagePrice: b.pkg?.price ?? null, addonsTotal, stored: b.stored_price,
+  });
   const tripEnded = b.edition?.date_end ? new Date(b.edition.date_end) < new Date() : false;
   // waiver signature status (table from migration 031)
   const waiverSig = await (createAdminClient() as unknown as { from: (t: string) => { select: (s: string) => { eq: (c: string, v: string) => { maybeSingle: () => Promise<{ data: { signed_name: string; signed_at: string } | null }> } } } })
@@ -537,13 +541,24 @@ export default async function BookingDetail({ params }: Props) {
       {b.pkg?.name && <Row label="Package" value={b.pkg.name} />}
       {addonsTotal > 0 && <Row label="Confirmed add-ons" value={`+ ${money(addonsTotal, cur)}`} />}
       {priceLabel.kind === "discount" && (
-        <Row label="Your rate" value={
-          <>
-            <span className="line-through text-[#9aa6ac] font-semibold mr-2">{money(priceLabel.list, cur)}</span>
-            {money(priceLabel.total, cur)}
-            <span className="ml-2 inline-block px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-green-100 text-green-700 align-middle">{priceLabel.percentOff}% off</span>
-          </>
-        } />
+        <>
+          <Row label="Your rate" value={
+            <>
+              <span className="line-through text-[#9aa6ac] font-semibold mr-2">{money(priceLabel.list, cur)}</span>
+              {money(priceLabel.total, cur)}
+              <span className="ml-2 inline-block px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-green-100 text-green-700 align-middle">{priceLabel.percentOff}% off</span>
+            </>
+          } />
+          {/* Why they got it. A number on its own reads as luck; "Crew price"
+              reads as something they earned, which is the whole point of the
+              ladder. */}
+          {priceLabel.reason && (
+            <p className="mt-1.5 text-[12.5px] text-[#6a7a80] leading-snug">
+              {priceLabel.reason}
+              {priceLabel.amountOff ? ` and ${money(priceLabel.amountOff, cur)} off` : ""}
+            </p>
+          )}
+        </>
       )}
       {priceLabel.kind === "as_discussed" && (
         <Row label="Your price" value={
@@ -890,7 +905,15 @@ export default async function BookingDetail({ params }: Props) {
           accommodation, nothing bundled. Handing the buyer a package-travel
           information form claims rights this sale doesn't carry. */}
       {!isEvent && <DocLink href="/experience/legal/package-travel" label="Standard information form" sub="Your rights under EU package-travel law" />}
-      <p className="text-[12.5px] text-[#9aa6ac] py-2.5">Your invoices &amp; pro-forma are in the <strong className="text-[#6a7a80] font-semibold">Payment</strong> tab.</p>
+      {/* An event guest could not reach their invoice AT ALL: this line sent
+          them to Payment, the event Payment panel sent them back here ("anything
+          else you need is under Docs"), and MemberDocuments is only rendered in
+          the TRIP payment body. Three issued PDFs sat unreachable while both
+          event payment mails promised "your invoice is in your account".
+          A trip keeps the pointer, because for a trip it is true. */}
+      {isEvent
+        ? <div className="py-1"><MemberDocuments bookingId={b.id} /></div>
+        : <p className="text-[12.5px] text-[#9aa6ac] py-2.5">Your invoices &amp; pro-forma are in the <strong className="text-[#6a7a80] font-semibold">Payment</strong> tab.</p>}
       <details className="mt-2 border-t border-[#f3ede2] pt-3">
         <summary className="text-[14px] font-semibold text-[#00374a] cursor-pointer">Cancellation policy</summary>
         <p className="text-[13px] text-[#6a7a80] leading-relaxed mt-2 whitespace-pre-line">{cancellation}</p>
