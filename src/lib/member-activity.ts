@@ -20,7 +20,7 @@ import { createAdminClient } from "@/lib/supabase";
  * the whole feed.
  */
 
-export type ActivityKind = "trip" | "community";
+export type ActivityKind = "trip" | "community" | "login";
 
 export type ActivityItem = {
   id: string;
@@ -124,6 +124,66 @@ async function getSignups(
         href: c?.id ? `/admin/members/${c.id}` : "/admin/members",
       };
     });
+}
+
+/**
+ * Who has signed in lately.
+ *
+ * What Supabase gives us is each person's MOST RECENT sign-in and nothing
+ * more: auth.audit_log_entries is empty on this project, so there is no
+ * history to read. That makes this exactly "latest logins", one line per
+ * person, and it has two honest limits worth knowing when reading it:
+ * a second login replaces the first, and staying signed in on a device does
+ * not count as logging in again, so a member who visits daily on a saved
+ * session can show a login from weeks ago.
+ *
+ * Names come from the contact the auth user is linked to, and team members are
+ * marked, because Nico signing in to the admin is not member activity and
+ * should not read as if it were.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getLogins(db: any): Promise<ActivityItem[]> {
+  try {
+    const users: { id: string; email?: string | null; last_sign_in_at?: string | null }[] = [];
+    for (let page = 1; page <= 20; page++) {
+      const { data, error } = await db.auth.admin.listUsers({ page, perPage: 1000 });
+      if (error || !data?.users) break;
+      users.push(...data.users);
+      if (data.users.length < 1000) break;
+    }
+    const recent = users
+      .filter((u) => u.last_sign_in_at)
+      .sort((a, b) => String(b.last_sign_in_at).localeCompare(String(a.last_sign_in_at)))
+      .slice(0, LIMIT_PER_SOURCE);
+    if (!recent.length) return [];
+    const ids = recent.map((u) => u.id);
+    const [{ data: contacts }, { data: team }] = await Promise.all([
+      db.from("contacts").select("id, name, auth_user_id").in("auth_user_id", ids),
+      db.from("team_members").select("name, auth_user_id").in("auth_user_id", ids),
+    ]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const contactBy = new Map<string, any>((contacts ?? []).map((c: any) => [c.auth_user_id, c]));
+    const teamIds = new Set<string>((team ?? []).map((t: { auth_user_id: string }) => t.auth_user_id));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const teamName = new Map<string, string>((team ?? []).map((t: any) => [t.auth_user_id, t.name]));
+    return recent.map((u) => {
+      const c = contactBy.get(u.id);
+      const isTeam = teamIds.has(u.id);
+      return {
+        id: `login:${u.id}`,
+        at: String(u.last_sign_in_at),
+        kind: "login" as const,
+        action: "Logged in",
+        subject: isTeam ? "team" : null,
+        contactId: c?.id ?? null,
+        // Never "A member": a sign-in with no contact still has an address.
+        contactName: c?.name || teamName.get(u.id) || u.email || "Unknown account",
+        href: c?.id ? `/admin/members/${c.id}` : null,
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
@@ -265,6 +325,8 @@ export async function getMemberActivity(limit = 120): Promise<ActivityItem[]> {
       subject: o.display_number ? `#${o.display_number}` : null, contactId: o.contact_id, contactName: null,
       href: `/admin/orders` });
   }
+
+  for (const l of await getLogins(db)) push(l);
 
   items.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
   const top = items.slice(0, limit);

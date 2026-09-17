@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 type Item = {
-  id: string; at: string; kind: "trip" | "community";
+  id: string; at: string; kind: "trip" | "community" | "login";
   action: string; subject: string | null;
   contactId: string | null; contactName: string | null; href: string | null;
 };
@@ -13,6 +13,7 @@ const TABS = [
   { key: "all", label: "Everything" },
   { key: "trip", label: "Trips" },
   { key: "community", label: "Everything else" },
+  { key: "login", label: "Logins" },
 ] as const;
 
 /** Relative time — "what happened today?" is the question this page answers,
@@ -52,6 +53,7 @@ export default function MemberActivityPage() {
     all: items.length,
     trip: items.filter((i) => i.kind === "trip").length,
     community: items.filter((i) => i.kind === "community").length,
+    login: items.filter((i) => i.kind === "login").length,
   };
 
   // Group by day so a busy morning reads as a morning, not 20 loose rows.
@@ -88,6 +90,13 @@ export default function MemberActivityPage() {
         })}
       </div>
 
+      {tab === "login" && (
+        <p className="text-xs admin-faint -mt-2 mb-4 max-w-[720px] leading-relaxed">
+          Each person&apos;s most recent sign-in. A new login replaces the previous one, and someone who stays signed in on
+          their device does not show up again, so this answers &ldquo;who logged in lately&rdquo;, not &ldquo;who visited&rdquo;.
+        </p>
+      )}
+
       {loading ? (
         <p className="text-sm admin-faint">Loading activity…</p>
       ) : !shown.length ? (
@@ -104,7 +113,7 @@ export default function MemberActivityPage() {
                     className="flex items-center gap-3 px-4 py-2.5 text-[13px]"
                     style={idx ? { borderTop: "1px solid var(--admin-border)" } : undefined}
                   >
-                    <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${i.kind === "trip" ? "bg-[#0aa3c7]" : "bg-[var(--admin-border)]"}`} />
+                    <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${i.kind === "trip" ? "bg-[#0aa3c7]" : i.kind === "login" ? "bg-[#f47b20]" : "bg-[var(--admin-border)]"}`} />
                     <span className="flex-1 min-w-0 truncate">
                       {i.contactId ? (
                         <Link href={`/admin/members/${i.contactId}`} className="font-semibold admin-heading hover:text-[#0aa3c7] transition-colors">

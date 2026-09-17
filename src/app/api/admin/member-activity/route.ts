@@ -10,6 +10,6 @@ export async function GET() {
   if (denied) return denied;
   // Deep enough that every member who has ever registered reaches the page,
   // rather than being pushed off the end by a busy week of bookings.
-  const items = await getMemberActivity(400).catch(() => []);
+  const items = await getMemberActivity(500).catch(() => []);
   return NextResponse.json({ items });
 }
