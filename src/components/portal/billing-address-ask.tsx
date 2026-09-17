@@ -26,7 +26,7 @@ import { mutate } from "@/lib/mutate";
  * postcode adds a postcode rather than retyping an address we already hold.
  */
 export function BillingAddressAsk({
-  address, postalCode, city, country, preview,
+  address, postalCode, city, country, preview, companyName, vatId,
 }: {
   address?: string | null;
   postalCode?: string | null;
@@ -37,6 +37,8 @@ export function BillingAddressAsk({
    *  ADMIN's own contact. Disabled rather than hidden, so the preview shows
    *  what the member is being asked. */
   preview?: boolean;
+  companyName?: string | null;
+  vatId?: string | null;
 }) {
   const router = useRouter();
   const [f, setF] = useState({
@@ -44,7 +46,12 @@ export function BillingAddressAsk({
     billing_postal_code: postalCode ?? "",
     billing_city: city ?? "",
     billing_country: country ?? "",
+    company_name: companyName ?? "",
+    vat_id: vatId ?? "",
   });
+  // Shown only when asked for: most guests are private and a company box on a
+  // payment screen invites the question "am I supposed to have one?".
+  const [business, setBusiness] = useState(!!(companyName || vatId));
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +120,27 @@ export function BillingAddressAsk({
           <label className={label} htmlFor="ba-country">Country</label>
           <input id="ba-country" className={field} value={f.billing_country} disabled={preview}
             onChange={(e) => set("billing_country", e.target.value)} placeholder="Germany" autoComplete="country-name" />
+        </div>
+        <div className="sm:col-span-2">
+          {!business ? (
+            <button type="button" onClick={() => setBusiness(true)}
+              className="text-[12.5px] font-semibold text-[#00afdb] hover:underline">
+              My company is paying
+            </button>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <div className="sm:col-span-2">
+                <label className={label} htmlFor="ba-company">Company</label>
+                <input id="ba-company" className={field} value={f.company_name} disabled={preview}
+                  onChange={(e) => set("company_name", e.target.value)} placeholder="The name the invoice is made out to" autoComplete="organization" />
+              </div>
+              <div>
+                <label className={label} htmlFor="ba-vat">VAT number (optional)</label>
+                <input id="ba-vat" className={field} value={f.vat_id} disabled={preview}
+                  onChange={(e) => set("vat_id", e.target.value)} placeholder="DE123456789" />
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-3 mt-3.5">

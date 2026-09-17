@@ -1,11 +1,13 @@
 "use client";
 
+import { formatMoneyExact } from "@/lib/money";
+
 import { useState } from "react";
 import { mutate } from "@/lib/mutate";
 import type { Milestone } from "@/lib/payments";
 
 const money = (n: number, currency = "EUR") =>
-  new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
+  (formatMoneyExact(n, currency) as string);
 
 /**
  * "Cancel this trip" — a quiet link that opens a modal explaining exactly what

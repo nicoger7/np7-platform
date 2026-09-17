@@ -20,3 +20,23 @@ export function formatMoney(n: number | null | undefined, currency?: string | nu
   const symbol = currency === "EUR" || !currency ? "€" : `${currency} `;
   return `${symbol}${formatAmount(n, locale)}`;
 }
+
+/**
+ * An amount somebody is asked to PAY, always with both cents.
+ *
+ * The portal had seven separate formatters, each written with
+ * `maximumFractionDigits: 0`, so every amount on the payment screens was
+ * ROUNDED. Christian Røsjorde owes 5,864.23 and his page said 5,864; Julius
+ * Stelzer 5,077.70 said 5,078. Four bookings are priced in cents and 25
+ * payments carry them, and the transfer reference has to match the invoice to
+ * the cent, so a rounded figure on the Pay button is not a display choice, it
+ * is the wrong number.
+ *
+ * Always two digits here, unlike formatMoney: this sits beside an invoice,
+ * which always prints them.
+ */
+export function formatMoneyExact(n: number | null | undefined, currency?: string | null, locale = "en-GB"): string | null {
+  if (n == null) return null;
+  const symbol = currency === "EUR" || !currency ? "€" : `${currency} `;
+  return `${symbol}${n.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}

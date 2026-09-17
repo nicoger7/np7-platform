@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase";
 import { getRequestAccess, requireAdminGate } from "@/lib/admin-auth";
 import { dbErrorMessage } from "@/lib/admin-errors";
 import { effectiveCanSeeField } from "@/lib/access";
+import { getCoveredBookings } from "@/lib/group-booking";
 // GET /api/admin/bookings/:id — get booking with all related data
 export async function GET(
   _request: NextRequest,
@@ -94,7 +95,11 @@ export async function GET(
     bd?.covered_by_booking_id
       ? anyClient.from("exp_bookings").select("id, contacts(name)").eq("id", bd.covered_by_booking_id).maybeSingle()
       : Promise.resolve({ data: null }),
-    anyClient.from("exp_bookings").select("id, agreed_price, contacts(name)").eq("covered_by_booking_id", id),
+    /* The covered guests' FULL totals, price plus their own confirmed add-ons,
+       via the same helper the invoice and the member plan use. Selecting
+       agreed_price alone made the admin quietly cheaper than the invoice for
+       any covered guest who had extras. */
+    getCoveredBookings(anyClient, id),
     bd?.edition_id
       ? anyClient.from("exp_bookings").select("id, status, contacts(name)").eq("edition_id", bd.edition_id).neq("id", id)
       : Promise.resolve({ data: [] }),
@@ -112,7 +117,7 @@ export async function GET(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       covered_by: covererRow.data ? { id: (covererRow.data as any).id, name: (covererRow.data as any).contacts?.name ?? null } : null,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      covers: ((coversRows.data ?? []) as any[]).map((b) => ({ id: b.id, name: b.contacts?.name ?? null, agreed_price: b.agreed_price ?? null })),
+      covers: ((coversRows ?? []) as { id: string; guestName: string | null; total: number }[]).map((b) => ({ id: b.id, name: b.guestName, agreed_price: b.total })),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       edition_peers: ((peersRows.data ?? []) as any[]).map((b) => ({ id: b.id, name: b.contacts?.name ?? null, status: b.status ?? null })),
     },

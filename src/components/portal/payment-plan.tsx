@@ -1,7 +1,8 @@
 import { dueUrgency, type Milestone } from "@/lib/payments";
+import { formatMoneyExact } from "@/lib/money";
 
 const money = (n: number, currency = "EUR") =>
-  new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
+  (formatMoneyExact(n, currency) as string);
 
 const fmtDate = (iso: string) =>
   new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });

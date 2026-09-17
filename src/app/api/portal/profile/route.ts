@@ -38,6 +38,11 @@ export async function PUT(request: NextRequest) {
   if (str(body.billing_postal_code) !== undefined) base.billing_postal_code = str(body.billing_postal_code);
   if (str(body.billing_city) !== undefined) base.billing_city = str(body.billing_city);
   if (str(body.billing_country) !== undefined) base.billing_country = str(body.billing_country);
+  /* Optional, and only a business customer fills them in. Without these a guest
+     whose company pays had to email and ask, because the company name existed
+     on the admin contact and nowhere a guest could reach. */
+  if (str(body.company_name) !== undefined) base.company_name = str(body.company_name) || null;
+  if (str(body.vat_id) !== undefined) base.vat_id = str(body.vat_id) || null;
   if (str(body.date_of_birth) !== undefined) base.date_of_birth = str(body.date_of_birth) || null;
   if (typeof body.marketing_opt_in === "boolean") {
     base.marketing_opt_in = body.marketing_opt_in;

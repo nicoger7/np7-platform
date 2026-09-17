@@ -1,5 +1,7 @@
 "use client";
 
+import { formatMoneyExact } from "@/lib/money";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { mutate } from "@/lib/mutate";
@@ -38,7 +40,7 @@ export function RedeemVoucher({ bookingId }: { bookingId: string }) {
 
   if (done) {
     const surplus = done.forfeited > 0
-      ? new Intl.NumberFormat("en-GB", { style: "currency", currency: done.currency, maximumFractionDigits: 0 }).format(done.forfeited)
+      ? (formatMoneyExact(done.forfeited, done.currency) as string)
       : null;
     return (
       <div className="text-[12.5px] font-semibold text-green-600">

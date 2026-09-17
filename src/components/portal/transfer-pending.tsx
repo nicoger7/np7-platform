@@ -22,9 +22,10 @@
  * stays a server component that only renders what it is handed.
  */
 import { NotSent } from "@/components/portal/not-sent";
+import { formatMoneyExact } from "@/lib/money";
 
 const money = (n: number, currency = "EUR") =>
-  new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
+  (formatMoneyExact(n, currency) as string);
 
 export function TransferPending({ amount, currency = "EUR", reference, ibanLast4, instructionsUrl, bookingId, linkId }: {
   amount: number;

@@ -238,10 +238,10 @@ export default async function BookingDetail({ params }: Props) {
     // trip to the same row to ask it would be wasted.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (createAdminClient() as any).from("contacts")
-      .select("phone, country, billing_address, billing_postal_code, billing_city, billing_country")
+      .select("phone, country, billing_address, billing_postal_code, billing_city, billing_country, company_name, vat_id")
       .eq("id", user.contactId).maybeSingle(),
   ]);
-  const who = (whoRow?.data ?? null) as ({ phone?: string | null; country?: string | null } & Partial<BillingAddress>) | null;
+  const who = (whoRow?.data ?? null) as ({ phone?: string | null; country?: string | null; company_name?: string | null; vat_id?: string | null } & Partial<BillingAddress>) | null;
   const payMethods = (() => {
     const m = onlineMethodsFor(guestCountry({ billingCountry: who?.billing_country, country: who?.country, phone: who?.phone }));
     return canPayOnline(m) && m.kind ? { kind: m.kind } : null;
@@ -647,6 +647,7 @@ export default async function BookingDetail({ params }: Props) {
           <div className="mt-3">
             <BillingAddressAsk
               address={who?.billing_address} postalCode={who?.billing_postal_code}
+              companyName={who?.company_name} vatId={who?.vat_id}
               city={who?.billing_city} country={who?.billing_country}
               preview={!!user.preview}
             />

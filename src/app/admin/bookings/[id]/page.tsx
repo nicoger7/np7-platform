@@ -1128,7 +1128,17 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
    * also prefilled the Record-Payment box, suggesting an amount that matched
    * neither the total, the balance, nor the open invoice.
    */
-  const outstanding = Math.max(0, (Number(booking.agreed_price) || 0) + confirmedAddonsTotal - totalPaid);
+  /*
+   * A payer owes their OWN trip plus everyone they cover.
+   *
+   * Jana Wagner pays for Niklas Heinen. The portal had it right, EUR 8,683 with
+   * EUR 4,270 left, while this header said EUR 5,693 and "Owed EUR 1,280": the
+   * panel below said "Pays for 1 other" and nothing above it counted them. The
+   * invoice would have billed the group total, so the admin was the only place
+   * showing the smaller number.
+   */
+  const coveredExtra = (booking.group?.covers ?? []).reduce((s, c) => s + (Number(c.agreed_price) || 0), 0);
+  const outstanding = Math.max(0, (Number(booking.agreed_price) || 0) + confirmedAddonsTotal + coveredExtra - totalPaid);
   const parsedPayAmount = parseAmount(paymentForm.amount);
   // A role without money access should see a booking with no money in it —
   // not zeros and blanks, which read as "nobody has paid" rather than "you

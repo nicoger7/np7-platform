@@ -1,4 +1,6 @@
 "use client";
+
+import { formatMoneyExact } from "@/lib/money";
 import { useState } from "react";
 import type { PayKind } from "@/lib/payment-methods";
 
@@ -49,7 +51,7 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
   const [busy, setBusy] = useState<null | "milestone" | "all">(null);
   const [error, setError] = useState<string | null>(null);
 
-  const fmt = (n: number) => new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(n);
+  const fmt = (n: number) => (formatMoneyExact(n, currency) as string);
   const money = fmt(amount);
   const all = balance != null && balance > amount + 0.01 ? balance : null;
 
