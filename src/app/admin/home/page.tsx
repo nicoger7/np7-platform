@@ -44,6 +44,10 @@ const LANDING_DEFAULTS = {
   upcomingEyebrow: "NEXT ON THE WATER",
   upcomingTitle: "Upcoming experiences",
   upcomingSub: "Pick a date, pack your harness — we'll handle the rest.",
+  // Same floor as src/app/experience/page.tsx REVIEWS_DEFAULTS.
+  reviewsEyebrow: "STRAIGHT FROM THE CREW",
+  reviewsTitle: "Don't take our word | for it.",
+  reviewsSub: "Real reviews from riders who came for the wind and went home with a crew.",
   video: "/cdn/assets/hero/windsurf-hero.mp4",
   poster: "/cdn/assets/hero/windsurf-hero-poster.jpg",
 } as const;
@@ -132,6 +136,83 @@ function Card({ title, dot, hint, children }: {
   );
 }
 
+/** An approved review, as /api/admin/reviews returns it. */
+type PoolReview = {
+  id: string; author_name: string | null; author_country: string | null; rating: number | null;
+  quote: string | null; booking_id: string | null;
+  exp_experiences: { title: string | null } | null;
+  exp_editions: { label: string | null; year: number | null } | null;
+};
+
+/**
+ * Which reviews sit on the landing wall, in what order. Nothing chosen means
+ * automatic (every approved review, faces first), so the wall is never empty
+ * just because nobody curated it.
+ */
+function ReviewPicker({ pool, ids, onChange }: { pool: PoolReview[]; ids: string[]; onChange: (ids: string[]) => void }) {
+  const byId = new Map(pool.map((r) => [r.id, r]));
+  const chosen = ids.map((id) => byId.get(id)).filter(Boolean) as PoolReview[];
+  const rest = pool.filter((r) => !ids.includes(r.id));
+  const move = (i: number, d: number) => {
+    const j = i + d;
+    if (j < 0 || j >= ids.length) return;
+    const n = [...ids];
+    [n[i], n[j]] = [n[j], n[i]];
+    onChange(n);
+  };
+  const line = (r: PoolReview) => {
+    const place = (r.exp_experiences?.title ?? "").replace(/^NP7\s+Experience\s*/i, "");
+    return (
+      <span className="min-w-0 flex-1">
+        <span className="block text-[12.5px] font-semibold admin-heading truncate">
+          {r.author_name || "Anonymous"}
+          <span className="admin-faint font-normal">
+            {r.author_country ? ` · ${r.author_country}` : ""}{place ? ` · ${place}${r.exp_editions?.year ? ` ${r.exp_editions.year}` : ""}` : ""}
+            {r.booking_id ? " · verified" : ""}
+          </span>
+        </span>
+        <span className="block text-[11.5px] admin-faint truncate">{"★".repeat(Math.max(1, Math.min(5, r.rating || 5)))} {r.quote}</span>
+      </span>
+    );
+  };
+  const btn = "text-xs px-1.5 py-0.5 rounded admin-muted hover:admin-heading disabled:opacity-30";
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs font-semibold admin-muted mb-1">On the wall, in this order</p>
+        {chosen.length === 0 ? (
+          <p className="text-xs admin-faint">Automatic: all {pool.length} approved reviews, the ones with a profile photo first. Add one below to choose yourself.</p>
+        ) : (
+          <ul className="rounded-lg divide-y" style={{ border: "1px solid var(--admin-border)" }}>
+            {chosen.map((r, i) => (
+              <li key={r.id} className="flex items-center gap-2 px-3 py-2" style={{ borderColor: "var(--admin-border)" }}>
+                <span className="text-[11px] admin-faint w-4 text-right tabular-nums">{i + 1}</span>
+                {line(r)}
+                <button className={btn} onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">↑</button>
+                <button className={btn} onClick={() => move(i, 1)} disabled={i === chosen.length - 1} aria-label="Move down">↓</button>
+                <button className="text-xs text-red-400 hover:underline px-1" onClick={() => onChange(ids.filter((x) => x !== r.id))}>Remove</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {rest.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold admin-muted mb-1">Approved reviews not on the wall</p>
+          <ul className="rounded-lg divide-y max-h-[260px] overflow-y-auto" style={{ border: "1px solid var(--admin-border)" }}>
+            {rest.map((r) => (
+              <li key={r.id} className="flex items-center gap-2 px-3 py-2" style={{ borderColor: "var(--admin-border)" }}>
+                {line(r)}
+                <button className="text-xs text-[#0aa3c7] hover:underline px-1" onClick={() => onChange([...ids, r.id])}>Add</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SaveRow({ state, label, onSave }: { state: SaveState; label: string; onSave: () => void }) {
   return (
     <div className="flex items-center gap-3">
@@ -178,6 +259,10 @@ export default function HomeContentPage() {
   const [images, setImages] = useState<string[]>(["", "", "", "", ""]);
   const [imageFocus, setImageFocus] = useState<(string | null)[]>([null, null, null, null, null]);
   const [landingState, setLandingState] = useState<SaveState>("loading");
+  // The review wall: which reviews (empty = automatic) and whether it shows.
+  const [reviewIds, setReviewIds] = useState<string[]>([]);
+  const [reviewsHidden, setReviewsHidden] = useState(false);
+  const [reviewPool, setReviewPool] = useState<PoolReview[]>([]);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("tab") === "landing") setTab("landing");
@@ -193,8 +278,13 @@ export default function HomeContentPage() {
       setImages([0, 1, 2, 3, 4].map((i) => imgs[i]?.trim() || LANDING_IMAGE_DEFAULTS[i] || ""));
       const foc = Array.isArray((v as { imageFocus?: unknown }).imageFocus) ? ((v as { imageFocus: (string | null)[] }).imageFocus) : [];
       setImageFocus([0, 1, 2, 3, 4].map((i) => foc[i] ?? null));
+      setReviewIds(Array.isArray(v.reviewIds) ? (v.reviewIds as unknown[]).filter((x): x is string => typeof x === "string") : []);
+      setReviewsHidden(typeof v.reviewsHidden === "string" && !!v.reviewsHidden.trim());
       setLandingState("idle");
     });
+    fetch("/api/admin/reviews?status=approved").then((r) => (r.ok ? r.json() : [])).then((rows) => {
+      setReviewPool(Array.isArray(rows) ? (rows as PoolReview[]).filter((r) => (r.quote ?? "").trim()) : []);
+    }).catch(() => {});
   }, []);
 
   function switchTab(t: "front" | "landing") {
@@ -218,6 +308,9 @@ export default function HomeContentPage() {
     const imgs = images.map((x) => x.trim()).filter(Boolean);
     if (imgs.length) value.images = imgs;
     value.imageFocus = imageFocus.map((f) => f ?? null);
+    // A chosen review that has since been un-approved just drops off the wall.
+    value.reviewIds = reviewIds;
+    if (reviewsHidden) value.reviewsHidden = "yes";
     const ok = await saveSetting("experience_landing_hero", value);
     setLandingState(ok ? "saved" : "error");
     if (ok) setTimeout(() => setLandingState("idle"), 2200);
@@ -304,6 +397,20 @@ export default function HomeContentPage() {
                 <Field label="Button 1" value={landing.cta1 ?? ""} onChange={setL("cta1")} />
                 <Field label="Button 2" value={landing.cta2 ?? ""} onChange={setL("cta2")} />
               </div>
+            </Card>
+            <Card title="Guest reviews" hint="the polaroid wall above the upcoming strip">
+              <label className="flex items-center gap-2 text-xs admin-muted cursor-pointer select-none">
+                <input type="checkbox" checked={!reviewsHidden} onChange={(e) => setReviewsHidden(!e.target.checked)} />
+                Show this section
+              </label>
+              <Field label="Eyebrow" value={landing.reviewsEyebrow ?? ""} onChange={setL("reviewsEyebrow")} />
+              <Field label="Heading" hint="text after | turns sun yellow" value={landing.reviewsTitle ?? ""} onChange={setL("reviewsTitle")} />
+              <Field label="Subline" value={landing.reviewsSub ?? ""} onChange={setL("reviewsSub")} />
+              <p className="text-xs admin-faint">
+                A guest&apos;s own profile photo shows on their card only if they turned on &ldquo;show my profile on
+                reviews I write&rdquo;. The card photo is the one set on the review in Guest reviews.
+              </p>
+              <ReviewPicker pool={reviewPool} ids={reviewIds} onChange={setReviewIds} />
             </Card>
             <Card title="Upcoming strip" hint="the experience list further down the page">
               <Field label="Eyebrow" value={landing.upcomingEyebrow ?? ""} onChange={setL("upcomingEyebrow")} />

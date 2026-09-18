@@ -10,6 +10,8 @@ import { OceanHeader, NP7_LOGO } from "@/components/experience/ocean-header";
 import { Reveal } from "@/components/experience/reveal";
 import { Carousel } from "@/components/experience/carousel";
 import { UpcomingExperiences } from "@/components/experience/upcoming-experiences";
+import { CrewReviews } from "@/components/experience/crew-reviews";
+import { getLandingReviews } from "@/lib/landing-reviews";
 import { getExperienceCards } from "@/lib/experience-cards";
 
 export const metadata: Metadata = {
@@ -48,6 +50,14 @@ const HERO_FALLBACKS = [
 // baked tile graphic. Leave empty for the gradient-only (restrained) band.
 const GIFT_PHOTO = "https://media.np-seven.com/experiences/np7-bonaire/place/bonaire-spot-overview-drone-shot.jpg";
 
+// The crew-review wall's words. Admin → Homepage → landing → Reviews; these
+// are the floor. A "|" in the heading turns the rest of it sun yellow.
+const REVIEWS_DEFAULTS = {
+  reviewsEyebrow: "STRAIGHT FROM THE CREW",
+  reviewsTitle: "Don't take our word | for it.",
+  reviewsSub: "Real reviews from riders who came for the wind and went home with a crew.",
+};
+
 /* --------------------------------- page --------------------------------- */
 
 export default async function ExperienceOverviewPage() {
@@ -59,7 +69,7 @@ export default async function ExperienceOverviewPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const db = createAdminClient() as any;
       const { data } = await db.from("site_settings").select("value").eq("key", "experience_landing_hero").maybeSingle();
-      const v = (data?.value ?? {}) as { video?: string; poster?: string; images?: string[]; tagline?: string; subline?: string; taglines?: string; cta1?: string; cta2?: string; upcomingEyebrow?: string; upcomingTitle?: string; upcomingSub?: string };
+      const v = (data?.value ?? {}) as { video?: string; poster?: string; images?: string[]; tagline?: string; subline?: string; taglines?: string; cta1?: string; cta2?: string; upcomingEyebrow?: string; upcomingTitle?: string; upcomingSub?: string; reviewsEyebrow?: string; reviewsTitle?: string; reviewsSub?: string; reviewsHidden?: string; reviewIds?: unknown };
       const imgs = Array.isArray(v.images) ? v.images.filter((x) => typeof x === "string" && x.trim()) : [];
       const t = (x?: string, d = "") => (typeof x === "string" && x.trim() ? x.trim() : d);
       return {
@@ -77,6 +87,12 @@ export default async function ExperienceOverviewPage() {
         upcomingEyebrow: t(v.upcomingEyebrow, "NEXT ON THE WATER"),
         upcomingTitle: t(v.upcomingTitle, "Upcoming experiences"),
         upcomingSub: t(v.upcomingSub, "Pick a date, pack your harness — we'll handle the rest."),
+        ...REVIEWS_DEFAULTS,
+        reviewsEyebrow: t(v.reviewsEyebrow, REVIEWS_DEFAULTS.reviewsEyebrow),
+        reviewsTitle: t(v.reviewsTitle, REVIEWS_DEFAULTS.reviewsTitle),
+        reviewsSub: t(v.reviewsSub, REVIEWS_DEFAULTS.reviewsSub),
+        reviewsHidden: !!t(v.reviewsHidden, ""),
+        reviewIds: Array.isArray(v.reviewIds) ? (v.reviewIds as unknown[]).filter((x): x is string => typeof x === "string") : [],
       };
     } catch {
       return {
@@ -87,6 +103,7 @@ export default async function ExperienceOverviewPage() {
         cta1: "Explore experiences", cta2: "See destinations",
         upcomingEyebrow: "NEXT ON THE WATER", upcomingTitle: "Upcoming experiences",
         upcomingSub: "Pick a date, pack your harness — we'll handle the rest.",
+        ...REVIEWS_DEFAULTS, reviewsHidden: false, reviewIds: [] as string[],
       };
     }
   })();
@@ -107,6 +124,7 @@ export default async function ExperienceOverviewPage() {
   const heroIndex = Math.floor(Date.now() / 3_600_000) % heroPairs.length;
 
   const { cards: expCards, experiences } = await getExperienceCards();
+  const crew = hero.reviewsHidden ? null : await getLandingReviews(hero.reviewIds);
 
   // The gift card's backdrop = a dedicated plain photo (GIFT_PHOTO). We no longer
   // reuse an experience's tile image here — those are baked graphics with text,
@@ -202,6 +220,13 @@ export default async function ExperienceOverviewPage() {
       {/* ---------------------------------------------------------------- */}
       <div className="relative z-10 -mt-[78vh]">
       <DepthBackdrop>
+        {/* CREW REVIEWS — polaroids from real weeks, before the dates */}
+        {crew && crew.items.length > 0 && (
+          <Reveal>
+            <CrewReviews items={crew.items} count={crew.count} avg={crew.avg}
+              eyebrow={hero.reviewsEyebrow} title={hero.reviewsTitle} sub={hero.reviewsSub} />
+          </Reveal>
+        )}
         {/* UPCOMING EXPERIENCES — white cards floating on the water */}
         <section id="experiences" className="scroll-mt-20 pt-20 sm:pt-28 pb-24">
           <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
