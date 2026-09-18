@@ -161,11 +161,22 @@ const Stars = ({ n, className = "" }: { n: number; className?: string }) => (
   </span>
 );
 
+/**
+ * The reviewer's face: their own profile photo when they shared it, otherwise
+ * the photo picked for their review (Nico, 18 Sep 2026: "apply their selected
+ * photo as their profile photo"). That photo is already on the card, so the
+ * sticker shows nothing new, zoomed towards the upper middle where the face
+ * usually is. The initial is only for a review with no photo at all.
+ */
 function Face({ r, size, ring }: { r: LandingReview; size: string; ring: string }) {
-  if (r.avatarUrl) {
+  const src = r.avatarUrl || r.image;
+  if (src) {
     return (
-      <span className={`${size} ${ring} rounded-full bg-cover bg-center shrink-0 block`}
-        style={{ backgroundImage: `url('${r.avatarUrl}')` }} aria-hidden />
+      <span className={`${size} ${ring} rounded-full shrink-0 block bg-no-repeat`}
+        style={r.avatarUrl
+          ? { backgroundImage: `url('${src}')`, backgroundSize: "cover", backgroundPosition: "center" }
+          : { backgroundImage: `url('${src}')`, backgroundSize: "185%", backgroundPosition: "50% 32%" }}
+        aria-hidden />
     );
   }
   return (
@@ -198,7 +209,8 @@ export function CrewReviews({ items, count, avg, eyebrow, title, sub }: {
 
   // "Straight from | the crew." → the part after | in sun yellow.
   const [t1, t2] = title.includes("|") ? title.split("|", 2).map((s) => s.trim()) : [title, ""];
-  const faces = items.filter((r) => r.avatarUrl).slice(0, 5);
+  // Shared profile photos first, then review photos.
+  const faces = [...items.filter((r) => r.avatarUrl), ...items.filter((r) => !r.avatarUrl && r.image)].slice(0, 5);
   const showStat = avg != null && count >= 3;
 
   return (
