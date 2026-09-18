@@ -5,9 +5,10 @@ import { firstNameInitial, publicProfileFor } from "@/lib/member-profile";
 /**
  * The crew wall on the Experience home: real, approved guest reviews.
  *
- * WHICH reviews: the admin's pick (Homepage → landing → Reviews, stored as
- * `reviewIds` on site_settings `experience_landing_hero`), in that order. With
- * no pick, every approved review, the ones with a face first.
+ * WHICH reviews: verified guests only (the review is tied to a booking). Of
+ * those, the admin's pick (Homepage → landing → Reviews, stored as `reviewIds`
+ * on site_settings `experience_landing_hero`), in that order. With no pick,
+ * every approved verified review, the ones with a face first.
  *
  * WHOSE FACE: a reviewer's profile photo shows only when THEY opted their
  * profile into the "reviews" surface (profile settings, off by default), the
@@ -32,7 +33,7 @@ export type LandingReview = {
 
 export type LandingReviews = {
   items: LandingReview[];
-  /** Every approved review, not just the ones on the wall. */
+  /** Every approved VERIFIED review, not just the ones on the wall. */
   count: number;
   avg: number | null;
 };
@@ -51,7 +52,10 @@ export async function getLandingReviews(pick: string[] = []): Promise<LandingRev
       .from("exp_reviews")
       .select("id, author_name, author_country, rating, quote, photo_url, booking_id, reply, created_at")
       .eq("status", "approved");
-    const rows = ((data ?? []) as Row[]).filter((r) => (r.quote ?? "").trim());
+    // Verified guests only (Nico, 18 Sep 2026): a review tied to a real
+    // booking. Hand-entered ones stay on the trip pages but not on this wall,
+    // and the score counts only what the wall shows.
+    const rows = ((data ?? []) as Row[]).filter((r) => (r.quote ?? "").trim() && r.booking_id);
     if (!rows.length) return { items: [], count: 0, avg: null };
 
     // Profile photos, behind the reviewer's own opt-in.

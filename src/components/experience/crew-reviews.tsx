@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Carousel } from "./carousel";
 import type { LandingReview } from "@/lib/landing-reviews";
 
 /**
@@ -21,6 +20,135 @@ import type { LandingReview } from "@/lib/landing-reviews";
  */
 
 const TILTS = [-2.2, 1.6, -1.1, 2.3, -1.7, 1.2, -2.6, 0.9];
+
+/**
+ * The card shows whole sentences only, as many as fit. A clamp cut Thomas J.
+ * mid-thought at 'Only "problem" I would…', which reads like the wall is
+ * hiding something. It is not: the full review, criticism included, is one
+ * tap away under "Read it all". Showing only the praise and dropping the rest
+ * would misrepresent a customer review (UWG Anhang Nr. 23c), so the words are
+ * never edited, only excerpted.
+ */
+const CARD_CHARS = 175;
+export function cardExcerpt(quote: string, max = CARD_CHARS): string {
+  const q = quote.trim().replace(/\s+/g, " ");
+  if (q.length <= max) return q;
+  // A sentence ends at . ! ? only when a NEW one starts after it (capital
+  // letter), so "special requests, etc.) was" is not taken for an end.
+  const sentences = q.split(/(?<=[.!?]["')\]]*)\s+(?=[A-Z0-9"“‘(])/);
+  let out = "";
+  for (const sn of sentences) {
+    const next = out ? `${out} ${sn}` : sn;
+    if (next.length > max) break;
+    out = next;
+  }
+  // First sentence alone is too long: fall back to a word boundary.
+  if (!out.trim()) {
+    const cut = q.slice(0, max);
+    return cut.slice(0, cut.lastIndexOf(" ")).replace(/[,;:\-]$/, "") + "…";
+  }
+  return out.trim();
+}
+
+/**
+ * The polaroid row. Full-bleed, so cards glide in from the edge of the screen
+ * instead of being cut off by a hard box, with the edges fading out only on a
+ * side that has more to show. Wheel/trackpad and touch scroll natively; a
+ * mouse can drag; the arrows move one card at a time.
+ */
+function Track({ label, children }: { label: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState({ start: true, end: false });
+  const drag = useRef<{ x: number; left: number; moved: boolean } | null>(null);
+
+  const update = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setEdge({ start: el.scrollLeft <= 4, end: el.scrollLeft >= max - 4 });
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => { el.removeEventListener("scroll", update); window.removeEventListener("resize", update); };
+  }, [update]);
+
+  const step = (dir: 1 | -1) => {
+    const el = ref.current;
+    const card = el?.querySelector("article");
+    if (!el || !card) return;
+    el.scrollBy({ left: dir * (card.getBoundingClientRect().width + 24), behavior: "smooth" });
+  };
+
+  const onDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse" || e.button !== 0) return;
+    const el = ref.current!;
+    drag.current = { x: e.clientX, left: el.scrollLeft, moved: false };
+    el.style.scrollSnapType = "none";
+  };
+  const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    if (!d) return;
+    const dx = e.clientX - d.x;
+    if (Math.abs(dx) > 4) d.moved = true;
+    ref.current!.scrollLeft = d.left - dx;
+  };
+  const onUp = () => {
+    const el = ref.current;
+    if (el) el.style.scrollSnapType = "";
+    // keep `moved` for the click that follows this pointerup
+    setTimeout(() => { drag.current = null; }, 0);
+  };
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (drag.current?.moved) { e.preventDefault(); e.stopPropagation(); }
+  };
+
+  const fade = "clamp(24px, 7vw, 120px)";
+  return (
+    <div className="relative">
+      <div
+        ref={ref}
+        role="region"
+        aria-label={label}
+        tabIndex={0}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerLeave={onUp}
+        onClickCapture={onClickCapture}
+        className="flex gap-6 overflow-x-auto scrollbar-hide snap-x snap-proximity motion-safe:scroll-smooth py-10 -my-10 select-none md:cursor-grab md:active:cursor-grabbing focus-visible:outline-none"
+        style={{
+          paddingInline: "max(1.5rem, calc((100% - 1200px) / 2 + 2rem))",
+          scrollPaddingInline: "max(1.5rem, calc((100% - 1200px) / 2 + 2rem))",
+          WebkitMaskImage: `linear-gradient(to right, transparent 0, #000 ${edge.start ? "0px" : fade}, #000 calc(100% - ${edge.end ? "0px" : fade}), transparent 100%)`,
+          maskImage: `linear-gradient(to right, transparent 0, #000 ${edge.start ? "0px" : fade}, #000 calc(100% - ${edge.end ? "0px" : fade}), transparent 100%)`,
+        }}
+      >
+        {children}
+        {/* Room after the last card: inline-end padding is not reliable on a
+            scrolling flex row. */}
+        <span aria-hidden className="shrink-0 w-px" />
+      </div>
+      {(["prev", "next"] as const).map((k) => {
+        const hidden = k === "prev" ? edge.start : edge.end;
+        return (
+          <button key={k} type="button" aria-label={k === "prev" ? "Previous reviews" : "More reviews"}
+            onClick={() => step(k === "prev" ? -1 : 1)} tabIndex={hidden ? -1 : 0}
+            className={`hidden md:flex absolute top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white text-[#00374a] shadow-[0_8px_24px_-8px_rgba(0,20,30,.6)] items-center justify-center hover:bg-[#00374a] hover:text-white transition-all duration-300 ${hidden ? "opacity-0 pointer-events-none scale-90" : "opacity-100"}`}
+            style={k === "prev" ? { left: "max(0.75rem, calc((100% - 1200px) / 2 - 0.5rem))" } : { right: "max(0.75rem, calc((100% - 1200px) / 2 - 0.5rem))" }}>
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d={k === "prev" ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"} />
+            </svg>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 const Stars = ({ n, className = "" }: { n: number; className?: string }) => (
   <span className={`tracking-[0.08em] ${className}`} role="img" aria-label={`Rated ${n} out of 5`}>
@@ -105,11 +233,14 @@ export function CrewReviews({ items, count, avg, eyebrow, title, sub }: {
           )}
         </div>
 
-        <Carousel label="Guest reviews">
+      </div>
+
+      <Track label="Guest reviews">
           {items.map((r, i) => {
-            const long = r.quote.length > 170 || !!r.reply;
+            const excerpt = cardExcerpt(r.quote);
+            const long = excerpt !== r.quote.trim().replace(/\s+/g, " ") || !!r.reply;
             return (
-              <article key={r.id} className="snap-start shrink-0 w-[270px] sm:w-[300px] pt-4 pb-8 px-1.5">
+              <article key={r.id} className="snap-start shrink-0 w-[270px] sm:w-[300px] pt-4 pb-6">
                 <div
                   className="relative h-full flex flex-col rounded-[6px] bg-[#fffdf8] p-3 pb-5 shadow-[0_22px_44px_-22px_rgba(0,20,30,.75)] [transform:rotate(var(--tilt))] motion-safe:transition-transform motion-safe:duration-300 motion-safe:hover:[transform:rotate(0deg)_translateY(-6px)] focus-within:[transform:rotate(0deg)]"
                   style={{ ["--tilt" as string]: `${TILTS[i % TILTS.length]}deg` }}
@@ -138,7 +269,7 @@ export function CrewReviews({ items, count, avg, eyebrow, title, sub }: {
 
                   <div className="pt-9 px-1.5 flex-1 flex flex-col">
                     <Stars n={r.rating} className="text-[14px] text-[#f5a623]" />
-                    <p className="mt-2 text-[14.5px] leading-snug font-semibold text-[#00374a] line-clamp-5">&ldquo;{r.quote}&rdquo;</p>
+                    <p className="mt-2 text-[14.5px] leading-snug font-semibold text-[#00374a] line-clamp-6">&ldquo;{excerpt}&rdquo;</p>
                     <div className="mt-auto pt-4 flex items-end justify-between gap-3">
                       <p className="text-[12.5px] leading-tight">
                         <span className="block font-black text-[#00374a]">{r.name}</span>
@@ -156,8 +287,7 @@ export function CrewReviews({ items, count, avg, eyebrow, title, sub }: {
               </article>
             );
           })}
-        </Carousel>
-      </div>
+      </Track>
 
       {open && createPortal(
         <div className="fixed inset-0 z-[130] bg-[#00131b]/70 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6"

@@ -168,7 +168,6 @@ function ReviewPicker({ pool, ids, onChange }: { pool: PoolReview[]; ids: string
           {r.author_name || "Anonymous"}
           <span className="admin-faint font-normal">
             {r.author_country ? ` · ${r.author_country}` : ""}{place ? ` · ${place}${r.exp_editions?.year ? ` ${r.exp_editions.year}` : ""}` : ""}
-            {r.booking_id ? " · verified" : ""}
           </span>
         </span>
         <span className="block text-[11.5px] admin-faint truncate">{"★".repeat(Math.max(1, Math.min(5, r.rating || 5)))} {r.quote}</span>
@@ -181,7 +180,7 @@ function ReviewPicker({ pool, ids, onChange }: { pool: PoolReview[]; ids: string
       <div>
         <p className="text-xs font-semibold admin-muted mb-1">On the wall, in this order</p>
         {chosen.length === 0 ? (
-          <p className="text-xs admin-faint">Automatic: all {pool.length} approved reviews, the ones with a profile photo first. Add one below to choose yourself.</p>
+          <p className="text-xs admin-faint">Automatic: all {pool.length} approved reviews from verified guests, the ones with a profile photo first. Add one below to choose yourself.</p>
         ) : (
           <ul className="rounded-lg divide-y" style={{ border: "1px solid var(--admin-border)" }}>
             {chosen.map((r, i) => (
@@ -283,7 +282,8 @@ export default function HomeContentPage() {
       setLandingState("idle");
     });
     fetch("/api/admin/reviews?status=approved").then((r) => (r.ok ? r.json() : [])).then((rows) => {
-      setReviewPool(Array.isArray(rows) ? (rows as PoolReview[]).filter((r) => (r.quote ?? "").trim()) : []);
+      // Verified guests only: the wall skips anything not tied to a booking.
+      setReviewPool(Array.isArray(rows) ? (rows as PoolReview[]).filter((r) => (r.quote ?? "").trim() && r.booking_id) : []);
     }).catch(() => {});
   }, []);
 
@@ -407,8 +407,9 @@ export default function HomeContentPage() {
               <Field label="Heading" hint="text after | turns sun yellow" value={landing.reviewsTitle ?? ""} onChange={setL("reviewsTitle")} />
               <Field label="Subline" value={landing.reviewsSub ?? ""} onChange={setL("reviewsSub")} />
               <p className="text-xs admin-faint">
-                A guest&apos;s own profile photo shows on their card only if they turned on &ldquo;show my profile on
-                reviews I write&rdquo;. The card photo is the one set on the review in Guest reviews.
+                Only verified guests (a review tied to a real booking) appear here. A guest&apos;s own profile photo
+                shows on their card only if they turned on &ldquo;show my profile on reviews I write&rdquo;. The card
+                photo is the one set on the review in Guest reviews.
               </p>
               <ReviewPicker pool={reviewPool} ids={reviewIds} onChange={setReviewIds} />
             </Card>
