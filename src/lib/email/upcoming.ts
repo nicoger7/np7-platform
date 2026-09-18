@@ -1,7 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase";
 import { AUTOMATIONS, lifecycleLive, pipelineLiveFrom } from "@/lib/email/automations";
-import { MAIL_REQUIREMENTS, resolveEditionContent, getSendTiming, timingAnchor, cronSends } from "@/lib/email/readiness";
+import { MAIL_REQUIREMENTS, resolveEditionContent, getSendTiming, timingAnchor, cronSends, mailAppliesTo } from "@/lib/email/readiness";
 
 /**
  * What the lifecycle cron is about to send, before it sends it.
@@ -50,6 +50,12 @@ export type UpcomingMail = {
   recipients: number;
   /** blocking content that is still missing — the mail will be held back */
   missing: string[];
+  /**
+   * The nightly job will NOT send this one: it applies to the week but only
+   * goes out when someone presses send (an event's group-chat mail). Listed
+   * so it cannot be forgotten; daysAway is negative once its day has passed.
+   */
+  byHand?: boolean;
 };
 
 export async function getUpcomingMails(now = new Date()): Promise<{
@@ -105,14 +111,18 @@ export async function getUpcomingMails(now = new Date()): Promise<{
   // had their downpayment flag still set (guests who paid, then dropped out).
   // The cron never mails lost — neither may the forecast count them.
   const securedByEdition = new Map<string, string[]>();
+  // Everyone secured, cutoff or not: a hand-send reaches them all.
+  const securedAllByEdition = new Map<string, string[]>();
   for (const b of (bookings ?? []) as { id: string; edition_id: string | null; status: string | null; downpayment_received: boolean | null; created_at: string | null }[]) {
     if (!b.edition_id || b.status === "lost") continue;
     const secured = b.downpayment_received || SECURED.includes(String(b.status));
-    if (secured && onOrAfterCutoff(b.created_at)) {
+    if (!secured) continue;
+    securedAllByEdition.set(b.edition_id, [...(securedAllByEdition.get(b.edition_id) ?? []), b.id]);
+    if (onOrAfterCutoff(b.created_at)) {
       securedByEdition.set(b.edition_id, [...(securedByEdition.get(b.edition_id) ?? []), b.id]);
     }
   }
-  const allIds = [...securedByEdition.values()].flat();
+  const allIds = [...securedAllByEdition.values()].flat();
 
   // What already WENT OUT stops being a forecast. Without this, "Thank you +
   // review · today" sat on the dashboard all day after the mails were sent.
@@ -144,9 +154,10 @@ export async function getUpcomingMails(now = new Date()): Promise<{
   const out: UpcomingMail[] = [];
 
   for (const ed of live) {
-    const securedIds = securedByEdition.get(ed.id) ?? [];
-    if (!securedIds.length) continue; // nothing to send, nothing to warn about
-    if (!onOrAfterCutoff(ed.date_start)) continue;
+    const everyone = securedAllByEdition.get(ed.id) ?? [];
+    if (!everyone.length) continue; // nothing to send, nothing to warn about
+    // The cron's reach: booked after the cutoff, on a week that starts after it.
+    const securedIds = onOrAfterCutoff(ed.date_start) ? securedByEdition.get(ed.id) ?? [] : [];
     const skip = new Set<string>((ed.mail_skip ?? []) as string[]);
     const startDay = dayOf(ed.date_start);
     const endDay = ed.date_end ? dayOf(ed.date_end) : null;
@@ -155,7 +166,35 @@ export async function getUpcomingMails(now = new Date()): Promise<{
     const title = `${ed.exp_experiences?.title ?? "Trip"}${ed.label ? ` · ${ed.label}` : ed.year ? ` ${ed.year}` : ""}`;
 
     for (const a of dated) {
-      if (!cronSends(ed.kind, a.key) || skip.has(a.key) || offEverywhere.has(a.key)) continue;
+      if (skip.has(a.key) || offEverywhere.has(a.key)) continue;
+
+      if (!cronSends(ed.kind, a.key)) {
+        // Applies to this week, but only a press sends it. Surface it from its
+        // suggested day until the week starts, overdue included: OBX Wind's
+        // group-chat mail sat unsent five weeks past its day with nothing on
+        // this panel to say so.
+        if (timingAnchor(a.key) !== "before") continue;
+        values ??= (await resolveEditionContent(ed.id).catch(() => ({ values: {} }))).values as Record<string, unknown>;
+        if (!mailAppliesTo(ed.kind, a.key, values as Record<string, string | null>)) continue;
+        const suggested = startDay - timing.before[a.key];
+        if (startDay <= todayDay || suggested - todayDay > HORIZON_DAYS) continue;
+        const waiting = everyone.filter((id) => !sent.has(`${a.key}:${id}`)).length;
+        if (!waiting) continue;
+        out.push({
+          templateKey: a.key,
+          label: a.name,
+          editionId: ed.id,
+          editionTitle: title,
+          sendDate: new Date(suggested * DAY).toISOString().slice(0, 10),
+          sendAt: "",
+          daysAway: suggested - todayDay,
+          recipients: waiting,
+          missing: (MAIL_REQUIREMENTS[a.key]?.blocking ?? []).filter((k) => !values![k]),
+          byHand: true,
+        });
+        continue;
+      }
+      if (!securedIds.length) continue;
 
       // The window the cron fires in, as run days: [open, close].
       let open: number, close: number;
