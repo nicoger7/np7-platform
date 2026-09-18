@@ -145,7 +145,7 @@ export function EditionMailing({ editionId }: { editionId: string }) {
           : why?.kind === "overdue"
             ? `It was due ${fmtDay(why.dueAt ?? null)} and has not gone out. Anyone who already got it is skipped.`
             : why?.kind === "byhand"
-              ? "For an event this mail never goes out by itself, only when someone presses send. Anyone who already got it is skipped."
+              ? "The nightly job does not send this one for this week, so pressing here is how it goes out. Anyone who already got it is skipped."
               : "Its window has passed, so this is a catch-up. Anyone who already got it is skipped.",
     });
     if (!go) return;
@@ -282,11 +282,19 @@ function MailRow({
   /* Its day has gone by but the window is still open. This row used to offer
      "Send early" against a date in the past (OBX Wind's crew mail, due 11 Aug,
      still "Send early" on 18 Sep), which hid that the mail never went out. */
-  const overdue = m.whenKind === "date" && !m.byHandOnly && !past && m.daysAway != null && m.daysAway < 0;
+  /*
+   * BY HAND for the whole week: an event's group-chat mail, or a week whose
+   * secured guests all booked before automatic mail started (Bonaire 2026,
+   * 41 guests; Nico, 18 Sep 2026: "we send them manually from the mailing
+   * tab"). The row used to read "Due 9 Nov · Nobody presses anything · It is
+   * live" for mail the nightly job would never send to anyone on it.
+   */
+  const allBeforeCutoff = m.whenKind === "date" && securedGuests > 0 && manualOnlyGuests >= securedGuests;
+  const byHand = !!m.byHandOnly || allBeforeCutoff;
+  const overdue = m.whenKind === "date" && !byHand && !past && m.daysAway != null && m.daysAway < 0;
   const off = !m.enabled || (m.kind === "lifecycle" && !lifecycleLive);
   // A dateless mail says "when…" even if it carries a lead — a row reading
   // "3d after" inside the "no send date" section contradicts its own section.
-  const byHand = !!m.byHandOnly;
   const when = m.whenKind !== "date" ? "when…"
     : byHand ? "by hand"
     : m.daysBefore != null ? `${m.daysBefore}d before`
@@ -385,10 +393,13 @@ function MailRow({
             m.daysAway != null && m.daysAway < 0 ? (
               <>
                 <span className="block text-[12.5px] font-bold text-amber-500">Not sent yet</span>
-                <span className="block text-[11px] admin-faint">only by hand</span>
+                <span className="block text-[11px] admin-faint">was due {fmtDay(m.dueAt)}</span>
               </>
             ) : (
-              <span className="block text-[11.5px] admin-faint">Not automatic</span>
+              <>
+                <span className="block text-[12.5px] admin-muted">Send by hand</span>
+                <span className="block text-[11px] admin-faint">{m.dueAt ? fmtDay(m.dueAt) : "no date"}</span>
+              </>
             )
           ) : overdue ? (
             <>
@@ -412,7 +423,9 @@ function MailRow({
         <div className="px-4 pb-4 pl-[76px]" style={{ borderTop: "1px solid var(--admin-border)" }}>
           <p className="text-[12px] admin-muted pt-3 mb-3 max-w-[60ch]">
             {byHand
-              ? <>For an event the nightly job never sends this one, so it has no due date. It goes out only when you press Send now, to every secured guest on this week.</>
+              ? (m.byHandOnly
+                ? <>For an event the nightly job never sends this one. It goes out only when you press Send now, to every secured guest on this week{m.dueAt ? <>, ideally around {fmt(m.dueAt)}</> : null}.</>
+                : <>Everyone secured on this week booked before automatic mail started, so the nightly job never mails them. Press Send now around {fmt(m.dueAt)}{m.daysBefore != null ? <> ({m.daysBefore} days before the trip)</> : null}; it goes to every secured guest who has not had it.</>)
               : m.daysBefore != null
               ? <>The nightly job works this out from the trip start date — {m.daysBefore} days before, which is {fmt(m.dueAt)}. Nobody presses anything.</>
               : m.daysAfterEnd != null
@@ -425,7 +438,7 @@ function MailRow({
               ? <>It is <strong>switched off</strong> everywhere, nothing goes out until you turn it back on.</>
               : m.kind === "lifecycle" && !lifecycleLive
                 ? <>The switch is on, but the whole lifecycle pipeline is <strong>paused</strong>, so it is worked out and held.</>
-                : <>It is <strong>live</strong>.</>}
+                : byHand ? null : <>It is <strong>live</strong>.</>}
             {overdue && !gone && !skippedHere && m.enabled && (
               <>
                 {" "}

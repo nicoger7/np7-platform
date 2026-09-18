@@ -165,47 +165,55 @@ export async function getUpcomingMails(now = new Date()): Promise<{
     let values: Record<string, unknown> | null = null;
     const title = `${ed.exp_experiences?.title ?? "Trip"}${ed.label ? ` · ${ed.label}` : ed.year ? ` ${ed.year}` : ""}`;
 
+    const waitingOf = (key: string, ids: string[]) =>
+      ids.filter((id) => !sent.has(`${key}:${id}`) && !(key === "waiver_reminder" && signed.has(id)));
+    const autoSet = new Set(securedIds);
+
     for (const a of dated) {
       if (skip.has(a.key) || offEverywhere.has(a.key)) continue;
+      const before = timingAnchor(a.key) === "before";
+      if (!before && endDay == null) continue; // nothing counts from an end the week doesn't have
 
-      if (!cronSends(ed.kind, a.key)) {
-        // Applies to this week, but only a press sends it. Surface it from its
-        // suggested day until the week starts, overdue included: OBX Wind's
-        // group-chat mail sat unsent five weeks past its day with nothing on
-        // this panel to say so.
-        if (timingAnchor(a.key) !== "before") continue;
+      // The window the cron fires in, as run days: [open, close].
+      const open = before ? startDay - timing.before[a.key] : endDay! + timing.afterEnd[a.key];
+      const close = before ? startDay - timing.windowClose[a.key] - 1 : endDay! + timing.windowCloseAfterEnd[a.key];
+      const auto = cronSends(ed.kind, a.key);
+
+      /*
+       * BY HAND: guests this mail applies to that the nightly job will never
+       * reach. Two kinds. An event's group-chat mail (the cron never sends it
+       * to events). And every guest booked before automatic mail started
+       * (EMAIL_PIPELINE_LIVE_FROM, Nico's 14 Sep rule): that is all 41 secured
+       * Bonaire 2026 guests, whose pre-trip mails Nico decided (18 Sep) to send
+       * from each week's Mailing tab. Without these rows the dashboard showed
+       * one mail for the next 45 days while fifteen were waiting on a press.
+       * Shown from the mail's day until the week starts (after-trip mail:
+       * until its window closes), overdue included.
+       */
+      if (!auto) {
         values ??= (await resolveEditionContent(ed.id).catch(() => ({ values: {} }))).values as Record<string, unknown>;
         if (!mailAppliesTo(ed.kind, a.key, values as Record<string, string | null>)) continue;
-        const suggested = startDay - timing.before[a.key];
-        if (startDay <= todayDay || suggested - todayDay > HORIZON_DAYS) continue;
-        const waiting = everyone.filter((id) => !sent.has(`${a.key}:${id}`)).length;
-        if (!waiting) continue;
+      }
+      const manualIds = auto ? everyone.filter((id) => !autoSet.has(id)) : everyone;
+      const manualWaiting = waitingOf(a.key, manualIds).length;
+      const stillUseful = before ? startDay > todayDay : todayDay <= close;
+      if (manualWaiting && stillUseful && open - todayDay <= HORIZON_DAYS) {
+        values ??= (await resolveEditionContent(ed.id).catch(() => ({ values: {} }))).values as Record<string, unknown>;
         out.push({
           templateKey: a.key,
           label: a.name,
           editionId: ed.id,
           editionTitle: title,
-          sendDate: new Date(suggested * DAY).toISOString().slice(0, 10),
+          sendDate: new Date(open * DAY).toISOString().slice(0, 10),
           sendAt: "",
-          daysAway: suggested - todayDay,
-          recipients: waiting,
+          daysAway: open - todayDay,
+          recipients: manualWaiting,
           missing: (MAIL_REQUIREMENTS[a.key]?.blocking ?? []).filter((k) => !values![k]),
           byHand: true,
         });
-        continue;
       }
-      if (!securedIds.length) continue;
+      if (!auto || !securedIds.length) continue;
 
-      // The window the cron fires in, as run days: [open, close].
-      let open: number, close: number;
-      if (timingAnchor(a.key) === "before") {
-        open = startDay - timing.before[a.key];
-        close = startDay - timing.windowClose[a.key] - 1;
-      } else {
-        if (endDay == null) continue; // the cron cannot count from an end it doesn't have
-        open = endDay + timing.afterEnd[a.key];
-        close = endDay + timing.windowCloseAfterEnd[a.key];
-      }
       // A mail whose day has arrived but whose run has passed goes out at the
       // NEXT run while its window is still open, so that is the day shown.
       const runDay = Math.max(open, firstRunDay);
@@ -215,9 +223,7 @@ export async function getUpcomingMails(now = new Date()): Promise<{
 
       // Only bookings this mail has NOT yet reached. A fully-sent mail
       // disappears from the panel; a partial failure honestly shows the rest.
-      const recipients = securedIds.filter((id) =>
-        !sent.has(`${a.key}:${id}`) && !(a.key === "waiver_reminder" && signed.has(id)),
-      ).length;
+      const recipients = waitingOf(a.key, securedIds).length;
       if (!recipients) continue;
 
       // Resolve content once per edition, and only for one that sends something.
