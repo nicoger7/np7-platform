@@ -503,7 +503,8 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
       const res = await fetch(`/api/admin/bookings/${id}/documents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: doc.type, reuseDocumentId: doc.id }),
+        // A pro-forma stands in for one stage; reprint it as the same stage.
+        body: JSON.stringify({ type: doc.type, reuseDocumentId: doc.id, ...(typeof doc.meta?.milestone === "string" ? { milestone: doc.meta.milestone } : {}) }),
       });
       if (res.ok) fetchDocuments();
       else {
@@ -1410,7 +1411,7 @@ export function BookingDetailPane({ bookingId, onBack }: { bookingId: string; on
        first one is issued, so a reprint finds nothing left to bill and the
        generator refuses with "No un-invoiced add-ons" — true, and useless as an
        explanation. A Storno is the right repair there. */
-    const REPRINTABLE_TYPES = ["deposit_invoice", "downpayment_invoice", "final_invoice"];
+    const REPRINTABLE_TYPES = ["deposit_invoice", "downpayment_invoice", "final_invoice", "proforma_invoice"];
     const reprintable = isTaxLike && doc.status === "issued" && !doc.sent_at
       && REPRINTABLE_TYPES.includes(doc.type)
       && !(st && (st.reversed || st.credits.length > 0));

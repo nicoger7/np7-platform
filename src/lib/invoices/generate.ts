@@ -733,7 +733,10 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
       .maybeSingle();
     if (existing) {
       existingProforma = existing as DocumentRow;
-      if (Math.abs(Number(existing.amount ?? 0) - proformaAmt) < 0.01) return existing as DocumentRow; // unchanged
+      // Unchanged amount = nothing to do, UNLESS this is an explicit reprint:
+      // the trip dates can move with the amount untouched (Alaçatı 2027 moved
+      // a day on 18 Sep 2026) and the old early return kept the stale PDF.
+      if (!input.reuseDocumentId && Math.abs(Number(existing.amount ?? 0) - proformaAmt) < 0.01) return existing as DocumentRow;
     }
   }
 
@@ -998,7 +1001,7 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
     if (reuseRow) {
       const { data: updated, error: updErr } = await admin
         .from("documents")
-        .update({ amount, title: docRow.title, meta: docRow.meta })
+        .update({ amount, title: docRow.title, meta: docRow.meta, ...(isProforma ? { due_date: proformaDue } : {}) })
         .eq("id", reuseRow.id)
         .select()
         .single();
