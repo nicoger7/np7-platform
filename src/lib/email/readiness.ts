@@ -295,6 +295,19 @@ export const mailAppliesTo = (
   return templateKey === "crew_forming" && !!values?.whatsappLink;
 };
 
+/**
+ * Does the NIGHTLY JOB send this mail to an edition of this kind, on its own?
+ *
+ * Narrower than mailAppliesTo on purpose. An event's group-chat mail APPLIES
+ * (it gets a row and a send button) but the cron never sends it by itself. Any
+ * forecast of what is "going out" has to ask this, not mailAppliesTo: the
+ * dashboard asked neither and told Nico OBX Wind would get a packing list, a
+ * countdown, final details and a thank-you, four mails the cron never sends to
+ * an event.
+ */
+export const cronSends = (kind: string | null | undefined, templateKey: string): boolean =>
+  kind !== "event" || EVENT_SCHEDULED_MAILS.has(templateKey);
+
 export const CONTENT_LABELS: Record<ContentKey, { label: string; where: string }> = {
   // Branding, not Details: that is where the edition's textareas actually are.
   // The panel said Details for as long as it existed, and Details has neither.

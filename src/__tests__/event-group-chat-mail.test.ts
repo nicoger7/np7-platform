@@ -4,7 +4,7 @@
  * was entered and could never be sent, and the Mailing tab had no row for it.
  */
 import { describe, it, expect } from "vitest";
-import { mailAppliesTo } from "@/lib/email/readiness";
+import { mailAppliesTo, cronSends } from "@/lib/email/readiness";
 
 describe("which scheduled mails an event gets", () => {
   it("an event with a group chat gets the group-chat mail", () => {
@@ -28,5 +28,21 @@ describe("which scheduled mails an event gets", () => {
   it("a trip is unaffected", () => {
     expect(mailAppliesTo("trip", "crew_forming")).toBe(true);
     expect(mailAppliesTo(null, "pre_trip_final")).toBe(true);
+  });
+
+  // The dashboard forecast asks cronSends, not mailAppliesTo. It used to ask
+  // neither and listed four trip mails for OBX Wind that never go out.
+  it("the nightly job sends an event only the waiver reminder among dated mails", () => {
+    for (const k of ["crew_forming", "pre_trip_info", "pre_trip_excitement", "pre_trip_final", "post_trip_thank_you"]) {
+      expect(cronSends("event", k)).toBe(false);
+    }
+    expect(cronSends("event", "waiver_reminder")).toBe(true);
+  });
+
+  it("the group-chat mail applies to an event but is by hand only", () => {
+    const link = { whatsappLink: "https://chat.whatsapp.com/x" };
+    expect(mailAppliesTo("event", "crew_forming", link)).toBe(true);
+    expect(cronSends("event", "crew_forming")).toBe(false);
+    expect(cronSends("trip", "crew_forming")).toBe(true);
   });
 });

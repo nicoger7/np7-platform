@@ -27,6 +27,8 @@ type Scheduled = {
   whenKind: "date" | "condition";
   daysBefore: number | null; daysAfterEnd: number | null; dueAt: string | null; daysAway: number | null;
   windowPassed: boolean;
+  /** Applies here, but the nightly job never sends it by itself (an event's group-chat mail). */
+  byHandOnly?: boolean;
   timing: Timing | null;
   kind: "transactional" | "lifecycle";
   enabled: boolean; canDisable: boolean;
@@ -272,7 +274,9 @@ function MailRow({
   const off = !m.enabled || (m.kind === "lifecycle" && !lifecycleLive);
   // A dateless mail says "when…" even if it carries a lead — a row reading
   // "3d after" inside the "no send date" section contradicts its own section.
+  const byHand = !!m.byHandOnly;
   const when = m.whenKind !== "date" ? "when…"
+    : byHand ? "by hand"
     : m.daysBefore != null ? `${m.daysBefore}d before`
     : `${m.daysAfterEnd}d after`;
 
@@ -315,7 +319,16 @@ function MailRow({
           </button>
           {/* A passed window used to be a dead end: the cron won't fire it any
               more and there was nothing to press. */}
-          {!gone && past && !blocked && m.whenKind === "date" && (
+          {/* Never sent by the nightly job for this kind of week: the button IS
+              the send, so it is "Send now", not "Send early" against a date
+              that means nothing here. */}
+          {!gone && byHand && !blocked && securedGuests > 0 && (
+            <button onClick={() => onSendNow(m.key, m.name, securedGuests)} disabled={sending === m.key}
+              className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
+              {sending === m.key ? "Sending…" : "Send now →"}
+            </button>
+          )}
+          {!gone && !byHand && past && !blocked && m.whenKind === "date" && (
             <button onClick={() => onSendNow(m.key, m.name, securedGuests)} disabled={sending === m.key}
               className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
               {sending === m.key ? "Sending…" : "Send now →"}
@@ -324,7 +337,7 @@ function MailRow({
           {/* Before the date the same send is available, quieter: the content
               is ready and sometimes the week needs it sooner (a late change,
               a guest asking). The nightly job then skips whoever got it. */}
-          {!gone && !past && !blocked && m.whenKind === "date" && securedGuests > 0 && (
+          {!gone && !byHand && !past && !blocked && m.whenKind === "date" && securedGuests > 0 && (
             <button onClick={() => onSendNow(m.key, m.name, securedGuests, undefined, { dueAt: m.dueAt, daysAway: m.daysAway })} disabled={sending === m.key}
               className="block ml-auto mb-0.5 text-[12px] font-bold admin-muted hover:text-[#0aa3c7] hover:underline disabled:opacity-50">
               {sending === m.key ? "Sending…" : "Send early →"}
@@ -348,6 +361,8 @@ function MailRow({
               <span className="block text-[12.5px] font-bold text-green-500">Sent to {m.sent}</span>
               <span className="block text-[11px] admin-faint">{fmt(m.lastSent)}</span>
             </>
+          ) : byHand ? (
+            <span className="block text-[11.5px] admin-faint">Not automatic</span>
           ) : m.whenKind === "date" ? (
             <>
               <span className="block text-[12.5px] admin-muted">{past ? "Window passed" : "Due"}</span>
@@ -364,7 +379,9 @@ function MailRow({
       {isOpen && (
         <div className="px-4 pb-4 pl-[76px]" style={{ borderTop: "1px solid var(--admin-border)" }}>
           <p className="text-[12px] admin-muted pt-3 mb-3 max-w-[60ch]">
-            {m.daysBefore != null
+            {byHand
+              ? <>For an event the nightly job never sends this one, so it has no due date. It goes out only when you press Send now, to every secured guest on this week.</>
+              : m.daysBefore != null
               ? <>The nightly job works this out from the trip start date — {m.daysBefore} days before, which is {fmt(m.dueAt)}. Nobody presses anything.</>
               : m.daysAfterEnd != null
                 ? <>The nightly job counts {m.daysAfterEnd} days from the day the trip ends, which is {fmt(m.dueAt)}. Nobody presses anything.</>

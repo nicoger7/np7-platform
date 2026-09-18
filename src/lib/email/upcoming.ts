@@ -1,7 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase";
-import { lifecycleLive } from "@/lib/email/automations";
-import { MAIL_REQUIREMENTS, resolveEditionContent } from "@/lib/email/readiness";
+import { AUTOMATIONS, lifecycleLive, pipelineLiveFrom } from "@/lib/email/automations";
+import { MAIL_REQUIREMENTS, resolveEditionContent, getSendTiming, timingAnchor, cronSends } from "@/lib/email/readiness";
 
 /**
  * What the lifecycle cron is about to send, before it sends it.
@@ -17,14 +17,18 @@ import { MAIL_REQUIREMENTS, resolveEditionContent } from "@/lib/email/readiness"
  * deliberately left out rather than guessed at.
  */
 
-/** Days BEFORE date_start (negative = days AFTER date_end) that each mail fires. */
-const ANCHORS: { key: string; label: string; beforeStart?: number; afterEnd?: number }[] = [
-  { key: "pre_trip_info", label: "Pre-trip info & packing list", beforeStart: 21 },
-  { key: "waiver_reminder", label: "Waiver reminder", beforeStart: 14 },
-  { key: "pre_trip_excitement", label: "Countdown / excitement", beforeStart: 12 },
-  { key: "pre_trip_final", label: "Final details", beforeStart: 3 },
-  { key: "post_trip_thank_you", label: "Thank you + review", afterEnd: 1 },
-];
+/*
+ * WHAT THE CRON WOULD DO, NOT WHAT A TRIP USUALLY GETS.
+ *
+ * This used to be its own hand-typed list (21/14/12/3 days, +1 after) that
+ * asked none of the cron's questions. On 18 Sep 2026 it told Nico OBX Wind, an
+ * EVENT, would get a packing list, a countdown, final details and a thank-you:
+ * four mails the cron never sends to an event. It also ignored the timings set
+ * in Emails, the per-week "don't send" switch, the global off switch, the
+ * go-live cutoff for older bookings, and whether a guest had already signed the
+ * waiver. Every one of those is asked below, with the cron's own helpers
+ * wherever one exists, so the two can only drift where this file is edited.
+ */
 
 /** Booking statuses the cron treats as secured — only these get lifecycle mail. */
 const SECURED = ["confirmed", "downpayment_paid", "paid", "attended"];
@@ -56,12 +60,19 @@ export async function getUpcomingMails(now = new Date()): Promise<{
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
 
-  const from = new Date(now.getTime() - 20 * DAY).toISOString().slice(0, 10);
-  const to = new Date(now.getTime() + (HORIZON_DAYS + 25) * DAY).toISOString().slice(0, 10);
+  // The same schedule the cron reads: built-in leads plus whatever was set in
+  // Emails, with the send windows derived from them.
+  const timing = await getSendTiming();
+  const dated = AUTOMATIONS.filter((a) => a.source === "scheduled" && timingAnchor(a.key));
+  const maxLead = Math.max(0, ...Object.values(timing.before));
+  const maxAfter = Math.max(0, ...Object.values(timing.windowCloseAfterEnd));
+
+  const from = new Date(now.getTime() - (maxAfter + 1) * DAY).toISOString().slice(0, 10);
+  const to = new Date(now.getTime() + (HORIZON_DAYS + maxLead + 1) * DAY).toISOString().slice(0, 10);
 
   const { data: editions } = await db
     .from("exp_editions")
-    .select("id, label, year, date_start, date_end, status, archived_at, exp_experiences(title)")
+    .select("id, kind, label, year, date_start, date_end, status, archived_at, mail_skip, exp_experiences(title)")
     .gte("date_end", from)
     .lte("date_start", to)
     .order("date_start");
@@ -72,80 +83,112 @@ export async function getUpcomingMails(now = new Date()): Promise<{
   );
   if (!live.length) return { paused, mails: [] };
 
+  // Switched off in Emails, for every week.
+  const { data: tpl } = await db.from("email_templates").select("template_key, enabled");
+  const offEverywhere = new Set(
+    ((tpl ?? []) as { template_key: string; enabled: boolean | null }[]).filter((t) => t.enabled === false).map((t) => t.template_key),
+  );
+
   // One count query for every edition rather than one per mail.
   const { data: bookings } = await db
     .from("exp_bookings")
-    .select("id, edition_id, status, downpayment_received")
+    .select("id, edition_id, status, downpayment_received, created_at")
     .in("edition_id", live.map((e: { id: string }) => e.id));
+
+  // Booked before the go-live cutoff = never mailed automatically (the cron's
+  // bookedLive). Same for a trip that itself starts before it (tripLive).
+  const liveFrom = pipelineLiveFrom();
+  const onOrAfterCutoff = (d?: string | null) => liveFrom == null || (!!d && new Date(d).getTime() >= liveFrom);
 
   // A paid deposit does not resurrect a dead booking: Alaçatı's forecast said
   // "18 guests" while the cron correctly mailed 15, because three LOST bookings
   // had their downpayment flag still set (guests who paid, then dropped out).
   // The cron never mails lost — neither may the forecast count them.
   const securedByEdition = new Map<string, string[]>();
-  for (const b of (bookings ?? []) as { id: string; edition_id: string | null; status: string | null; downpayment_received: boolean | null }[]) {
+  for (const b of (bookings ?? []) as { id: string; edition_id: string | null; status: string | null; downpayment_received: boolean | null; created_at: string | null }[]) {
     if (!b.edition_id || b.status === "lost") continue;
     const secured = b.downpayment_received || SECURED.includes(String(b.status));
-    if (secured) securedByEdition.set(b.edition_id, [...(securedByEdition.get(b.edition_id) ?? []), b.id]);
+    if (secured && onOrAfterCutoff(b.created_at)) {
+      securedByEdition.set(b.edition_id, [...(securedByEdition.get(b.edition_id) ?? []), b.id]);
+    }
   }
+  const allIds = [...securedByEdition.values()].flat();
 
   // What already WENT OUT stops being a forecast. Without this, "Thank you +
   // review · today" sat on the dashboard all day after the mails were sent.
   // One query: sent rows for these bookings and these templates; each mail's
   // recipient count below is only the bookings still waiting.
   const sent = new Set<string>();
-  {
-    const allIds = [...securedByEdition.values()].flat();
-    if (allIds.length) {
-      const { data: sentRows } = await db
-        .from("email_log")
-        .select("booking_id, template_key")
-        .eq("status", "sent")
-        .in("template_key", ANCHORS.map((a) => a.key))
-        .in("booking_id", allIds);
-      for (const r of (sentRows ?? []) as { booking_id: string | null; template_key: string | null }[]) {
-        if (r.booking_id && r.template_key) sent.add(`${r.template_key}:${r.booking_id}`);
-      }
+  const signed = new Set<string>();
+  if (allIds.length) {
+    const { data: sentRows } = await db
+      .from("email_log")
+      .select("booking_id, template_key")
+      .eq("status", "sent")
+      .in("template_key", dated.map((a) => a.key))
+      .in("booking_id", allIds);
+    for (const r of (sentRows ?? []) as { booking_id: string | null; template_key: string | null }[]) {
+      if (r.booking_id && r.template_key) sent.add(`${r.template_key}:${r.booking_id}`);
     }
+    // The waiver reminder only goes to guests who have not signed.
+    const { data: sigs } = await db.from("exp_waiver_signatures").select("booking_id").in("booking_id", allIds);
+    for (const g of (sigs ?? []) as { booking_id: string | null }[]) if (g.booking_id) signed.add(g.booking_id);
   }
 
-  const today = new Date(now.toISOString().slice(0, 10) + "T00:00:00Z").getTime();
+  // The cron runs once a day at 09:00 UTC. On a run day D it sees
+  // daysToStart = start - D and daysSinceEnd = D - end, in whole days.
+  const todayDay = Math.floor(now.getTime() / DAY);
+  const firstRunDay = now.getTime() < todayDay * DAY + CRON_HOUR_UTC * 3_600_000 ? todayDay : todayDay + 1;
+  const dayOf = (iso: string) => Math.floor(new Date(iso + "T00:00:00Z").getTime() / DAY);
+
   const out: UpcomingMail[] = [];
 
   for (const ed of live) {
     const securedIds = securedByEdition.get(ed.id) ?? [];
     if (!securedIds.length) continue; // nothing to send, nothing to warn about
+    if (!onOrAfterCutoff(ed.date_start)) continue;
+    const skip = new Set<string>((ed.mail_skip ?? []) as string[]);
+    const startDay = dayOf(ed.date_start);
+    const endDay = ed.date_end ? dayOf(ed.date_end) : null;
 
-    // Resolve content once per edition, not once per mail.
-    const { values } = await resolveEditionContent(ed.id).catch(() => ({ values: {} as Record<string, string | null> }));
+    let values: Record<string, unknown> | null = null;
     const title = `${ed.exp_experiences?.title ?? "Trip"}${ed.label ? ` · ${ed.label}` : ed.year ? ` ${ed.year}` : ""}`;
 
-    for (const a of ANCHORS) {
-      const anchor = a.beforeStart != null ? ed.date_start : ed.date_end ?? ed.date_start;
-      if (!anchor) continue;
-      const base = new Date(anchor + "T00:00:00Z").getTime();
-      const dueDay = a.beforeStart != null ? base - a.beforeStart * DAY : base + (a.afterEnd ?? 0) * DAY;
-      if (Math.round((dueDay - today) / DAY) < 0) continue;
-      // The cron fires once a day at 09:00 UTC. A mail whose day has arrived
-      // but whose run has already passed — held for content, or content added
-      // after the run — actually goes out at the NEXT run, so that is the
-      // instant shown, not a time that lies in the past.
-      let sendAtMs = dueDay + CRON_HOUR_UTC * 3_600_000;
-      while (sendAtMs < now.getTime()) sendAtMs += DAY;
-      const daysAway = Math.round((sendAtMs - CRON_HOUR_UTC * 3_600_000 - today) / DAY);
+    for (const a of dated) {
+      if (!cronSends(ed.kind, a.key) || skip.has(a.key) || offEverywhere.has(a.key)) continue;
+
+      // The window the cron fires in, as run days: [open, close].
+      let open: number, close: number;
+      if (timingAnchor(a.key) === "before") {
+        open = startDay - timing.before[a.key];
+        close = startDay - timing.windowClose[a.key] - 1;
+      } else {
+        if (endDay == null) continue; // the cron cannot count from an end it doesn't have
+        open = endDay + timing.afterEnd[a.key];
+        close = endDay + timing.windowCloseAfterEnd[a.key];
+      }
+      // A mail whose day has arrived but whose run has passed goes out at the
+      // NEXT run while its window is still open, so that is the day shown.
+      const runDay = Math.max(open, firstRunDay);
+      if (runDay > close) continue;
+      const daysAway = runDay - todayDay;
       if (daysAway > HORIZON_DAYS) continue;
 
       // Only bookings this mail has NOT yet reached. A fully-sent mail
       // disappears from the panel; a partial failure honestly shows the rest.
-      const recipients = securedIds.filter((id) => !sent.has(`${a.key}:${id}`)).length;
+      const recipients = securedIds.filter((id) =>
+        !sent.has(`${a.key}:${id}`) && !(a.key === "waiver_reminder" && signed.has(id)),
+      ).length;
       if (!recipients) continue;
 
-      const blocking = MAIL_REQUIREMENTS[a.key]?.blocking ?? [];
-      const missing = blocking.filter((k) => !values[k]);
+      // Resolve content once per edition, and only for one that sends something.
+      values ??= (await resolveEditionContent(ed.id).catch(() => ({ values: {} }))).values as Record<string, unknown>;
+      const missing = (MAIL_REQUIREMENTS[a.key]?.blocking ?? []).filter((k) => !values![k]);
 
+      const sendAtMs = runDay * DAY + CRON_HOUR_UTC * 3_600_000;
       out.push({
         templateKey: a.key,
-        label: a.label,
+        label: a.name,
         editionId: ed.id,
         editionTitle: title,
         sendDate: new Date(sendAtMs).toISOString().slice(0, 10),

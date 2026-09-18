@@ -92,3 +92,15 @@ export const CANNOT_DISABLE = new Set(["account_magic_link", "team_invite"]);
 export function lifecycleLive(): boolean {
   return process.env.EMAIL_LIFECYCLE_LIVE === "true" || process.env.EMAIL_LIFECYCLE_LIVE === "1";
 }
+
+/**
+ * The go-live cutoff (EMAIL_PIPELINE_LIVE_FROM) as a timestamp, null when unset.
+ *
+ * One reading for the cron and for the dashboard forecast. The forecast used to
+ * skip it, so it counted guests booked before the cutoff, who by Nico's rule
+ * (14 Sep 2026) never get the automatic series at all.
+ */
+export function pipelineLiveFrom(): number | null {
+  const raw = process.env.EMAIL_PIPELINE_LIVE_FROM;
+  return raw ? new Date(raw).getTime() : null;
+}

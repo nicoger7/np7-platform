@@ -9,6 +9,7 @@ import { computePaymentPlan, dueUrgency, balanceDue } from "@/lib/payments";
 import { sumReceived } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { mailContentReady, getSendTiming } from "@/lib/email/readiness";
+import { pipelineLiveFrom } from "@/lib/email/automations";
 import { recordHold } from "@/lib/email/holds";
 
 export const dynamic = "force-dynamic";
@@ -101,8 +102,7 @@ export async function GET(req: NextRequest) {
   // date) when Resend is connected — bookings whose trip (or, for lead nudges,
   // whose reservation) predates it are skipped entirely, so turning the engine
   // on never blasts historical guests. Unset → no suppression (dev/testing).
-  const liveFromRaw = process.env.EMAIL_PIPELINE_LIVE_FROM;
-  const liveFrom = liveFromRaw ? new Date(liveFromRaw).getTime() : null;
+  const liveFrom = pipelineLiveFrom();
   const onOrAfterCutoff = (d?: string | null) => liveFrom == null || (!!d && new Date(d).getTime() >= liveFrom);
 
   /**

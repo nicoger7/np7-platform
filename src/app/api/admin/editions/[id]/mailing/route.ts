@@ -4,7 +4,7 @@ import { nextStepsVars } from "@/lib/email/next-steps";
 import { requireTeamMember, requireSectionEdit } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase";
 import { AUTOMATIONS, CANNOT_DISABLE, lifecycleLive } from "@/lib/email/automations";
-import { listSendTiming, timingAnchor, resolveEditionContent, mailAppliesTo, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
+import { listSendTiming, timingAnchor, resolveEditionContent, mailAppliesTo, cronSends, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
 import { MANUAL_CONDITIONAL, loadConditionalEligibility } from "@/lib/email/manual-eligibility";
 
 export const dynamic = "force-dynamic";
@@ -108,7 +108,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const closeAfter = after != null ? t?.windowClose : undefined;
     const daysToStart = start != null ? Math.round((start - today) / DAY) : null;
     const daysSinceEnd = end != null ? Math.round((today - end) / DAY) : null;
-    const windowPassed = dueAt != null && (
+    // Applies, but the nightly job never sends it on its own (an event's
+    // group-chat mail). Its date is not a due date and its window never
+    // "passes": it goes out when somebody presses send, or not at all.
+    const byHandOnly = !cronSends(kind, a.key);
+    const windowPassed = !byHandOnly && dueAt != null && (
       close != null ? (daysToStart != null && daysToStart <= close)
       : closeAfter != null ? (daysSinceEnd != null && daysSinceEnd > closeAfter)
       : (daysAway != null && daysAway < 0));
@@ -122,6 +126,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       daysBefore: lead ?? null,
       daysAfterEnd: after ?? null,
       windowPassed,
+      byHandOnly,
       dueAt,
       daysAway,
       // The lead is editable from this row (globally — it is one schedule for
