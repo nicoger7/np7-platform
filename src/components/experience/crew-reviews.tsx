@@ -51,11 +51,21 @@ export function cardExcerpt(quote: string, max = CARD_CHARS): string {
 }
 
 /**
- * The polaroid row. Full-bleed, so cards glide in from the edge of the screen
- * instead of being cut off by a hard box, with the edges fading out only on a
- * side that has more to show. Wheel/trackpad and touch scroll natively; a
- * mouse can drag; the arrows move one card at a time.
+ * The polaroid row. Bounded by the page column (the logo-to-avatar width of
+ * the header, Nico drew it in red on 18 Sep 2026) and fading out the same on
+ * both sides as cards reach those lines, so they glide out of view instead of
+ * being cut off by a hard box. It first ran to the screen edge and faded only
+ * there, which on a wide screen put the fade far right of a centred page and
+ * the arrow on top of a card. The first card lines up with the heading and
+ * sits just inside the fade; the arrows sit on the column edge, not on a card.
+ * Wheel/trackpad and touch scroll natively; a mouse can drag; the arrows move
+ * one card at a time.
  */
+const BAND = "max-w-[1232px]";
+const PAD = "max(1.5rem, calc((100% - 1200px) / 2 + 2rem))";
+const FADE = "clamp(16px, calc((100% - 1200px) / 2 + 2rem), 48px)";
+// On the column edge when the screen has room beside it, else 4px inside the screen.
+const ARROW = "max(-24px, calc((100% - 100vw) / 2 + 4px))";
 function Track({ label, children }: { label: string; children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [edge, setEdge] = useState({ start: true, end: false });
@@ -107,9 +117,9 @@ function Track({ label, children }: { label: string; children: React.ReactNode }
     if (drag.current?.moved) { e.preventDefault(); e.stopPropagation(); }
   };
 
-  const fade = "clamp(24px, 7vw, 120px)";
+  const mask = `linear-gradient(to right, transparent 0, #000 ${FADE}, #000 calc(100% - ${FADE}), transparent 100%)`;
   return (
-    <div className="relative">
+    <div className={`relative mx-auto ${BAND}`}>
       <div
         ref={ref}
         role="region"
@@ -121,12 +131,7 @@ function Track({ label, children }: { label: string; children: React.ReactNode }
         onPointerLeave={onUp}
         onClickCapture={onClickCapture}
         className="flex gap-6 overflow-x-auto scrollbar-hide snap-x snap-proximity motion-safe:scroll-smooth py-10 -my-10 select-none md:cursor-grab md:active:cursor-grabbing focus-visible:outline-none"
-        style={{
-          paddingInline: "max(1.5rem, calc((100% - 1200px) / 2 + 2rem))",
-          scrollPaddingInline: "max(1.5rem, calc((100% - 1200px) / 2 + 2rem))",
-          WebkitMaskImage: `linear-gradient(to right, transparent 0, #000 ${edge.start ? "0px" : fade}, #000 calc(100% - ${edge.end ? "0px" : fade}), transparent 100%)`,
-          maskImage: `linear-gradient(to right, transparent 0, #000 ${edge.start ? "0px" : fade}, #000 calc(100% - ${edge.end ? "0px" : fade}), transparent 100%)`,
-        }}
+        style={{ paddingInline: PAD, scrollPaddingInline: PAD, WebkitMaskImage: mask, maskImage: mask }}
       >
         {children}
         {/* Room after the last card: inline-end padding is not reliable on a
@@ -139,7 +144,7 @@ function Track({ label, children }: { label: string; children: React.ReactNode }
           <button key={k} type="button" aria-label={k === "prev" ? "Previous reviews" : "More reviews"}
             onClick={() => step(k === "prev" ? -1 : 1)} tabIndex={hidden ? -1 : 0}
             className={`hidden md:flex absolute top-1/2 -translate-y-1/2 z-10 w-12 h-12 rounded-full bg-white text-[#00374a] shadow-[0_8px_24px_-8px_rgba(0,20,30,.6)] items-center justify-center hover:bg-[#00374a] hover:text-white transition-all duration-300 ${hidden ? "opacity-0 pointer-events-none scale-90" : "opacity-100"}`}
-            style={k === "prev" ? { left: "max(0.75rem, calc((100% - 1200px) / 2 - 0.5rem))" } : { right: "max(0.75rem, calc((100% - 1200px) / 2 - 0.5rem))" }}>
+            style={k === "prev" ? { left: ARROW } : { right: ARROW }}>
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <path d={k === "prev" ? "M15 18l-6-6 6-6" : "M9 18l6-6-6-6"} />
             </svg>
