@@ -28,7 +28,7 @@
 // line this section already draws for GEOMETRY_FIELDS in product-dev.ts.
 
 export type BoardMetricKey =
-  | "width" | "thickness" | "rocker" | "rocker_off" | "v" | "concave" | "rail_thickness" | "rail_shape";
+  | "width" | "width_top" | "thickness" | "rocker" | "rocker_off" | "v" | "concave" | "rail_thickness" | "rail_shape";
 
 export type BoardMetric = {
   key: BoardMetricKey;
@@ -70,6 +70,13 @@ export const BOARD_METRICS: BoardMetric[] = [
   {
     key: "width", label: "Width (bottom)", unit: "cm", kind: "number", color: "#38bdf8",
     hint: "Rail-edge to rail-edge across the flat bottom. Narrower than the board's overall max width, which lives on the board itself.",
+  },
+  {
+    // Asked for on the JP foil slalom ("are we able to insert width top?"). The
+    // outline draws it OUTSIDE the bottom width, so the rail wrap is visible
+    // at every station instead of being one stated number on the board.
+    key: "width_top", label: "Width (top)", unit: "cm", kind: "number", color: "#818cf8",
+    hint: "Overall width at the station: across the deck, rail to rail at the widest point. The bottom width sits inside it, and the difference is the rail wrap on both sides.",
   },
   {
     key: "thickness", label: "Thickness", unit: "cm", kind: "number", color: "#a78bfa",
@@ -596,6 +603,8 @@ const HEADING_PATTERNS: { re: RegExp; metric: BoardMetricKey; variant?: string }
   { re: /\btriple\s*concave\b/i, metric: "concave", variant: "triple" },
   { re: /\bsingle\s*concave\b/i, metric: "concave", variant: "single" },
   { re: /\bconcave\b/i, metric: "concave" },
+  // Before the plain width pattern: "Width (top)", "Deck width", "Breite oben", "Max width".
+  { re: /\b(width|breite)\b.*\b(top|deck|oben|overall|outline|max)\b|\b(top|deck|overall|max)\.?\s*(width|breite)\b|\boutline\b/i, metric: "width_top" },
   { re: /\b(width|breite)\b/i, metric: "width" },
   { re: /\b(thickness|dicke)\b/i, metric: "thickness" },
   // Before the plain rocker pattern: "Rocker 15cm off centre", "Rocker seitlich".

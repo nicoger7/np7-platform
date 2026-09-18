@@ -159,6 +159,20 @@ describe("parseMeasurementText", () => {
   });
 });
 
+describe("two widths", () => {
+  const heading = (h: string) => parseMeasurementText(`${h}\n100 - 85cm`).series[0]?.metric;
+  it("files the top width under its own metric", () => {
+    for (const h of ["Width (top)", "Width top", "Deck width", "Breite oben", "Max width", "Outline"]) {
+      expect(heading(h), h).toBe("width_top");
+    }
+  });
+  it("keeps the bottom width where it was", () => {
+    for (const h of ["Width (bottom)", "Width", "Breite", "Breite unten"]) {
+      expect(heading(h), h).toBe("width");
+    }
+  });
+});
+
 describe("two rocker lines", () => {
   // The JP foil slalom sheet: rocker on the centreline AND 15 cm off it.
   const r = parseMeasurementText(`Rocker

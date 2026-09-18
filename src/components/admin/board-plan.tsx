@@ -59,6 +59,7 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
   const [labels, setLabels] = useState(true);
 
   const width = useMemo(() => mmSeries(points, series, "width"), [points, series]);
+  const widthTop = useMemo(() => mmSeries(points, series, "width_top"), [points, series]);
   const rocker = useMemo(() => mmSeries(points, series, "rocker"), [points, series]);
   const rockerOff = useMemo(() => mmSeries(points, series, "rocker_off"), [points, series]);
   const thickness = useMemo(() => mmSeries(points, series, "thickness"), [points, series]);
@@ -158,7 +159,7 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
       </div>
 
       {view === "outline" && (
-        <OutlineView board={board} width={width} cutouts={cutouts} stations={stations} labels={labels} />
+        <OutlineView board={board} width={width} widthTop={widthTop} cutouts={cutouts} stations={stations} labels={labels} />
       )}
       {view === "rocker" && (
         <RockerView board={board} rocker={rocker} rockerOff={rockerOff}
@@ -171,7 +172,7 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
       {view === "section" && (
         <SectionView board={board} series={series}
           station={station ?? fullestStation}
-          width={width} vee={vee} concave={concave} thickness={thickness} railT={railT} exag={exag} />
+          width={width} widthTop={widthTop} vee={vee} concave={concave} thickness={thickness} railT={railT} exag={exag} />
       )}
     </div>
   );
@@ -244,32 +245,38 @@ const frame = { className: "w-full rounded-xl", style: { border: "1px solid var(
 
 // ─── Outline (top view) ──────────────────────────────────────────────────────
 
-function OutlineView({ board, width, cutouts, stations, labels }: {
-  board: PdBoard; width: SeriesPoints; cutouts: PdBoardCutout[];
+function OutlineView({ board, width, widthTop, cutouts, stations, labels }: {
+  board: PdBoard; width: SeriesPoints; widthTop: SeriesPoints; cutouts: PdBoardCutout[];
   stations: { min: number; max: number }; labels: boolean;
 }) {
   const PAD = 34;
   const W = 900;
-  const halfMaxMm = width.length ? Math.max(...width.map((p) => p.value)) / 2 : 300;
+  const both = width.length > 0 && widthTop.length > 0;
+  const allMm = [...width, ...widthTop].map((p) => p.value);
+  const halfMaxMm = allMm.length ? Math.max(...allMm) / 2 : 300;
   const spanCm = stations.max - stations.min || 100;
   const pxPerCm = (W - PAD * 2) / spanCm;
   // True scale in both axes — an outline is the one view that must not be
   // stretched, because its proportions are the thing you are looking at.
   const halfPx = (halfMaxMm / 10) * pxPerCm;
-  const H = halfPx * 2 + PAD * 2 + 20;
+  const H = halfPx * 2 + PAD * 2 + 34;
 
   const toX = (cm: number) => PAD + (cm - stations.min) * pxPerCm;
-  const centre = PAD + halfPx;
+  const centre = PAD + 14 + halfPx;
   const toYhalf = (mm: number) => centre - (mm / 10) * pxPerCm;
 
-  const half: SeriesPoints = width.map((p) => ({ station: p.station, value: p.value / 2 }));
-  const top = smoothPath(half, toX, toYhalf, 8);
-  const bottom = smoothPath(half.map((p) => ({ ...p, value: -p.value })), toX, toYhalf, 8);
+  const halfOf = (pts: SeriesPoints): SeriesPoints => pts.map((p) => ({ station: p.station, value: p.value / 2 }));
+  const mirror = (pts: SeriesPoints): SeriesPoints => pts.map((p) => ({ ...p, value: -p.value }));
+  const bottomHalf = halfOf(width);
+  const topHalf = halfOf(widthTop);
+  const colB = BOARD_METRIC_BY_KEY.width.color;
+  const colT = BOARD_METRIC_BY_KEY.width_top.color;
 
   const wide = widestPoint(width);
+  const wideTop = widestPoint(widthTop);
   const hullCutouts = cutouts.filter((c) => c.station_from != null || c.station_to != null);
 
-  if (!width.length) {
+  if (!width.length && !widthTop.length) {
     return (
       <div className="py-12 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>
         <p className="text-sm admin-faint">No width readings yet — the outline is drawn from them.</p>
@@ -277,12 +284,39 @@ function OutlineView({ board, width, cutouts, stations, labels }: {
     );
   }
 
+  // With both widths the labels would sit on top of each other, so the top
+  // width is labelled along the UPPER curve and the bottom width along the
+  // LOWER one. With a single series it is labelled on the upper curve.
+  const upper = widthTop.length ? topHalf : bottomHalf;
+  const upperCol = widthTop.length ? colT : colB;
+  const outer = widthTop.length ? topHalf : bottomHalf;
+
+  // Rail wrap where both were read at the same station, at the widest top.
+  const wrapAt = wideTop ? width.find((p) => p.station === wideTop.station) : null;
+
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} {...frame}>
         <Grid x0={stations.min} x1={stations.max} y0={-halfMaxMm / 10} y1={halfMaxMm / 10}
           toX={toX} toY={(cm) => centre - cm * pxPerCm} step={10} major={50}
           axisLabel={`cm from the ${board.station_origin}`} />
+
+        {/* Legend, top-left. It replaced a "widest" label that sat on the curve
+            and collided with the value labels. */}
+        <g fontSize={9} fill={FAINT}>
+          {widthTop.length > 0 && (
+            <>
+              <line x1={PAD} x2={PAD + 16} y1={12} y2={12} stroke={colT} strokeWidth={2} />
+              <text x={PAD + 21} y={15}>top{wideTop ? `, widest ${round(wideTop.value / 10, 1)} cm at ${wideTop.station}` : ""}</text>
+            </>
+          )}
+          {width.length > 0 && (
+            <>
+              <line x1={PAD + (widthTop.length ? 190 : 0)} x2={PAD + (widthTop.length ? 206 : 16)} y1={12} y2={12} stroke={colB} strokeWidth={2} />
+              <text x={PAD + (widthTop.length ? 211 : 21)} y={15}>bottom{wide ? `, widest ${round(wide.value / 10, 1)} cm at ${wide.station}` : ""}</text>
+            </>
+          )}
+        </g>
 
         {/* Centreline */}
         <line x1={toX(stations.min)} x2={toX(stations.max)} y1={centre} y2={centre}
@@ -301,30 +335,55 @@ function OutlineView({ board, width, cutouts, stations, labels }: {
           ));
         })}
 
-        <path d={top} fill="none" stroke={BOARD_METRIC_BY_KEY.width.color} strokeWidth={2} />
-        <path d={bottom} fill="none" stroke={BOARD_METRIC_BY_KEY.width.color} strokeWidth={2} />
-
-        <Dots pts={half} toX={toX} toY={toYhalf} color={BOARD_METRIC_BY_KEY.width.color} labels={labels}
-          fmt={(v) => `${round(v / 5, 1)}`} />
-        {half.map((p) => (
+        {/* Station ticks across the outermost outline */}
+        {outer.map((p) => (
           <line key={`tick${p.station}`} x1={toX(p.station)} x2={toX(p.station)}
-            y1={toYhalf(p.value)} y2={toYhalf(-p.value)} stroke={BOARD_METRIC_BY_KEY.width.color}
-            strokeWidth={0.6} opacity={0.3} />
+            y1={toYhalf(p.value)} y2={toYhalf(-p.value)} stroke={upperCol} strokeWidth={0.6} opacity={0.25} />
         ))}
 
-        {wide && (
-          <text x={toX(wide.station)} y={PAD - 12} textAnchor="middle" fontSize={9} fill={FAINT}>
-            widest {round(wide.value / 10, 1)} cm
-          </text>
+        {widthTop.length > 0 && (
+          <>
+            <path d={smoothPath(topHalf, toX, toYhalf, 8)} fill="none" stroke={colT} strokeWidth={2} />
+            <path d={smoothPath(mirror(topHalf), toX, toYhalf, 8)} fill="none" stroke={colT} strokeWidth={2} />
+          </>
         )}
+        {width.length > 0 && (
+          <>
+            <path d={smoothPath(bottomHalf, toX, toYhalf, 8)} fill="none" stroke={colB} strokeWidth={both ? 1.6 : 2} />
+            <path d={smoothPath(mirror(bottomHalf), toX, toYhalf, 8)} fill="none" stroke={colB} strokeWidth={both ? 1.6 : 2} />
+          </>
+        )}
+
+        {/* Upper curve: dots + labels (full width in cm) */}
+        <Dots pts={upper} toX={toX} toY={toYhalf} color={upperCol} labels={labels} fmt={(v) => `${round(v / 5, 1)}`} />
+
+        {/* Lower curve: with both series it carries the BOTTOM width labels */}
+        {both && bottomHalf.map((p) => (
+          <g key={`lb${p.station}`}>
+            <circle cx={toX(p.station)} cy={toYhalf(-p.value)} r={2.4} fill={colB} />
+            {labels && (
+              <text x={toX(p.station)} y={toYhalf(-p.value) + 12} textAnchor="middle" fontSize={8.5} fill={colB}>
+                {round(p.value / 5, 1)}
+              </text>
+            )}
+          </g>
+        ))}
       </svg>
 
       <Caption lines={[
-        "True scale in both axes. The labels on the curve are the half-width; the tick across each station is the full bottom width.",
-        `Drawn from ${width.length} width readings between ${width[0].station} and ${width[width.length - 1].station} cm. The curve stops at the last reading — it does not guess a nose or a tail.`,
-        board.max_width_cm
-          ? `Overall max width ${board.max_width_cm} cm (stated) vs ${wide ? round(wide.value / 10, 1) : "—"} cm widest bottom reading. The difference is the rail wrap.`
-          : "No overall max width on the board yet — add one on Overview and it shows against the widest bottom reading.",
+        both
+          ? "True scale in both axes. Labels are the FULL width in cm at that station: top width along the upper curve, bottom width along the lower one."
+          : "True scale in both axes. Labels are the full width in cm at that station; the faint tick across each station is that width.",
+        [
+          width.length ? `Bottom: ${width.length} readings, ${width[0].station} to ${width[width.length - 1].station} cm.` : "",
+          widthTop.length ? `Top: ${widthTop.length} readings, ${widthTop[0].station} to ${widthTop[widthTop.length - 1].station} cm.` : "No top width readings yet: add a “Width (top)” column on the Measurements tab and the deck outline appears outside the bottom.",
+          "Each curve stops at its last reading — it does not guess a nose or a tail.",
+        ].filter(Boolean).join(" "),
+        wideTop && wrapAt
+          ? `At ${wideTop.station} cm the top is ${round(wideTop.value / 10, 1)} cm and the bottom ${round(wrapAt.value / 10, 1)} cm: ${round((wideTop.value - wrapAt.value) / 20, 1)} cm of rail wrap per side.`
+          : board.max_width_cm
+            ? `Overall max width ${board.max_width_cm} cm (stated) vs ${wide ? round(wide.value / 10, 1) : "—"} cm widest bottom reading. The difference is the rail wrap.`
+            : "No overall max width on the board yet — add one on Overview, or measure the top width per station.",
       ]} />
     </div>
   );
@@ -458,12 +517,13 @@ function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points
  *   deck        needs thickness here; falls to the rail thickness if that was
  *               read here too, else to the rail point.
  */
-function SectionView({ board, series, station, width, vee, concave, thickness, railT, exag }: {
+function SectionView({ board, series, station, width, widthTop, vee, concave, thickness, railT, exag }: {
   board: PdBoard; series: PdBoardSeries[]; station: number;
-  width: SeriesPoints; vee: SeriesPoints; concave: SeriesPoints;
+  width: SeriesPoints; widthTop: SeriesPoints; vee: SeriesPoints; concave: SeriesPoints;
   thickness: SeriesPoints; railT: SeriesPoints; exag: number;
 }) {
   const w = exactValue(width, station);
+  const wt = exactValue(widthTop, station);
   const v = exactValue(vee, station);
   const c = exactValue(concave, station);
   const t = exactValue(thickness, station);
@@ -484,7 +544,9 @@ function SectionView({ board, series, station, width, vee, concave, thickness, r
   const PAD = 46;
   const W = 760;
   const halfMm = w / 2;
-  const pxPerMmX = (W - PAD * 2) / (halfMm * 2);
+  // Room for the top width when it was read here: it is wider than the bottom.
+  const spanHalf = Math.max(halfMm, (wt ?? 0) / 2);
+  const pxPerMmX = (W - PAD * 2) / (spanHalf * 2);
   const pxPerMmY = pxPerMmX * exag;
 
   const railY = v ?? 0;
@@ -520,7 +582,8 @@ function SectionView({ board, series, station, width, vee, concave, thickness, r
       }).join(" ")
     : "";
 
-  const have: string[] = [`width ${round(w / 10, 1)} cm`];
+  const have: string[] = [`bottom width ${round(w / 10, 1)} cm`];
+  if (wt != null) have.push(`top width ${round(wt / 10, 1)} cm`);
   const missing: string[] = [];
   if (v != null) have.push(`V ${round(v, 2)} mm${v < 0 ? " (inverted)" : ""}`); else missing.push("V");
   if (c != null) have.push(`${concaveVariant} concave ${round(c, 2)} mm`); else missing.push("concave");
@@ -550,6 +613,13 @@ function SectionView({ board, series, station, width, vee, concave, thickness, r
                 stroke={BOARD_METRIC_BY_KEY.rail_thickness.color} strokeWidth={1.4} />
             )}
           </g>
+        ))}
+
+        {/* Top width: its extent only. The rail between the bottom edge and
+            this mark was not measured, so no rail curve is drawn. */}
+        {wt != null && [-wt / 2, wt / 2].map((x) => (
+          <line key={`wt${x}`} x1={toX(x)} x2={toX(x)} y1={toY(railY) - 12} y2={toY(railY) + 6}
+            stroke={BOARD_METRIC_BY_KEY.width_top.color} strokeWidth={1.6} />
         ))}
 
         <text x={W - PAD / 2} y={PAD / 2 + 4} textAnchor="end" fontSize={9} fill={FAINT}>
@@ -634,7 +704,7 @@ function SliceReadout({ board, station, points, series }: {
       <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1.5">
         At {station} cm from the {board.station_origin}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-px rounded-xl overflow-hidden"
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-9 gap-px rounded-xl overflow-hidden"
         style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-border)" }}>
         {cells.map((c) => (
           <div key={c.label} className="px-3 py-2.5" style={{ backgroundColor: "var(--admin-surface)" }}>
@@ -658,12 +728,15 @@ export function BoardReadout({ board, series, points }: { board: PdBoard; series
   const rocker = mmSeries(points, series, "rocker");
   const vee = mmSeries(points, series, "v");
   const wide = widestPoint(width);
+  const wideTop = widestPoint(mmSeries(points, series, "width_top"));
   const r = rockerReadout(rocker, board.station_origin, riseMarkerStation(points));
   const cross = zeroCrossing(vee);
 
   const cells: { label: string; value: string; hint?: string }[] = [
     { label: "Widest bottom", value: wide ? `${round(wide.value / 10, 1)} cm` : "—", hint: wide ? `at ${wide.station} cm` : undefined },
-    { label: "Max width", value: board.max_width_cm ? `${board.max_width_cm} cm` : "—", hint: "overall, stated" },
+    wideTop
+      ? { label: "Max width", value: `${round(wideTop.value / 10, 1)} cm`, hint: `top, measured at ${wideTop.station} cm${board.max_width_cm ? ` · stated ${board.max_width_cm}` : ""}` }
+      : { label: "Max width", value: board.max_width_cm ? `${board.max_width_cm} cm` : "—", hint: "overall, stated" },
     { label: "Scoop", value: r.scoop ? `${round(r.scoop.value, 1)} mm` : "—", hint: r.scoop ? `at ${r.scoop.station} cm` : "nose end" },
     {
       label: "Tail kick",

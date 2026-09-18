@@ -136,7 +136,7 @@ export function SessionBrief() {
     <div className="mt-3 pt-3 grid grid-cols-1 md:grid-cols-[1fr_230px] gap-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
       <div className="space-y-1.5">
         <Rule n={1} title="One metric per block">
-          Metric name on its own line: <b>Thickness</b>, <b>Width</b>, <b>Rocker</b>, <b>V</b>, <b>Double/Single concave</b>, <b>Rail thickness</b>, <b>Rail shape</b>. German works (Dicke, Breite).
+          Metric name on its own line: <b>Thickness</b>, <b>Width</b> (bottom), <b>Width top</b>, <b>Rocker</b>, <b>Rocker 15cm off centre</b>, <b>V</b>, <b>Double/Single concave</b>, <b>Rail thickness</b>, <b>Rail shape</b>. German works (Dicke, Breite).
         </Rule>
         <Rule n={2} title="One station per line">
           <code>110 - 4.5mm</code>. Dash optional, <code>81,2cm</code> fine. Stations are <b>cm from the tail</b>. A bare <code>20</code> = still to measure.
