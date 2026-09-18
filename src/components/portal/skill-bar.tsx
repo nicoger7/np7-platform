@@ -23,8 +23,14 @@ export function SkillBar({ coach, windcoach, self, total, dark = false, classNam
 
 /**
  * Wind Coach verification isn't built yet. One flag for the whole progression
- * UI so the banner and this legend can't drift apart — flip it when the
+ * UI so the banner and this legend can't drift apart. Flip it when the
  * integration ships.
+ *
+ * It covers EVERY member-facing mention on the progress surfaces: the Progress
+ * page intro, the track hint, the "N Wind Coach App" counters (page + home
+ * card), the legends and the newbie invitation. Nico, 18 Sep 2026: hide the
+ * wording for now. The per-skill "Wind Coach App verified" badge stays
+ * data-driven: it can only appear once a skill is actually verified that way.
  */
 export const SHOW_WINDCOACH = false;
 

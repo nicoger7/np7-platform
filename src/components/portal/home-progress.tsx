@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { type Progression, skillStateCounts } from "@/lib/progression";
-import { SkillBar, SkillBarLegend } from "@/components/portal/skill-bar";
+import { SkillBar, SkillBarLegend, SHOW_WINDCOACH } from "@/components/portal/skill-bar";
 
 /**
  * Home-dashboard progression feature — a full-width teaser that mirrors the
@@ -105,7 +105,7 @@ export function HomeProgress({ progression, selfLevel, avatarUrl, initials }: { 
         /* Pure newbie — nothing logged or verified: an invitation, not a wall of empty bars. */
         <>
           <p className="mt-4 text-[13px] text-[#cde4ec] leading-relaxed">
-            <strong className="text-white">Log what you can already do</strong> to start filling your ladder. Then a coach on the water (or the <strong className="text-white">Wind Coach App</strong>) makes it count toward your rank.
+            <strong className="text-white">Log what you can already do</strong> to start filling your ladder. Then a coach on the water{SHOW_WINDCOACH && <> (or the <strong className="text-white">Wind Coach App</strong>)</>} makes it count toward your rank.
           </p>
           <div className="flex items-center justify-between gap-4 mt-4 pt-3.5" style={{ borderTop: "1px solid rgba(255,255,255,.12)" }}>
             <span className="text-[12px] text-[#9fc9d6]">6 ranks to climb · Beginner → Pro</span>
@@ -147,7 +147,7 @@ export function HomeProgress({ progression, selfLevel, avatarUrl, initials }: { 
               <div className="flex items-center justify-between gap-4 mt-3 pt-3.5" style={{ borderTop: "1px solid rgba(255,255,255,.12)" }}>
                 <div className="flex gap-4 text-[12px] text-[#9fc9d6]">
                   <span><b className="text-[15px]" style={{ color: GOLD }}>{coachCount}</b> coach-verified</span>
-                  <span><b className="text-[15px]" style={{ color: "#c3b6ec" }}>{windcoachCount}</b> Wind Coach App</span>
+                  {SHOW_WINDCOACH && <span><b className="text-[15px]" style={{ color: "#c3b6ec" }}>{windcoachCount}</b> Wind Coach App</span>}
                 </div>
                 <span className="inline-flex items-center gap-1 text-[13px] font-bold text-white group-hover:gap-2 transition-all">
                   Open your progress

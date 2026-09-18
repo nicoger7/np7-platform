@@ -163,7 +163,7 @@ function TrackCard({ track, onLog, onUndo, busyId, logError }: { track: Track } 
       <div className="text-[13.5px] text-[#6a7a80] mb-0.5">
         <span className="font-black text-[15px] text-[#00374a]">{track.label}</span> &nbsp;·&nbsp; {track.verified}/{track.total} mastered
       </div>
-      <div className="text-[11.5px] text-[#9aa6ac] mb-2.5">Log what you can do. A coach on a trip (or the Wind Coach App) makes it count.</div>
+      <div className="text-[11.5px] text-[#9aa6ac] mb-2.5">Log what you can do. A coach on a trip{SHOW_WINDCOACH ? " (or the Wind Coach App)" : ""} makes it count.</div>
 
       {isSide && (
         <div className="flex items-start gap-2 rounded-lg px-3 py-2 mb-2.5 text-[11.5px]" style={{ background: "#f6f3ee", color: "#8a949a" }}>
@@ -286,7 +286,7 @@ export function ProgressionView({ progression, avatarUrl, initials }: { progress
         </div>
         <div className="flex gap-4 mt-3 pt-3 text-[12px]" style={{ borderTop: "1px solid rgba(255,255,255,.12)", color: "#9fc9d6" }}>
           <span><b className="text-[15px]" style={{ color: "#e9c973" }}>{coachCount}</b> coach-verified</span>
-          <span><b className="text-[15px]" style={{ color: "#c3b6ec" }}>{windcoachCount}</b> Wind Coach App</span>
+          {SHOW_WINDCOACH && <span><b className="text-[15px]" style={{ color: "#c3b6ec" }}>{windcoachCount}</b> Wind Coach App</span>}
         </div>
       </div>
 
@@ -343,7 +343,7 @@ export function ProgressionView({ progression, avatarUrl, initials }: { progress
       {/* legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-2 mt-4 text-[11.5px] text-[#9aa6ac] items-center">
         <span className="inline-flex items-center gap-1"><Ico name="check" size={13} color={GOLD} /> coach-verified (trip)</span>
-        <span className="inline-flex items-center gap-1"><Ico name="video" size={13} color={PURPLE} /> Wind Coach App video</span>
+        {SHOW_WINDCOACH && <span className="inline-flex items-center gap-1"><Ico name="video" size={13} color={PURPLE} /> Wind Coach App video</span>}
         <span className="inline-flex items-center gap-1"><Ico name="circle" size={13} /> “I can do this” logs a skill · verification makes it count</span>
       </div>
     </div>
