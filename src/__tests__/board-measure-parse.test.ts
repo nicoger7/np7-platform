@@ -159,6 +159,25 @@ describe("parseMeasurementText", () => {
   });
 });
 
+describe("two rocker lines", () => {
+  // The JP foil slalom sheet: rocker on the centreline AND 15 cm off it.
+  const r = parseMeasurementText(`Rocker
+90 - 0 (Flat bis 90)
+100 - 3mm
+
+Rocker 15cm off centre
+70 - 0
+80 - 1mm
+90 - 3mm`);
+  it("files the second line under its own metric", () => {
+    expect(r.series.map((s) => s.metric)).toEqual(["rocker", "rocker_off"]);
+    expect(r.series[1].points.map((p) => p.value)).toEqual([0, 1, 3]);
+  });
+  it("keeps the plain heading on the centreline", () => {
+    expect(r.series[0].points[0]).toMatchObject({ station: 90, value: 0, note: "Flat bis 90" });
+  });
+});
+
 describe("the V method", () => {
   // Bottom-up, the straightedge can only lie on one face when the centre is
   // the high point (normal V): those tape readings are 2 × V. Inverted V is a

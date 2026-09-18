@@ -60,6 +60,7 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
 
   const width = useMemo(() => mmSeries(points, series, "width"), [points, series]);
   const rocker = useMemo(() => mmSeries(points, series, "rocker"), [points, series]);
+  const rockerOff = useMemo(() => mmSeries(points, series, "rocker_off"), [points, series]);
   const thickness = useMemo(() => mmSeries(points, series, "thickness"), [points, series]);
   const vee = useMemo(() => mmSeries(points, series, "v"), [points, series]);
   const concave = useMemo(() => mmSeries(points, series, "concave"), [points, series]);
@@ -160,8 +161,9 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
         <OutlineView board={board} width={width} cutouts={cutouts} stations={stations} labels={labels} />
       )}
       {view === "rocker" && (
-        <RockerView board={board} rocker={rocker} thickness={thickness} points={points}
-          stations={stations} exag={exag} labels={labels} />
+        <RockerView board={board} rocker={rocker} rockerOff={rockerOff}
+          rockerOffNote={series.find((x) => x.metric === "rocker_off")?.convention ?? null}
+          thickness={thickness} points={points} stations={stations} exag={exag} labels={labels} />
       )}
       {view === "section" && (
         <SliceReadout board={board} station={station ?? fullestStation} points={points} series={series} />
@@ -330,8 +332,9 @@ function OutlineView({ board, width, cutouts, stations, labels }: {
 
 // ─── Rocker (side view) ──────────────────────────────────────────────────────
 
-function RockerView({ board, rocker, thickness, points, stations, exag, labels }: {
-  board: PdBoard; rocker: SeriesPoints; thickness: SeriesPoints; points: PdBoardPoint[];
+function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points, stations, exag, labels }: {
+  board: PdBoard; rocker: SeriesPoints; rockerOff: SeriesPoints; rockerOffNote: string | null;
+  thickness: SeriesPoints; points: PdBoardPoint[];
   stations: { min: number; max: number }; exag: number; labels: boolean;
 }) {
   const PAD = 40;
@@ -344,7 +347,7 @@ function RockerView({ board, rocker, thickness, points, stations, exag, labels }
   // ride here was rocker + thickness interpolated along the whole board — on a
   // board with one thickness reading that is a shape nobody measured, and it
   // squashed the real curve into the bottom fifth of the chart.
-  const maxY = Math.max(10, ...rocker.map((p) => p.value));
+  const maxY = Math.max(10, ...rocker.map((p) => p.value), ...rockerOff.map((p) => p.value));
   const H = maxY * pxPerMm + PAD * 2 + 20;
   const base = H - PAD - 20;
 
@@ -370,6 +373,16 @@ function RockerView({ board, rocker, thickness, points, stations, exag, labels }
 
         {/* The straightedge the readings were taken off. */}
         <line x1={toX(stations.min)} x2={toX(stations.max)} y1={base} y2={base} stroke={INK} strokeWidth={1.2} opacity={0.6} />
+
+        {/* The off-centre line first, so the centreline sits on top of it. */}
+        {rockerOff.length > 0 && (
+          <>
+            <path d={smoothPath(rockerOff, toX, toY, 8)} fill="none"
+              stroke={BOARD_METRIC_BY_KEY.rocker_off.color} strokeWidth={1.6} strokeDasharray="6 3" />
+            <Dots pts={rockerOff} toX={toX} toY={toY} color={BOARD_METRIC_BY_KEY.rocker_off.color} labels={labels}
+              fmt={(v) => `${round(v, 1)}`} />
+          </>
+        )}
 
         <path d={smoothPath(rocker, toX, toY, 8)} fill="none" stroke={BOARD_METRIC_BY_KEY.rocker.color} strokeWidth={2} />
         <Dots pts={rocker} toX={toX} toY={toY} color={BOARD_METRIC_BY_KEY.rocker.color} labels={labels}
@@ -414,10 +427,13 @@ function RockerView({ board, rocker, thickness, points, stations, exag, labels }
           : r.tailEdgeStation != null && r.tailEdgeStation > 0
             ? `No tail kick recorded: the tail-most reading is at ${r.tailEdgeStation} cm and the kick sits behind that, in the last few cm at the fin. Measure at 0 and 5 cm off the same straightedge.`
             : "No tail kick: the reading at the tail edge is zero.",
+        rockerOff.length
+          ? `Solid = rocker on the centreline. Dashed = the off-centre line${rockerOffNote ? ` (${rockerOffNote})` : ""}; the gap between the two at a station is how far the bottom rises towards the rail there.`
+          : "",
         thickness.length
           ? `Thickness was read at ${thickness.map((p) => `${p.station}`).join(", ")} cm — shown as ticks, not as a deck line.`
           : "No thickness readings.",
-      ]} />
+      ].filter(Boolean)} />
     </div>
   );
 }
@@ -618,7 +634,7 @@ function SliceReadout({ board, station, points, series }: {
       <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1.5">
         At {station} cm from the {board.station_origin}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-px rounded-xl overflow-hidden"
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-px rounded-xl overflow-hidden"
         style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-border)" }}>
         {cells.map((c) => (
           <div key={c.label} className="px-3 py-2.5" style={{ backgroundColor: "var(--admin-surface)" }}>

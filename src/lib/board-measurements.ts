@@ -28,7 +28,7 @@
 // line this section already draws for GEOMETRY_FIELDS in product-dev.ts.
 
 export type BoardMetricKey =
-  | "width" | "thickness" | "rocker" | "v" | "concave" | "rail_thickness" | "rail_shape";
+  | "width" | "thickness" | "rocker" | "rocker_off" | "v" | "concave" | "rail_thickness" | "rail_shape";
 
 export type BoardMetric = {
   key: BoardMetricKey;
@@ -78,6 +78,15 @@ export const BOARD_METRICS: BoardMetric[] = [
   {
     key: "rocker", label: "Rocker", unit: "mm", kind: "number", color: "#f59e0b",
     hint: "The scoop-rocker line off a straightedge on the bottom: tail kick at the tail end, scoop at the nose end, zero through the flat run.",
+  },
+  {
+    // Nico measures TWO rocker lines on some boards: the centreline, and a
+    // second one parallel to it a fixed distance out (15 cm on the JP foil
+    // slalom). The gap between the two at a station is how far the bottom has
+    // risen towards the rail there — V read another way — so it is a series of
+    // its own and the rocker chart draws both.
+    key: "rocker_off", label: "Rocker off-centre", unit: "mm", kind: "number", color: "#fb923c",
+    hint: "A second rocker line, read parallel to the centreline a fixed distance out. Say the distance in the note on the column (\"15 cm off centre\"). The gap to the centre rocker at a station is how much the bottom rises towards the rail there.",
   },
   {
     key: "v", label: "V", unit: "mm", kind: "number", color: "#22c55e",
@@ -589,6 +598,8 @@ const HEADING_PATTERNS: { re: RegExp; metric: BoardMetricKey; variant?: string }
   { re: /\bconcave\b/i, metric: "concave" },
   { re: /\b(width|breite)\b/i, metric: "width" },
   { re: /\b(thickness|dicke)\b/i, metric: "thickness" },
+  // Before the plain rocker pattern: "Rocker 15cm off centre", "Rocker seitlich".
+  { re: /\brocker\b.*\b(off|side|seite|seitlich|aussen|außen|neben)\b|\boff[- ]?cent(re|er)\b/i, metric: "rocker_off" },
   { re: /\b(rocker|scoop|tail\s*kick|tailkick)\b/i, metric: "rocker" },
   { re: /^\s*v\b|\bvee\b|\bv[- ]?shape\b/i, metric: "v" },
 ];

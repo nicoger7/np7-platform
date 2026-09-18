@@ -236,7 +236,7 @@ export default function BoardsPage() {
 
       <p className="mt-6 text-xs admin-faint max-w-2xl leading-relaxed">
         Readings is every number on the board; Metrics is how many of the {BOARD_METRICS.length} measurements
-        (width, thickness, rocker, V, concave, rail thickness, rail shape) have at least one. Everything in this section is internal.
+        ({BOARD_METRICS.map((m) => m.label.toLowerCase()).join(", ")}) have at least one. Everything in this section is internal.
       </p>
     </div>
   );
