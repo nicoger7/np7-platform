@@ -38,9 +38,13 @@ type Scheduled = {
   /** Switched off for THIS week only, on this tab. The Emails switch is global. */
   skippedThisWeek?: boolean;
 };
+/** Why a hand-send is happening, so the confirm dialog says the true thing. */
+type SendWhy = { kind: "early" | "overdue" | "catchup" | "byhand"; dueAt?: string | null; daysAway?: number | null };
 type Data = {
   startDate: string | null; endDate: string | null;
   guests: number; securedGuests: number;
+  /** Secured guests the nightly job never mails (booked before automatic mail started). */
+  manualOnlyGuests?: number;
   lifecycleLive: boolean;
   content: { packingList: boolean; preTripNote: boolean; whatsappLink: boolean };
   scheduled: Scheduled[];
@@ -127,18 +131,22 @@ export function EditionMailing({ editionId }: { editionId: string }) {
   /** Hand-send a scheduled mail: the catch-up after a passed window, or an
    *  early send before the date. Same endpoint, same per-guest dedupe, so the
    *  nightly job later skips whoever got it here. */
-  async function sendNow(key: string, name: string, guests: number, targets?: string, early?: { dueAt: string | null; daysAway: number | null }) {
+  async function sendNow(key: string, name: string, guests: number, targets?: string, why?: SendWhy) {
     /* Same dialog as every other sender in the admin. This one already named
        who and what, which is exactly why its wording became the template. */
     const go = await askMail({
-      title: early ? `Send "${name}" early` : `Send "${name}" now`,
+      title: why?.kind === "early" ? `Send "${name}" early` : `Send "${name}" now`,
       mail: name,
       to: { kind: "people", count: guests, describe: targets ?? `secured guest${guests === 1 ? "" : "s"}` },
       also: targets
         ? "Only the guests who qualify right now receive it. Anyone who already got it is skipped."
-        : early
-          ? `It is scheduled for ${fmtDay(early.dueAt)}${early.daysAway != null && early.daysAway > 0 ? `, ${early.daysAway} day${early.daysAway === 1 ? "" : "s"} from now` : ""}. Whoever gets it now is skipped by the automatic send.`
-          : "Its window has passed, so this is a catch-up. Anyone who already got it is skipped.",
+        : why?.kind === "early"
+          ? `It is scheduled for ${fmtDay(why.dueAt ?? null)}${why.daysAway != null && why.daysAway > 0 ? `, ${why.daysAway} day${why.daysAway === 1 ? "" : "s"} from now` : ""}. Whoever gets it now is skipped by the automatic send.`
+          : why?.kind === "overdue"
+            ? `It was due ${fmtDay(why.dueAt ?? null)} and has not gone out. Anyone who already got it is skipped.`
+            : why?.kind === "byhand"
+              ? "For an event this mail never goes out by itself, only when someone presses send. Anyone who already got it is skipped."
+              : "Its window has passed, so this is a catch-up. Anyone who already got it is skipped.",
     });
     if (!go) return;
     setSending(key); setMsg(null);
@@ -189,7 +197,7 @@ export function EditionMailing({ editionId }: { editionId: string }) {
       <p className="text-[11px] font-bold tracking-[0.12em] uppercase admin-faint mb-2">On a date, worked out from the trip</p>
       <div className="rounded-xl overflow-hidden mb-5" style={{ border: "1px solid var(--admin-border)" }}>
         {dated.map((m, i) => (
-          <MailRow key={m.key} m={m} i={i} editionId={editionId} securedGuests={d.securedGuests} lifecycleLive={d.lifecycleLive}
+          <MailRow key={m.key} m={m} i={i} editionId={editionId} securedGuests={d.securedGuests} manualOnlyGuests={d.manualOnlyGuests ?? 0} lifecycleLive={d.lifecycleLive}
             isOpen={open.has(m.key)} onToggle={() => toggle(m.key)} sending={sending} onSendNow={sendNow} onSaved={load}
             onPreview={showPreview} onPreviewLeave={hidePreview} previewUrl={previewUrl(m.key)} onSkip={setSkip} />
         ))}
@@ -205,7 +213,7 @@ export function EditionMailing({ editionId }: { editionId: string }) {
           </p>
           <div className="rounded-xl overflow-hidden mb-4" style={{ border: "1px solid var(--admin-border)" }}>
             {conditional.map((m, i) => (
-              <MailRow key={m.key} m={m} i={i} editionId={editionId} securedGuests={d.securedGuests} lifecycleLive={d.lifecycleLive}
+              <MailRow key={m.key} m={m} i={i} editionId={editionId} securedGuests={d.securedGuests} manualOnlyGuests={d.manualOnlyGuests ?? 0} lifecycleLive={d.lifecycleLive}
                 isOpen={open.has(m.key)} onToggle={() => toggle(m.key)} sending={sending} onSendNow={sendNow} onSaved={load}
             onPreview={showPreview} onPreviewLeave={hidePreview} previewUrl={previewUrl(m.key)} onSkip={setSkip} />
             ))}
@@ -257,11 +265,11 @@ export function EditionMailing({ editionId }: { editionId: string }) {
  * save refreshed the data. A stable key does not help; the type itself changes.
  */
 function MailRow({
-  m, i, editionId, securedGuests, lifecycleLive, isOpen, onToggle, sending, onSendNow, onSaved, onPreview, onPreviewLeave, previewUrl, onSkip,
+  m, i, editionId, securedGuests, manualOnlyGuests, lifecycleLive, isOpen, onToggle, sending, onSendNow, onSaved, onPreview, onPreviewLeave, previewUrl, onSkip,
 }: {
-  m: Scheduled; i: number; editionId: string; securedGuests: number; lifecycleLive: boolean;
+  m: Scheduled; i: number; editionId: string; securedGuests: number; manualOnlyGuests: number; lifecycleLive: boolean;
   isOpen: boolean; onToggle: () => void; sending: string | null;
-  onSendNow: (key: string, name: string, guests: number, targets?: string, early?: { dueAt: string | null; daysAway: number | null }) => void; onSaved: () => void;
+  onSendNow: (key: string, name: string, guests: number, targets?: string, why?: SendWhy) => void; onSaved: () => void;
   onPreview: (key: string, clientY: number) => void; onPreviewLeave: () => void; previewUrl: string;
   onSkip: (key: string, name: string, value: boolean) => void;
 }) {
@@ -271,6 +279,10 @@ function MailRow({
   // mail missing its content offers none.
   const blocked = m.missing.length > 0 || skippedHere;
   const past = m.windowPassed;
+  /* Its day has gone by but the window is still open. This row used to offer
+     "Send early" against a date in the past (OBX Wind's crew mail, due 11 Aug,
+     still "Send early" on 18 Sep), which hid that the mail never went out. */
+  const overdue = m.whenKind === "date" && !m.byHandOnly && !past && m.daysAway != null && m.daysAway < 0;
   const off = !m.enabled || (m.kind === "lifecycle" && !lifecycleLive);
   // A dateless mail says "when…" even if it carries a lead — a row reading
   // "3d after" inside the "no send date" section contradicts its own section.
@@ -323,13 +335,21 @@ function MailRow({
               the send, so it is "Send now", not "Send early" against a date
               that means nothing here. */}
           {!gone && byHand && !blocked && securedGuests > 0 && (
-            <button onClick={() => onSendNow(m.key, m.name, securedGuests)} disabled={sending === m.key}
+            <button onClick={() => onSendNow(m.key, m.name, securedGuests, undefined, { kind: "byhand" })} disabled={sending === m.key}
               className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
               {sending === m.key ? "Sending…" : "Send now →"}
             </button>
           )}
-          {!gone && !byHand && past && !blocked && m.whenKind === "date" && (
-            <button onClick={() => onSendNow(m.key, m.name, securedGuests)} disabled={sending === m.key}
+          {!gone && !byHand && past && !blocked && m.whenKind === "date" && securedGuests > 0 && (
+            <button onClick={() => onSendNow(m.key, m.name, securedGuests, undefined, { kind: "catchup" })} disabled={sending === m.key}
+              className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
+              {sending === m.key ? "Sending…" : "Send now →"}
+            </button>
+          )}
+          {/* Due date gone by, window still open, nothing sent: overdue, so the
+              button is the plain "Send now", never "Send early". */}
+          {!gone && overdue && !blocked && securedGuests > 0 && (
+            <button onClick={() => onSendNow(m.key, m.name, securedGuests, undefined, { kind: "overdue", dueAt: m.dueAt })} disabled={sending === m.key}
               className="block ml-auto mb-0.5 text-[12px] font-bold text-[#0aa3c7] hover:underline disabled:opacity-50">
               {sending === m.key ? "Sending…" : "Send now →"}
             </button>
@@ -337,8 +357,8 @@ function MailRow({
           {/* Before the date the same send is available, quieter: the content
               is ready and sometimes the week needs it sooner (a late change,
               a guest asking). The nightly job then skips whoever got it. */}
-          {!gone && !byHand && !past && !blocked && m.whenKind === "date" && securedGuests > 0 && (
-            <button onClick={() => onSendNow(m.key, m.name, securedGuests, undefined, { dueAt: m.dueAt, daysAway: m.daysAway })} disabled={sending === m.key}
+          {!gone && !byHand && !past && !overdue && !blocked && m.whenKind === "date" && securedGuests > 0 && (
+            <button onClick={() => onSendNow(m.key, m.name, securedGuests, undefined, { kind: "early", dueAt: m.dueAt, daysAway: m.daysAway })} disabled={sending === m.key}
               className="block ml-auto mb-0.5 text-[12px] font-bold admin-muted hover:text-[#0aa3c7] hover:underline disabled:opacity-50">
               {sending === m.key ? "Sending…" : "Send early →"}
             </button>
@@ -362,7 +382,19 @@ function MailRow({
               <span className="block text-[11px] admin-faint">{fmt(m.lastSent)}</span>
             </>
           ) : byHand ? (
-            <span className="block text-[11.5px] admin-faint">Not automatic</span>
+            m.daysAway != null && m.daysAway < 0 ? (
+              <>
+                <span className="block text-[12.5px] font-bold text-amber-500">Not sent yet</span>
+                <span className="block text-[11px] admin-faint">only by hand</span>
+              </>
+            ) : (
+              <span className="block text-[11.5px] admin-faint">Not automatic</span>
+            )
+          ) : overdue ? (
+            <>
+              <span className="block text-[12.5px] font-bold text-amber-500">Not sent yet</span>
+              <span className="block text-[11px] admin-faint">was due {fmtDay(m.dueAt)}</span>
+            </>
           ) : m.whenKind === "date" ? (
             <>
               <span className="block text-[12.5px] admin-muted">{past ? "Window passed" : "Due"}</span>
@@ -394,6 +426,21 @@ function MailRow({
               : m.kind === "lifecycle" && !lifecycleLive
                 ? <>The switch is on, but the whole lifecycle pipeline is <strong>paused</strong>, so it is worked out and held.</>
                 : <>It is <strong>live</strong>.</>}
+            {overdue && !gone && !skippedHere && m.enabled && (
+              <>
+                {" "}
+                <strong>Its date has passed and it has not gone out.</strong>{" "}
+                {m.kind === "lifecycle" && !lifecycleLive
+                  ? <>That is the pause.</>
+                  : m.missing.length > 0
+                    ? <>It is held until {m.missing.join(", ")} is filled in.</>
+                    : manualOnlyGuests >= securedGuests
+                      ? <>These guests booked before automatic mail started, so the nightly job never mails them. Only Send now reaches them.</>
+                      : manualOnlyGuests > 0
+                        ? <>The nightly job sends it at its next run (09:00 UTC) to the {securedGuests - manualOnlyGuests} who booked after automatic mail started. The other {manualOnlyGuests} booked before, and only Send now reaches them.</>
+                        : <>The nightly job sends it at its next run, 09:00 UTC.</>}
+              </>
+            )}
             {" "}
             <Link href={`/admin/emails/${m.key}`} className="text-[#0aa3c7] hover:underline">Wording &amp; switch →</Link>
           </p>

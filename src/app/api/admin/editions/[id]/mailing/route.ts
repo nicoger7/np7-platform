@@ -3,7 +3,7 @@ import { sendEmail } from "@/lib/email/send";
 import { nextStepsVars } from "@/lib/email/next-steps";
 import { requireTeamMember, requireSectionEdit } from "@/lib/admin-auth";
 import { createAdminClient } from "@/lib/supabase";
-import { AUTOMATIONS, CANNOT_DISABLE, lifecycleLive } from "@/lib/email/automations";
+import { AUTOMATIONS, CANNOT_DISABLE, lifecycleLive, pipelineLiveFrom } from "@/lib/email/automations";
 import { listSendTiming, timingAnchor, resolveEditionContent, mailAppliesTo, cronSends, MAIL_REQUIREMENTS, CONTENT_LABELS, type ContentKey } from "@/lib/email/readiness";
 import { MANUAL_CONDITIONAL, loadConditionalEligibility } from "@/lib/email/manual-eligibility";
 
@@ -34,11 +34,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: bookings } = await db
     .from("exp_bookings")
-    .select("id, name, status, downpayment_received, contact_id, contacts(name, email)")
+    .select("id, name, status, downpayment_received, contact_id, created_at, contacts(name, email)")
     .eq("edition_id", id);
-  const rows = (bookings ?? []) as { id: string; name: string | null; status: string | null; downpayment_received: boolean | null }[];
+  const all = (bookings ?? []) as { id: string; name: string | null; status: string | null; downpayment_received: boolean | null; created_at: string | null }[];
+  // A lost booking is never mailed, by the cron or by the buttons here, even
+  // when its downpayment flag is still set (a guest who paid, then dropped
+  // out). Counting it said "5 secured" where the send reached 4.
+  const rows = all.filter((b) => b.status !== "lost");
   const secured = rows.filter((b) => b.downpayment_received || SECURED.includes(String(b.status)));
-  const bookingIds = rows.map((b) => b.id);
+  // Mail already sent stays sent, so the log is read for every booking.
+  const bookingIds = all.map((b) => b.id);
+  // Guests the nightly job will never mail on its own: booked before automatic
+  // mail started (EMAIL_PIPELINE_LIVE_FROM), or the whole week predates it.
+  // Only a press on this tab reaches them. Lets an overdue row say WHY.
+  const liveFrom = pipelineLiveFrom();
+  const beforeCutoff = (d?: string | null) => liveFrom != null && !(d && new Date(d).getTime() >= liveFrom);
 
   // What has actually gone out, per template.
   const sentByTemplate: Record<string, { sent: number; last: string | null }> = {};
@@ -176,6 +186,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     endDate: ed?.date_end ?? null,
     guests: rows.length,
     securedGuests: secured.length,
+    manualOnlyGuests: beforeCutoff(startDate) ? secured.length : secured.filter((b) => beforeCutoff(b.created_at)).length,
     content: { packingList: !!values.packingList, preTripNote: !!values.preTripNote, whatsappLink: !!values.whatsappLink },
     lifecycleLive: lifecycleLive(),
     scheduled,
@@ -341,7 +352,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
      data for realistic content and mails exactly one copy. */
   if (testTo) {
     const rows = (bookings ?? []) as Record<string, any>[];
-    const b = rows.find((x) => x.downpayment_received || SECURED.includes(String(x.status))) ?? rows[0];
+    const b = rows.find((x) => x.status !== "lost" && (x.downpayment_received || SECURED.includes(String(x.status)))) ?? rows[0];
     if (!b) return NextResponse.json({ error: "This week has no booking to build a realistic test from." }, { status: 400 });
     const s2 = b.exp_editions?.date_start as string | null;
     const e2 = b.exp_editions?.date_end as string | null;
@@ -378,7 +389,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   // Pre-trip mail goes to secured guests only — the same rule the cron applies.
   for (const b of (bookings ?? []) as Record<string, any>[]) {
-    const secured = b.downpayment_received || SECURED.includes(String(b.status));
+    // Lost first: a dropped-out guest whose downpayment flag is still set would
+    // otherwise pass as secured. The cron never mails lost; neither does this.
+    const secured = b.status !== "lost" && (b.downpayment_received || SECURED.includes(String(b.status)));
     const email = b.contacts?.email;
     if (!secured || !email) { skipped++; continue; }
     if (templateKey === "waiver_reminder" && signed.has(String(b.id))) { skipped++; continue; }
