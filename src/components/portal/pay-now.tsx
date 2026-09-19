@@ -80,6 +80,7 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
   // transfer right below this is genuinely the better route, so say nothing.
   if (methods === null) return null;
   const isTransfer = methods?.kind === "transfer";
+  const isCard = methods?.kind === "card";
 
   // The label, which is a promise about the next screen, and the footnote,
   // which is the rest of that promise. A transfer guest must never be shown the
@@ -121,9 +122,16 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
             honest sentence describes what happens rather than what they will
             see. The transfer needs its own, because a guest who expects an
             instant payment and gets an account number has been misled. */}
+        {/* The card had no sentence of its own and fell through to the rail's
+            "Straight from your own bank, no fee", which is how a Canadian guest
+            read "no fee" and then met a €71.28 card-fee line at checkout
+            (Paul Mohr, 17 Sep 2026). A card guest is outside the EEA, where the
+            fee is lawful but has to be said before they press. */}
         {isTransfer
           ? <>Press pay and we&apos;ll show you an account number that&apos;s yours alone, with the exact amount and a reference. Transfer it from your banking app the way you&apos;d pay anyone. It usually reaches us in one to three working days, and your spot is held from the moment you send it. We&apos;ll email you the same details so you don&apos;t have to keep this page open.</>
-          : <>Straight from your own bank, no fee. Or ignore this and transfer from your invoice, both land in the same place.</>}
+          : isCard
+            ? <>By card. The card fee is added on its own line at checkout, only what your card costs us, and we refund anything we overestimated. A bank transfer to the account on your invoice below has no fee from us.</>
+            : <>Straight from your own bank, no fee. Or ignore this and transfer from your invoice, both land in the same place.</>}
       </p>
       {error && <p className="text-[12.5px] text-[#b4472a] mt-2">{error}</p>}
     </div>
