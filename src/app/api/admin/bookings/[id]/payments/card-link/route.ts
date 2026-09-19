@@ -201,7 +201,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     session = await createCheckoutSession({
     lines: [
       { name: `${title}${edition}`, description: `Payment on your booking ${id.slice(0, 8).toUpperCase()}`, amountCents: Math.round(amount * 100) },
-      ...(fee > 0 ? [{ name: "Card processing fee", description: "Our payment provider's actual cost for this card type. Paying by bank transfer is free of charge.", amountCents: Math.round(fee * 100) }] : []),
+      ...(fee > 0 ? [{ name: "Card fee", description: "A bank transfer from your invoice is free.", amountCents: Math.round(fee * 100) }] : []),
     ],
     currency,
     successUrl: `${origin}/account/bookings/${id}?paid=card`,

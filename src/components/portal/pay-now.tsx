@@ -130,7 +130,7 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
         {isTransfer
           ? <>Press pay and we&apos;ll show you an account number that&apos;s yours alone, with the exact amount and a reference. Transfer it from your banking app the way you&apos;d pay anyone. It usually reaches us in one to three working days, and your spot is held from the moment you send it. We&apos;ll email you the same details so you don&apos;t have to keep this page open.</>
           : isCard
-            ? <>By card. The card fee is added on its own line at checkout, only what your card costs us, and we refund anything we overestimated. A bank transfer to the account on your invoice below has no fee from us.</>
+            ? <>By card, plus a card fee. A bank transfer from your invoice is free.</>
             : <>Straight from your own bank, no fee. Or ignore this and transfer from your invoice, both land in the same place.</>}
       </p>
       {error && <p className="text-[12.5px] text-[#b4472a] mt-2">{error}</p>}

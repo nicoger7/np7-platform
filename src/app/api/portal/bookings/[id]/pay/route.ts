@@ -421,7 +421,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
          * all. Promising the refund here is the only honest way to charge an
          * estimate. A transfer never reaches this line: its fee is 0.
          */
-        ...(setup.fee > 0 ? [{ name: "Card payment fee (estimate)", description: "Only on card. We check your real card when it is charged and refund anything we overestimated, automatically. A bank transfer from your invoice is free.", amountCents: Math.round(setup.fee * 100) }] : []),
+        ...(setup.fee > 0 ? [{ name: "Card fee", description: "A bank transfer from your invoice is free.", amountCents: Math.round(setup.fee * 100) }] : []),
       ],
       currency,
       successUrl: setup.successUrl,
