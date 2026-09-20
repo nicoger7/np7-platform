@@ -85,6 +85,15 @@ export async function getSpotguideDestinations(): Promise<SpotguideDestinationCa
   if (!dests?.length) return [];
   const ids = dests.map((d) => d.id as string);
 
+  /*
+   * Most-read first (Nico, 20 Sep 2026). The order was sort_order then name,
+   * so the page opened on whatever was typed first: Sørlandet, with more views
+   * than the next five together, sat wherever the alphabet put it. Views come
+   * from the first-party analytics through spotguide_view_counts (migration
+   * 252), an aggregate the anon key may call; the destinations themselves are
+   * still fetched in the old order, which is exactly the tie-break for the many
+   * destinations nobody has opened yet. A failed or empty call changes nothing.
+   */
   const [{ data: spots }, { data: dratings }] = await Promise.all([
     sb.from("spots").select("destination_id, hero_image, verification").in("destination_id", ids).eq("status", "published").in("verification", ["community", "np7", "pending"]).order("sort_order"),
     sb.from("destination_ratings").select("destination_id, ratings").in("destination_id", ids),
@@ -97,7 +106,19 @@ export async function getSpotguideDestinations(): Promise<SpotguideDestinationCa
   const pendingByDest = groupBy(allSpots.filter((s) => s.verification === "pending"), (s) => s.destination_id);
   const ratingRows = groupBy((dratings ?? []) as { destination_id: string; ratings: unknown }[], (r) => r.destination_id);
 
-  return dests.map((d: Record<string, unknown>) => {
+  const viewsBySlug = new Map<string, number>();
+  try {
+    const { data: vc } = await sb.rpc("spotguide_view_counts", { days: 180 });
+    for (const r of (vc ?? []) as { slug: string | null; views: number | string }[]) {
+      if (r.slug) viewsBySlug.set(r.slug, Number(r.views) || 0);
+    }
+  } catch { /* no analytics, no reordering */ }
+  const ordered = viewsBySlug.size
+    ? [...dests].sort((a, b) =>
+        (viewsBySlug.get(String(b.slug ?? "")) ?? 0) - (viewsBySlug.get(String(a.slug ?? "")) ?? 0))
+    : dests;
+
+  return ordered.map((d: Record<string, unknown>) => {
     const id = d.id as string;
     const lat = d.lat as number | null, lng = d.lng as number | null;
     // The card image mirrors the page hero: destination photo → a spot's photo →
