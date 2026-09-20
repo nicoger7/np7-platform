@@ -15,7 +15,34 @@ import {
   View,
   Text,
   StyleSheet,
+  Font,
 } from "@react-pdf/renderer";
+
+/*
+ * THE INVOICE FONT.
+ *
+ * It was Helvetica, one of the PDF standard fonts, which can only print the
+ * characters of the WinAnsi table. Turkish "ı" is not in it, so every Alaçatı
+ * invoice went out reading "Alaçat1" (spotted 18 Sep 2026 on a 2027 pro-forma),
+ * and Croatian, Polish and Czech names would have fared the same.
+ *
+ * Poppins is the brand font and covers Latin Extended, so the names print as
+ * they are written. Served from our own CDN, the same one the share card's
+ * fonts come from, and cached by the renderer per warm instance.
+ */
+const FONT_BASE = "https://media.np-seven.com/fonts";
+Font.register({ family: "Poppins", fonts: [
+  { src: `${FONT_BASE}/poppins-regular.ttf` },
+  // The §25 UStG note is set in italic; without this the render throws rather
+  // than falling back, which is how the first switch to Poppins failed.
+  { src: `${FONT_BASE}/poppins-italic.ttf`, fontStyle: "italic" },
+] });
+Font.register({ family: "Poppins-Bold", fonts: [
+  { src: `${FONT_BASE}/poppins-bold.ttf` },
+  { src: `${FONT_BASE}/poppins-semibolditalic.ttf`, fontStyle: "italic" },
+] });
+// Keep long references (IBAN, invoice numbers) from breaking mid-token.
+Font.registerHyphenationCallback((word) => [word]);
 
 import type { CompanySettings, GeneratableType, VatMode } from "./types";
 import { finalInvoiceFigures } from "./final-figures";
@@ -43,23 +70,28 @@ const BLACK      = "#1a1a1a";
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   page: {
-    fontFamily: "Helvetica",
-    fontSize: 9,
+    fontFamily: "Poppins",
+    // Poppins runs wider and taller than the Helvetica this used to be set in,
+    // which pushed a one-page invoice onto two. Slightly smaller and tighter
+    // puts it back on one, and still reads larger than most invoices.
+    fontSize: 8.5,
     color: BLACK,
-    paddingTop: 48,
-    paddingBottom: 56,
-    paddingHorizontal: 48,
-    lineHeight: 1.5,
+    paddingTop: 42,
+    paddingBottom: 46,
+    paddingHorizontal: 44,
+    lineHeight: 1.4,
   },
   // Header row: seller + doc info
   headerRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 28 },
   sellerBlock: { maxWidth: "55%" },
   docInfoBlock: { textAlign: "right", maxWidth: "40%" },
-  brandName: { fontSize: 15, fontFamily: "Helvetica-Bold", color: BRAND_DARK, marginBottom: 4 },
+  brandName: { fontSize: 15, fontFamily: "Poppins-Bold", color: BRAND_DARK, marginBottom: 4 },
   smallLabel: { fontSize: 7, color: GREY, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 2 },
   smallText: { fontSize: 8, color: GREY },
-  docTitle: { fontSize: 18, fontFamily: "Helvetica-Bold", color: BRAND_BLUE, marginTop: 4, marginBottom: 2 },
-  docNumber: { fontSize: 10, fontFamily: "Helvetica-Bold", color: BRAND_DARK },
+  // lineHeight of its own: at the page's 1.4 the display size left the line box
+  // shorter than the glyphs and the subtitle sat on the title's descenders.
+  docTitle: { fontSize: 17, fontFamily: "Poppins-Bold", color: BRAND_BLUE, lineHeight: 1.25, marginTop: 4, marginBottom: 3 },
+  docNumber: { fontSize: 10, fontFamily: "Poppins-Bold", color: BRAND_DARK },
   // Divider
   divider: { borderBottomWidth: 1, borderBottomColor: LIGHT_GREY, marginVertical: 16 },
   // Buyer block
@@ -73,38 +105,38 @@ const s = StyleSheet.create({
   col_desc: { flex: 1 },
   col_period: { width: 110 },
   col_amount: { width: 90, textAlign: "right" },
-  colHeader: { fontFamily: "Helvetica-Bold", fontSize: 8, color: GREY, letterSpacing: 0.5, textTransform: "uppercase" },
+  colHeader: { fontFamily: "Poppins-Bold", fontSize: 8, color: GREY, letterSpacing: 0.5, textTransform: "uppercase" },
   // Totals
   totalsBox: { marginTop: 12, alignItems: "flex-end" },
   totalRow: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 3 },
   totalLabel: { width: 160, textAlign: "right", color: GREY, marginRight: 8 },
   totalValue: { width: 90, textAlign: "right" },
   grandTotalRow: { flexDirection: "row", justifyContent: "flex-end", borderTopWidth: 1, borderTopColor: BRAND_DARK, paddingTop: 5, marginTop: 3 },
-  grandLabel: { width: 160, textAlign: "right", fontFamily: "Helvetica-Bold", color: BRAND_DARK, marginRight: 8 },
-  grandValue: { width: 90, textAlign: "right", fontFamily: "Helvetica-Bold", fontSize: 11, color: BRAND_DARK },
+  grandLabel: { width: 160, textAlign: "right", fontFamily: "Poppins-Bold", color: BRAND_DARK, marginRight: 8 },
+  grandValue: { width: 90, textAlign: "right", fontFamily: "Poppins-Bold", fontSize: 11, color: BRAND_DARK },
   // VAT note
   vatNote: { marginTop: 10, fontSize: 8, color: GREY, fontStyle: "italic" },
   // Bank details
   bankBox: { marginTop: 20, padding: 10, backgroundColor: "#f0f8fb", borderRadius: 3 },
-  bankTitle: { fontFamily: "Helvetica-Bold", fontSize: 8, color: BRAND_DARK, marginBottom: 4 },
+  bankTitle: { fontFamily: "Poppins-Bold", fontSize: 8, color: BRAND_DARK, marginBottom: 4 },
   bankRow: { flexDirection: "row", marginBottom: 2 },
   bankLabel: { width: 60, color: GREY, fontSize: 8 },
   bankValue: { flex: 1, fontSize: 8 },
   // Highlighted payment reference (so the customer quotes it on the transfer)
   bankRefBox: { marginTop: 8, padding: 8, backgroundColor: "#fff3da", borderRadius: 3, borderLeftWidth: 3, borderLeftColor: "#e6b873" },
-  bankRefLabel: { fontSize: 7, color: GREY, marginBottom: 2, fontFamily: "Helvetica-Bold" },
-  bankRefValue: { fontSize: 12, fontFamily: "Helvetica-Bold", color: BRAND_DARK, letterSpacing: 1 },
+  bankRefLabel: { fontSize: 7, color: GREY, marginBottom: 2, fontFamily: "Poppins-Bold" },
+  bankRefValue: { fontSize: 12, fontFamily: "Poppins-Bold", color: BRAND_DARK, letterSpacing: 1 },
   bankAlso: { marginTop: 8, fontSize: 7.5, color: GREY, lineHeight: 1.4 },
   // Footer
   footer: { position: "absolute", bottom: 28, left: 48, right: 48, borderTopWidth: 1, borderTopColor: LIGHT_GREY, paddingTop: 8, flexDirection: "row", justifyContent: "space-between" },
   footerText: { fontSize: 7, color: GREY },
   // Confirmation
-  confTitle: { fontSize: 20, fontFamily: "Helvetica-Bold", color: BRAND_DARK, marginBottom: 6 },
+  confTitle: { fontSize: 20, fontFamily: "Poppins-Bold", color: BRAND_DARK, marginBottom: 6 },
   confSubtitle: { fontSize: 11, color: GREY, marginBottom: 20 },
   detailRow: { flexDirection: "row", marginBottom: 6 },
-  detailLabel: { width: 140, fontFamily: "Helvetica-Bold", color: BRAND_DARK, fontSize: 9 },
+  detailLabel: { width: 140, fontFamily: "Poppins-Bold", color: BRAND_DARK, fontSize: 9 },
   detailValue: { flex: 1 },
-  sectionTitle: { fontSize: 11, fontFamily: "Helvetica-Bold", color: BRAND_DARK, marginBottom: 8, marginTop: 16 },
+  sectionTitle: { fontSize: 11, fontFamily: "Poppins-Bold", color: BRAND_DARK, marginBottom: 8, marginTop: 16 },
   noteBox: { marginTop: 20, padding: 10, backgroundColor: "#fff7ec", borderRadius: 3, fontSize: 8, color: GREY, fontStyle: "italic" },
 });
 
@@ -283,7 +315,7 @@ function DocInfoBlock({ data }: { data: InvoiceData }) {
       <View style={{ marginTop: 8 }}>
         <Text style={s.smallText}>Date: {fmtDate(invoiceDate)}</Text>
         {type === "proforma_invoice" && data.dueDate && (
-          <Text style={[s.smallText, { fontFamily: "Helvetica-Bold" }]}>Payment due by: {fmtDate(data.dueDate)}</Text>
+          <Text style={[s.smallText, { fontFamily: "Poppins-Bold" }]}>Payment due by: {fmtDate(data.dueDate)}</Text>
         )}
         {!isConfirmation && (
           <Text style={s.smallText}>
@@ -480,7 +512,7 @@ function ProformaLines({ data }: { data: InvoiceData }) {
               answered in that order, because "why is it this much" comes first. */}
           <View style={s.tableRow}>
             <View style={s.col_desc}>
-              <Text style={{ fontFamily: "Helvetica-Bold" }}>{description}</Text>
+              <Text style={{ fontFamily: "Poppins-Bold" }}>{description}</Text>
               {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
               {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
             </View>
@@ -502,15 +534,15 @@ function ProformaLines({ data }: { data: InvoiceData }) {
 
           <View style={s.tableRow}>
             <View style={s.col_desc}>
-              <Text style={{ fontFamily: "Helvetica-Bold" }}>Trip total</Text>
+              <Text style={{ fontFamily: "Poppins-Bold" }}>Trip total</Text>
             </View>
             <Text style={s.col_period}> </Text>
-            <Text style={[s.col_amount, { fontFamily: "Helvetica-Bold" }]}>{formatMoney(booking.agreedPrice, currency)}</Text>
+            <Text style={[s.col_amount, { fontFamily: "Poppins-Bold" }]}>{formatMoney(booking.agreedPrice, currency)}</Text>
           </View>
 
           <View style={s.tableRow}>
             <View style={s.col_desc}>
-              <Text style={{ fontFamily: "Helvetica-Bold" }}>{securingLabel}{milestone === "final" ? "" : " (secures your spot)"}</Text>
+              <Text style={{ fontFamily: "Poppins-Bold" }}>{securingLabel}{milestone === "final" ? "" : " (secures your spot)"}</Text>
             </View>
             <Text style={s.col_period}> </Text>
             <Text style={s.col_amount}>{formatMoney(securing, currency)}</Text>
@@ -519,7 +551,7 @@ function ProformaLines({ data }: { data: InvoiceData }) {
       ) : (
         <View style={s.tableRow}>
           <View style={s.col_desc}>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} · {securingLabel}{milestone === "final" ? "" : " (secures your spot)"}</Text>
+            <Text style={{ fontFamily: "Poppins-Bold" }}>{description} · {securingLabel}{milestone === "final" ? "" : " (secures your spot)"}</Text>
             {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
             {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
           </View>
@@ -576,7 +608,7 @@ function DepositInvoiceLines({ data }: { data: InvoiceData }) {
       {/* Deposit line */}
       <View style={s.tableRow}>
         <View style={s.col_desc}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} · Advance Payment (Deposit)</Text>
+          <Text style={{ fontFamily: "Poppins-Bold" }}>{description} · Advance Payment (Deposit)</Text>
           {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
           {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
         </View>
@@ -648,7 +680,7 @@ function DownpaymentInvoiceLines({ data }: { data: InvoiceData }) {
       {/* Interim payment line */}
       <View style={s.tableRow}>
         <View style={s.col_desc}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>{description} · Interim Payment (Down-Payment)</Text>
+          <Text style={{ fontFamily: "Poppins-Bold" }}>{description} · Interim Payment (Down-Payment)</Text>
           {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
           {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
         </View>
@@ -718,7 +750,7 @@ function AddonInvoiceLines({ data }: { data: InvoiceData }) {
       {items.map((a, i) => (
         <View key={i} style={s.tableRow}>
           <View style={s.col_desc}>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>{a.label}</Text>
+            <Text style={{ fontFamily: "Poppins-Bold" }}>{a.label}</Text>
             <Text style={s.smallText}>Booking extra · {[experience.title, edition?.label].filter(Boolean).join(" · ")}</Text>
           </View>
           <Text style={s.col_period}>{servicePeriod(edition)}</Text>
@@ -807,7 +839,7 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
       {/* Total service line */}
       <View style={s.tableRow}>
         <View style={s.col_desc}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>{description}</Text>
+          <Text style={{ fontFamily: "Poppins-Bold" }}>{description}</Text>
           {packageDesc ? <Text style={s.smallText}>{packageDesc}</Text> : null}
           {booking.packageIncludes?.length ? <Text style={s.smallText}>Incl. {booking.packageIncludes.join(" · ")}</Text> : null}
         </View>
@@ -831,7 +863,7 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
       {priorInvoiced > 0 && (
         <View style={[s.tableRow, { color: GREY }]}>
           <View style={s.col_desc}>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>Less: already invoiced</Text>
+            <Text style={{ fontFamily: "Poppins-Bold" }}>Less: already invoiced</Text>
             <Text style={s.smallText}>{priorNumbers.length ? `Invoice${priorNumbers.length === 1 ? "" : "s"} ${priorNumbers.join(", ")}` : "Earlier invoices on this booking"}</Text>
           </View>
           <Text style={s.col_period}> </Text>
@@ -842,7 +874,7 @@ function FinalInvoiceLines({ data }: { data: InvoiceData }) {
       {receivedApplied > 0 && (
         <View style={[s.tableRow, { color: GREY }]}>
           <View style={s.col_desc}>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>Less: payments received</Text>
+            <Text style={{ fontFamily: "Poppins-Bold" }}>Less: payments received</Text>
             <Text style={s.smallText}>Thank you, already paid on this booking</Text>
           </View>
           <Text style={s.col_period}> </Text>
@@ -940,7 +972,7 @@ function SicherungsscheinNote({ company }: { company: CompanySettings }) {
   if (!company.sicherungsschein_insurer && !company.sicherungsschein_number) return null;
   return (
     <View style={[s.noteBox, { marginTop: 12 }]}>
-      <Text style={{ fontFamily: "Helvetica-Bold", marginBottom: 3 }}>Insolvency protection (Sicherungsschein)</Text>
+      <Text style={{ fontFamily: "Poppins-Bold", marginBottom: 3 }}>Insolvency protection (Sicherungsschein)</Text>
       <Text>
         Insurer: {company.sicherungsschein_insurer ?? "Not provided"}{"\n"}
         Certificate number: {company.sicherungsschein_number ?? "Not provided"}
@@ -1104,7 +1136,7 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
         <BuyerBlock contact={data.contact} />
 
         {/* The legally required anchor: WHICH invoice this corrects, by number and date. */}
-        <Text style={[s.smallText, { marginBottom: 10, fontFamily: "Helvetica-Bold", color: BRAND_DARK }]}>
+        <Text style={[s.smallText, { marginBottom: 10, fontFamily: "Poppins-Bold", color: BRAND_DARK }]}>
           This document {data.full ? "cancels" : "corrects"} invoice No. {original.number} dated {fmtDate(original.date)}
           {data.full ? " in full" : ""}, original amount {formatMoney(original.amount, currency)}.
         </Text>
@@ -1116,7 +1148,7 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
         </View>
         <View style={s.tableRow}>
           <View style={s.col_desc}>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>
+            <Text style={{ fontFamily: "Poppins-Bold" }}>
               {data.full ? "Cancellation" : "Correction"}: {description}
             </Text>
             <Text style={[s.smallText, { marginTop: 2 }]}>Invoice {original.number}</Text>
@@ -1128,8 +1160,8 @@ export function buildCreditNoteDocument(data: CreditNoteData): React.ReactElemen
 
         <View style={s.totalsBox}>
           <View style={s.totalRow}>
-            <Text style={[s.totalLabel, { fontFamily: "Helvetica-Bold" }]}>{data.full ? "Total cancelled" : "Total credited"}</Text>
-            <Text style={{ fontFamily: "Helvetica-Bold" }}>−{formatMoney(data.amount, currency)}</Text>
+            <Text style={[s.totalLabel, { fontFamily: "Poppins-Bold" }]}>{data.full ? "Total cancelled" : "Total credited"}</Text>
+            <Text style={{ fontFamily: "Poppins-Bold" }}>−{formatMoney(data.amount, currency)}</Text>
           </View>
           {!data.full && (
             <View style={s.totalRow}>
