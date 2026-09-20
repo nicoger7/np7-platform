@@ -71,5 +71,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ])
     .select();
   if (error) return Response.json({ error: error.message }, { status: 500 });
+  // Both sides have been paid a different amount than a moment ago, so both
+  // sides' flags and status follow (lib/booking-money-status).
+  const { syncBookingsMoneyStatus } = await import("@/lib/booking-money-status");
+  await syncBookingsMoneyStatus(admin, [id, toBookingId]);
   return Response.json({ payments: data });
 }

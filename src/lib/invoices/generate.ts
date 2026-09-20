@@ -229,6 +229,19 @@ export async function unpaidIssuedInvoiceTotal(bookingId: string, excludeDocumen
  */
 export async function settleInvoices(bookingId: string): Promise<void> {
   const db = getDb();
+  /*
+   * Money moved, so the booking's own flags and status move with it. One rule,
+   * in lib/booking-money-status, run from here because every path that touches
+   * the money ends up settling invoices: the Stripe webhook, the bank feed, an
+   * off-bank record, a payment typed or deleted in admin. Before the early
+   * return below: a booking with no invoice still has a status that has to
+   * follow the money. Imported lazily to keep the cycle out.
+   */
+  {
+    const { syncBookingMoneyStatus } = await import("@/lib/booking-money-status");
+    await syncBookingMoneyStatus(db, bookingId).catch((e) =>
+      console.error(`[settle] money status ${bookingId}:`, e instanceof Error ? e.message : e));
+  }
   const [{ data: docs }, { data: pays }] = await Promise.all([
     db.from("documents")
       .select("id,amount,type,status,paid_at,issued_at,created_at,meta")
