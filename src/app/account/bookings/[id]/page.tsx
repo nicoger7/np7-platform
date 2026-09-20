@@ -22,6 +22,7 @@ import { billingAddressIncomplete, type BillingAddress } from "@/lib/billing-add
 import { BillingAddressAsk } from "@/components/portal/billing-address-ask";
 import { TripView, type TripTab, type TripTile } from "@/components/portal/trip-view";
 import { TripHero } from "@/components/portal/trip-hero";
+import { ShareGoing } from "@/components/portal/share-going";
 import { hasFlightDetails } from "@/lib/flights";
 import { CancelTrip } from "@/components/portal/cancel-trip";
 import { RedeemVoucher } from "@/components/portal/redeem-voucher";
@@ -991,6 +992,17 @@ export default async function BookingDetail({ params }: Props) {
             hero={!tripEnded ? (
               <>
                 <NextStepHero {...hero} />
+                {/* Booked and not yet gone: the moment a rider most wants to
+                    tell people. Same card generator as the post-trip share. */}
+                {!tripStarted && secured && (
+                  <div className="flex justify-end -mt-1">
+                    <ShareGoing
+                      coverImage={coverImage}
+                      title={b.experience?.title ?? "NP7 Experience"}
+                      sub={`${b.edition?.label ? `${b.edition.label} · ` : ""}${fmtDates(b.edition?.date_start, b.edition?.date_end)}`}
+                    />
+                  </div>
+                )}
                 <WhatsNext steps={whatsNext} contact={{ email: contactRow?.email ?? null, phone: contactRow?.phone ?? null }}
                   asking={asking} awaitingTransfer={awaitingTransfer} />
               </>

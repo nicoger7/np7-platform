@@ -15,16 +15,20 @@ const FORMATS: { key: Format; label: string; ratio: string }[] = [
  * caption, toggle the trip name, see a live preview of the branded NP7 card, then
  * post it to your story/feed (native share sheet) or download it.
  */
-export function ShareSheet({ photo, photos, trip, onClose }: {
+export function ShareSheet({ photo, photos, trip, defaultCaption, onClose }: {
   photo: string;
   /** All of the rider's trip photos, so they can swap which shot the card uses. */
   photos?: string[];
-  trip?: { title?: string; sub?: string }; onClose: () => void;
+  trip?: { title?: string; sub?: string };
+  /** Pre-written caption, e.g. when sharing that you are going rather than
+   *  sharing a photo you took. The rider can still change it. */
+  defaultCaption?: string;
+  onClose: () => void;
 }) {
   const [format, setFormat] = useState<Format>("story");
-  const [caption, setCaption] = useState("");
+  const [caption, setCaption] = useState(defaultCaption ?? "");
   const [showTitle, setShowTitle] = useState(true);
-  const [debounced, setDebounced] = useState("");
+  const [debounced, setDebounced] = useState(defaultCaption ?? "");
   const [busy, setBusy] = useState(false);
   const [previewing, setPreviewing] = useState(true);
   const [activePhoto, setActivePhoto] = useState(photo); // the chosen shot (swappable)
