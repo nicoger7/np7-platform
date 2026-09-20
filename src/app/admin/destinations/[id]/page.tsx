@@ -14,7 +14,7 @@ interface Dest {
   hero_image: string | null; tagline: string | null; intro: string | null;
   hero_video_url: string | null; hero_video_start: number | null; hero_video_end: number | null;
   tags: string[] | null;
-  wind_probability: string | null; wind_season: string | null; wind_speed: string | null;
+  wind_probability: string | null; wind_season: string | null; wind_speed: string | null; show_wind_chart?: boolean | null;
   best_season: string | null; conditions: string | null; skill_levels: string | null;
   gallery: string[] | null; partners: Partner[] | null; status: string;
   // Spotguide (migration 062)
@@ -218,6 +218,22 @@ export default function DestinationEditor({ params }: { params: Promise<{ id: st
           <div><label className={labelClass}>Wind speed</label><input className={inputClass} value={d.wind_speed ?? ""} onChange={(e) => set("wind_speed", e.target.value)} placeholder="15–25 kn" /></div>
           <div><label className={labelClass}>Best season</label><input className={inputClass} value={d.best_season ?? ""} onChange={(e) => set("best_season", e.target.value)} /></div>
           <div><label className={labelClass}>Skill levels</label><input className={inputClass} value={d.skill_levels ?? ""} onChange={(e) => set("skill_levels", e.target.value)} placeholder="All levels" /></div>
+          {/* The chart is a coarse model. At a thermal spot it describes the
+              wrong place: Garda's Ora blows most summer afternoons while the
+              model reads a quarter of the daylight hours. Whoever knows the
+              spot decides; the wind text above is shown either way. */}
+          <div className="col-span-3">
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <input type="checkbox" className="mt-0.5" checked={d.show_wind_chart !== false}
+                onChange={(e) => set("show_wind_chart", e.target.checked)} />
+              <span className="text-[12.5px]">
+                <span className="font-semibold admin-heading">Show the wind chart on the public page</span>
+                <span className="block text-[11.5px] admin-faint">
+                  Turn it off where the weather model misreads the spot (thermal winds, wind acceleration).
+                </span>
+              </span>
+            </label>
+          </div>
           <div><label className={labelClass}>Status</label>
             <select className={inputClass} value={d.status} onChange={(e) => set("status", e.target.value)}>
               {["draft", "published", "archived"].map((s) => <option key={s} value={s}>{s}</option>)}

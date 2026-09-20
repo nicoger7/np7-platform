@@ -6,6 +6,8 @@ const COLS = [
   "name", "slug", "region", "country", "hero_image", "tagline", "intro",
   "wind_probability", "wind_season", "wind_speed", "best_season", "conditions",
   "skill_levels", "gallery", "partners", "status", "sort_order",
+  // Whether the modelled wind chart is shown at all (migration 253)
+  "show_wind_chart",
   // Spotguide (migration 062): rating track, level range, separate visibility, coords
   "np7_ratings", "level_min", "level_max", "levels", "spotguide_status", "lat", "lng",
   // Hero video (migration 073): looped YouTube segment behind the page header

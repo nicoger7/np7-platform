@@ -136,8 +136,15 @@ export function DestinationView({ res, preview = false }: { res: DestinationData
     { label: "Conditions", value: d.conditions },
     { label: "Levels", value: d.skill_levels },
   ].filter((f): f is { label: string; value: string } => Boolean(f.value));
-  // The measured chart, unless the model cannot see this spot's wind.
-  const showChart = !!windStats && !statsAreBlind(windStats);
+  /*
+   * The measured chart, unless the model cannot see this spot's wind, or
+   * somebody who knows the spot has switched it off (migration 253). Garda is
+   * why the switch exists: the model clears the blindness bar and still
+   * describes the wrong place, because the Ora is an afternoon thermal and the
+   * model averages the day.
+   */
+  const chartOn = (d as { show_wind_chart?: boolean | null }).show_wind_chart !== false;
+  const showChart = chartOn && !!windStats && !statsAreBlind(windStats);
   const gallery = (d.gallery ?? []).filter(Boolean);
   const partners = (d.partners ?? []).filter((p) => p && p.name);
   // a faint photographic backdrop behind the deep-ocean conditions band
