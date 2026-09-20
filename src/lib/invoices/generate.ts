@@ -728,10 +728,25 @@ export async function generateDocument(input: GenerateInput): Promise<DocumentRo
   // account page disagree, and the guest believes whichever they saw first.
   const secureDue = securingDue(booking.created_at ?? null, booking.exp_editions?.date_start ?? null, refundDays);
   const finalStageDue = booking.exp_editions?.date_start ? addDays(booking.exp_editions.date_start, -finalDaysBefore) : null;
-  const proformaDue =
+  const proformaDueRaw =
     proformaMilestone === "final"
       ? (finalStageDue && secureDue && finalStageDue < secureDue ? secureDue : finalStageDue)
       : secureDue;
+  /*
+   * A REQUEST MADE TODAY CANNOT HAVE BEEN DUE LAST WEEK.
+   *
+   * The clamp above only compared the two formulas with each other, not with
+   * the calendar. Paul Mohr's extra night was confirmed on 20 Sep for a
+   * December trip, and the fresh pro-forma came out dated 8 September, because
+   * that is start minus final_days_before. A guest cannot miss a deadline they
+   * were handed after it passed, and dunning a date in the past is how a
+   * correct bill reads like a mistake. Anything already behind us becomes a
+   * week from today; a future date is left exactly as the plan computed it.
+   */
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const proformaDue = proformaDueRaw && proformaDueRaw < todayIso
+    ? addDays(todayIso, 7)
+    : proformaDueRaw;
 
   // One open pro-forma per booking. If one is already issued, this call UPDATES
   // it in place (a resync after an add-on change) — keeping its existing PF
