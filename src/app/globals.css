@@ -405,3 +405,17 @@ input[type="number"] {
     }
   }
 }
+
+
+/* The review band easing in and out, so leaving it hands over to the next
+ * section instead of stopping dead. Scroll-position driven, like the cards. */
+@keyframes np7-band-settle {
+  from { transform: translateY(22px) scale(.988); }
+  28%, 72% { transform: none; }
+  to { transform: translateY(-14px) scale(.994); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .np7-band { animation: np7-band-settle linear both; animation-timeline: view(); animation-range: entry 0% exit 100%; }
+  }
+}

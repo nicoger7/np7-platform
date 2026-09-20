@@ -192,7 +192,7 @@ export default async function ExperienceOverviewPage() {
           pairs={heroPairs}
           startIndex={heroIndex}
           h1ClassName="text-3xl sm:text-5xl lg:text-[56px] font-black text-white leading-[0.98] tracking-[-0.03em] drop-shadow-[0_4px_30px_rgba(0,0,0,0.3)]"
-          pClassName="mt-5 text-[16px] sm:text-[19px] text-white/85 max-w-[520px] font-medium"
+          pClassName="mt-5 text-[16px] sm:text-[19px] text-white/85 max-w-[520px] mx-auto font-medium"
         />
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <a
@@ -200,13 +200,13 @@ export default async function ExperienceOverviewPage() {
             /* A WHITE glow under a white pill only works over dark water. Over Bonaire
                midday it spread into a haze around the button and read as a rendering
                fault. A tight dark shadow lifts it off any hero we ever put behind it. */
-            className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white shadow-[0_6px_20px_rgba(0,25,35,0.3)] hover:-translate-y-0.5 transition-all"
+            className="px-7 py-4 rounded-full text-[14px] font-bold text-[#00374a] bg-white shadow-[0_6px_20px_rgba(0,25,35,0.3)] [text-shadow:none] hover:-translate-y-0.5 transition-all"
           >
             {hero.cta1}
           </a>
           <a
             href="#destinations"
-            className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/50 hover:bg-white/10 transition-all"
+            className="px-7 py-4 rounded-full text-[14px] font-bold text-white border-[1.5px] border-white/50 [text-shadow:0_1px_2px_rgba(0,20,28,.35)] hover:bg-white/10 transition-all"
           >
             {hero.cta2}
           </a>

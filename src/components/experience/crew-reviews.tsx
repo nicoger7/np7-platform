@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { WaveDivider } from "./wave-divider";
 import type { LandingReview } from "@/lib/landing-reviews";
 
 /**
@@ -214,37 +215,47 @@ export function CrewReviews({ items, count, avg, eyebrow, title, sub }: {
   const showStat = avg != null && count >= 3;
 
   return (
-    <section id="reviews" aria-labelledby="crew-reviews-title" className="scroll-mt-20 pt-20 sm:pt-28">
+    /*
+     * ITS OWN GROUND. The wall used to sit on the same ocean as the trips below
+     * it, so the page read as one long blue stretch and the two sections ran
+     * into each other (Nico, 21 Sep 2026). A warm paper band with a wave at
+     * each end separates them, and it is the same paper the review card itself
+     * is made of. The band also settles as it scrolls, so leaving it hands the
+     * eye over to what comes next instead of just ending.
+     */
+    <section id="reviews" aria-labelledby="crew-reviews-title" className="scroll-mt-20 relative">
+      <WaveDivider topColor="#fff7ec" bottomColor="transparent" flip />
+      <div className="np7-band bg-[#fff7ec] pt-10 sm:pt-14 pb-4">
       <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-12">
           <div className="max-w-[560px]">
-            <p className="text-[11px] font-bold tracking-[0.25em] text-[#8fe6f2] mb-3">{eyebrow}</p>
-            <h2 id="crew-reviews-title" className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-white mb-4 [text-wrap:balance]">
+            <p className="text-[11px] font-bold tracking-[0.25em] text-[#b0791e] mb-3">{eyebrow}</p>
+            <h2 id="crew-reviews-title" className="text-3xl sm:text-5xl font-black tracking-[-0.03em] text-[#00374a] mb-4 [text-wrap:balance]">
               {t1}{t2 && <> <span className="bg-gradient-to-r from-[#ffc42e] to-[#ff9a4a] bg-clip-text text-transparent">{t2}</span></>}
             </h2>
-            <p className="text-[16px] text-white/70 leading-relaxed">{sub}</p>
+            <p className="text-[16px] text-[#5d7079] leading-relaxed">{sub}</p>
           </div>
 
           {showStat && (
             /* The score as a sticker slapped on the page, faces included. */
-            <div className="self-start md:self-auto -rotate-2 rounded-2xl bg-white px-5 py-4 shadow-[0_18px_40px_-20px_rgba(0,20,30,.7)] flex items-center gap-4">
+            <div className="self-start md:self-auto -rotate-2 rounded-2xl bg-[#00374a] text-white px-5 py-4 shadow-[0_18px_40px_-20px_rgba(0,20,30,.55)] flex items-center gap-4">
               <div>
-                <p className="text-[40px] leading-none font-black tracking-[-0.04em] text-[#00374a] tabular-nums">{avg!.toFixed(1)}</p>
+                <p className="text-[40px] leading-none font-black tracking-[-0.04em] text-white tabular-nums">{avg!.toFixed(1)}</p>
                 <Stars n={Math.round(avg!)} className="text-[15px] text-[#f5a623]" />
               </div>
-              <div className="border-l border-[#e6eef1] pl-4">
+              <div className="border-l border-white/20 pl-4">
                 {faces.length > 0 && (
                   <div className="flex -space-x-2.5 mb-1.5">
-                    {faces.map((r) => <Face key={r.id} r={r} size="w-8 h-8" ring="ring-2 ring-white" />)}
+                    {faces.map((r) => <Face key={r.id} r={r} size="w-8 h-8" ring="ring-2 ring-[#00374a]" />)}
                     {count > faces.length && (
-                      <span className="w-8 h-8 rounded-full ring-2 ring-white bg-[#e6f6fb] text-[#0782a0] text-[10.5px] font-black flex items-center justify-center">
+                      <span className="w-8 h-8 rounded-full ring-2 ring-[#00374a] bg-[#0b5f78] text-white text-[10.5px] font-black flex items-center justify-center">
                         +{count - faces.length}
                       </span>
                     )}
                   </div>
                 )}
-                <p className="text-[12.5px] font-bold text-[#00374a] leading-tight">{count} guest reviews</p>
-                <p className="text-[11.5px] text-[#6a7a80] leading-tight">from real NP7 weeks</p>
+                <p className="text-[12.5px] font-bold text-white leading-tight">{count} guest reviews</p>
+                <p className="text-[11.5px] text-white/70 leading-tight">from real NP7 weeks</p>
               </div>
             </div>
           )}
@@ -305,6 +316,8 @@ export function CrewReviews({ items, count, avg, eyebrow, title, sub }: {
             );
           })}
       </Track>
+      </div>
+      <WaveDivider topColor="#fff7ec" bottomColor="transparent" />
 
       {open && createPortal(
         <div className="fixed inset-0 z-[130] bg-[#00131b]/70 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6"
