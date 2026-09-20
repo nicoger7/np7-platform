@@ -46,23 +46,28 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
   /** What this guest's country can actually pay with, worked out on the server.
    *  `null` hides the button: there is no point offering a checkout that ends
    *  on a bank list the guest is not on. */
-  methods?: { kind: PayKind; feePct?: number } | null;
+  /** `alsoTransfer` = this guest (US or UK) may ALSO pay by bank transfer
+   *  through Stripe, in their own currency. */
+  methods?: { kind: PayKind; feePct?: number; alsoTransfer?: "US" | "GB" | null } | null;
 }) {
-  const [busy, setBusy] = useState<null | "milestone" | "all">(null);
+  const [busy, setBusy] = useState<null | "milestone" | "all" | "transfer">(null);
   const [error, setError] = useState<string | null>(null);
 
   const fmt = (n: number) => (formatMoneyExact(n, currency) as string);
   const money = fmt(amount);
   const all = balance != null && balance > amount + 0.01 ? balance : null;
 
-  async function go(which: "milestone" | "all" = "milestone") {
+  async function go(which: "milestone" | "all" | "transfer" = "milestone") {
     if (preview) return;
     setBusy(which); setError(null);
     try {
       const r = await fetch(`/api/portal/bookings/${bookingId}/pay`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: which === "all" && all ? all : amount }),
+        body: JSON.stringify({
+          amount: which === "all" && all ? all : amount,
+          ...(which === "transfer" ? { method: "transfer" } : {}),
+        }),
       });
       const j = await r.json();
       if (!r.ok || !j.url) { setError(j.error || "Something went wrong. Please try again."); setBusy(null); return; }
@@ -81,6 +86,9 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
   if (methods === null) return null;
   const isTransfer = methods?.kind === "transfer";
   const isCard = methods?.kind === "card";
+  // US and UK guests get the transfer BESIDE the card: Stripe can issue them
+  // an account number of their own in dollars or pounds.
+  const alsoTransfer = isCard ? (methods?.alsoTransfer ?? null) : null;
 
   // The label, which is a promise about the next screen, and the footnote,
   // which is the rest of that promise. A transfer guest must never be shown the
@@ -112,6 +120,16 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
           </button>
         )}
       </div>
+        {alsoTransfer && (
+          <button
+            onClick={() => go("transfer")}
+            disabled={busy !== null || !!preview}
+            title={preview ? "Disabled in the admin preview" : undefined}
+            className="w-full sm:w-auto px-5 py-3 rounded-xl bg-white hover:bg-[#f4f9fa] disabled:opacity-60 text-[#00374a] text-[14px] font-bold border border-[#dde6e9] transition-colors"
+          >
+            {busy === "transfer" ? "Opening…" : `Pay by bank transfer (${alsoTransfer === "US" ? "USD" : "GBP"})`}
+          </button>
+        )}
       {preview && <p className="text-[12px] text-[#7d8b91] mt-2">Paying is disabled while you are looking at this as the member.</p>}
       <p className="text-[12px] text-[#7d8b91] mt-2">
         {refundableUntil ? (all ? <>Either way, the first {fmt(amount)} stays refundable until {refundableUntil}. </> : <>Refundable until {refundableUntil}. </>) : null}
@@ -130,7 +148,9 @@ export function PayNow({ bookingId, amount, balance, refundableUntil, currency =
         {isTransfer
           ? <>Press pay and we&apos;ll show you an account number that&apos;s yours alone, with the exact amount and a reference. Transfer it from your banking app the way you&apos;d pay anyone. It usually reaches us in one to three working days, and your spot is held from the moment you send it. We&apos;ll email you the same details so you don&apos;t have to keep this page open.</>
           : isCard
-            ? <>By card, plus a card fee. <strong className="text-[#00374a]">Prefer a bank transfer? It&apos;s free:</strong> use the bank details on your invoice below.</>
+            ? alsoTransfer
+              ? <>By card, plus a card fee. Or by bank transfer in {alsoTransfer === "US" ? "dollars" : "pounds"}: Stripe gives you an account number of your own, plus the transfer and conversion cost. <strong className="text-[#00374a]">A transfer in euros from your invoice below is free.</strong></>
+              : <>By card, plus a card fee. <strong className="text-[#00374a]">Prefer a bank transfer? It&apos;s free:</strong> use the bank details on your invoice below.</>
             : <>Straight from your own bank, no fee. Or ignore this and transfer from your invoice, both land in the same place.</>}
       </p>
       {error && <p className="text-[12.5px] text-[#b4472a] mt-2">{error}</p>}

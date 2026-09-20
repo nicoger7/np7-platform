@@ -477,11 +477,27 @@ async function onTripLinkPayment(session: Record<string, unknown>, bookingId: st
   if (isTransfer && Number(link.fee ?? 0) !== 0) {
     console.error(`[webhook] transfer link ${linkId} carries a fee of ${link.fee} — no surcharge may stand on a SEPA transfer (§270a BGB); recording the full amount and ignoring it`);
   }
-  const base = recordedAmount({
+  let base = recordedAmount({
     amountReceivedCents: det?.amountReceived ?? null,
     sessionTotalCents: Number(session["amount_total"] ?? 0),
     feeEur: fee,
   });
+  /*
+   * A US or UK guest transfers in their OWN currency: Stripe issues them a
+   * local account number and the payment is created in USD or GBP (see
+   * lib/fx). What lands is therefore dollars or pounds, and the booking is
+   * owed euros. Credit the euro ask in proportion to how much of the foreign
+   * ask arrived, so a full transfer credits the euro figure exactly and a
+   * short one credits its share. The difference between that and what Stripe
+   * converts for us is ours, the same way the card fee estimate is.
+   */
+  const fxTotal = Number((session["metadata"] as Record<string, string> | undefined)?.fx_total_cents ?? 0) / 100;
+  if (fxTotal > 0 && base > 0) {
+    const share = Math.min(1, base / fxTotal);
+    const eurBase = Math.round(Number(link.amount ?? 0) * share * 100) / 100;
+    console.warn(`[webhook] ${kind} ${paymentIntent}: ${base} foreign of ${fxTotal} asked → crediting ${eurBase} EUR`);
+    base = eurBase;
+  }
   if (!(base > 0)) {
     console.error(`[webhook] ${kind} ${paymentIntent}: nothing to record after a fee of ${fee} — refused`);
     return;

@@ -227,6 +227,19 @@ export function onlineMethodsFor(country: string | null): OnlineMethods {
 }
 
 /**
+ * A bank transfer BESIDE the card, for the two countries Stripe can issue a
+ * local account number in from a SEPA account: the US (USD) and the UK (GBP).
+ * Nico, 19 Sep 2026: "we want that they also can pay with transfer via stripe".
+ *
+ * Only these two. Stripe's cross-border bank transfers cover exactly them; a
+ * guest anywhere else outside the EEA still has the card, and the IBAN on
+ * their invoice, which costs them nothing from us.
+ */
+export function crossBorderTransferFor(country: string | null): "US" | "GB" | null {
+  return country === "US" ? "US" : country === "GB" ? "GB" : null;
+}
+
+/**
  * Which fee band to quote a card guest, from where they are.
  *
  * It used to quote every card guest the international band, 3.15 %, including a

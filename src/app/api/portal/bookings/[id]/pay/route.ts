@@ -41,7 +41,8 @@ import { readRows } from "@/lib/db-read";
 import { sumReceived, type PaymentLike } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
 import { coveredExtraTotal } from "@/lib/group-booking";
-import { guestCountry, onlineMethodsFor, canPayOnline, cardRegionFor, transferCountryFor, type PayKind , paymentDescription } from "@/lib/payment-methods";
+import { guestCountry, onlineMethodsFor, canPayOnline, cardRegionFor, transferCountryFor, crossBorderTransferFor, type PayKind , paymentDescription } from "@/lib/payment-methods";
+import { foreignAsk, type ForeignAsk } from "@/lib/fx";
 import { cardFee, type CardRegion } from "@/lib/card-fee";
 import { bankTransferParams, classifyLinks, sweepableLinks, TRANSFER_DUE_DAYS, TRANSFER_SESSION_HOURS, type LinkRow } from "@/lib/bank-transfer";
 
@@ -298,6 +299,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     note: string;
     /** Columns only this kind writes. */
     row: Record<string, string>;
+    /** Set only on a US/UK transfer: the euro ask in the guest's own currency,
+     *  which is the currency the session is created in. */
+    foreign?: ForeignAsk;
     /** Stripe's own parameters for this method. It takes the link id because a
      *  transfer's PaymentIntent needs its own copy: a PI-level event carries no
      *  session at all, so nothing else points a partial funding back at the row. */
@@ -311,7 +315,51 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
    *  instant method, short enough that an abandoned one is gone before anyone
    *  wonders about it. */
   const INSTANT_MS = 30 * 60 * 1000;
+  /*
+   * A SECOND WAY for a US or UK guest. The card is what the page offers by
+   * default outside the EEA; a transfer is offered beside it (Nico, 19 Sep
+   * 2026) and the page says which one it wants. Stripe can issue those two
+   * countries a local account number from our German account, in their own
+   * currency, so the euro ask is converted and the cross-border cost added on
+   * top. If today's rate cannot be fetched the transfer is simply not built
+   * and the card stands: no invented rate ever bills a guest.
+   */
+  const wantsTransfer = String(body.method ?? "") === "transfer";
+  const crossBorder = methods.kind === "card" ? crossBorderTransferFor(where) : null;
+  const foreign = wantsTransfer && crossBorder
+    ? await foreignAsk(asked, crossBorder === "US" ? "usd" : "gbp")
+    : null;
+  if (wantsTransfer && crossBorder && !foreign) {
+    return bad("We couldn't work out today's exchange rate. Please pay by card, or use the bank details on your invoice.", 503);
+  }
+
   const setup: PaySetup = ((): PaySetup => {
+    if (foreign && crossBorder) {
+      return {
+        method: "transfer", metadataKind: "trip_transfer",
+        sessionMs: TRANSFER_SESSION_HOURS * 3600 * 1000,
+        // Nothing is paid yet: Stripe keeps them on the instructions page with
+        // their account number and the money moves for days afterwards.
+        successUrl: `${home}#payment`,
+        // The euro figures are what the BOOKING is asked for and what the row
+        // stores; the foreign amounts live on `foreign` and only Stripe sees them.
+        fee: 0, total: asked, region: "intl",
+        note: `Bank transfer in ${crossBorder === "US" ? "USD" : "GBP"} the member started from their trip page`,
+        row: { method: "transfer" },
+        foreign,
+        stripe: (linkId) => ({
+          customer,
+          extraParams: {
+            customer,
+            "payment_method_types[0]": "customer_balance",
+            "payment_method_options[customer_balance][funding_type]": "bank_transfer",
+            "payment_method_options[customer_balance][bank_transfer][type]":
+              crossBorder === "US" ? "us_bank_transfer" : "gb_bank_transfer",
+          },
+          paymentIntentMetadata: { booking_id: id, kind: "trip_transfer", link_id: linkId },
+        }),
+      };
+    }
     switch (methods.kind) {
       case "rail":
         return {
@@ -405,7 +453,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         {
           name: `${title}${edition}`,
           description: asked >= outstanding - 0.01 ? "Everything still owed on your trip." : "Part payment on your trip.",
-          amountCents: Math.round(asked * 100),
+          amountCents: Math.round((setup.foreign ? setup.foreign.base : asked) * 100),
         },
         /*
          * Its own line, never folded into the price: the guest sees what the
@@ -422,8 +470,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
          * estimate. A transfer never reaches this line: its fee is 0.
          */
         ...(setup.fee > 0 ? [{ name: "Card fee", description: "A bank transfer from your invoice is free.", amountCents: Math.round(setup.fee * 100) }] : []),
+        /* The cross-border transfer's own cost, on its own line for the same
+           reason the card's is: the guest sees it before they press, and
+           §312a Abs. 4 BGB allows it only at cost and only beside a free way
+           to pay, which the IBAN on their invoice is. */
+        ...(setup.foreign && setup.foreign.fee > 0
+          ? [{ name: "Transfer & conversion fee", description: "What the international transfer and the conversion back to euros cost us. A transfer from your invoice in euros is free.", amountCents: Math.round(setup.foreign.fee * 100) }]
+          : []),
       ],
-      currency,
+      currency: setup.foreign ? setup.foreign.currency.toUpperCase() : currency,
       successUrl: setup.successUrl,
       cancelUrl: `${home}#payment`,
       ...setup.stripe(link.id),
@@ -436,7 +491,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
          form is asked exactly once, at the only moment they are here. */
       collectBillingAddress: true,
       expiresAt: Math.floor(expiresAt.getTime() / 1000),
-      metadata: { booking_id: id, kind: setup.metadataKind, link_id: link.id, base_cents: String(Math.round(asked * 100)), fee_cents: String(Math.round(setup.fee * 100)), card_region: setup.region },
+      metadata: {
+        booking_id: id, kind: setup.metadataKind, link_id: link.id,
+        // ALWAYS the euro figure: it is what the booking owes and what the
+        // webhook credits, whatever currency the guest transferred in.
+        base_cents: String(Math.round(asked * 100)),
+        fee_cents: String(Math.round(setup.fee * 100)),
+        card_region: setup.region,
+        ...(setup.foreign ? { fx_currency: setup.foreign.currency, fx_rate: String(setup.foreign.rate), fx_total_cents: String(Math.round(setup.foreign.total * 100)) } : {}),
+      },
       paymentIntentDescription: paymentDescription(title, edition, id),
     });
   } catch (e) {
