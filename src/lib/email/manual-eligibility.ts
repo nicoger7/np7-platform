@@ -67,10 +67,32 @@ export async function loadConditionalEligibility(db: any, editionId: string): Pr
 
   const { data: bookings } = await db
     .from("exp_bookings")
-    .select("id, status, agreed_price, contact_id, deposit_received, downpayment_received, final_payment_received, created_at, contacts(name,email), exp_experiences(title), exp_editions(deposit,date_start,date_end,whatsapp_group_link), exp_packages(deposit,deposit_refund_days,downpayment_percent,final_days_before)")
+    .select("id, status, agreed_price, contact_id, covered_by_booking_id, deposit_received, downpayment_received, final_payment_received, created_at, contacts(name,email), exp_experiences(title), exp_editions(deposit,date_start,date_end,whatsapp_group_link), exp_packages(deposit,deposit_refund_days,downpayment_percent,final_days_before)")
     .eq("edition_id", editionId);
 
-  const rows = (bookings ?? []) as BookingRow[];
+  /*
+   * WHO IS NOT HERE, and why. Verified 18 Sep 2026 against the cron.
+   *
+   * LOST: a guest who cancelled with the downpayment flag still set counted as
+   * secured and landed on the balance chase. The cron never loads lost rows
+   * (cron/emails: .not("status","in","(lost)")).
+   *
+   * COVERED companions: someone else pays for them, their own price is zero to
+   * them, and their pay link answers 409. They were being told their spot's
+   * deadline had passed. The cron skips them the same way.
+   */
+  const rows = ((bookings ?? []) as BookingRow[])
+    .filter((b) => String(b.status ?? "").toLowerCase() !== "lost" && !b.covered_by_booking_id);
+  // What a payer carries for the people they booked for. The cron adds this to
+  // the payer's total; without it a payer who had settled only their own share
+  // was congratulated as "paid in full" while the group still owed.
+  const coveredExtraBy = new Map<string, number>();
+  for (const b of (bookings ?? []) as BookingRow[]) {
+    const payer = b.covered_by_booking_id;
+    if (!payer) continue;
+    const own = (Number(b.agreed_price) || 0);
+    coveredExtraBy.set(payer, (coveredExtraBy.get(payer) ?? 0) + own);
+  }
   const ids = rows.map((b) => b.id);
   const receivedBy = new Map<string, number>();
   const addonsBy = new Map<string, number>();
@@ -100,7 +122,7 @@ export async function loadConditionalEligibility(db: any, editionId: string): Pr
     };
     const start = (b.exp_editions?.date_start as string | null) ?? null;
     const payState = {
-      total: (b.agreed_price ?? 0) + (addonsBy.get(b.id) ?? 0),
+      total: (b.agreed_price ?? 0) + (addonsBy.get(b.id) ?? 0) + (coveredExtraBy.get(b.id) ?? 0),
       paidAmount: receivedBy.get(b.id) ?? 0,
       editionStart: start,
       bookedAt: b.created_at ?? null,
@@ -127,10 +149,42 @@ export async function loadConditionalEligibility(db: any, editionId: string): Pr
     };
 
     if (secured && balance > 0.01 && !balancePaid) byKey.balance_invoice_reminder.push(rec);
-    if (secured && balancePaid) byKey.balance_paid_confirmation.push(rec);
+    /*
+     * "Your balance is paid in full" needs BOTH the hand-flag and the ledger,
+     * and a price to have been paid at all. The looser OR above is only for
+     * MUTING the chase: with it here, a guest flagged paid while EUR 645 of
+     * add-ons stood open was congratulated. Same rule as the cron.
+     */
+    if (secured && flaggedPaid && balance <= 0.01 && (Number(b.agreed_price) || 0) > 0) {
+      byKey.balance_paid_confirmation.push(rec);
+    }
     if (awaiting) byKey.payment_pending_nudge.push(rec);
     if (awaiting && urgency === "last_chance") byKey.downpayment_last_chance.push(rec);
     if (awaiting && urgency === "expired") byKey.spot_released.push(rec);
+  }
+
+  /*
+   * ALREADY HAD IT = not eligible, which is what the confirm dialog promises
+   * ("Anyone who already got it is skipped"). It was not true: the hand-send
+   * uses its own dedupe key (`<key>:manual:<id>`), deliberately, so nothing
+   * stopped a guest who had already received the automatic copy from getting a
+   * second one. The promise is the right rule, so it is enforced here, once,
+   * for the count the admin sees AND the send that follows.
+   */
+  if (ids.length) {
+    const keys = Object.keys(MANUAL_CONDITIONAL);
+    const { data: sentRows } = await db
+      .from("email_log")
+      .select("booking_id, template_key")
+      .eq("status", "sent")
+      .in("template_key", keys)
+      .in("booking_id", ids);
+    const had = new Set(((sentRows ?? []) as { booking_id: string | null; template_key: string | null }[])
+      .filter((r) => r.booking_id && r.template_key)
+      .map((r) => `${r.template_key}:${r.booking_id}`));
+    if (had.size) {
+      for (const k of keys) byKey[k] = (byKey[k] ?? []).filter((r) => !had.has(`${k}:${r.id}`));
+    }
   }
 
   const countByKey = Object.fromEntries(Object.entries(byKey).map(([k, v]) => [k, v.length]));

@@ -85,11 +85,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   for (const h of holds) {
     const { data: b } = await db
       .from("exp_bookings")
-      .select("id, contact_id, contacts(name,email), exp_experiences(title), exp_editions(kind,date_start,date_end,whatsapp_group_link)")
+      .select("id, contact_id, status, downpayment_received, edition_id, contacts(name,email), exp_experiences(title), exp_editions(kind,date_start,date_end,whatsapp_group_link)")
       .eq("id", h.booking_id)
       .maybeSingle();
     const email = b?.contacts?.email;
     if (!email) { failed.push(h.id); continue; }
+
+    /*
+     * A hold is written when the mail is due and outlives what happens next.
+     * Nothing closed it when the guest CANCELLED or was MOVED to another week,
+     * so releasing held mail could send "getting ready for your trip" to
+     * someone who had cancelled, or this week's packing list to someone now on
+     * a different week. The cron would never have sent either: it skips lost
+     * bookings and mails pre-trip only to secured guests. Close the hold and
+     * move on, so it stops being offered.
+     */
+    const bStatus = String(b.status ?? "").toLowerCase();
+    const secured = !!b.downpayment_received || ["confirmed", "downpayment_paid", "paid", "attended"].includes(bStatus);
+    const movedAway = b.edition_id && b.edition_id !== id;
+    if (bStatus === "lost" || movedAway || !secured) {
+      await db.from("mail_holds").update({
+        expired_at: new Date().toISOString(),
+      }).eq("id", h.id);
+      continue;
+    }
 
     const s = b.exp_editions?.date_start as string | null;
     const e = b.exp_editions?.date_end as string | null;
