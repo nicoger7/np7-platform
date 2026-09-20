@@ -269,6 +269,30 @@ export async function PATCH(
     }
   }
 
+  /*
+   * A CONFIRMED ADD-ON CHANGES WHAT IS OWED, so the open payment request has
+   * to change with it. Paul Mohr's extra night was confirmed and his pro-forma
+   * still asked for the amount from before it (Nico, 21 Sep 2026: "die
+   * Rechnung müsste ja auslösen sobald er bezahlt?"). generateDocument updates
+   * an issued, unsent pro-forma in place and keeps its reference, so the guest
+   * sees one request with the right figure rather than two.
+   */
+  if (status === "confirmed") {
+    after(async () => {
+      try {
+        const { data: open } = await client
+          .from("documents").select("id, type, sent_at, paid_at, meta")
+          .eq("booking_id", id).eq("type", "proforma_invoice").eq("status", "issued").maybeSingle();
+        if (!open || open.sent_at || open.paid_at) return;
+        const { generateDocument } = await import("@/lib/invoices/generate");
+        const milestone = typeof open.meta?.milestone === "string" ? open.meta.milestone as "deposit" | "downpayment" | "final" : undefined;
+        await generateDocument({ bookingId: id, type: "proforma_invoice", ...(milestone ? { milestone } : {}) });
+      } catch (e) {
+        console.error("[addons] refreshing the open payment request failed:", e);
+      }
+    });
+  }
+
   /* What actually left, reported back with the row.
      Confirming an add-on mails the guest, but `addon_confirmed` is lifecycle
      mail: with EMAIL_LIFECYCLE_LIVE unset it is held, and the guest hears

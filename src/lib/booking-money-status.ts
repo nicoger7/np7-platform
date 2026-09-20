@@ -21,9 +21,11 @@ import { coveredExtraTotal } from "@/lib/group-booking";
  * WHAT IT WILL NOT DO
  *  · never reopens a cancelled or lost booking: money landing on one is a
  *    refund decision for a human (§651h), not a status change.
- *  · never moves attended back to paid, and never downgrades. Flags come off
- *    only when the money genuinely went away (a payment deleted or refunded),
- *    and then the status is left where a human put it.
+ *  · never touches "attended": that is a human's word about the trip, not
+ *    about money. Everything else follows the ledger, in both directions:
+ *    a booking whose total grew past what was paid (an add-on confirmed) goes
+ *    back from paid to confirmed rather than keeping a green "Fully paid" over
+ *    an open balance.
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,10 +78,17 @@ export async function syncBookingMoneyStatus(db: Db, bookingId: string): Promise
     if (!booking.final_payment_received) patch.final_payment_received = true;
     if ([...SECURED_FROM, "confirmed"].includes(status)) patch.status = "paid";
   } else {
-    // The money went away again (a payment deleted, or a refund recorded), so
-    // the flag has to go with it. The status stays: whether that booking is
-    // still confirmed is for whoever handled the refund to say.
+    /*
+     * The total grew (an add-on confirmed) or the money went away (a payment
+     * deleted, a refund booked). Either way "paid" is no longer true, and a
+     * chip reading "Fully paid" over an open balance is the lie this whole
+     * file exists to stop: Paul Mohr's extra night left 188.67 open under a
+     * green "Fully paid" (Nico, 21 Sep 2026). The flag goes, and a status THIS
+     * rule set goes back one step with it. "attended" is a human's word about
+     * the trip, not about money, so it never moves.
+     */
     if (booking.final_payment_received) patch.final_payment_received = false;
+    if (status === "paid" && securedNow) patch.status = "confirmed";
     if (!securedNow && booking.downpayment_received) patch.downpayment_received = false;
   }
 

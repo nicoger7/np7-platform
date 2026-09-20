@@ -257,7 +257,7 @@ export function CrewReviews({ items, count, avg, eyebrow, title, sub }: {
             const excerpt = cardExcerpt(r.quote);
             const long = excerpt !== r.quote.trim().replace(/\s+/g, " ") || !!r.reply;
             return (
-              <article key={r.id} className="snap-start shrink-0 w-[270px] sm:w-[300px] pt-4 pb-6">
+              <article key={r.id} className="np7-review-card snap-start shrink-0 w-[270px] sm:w-[300px] pt-4 pb-6">
                 <div
                   className="relative h-full flex flex-col rounded-[6px] bg-[#fffdf8] p-3 pb-5 shadow-[0_22px_44px_-22px_rgba(0,20,30,.75)] [transform:rotate(var(--tilt))] motion-safe:transition-transform motion-safe:duration-300 motion-safe:hover:[transform:rotate(0deg)_translateY(-6px)] focus-within:[transform:rotate(0deg)]"
                   style={{ ["--tilt" as string]: `${TILTS[i % TILTS.length]}deg` }}

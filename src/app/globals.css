@@ -375,3 +375,33 @@ input[type="number"] {
   /* Figures of equal width, so a column of amounts lines up on the decimal. */
   font-variant-numeric: tabular-nums;
 }
+
+
+/* ── The review wall's cards, folding away at the edges ──────────────────────
+ *
+ * The row scrolled, but the cards simply left: they slid to the edge and were
+ * gone, which read as flat (Nico, 21 Sep 2026). Now each card turns away as it
+ * reaches an edge, like pages of a folding screen, and straightens as it comes
+ * to the middle.
+ *
+ * It is driven by the scroll position itself (a view timeline), not by a
+ * scroll listener, so it stays smooth on a phone and costs no main-thread work.
+ * Browsers without scroll-driven animations simply show the row as before, and
+ * anyone who asked for less motion never sees it.
+ */
+@keyframes np7-review-fold {
+  from { transform: perspective(1400px) rotateY(34deg) scale(.86); opacity: .3; }
+  22%, 78% { transform: perspective(1400px) rotateY(0deg) scale(1); opacity: 1; }
+  to { transform: perspective(1400px) rotateY(-34deg) scale(.86); opacity: .3; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view(inline)) {
+    .np7-review-card {
+      animation: np7-review-fold linear both;
+      animation-timeline: view(inline);
+      animation-range: entry 0% exit 100%;
+      transform-origin: center center;
+      will-change: transform, opacity;
+    }
+  }
+}
