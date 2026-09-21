@@ -193,7 +193,7 @@ export const SECTIONS: Section[] = [
   { key: "documents", label: "Documents", world: "experience", group: "Finance", paths: ["/admin/documents", "/api/admin/documents"] },
   { key: "settings", label: "Company settings", world: "experience", group: "Finance", paths: ["/admin/settings", "/api/admin/company-settings"] },
   // Experience · Automation
-  { key: "emails", label: "Emails & templates", world: "experience", group: "Automation", paths: ["/admin/emails", "/admin/email-templates", "/admin/email-log", "/admin/campaigns", "/api/admin/emails", "/api/admin/email-templates", "/api/admin/email-log", "/api/admin/campaigns", "/api/admin/audience", "/api/admin/email", "/api/admin/mail-gaps"] },
+  { key: "emails", label: "Emails & templates", world: "experience", group: "Automation", paths: ["/admin/emails", "/admin/email-templates", "/admin/email-log", "/admin/campaigns", "/api/admin/emails", "/api/admin/email-templates", "/api/admin/email-log", "/api/admin/campaigns", "/api/admin/audience", "/api/admin/email", "/api/admin/mail-gaps", "/api/admin/team-mail"] },
   // Hardware
   { key: "products", label: "Products", world: "hardware", group: "Hardware", paths: ["/admin/products", "/api/admin/products", "/api/admin/variants", "/api/admin/gtin"] },
   { key: "product_pages", label: "Product pages (website)", world: "hardware", group: "Hardware", paths: ["/admin/product-pages", "/api/admin/products"] },

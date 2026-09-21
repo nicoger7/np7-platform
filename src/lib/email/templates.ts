@@ -269,6 +269,30 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
 
   /** Coach ticked skills after a trip — the nudge that makes progress FELT.
    *  Admin-triggered from the edition's Levels tab. */
+  /* ---- internal ---------------------------------------------------------
+     This one is written TO NP7, not to a guest. It is deliberately plain: a
+     staff alert is read in three seconds on a phone, so the facts come first
+     and there is nothing to scroll past before the link into the admin. */
+  team_booking_created: (v, opts) => ({
+    subject: `New booking · ${v.guestName ?? "someone"} · ${v.experienceTitle ?? "NP7"}${v.editionLabel ? ` (${esc(String(v.editionLabel))})` : ""}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `${v.guestName ?? "Someone"} just booked ${v.experienceTitle ?? "a trip"}.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "Someone"))}</strong> just booked.`) +
+        checklist([
+          v.experienceTitle ? `Trip: ${v.experienceTitle}${v.editionLabel ? ` · ${v.editionLabel}` : ""}` : "",
+          v.dates ? `Dates: ${v.dates}` : "",
+          v.packageName ? `Package: ${v.packageName}` : "",
+          v.total ? `Worth: ${v.total}` : "",
+          v.bookingStatus ? `Status: ${v.bookingStatus}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+        ].filter(Boolean).join("\n")) +
+        (v.adminLink ? emailButton("Open the booking", String(v.adminLink)) : "") +
+        p(`You are getting this because you are on the team list for new bookings. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
   skills_verified: (v, opts) => ({
     subject: `Your coach signed off new skills 🤙`,
     html: emailLayout({

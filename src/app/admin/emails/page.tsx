@@ -4,6 +4,9 @@ import { renderTemplate } from "@/lib/email/templates";
 import { AUTOMATIONS, lifecycleLive, CANNOT_DISABLE, type TriggerSource } from "@/lib/email/automations";
 import { listSendTiming } from "@/lib/email/readiness";
 import { EmailGroupTabs } from "@/components/admin/email-group-tabs";
+import { EmailsShell } from "@/components/admin/emails-shell";
+import { TeamMail } from "@/components/admin/team-mail";
+import { TEAM_EVENTS } from "@/lib/email/team-alerts";
 import { SendTiming } from "./send-timing";
 
 /**
@@ -53,6 +56,16 @@ export default async function EmailsHubPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
   const { data: overrides } = await db.from("email_templates").select("*");
+
+  /* Who hears about what, and who there is to choose from. The team list is
+     the real staff table, so "Simona" is a name to tick rather than an address
+     to remember; a shared inbox has no row there and is typed in by hand. */
+  const { data: recipRows } = await db.from("team_mail_recipients").select("id,event_key,email,name,enabled");
+  const teamRecipients = (recipRows ?? []) as { id: string; event_key: string; email: string; name: string | null; enabled: boolean }[];
+  const { data: mateRows } = await db.from("team_members").select("name,email").eq("active", true).order("name");
+  const teamMates = ((mateRows ?? []) as { name: string | null; email: string | null }[])
+    .filter((m) => !!m.email)
+    .map((m) => ({ name: m.name, email: m.email as string }));
   type Ov = { template_key: string | null; subject_line?: string | null; body?: string | null; active?: boolean | null; header_image?: string | null; enabled?: boolean | null };
   const overrideByKey = new Map<string, Ov>();
   for (const o of (overrides || []) as Ov[]) {
@@ -137,16 +150,23 @@ export default async function EmailsHubPage() {
         ))}
       </div>
 
-      {/* The dates, above the wording: "when does the packing list go out?" is
-          asked far more often than "what does it say?", and until now the only
-          answer was in the code. */}
-      <SendTiming rows={timingRows} />
+      <EmailsShell
+        customers={
+          <>
+            {/* The dates, above the wording: "when does the packing list go out?" is
+                asked far more often than "what does it say?", and until now the only
+                answer was in the code. */}
+            <SendTiming rows={timingRows} />
 
-      {/* Tabs, not one scroll: each card renders a live iframe preview, so all
-          23 at once was a very long page. */}
-      <EmailGroupTabs cards={cards} groups={GROUPS} />
+            {/* Tabs, not one scroll: each card renders a live iframe preview, so all
+                23 at once was a very long page. */}
+            <EmailGroupTabs cards={cards} groups={GROUPS} />
 
-      <p className="text-xs admin-faint mt-6">Click any email to edit its wording &amp; photo; use the switch to stop one sending. Sent emails are logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.</p>
+            <p className="text-xs admin-faint mt-6">Click any email to edit its wording &amp; photo; use the switch to stop one sending. Sent emails are logged in <Link href="/admin/email-log" className="text-[#0aa3c7] hover:underline">Email Log</Link>.</p>
+          </>
+        }
+        team={<TeamMail events={TEAM_EVENTS.map((e) => ({ key: e.key, title: e.title, blurb: e.blurb }))} recipients={teamRecipients} team={teamMates} />}
+      />
     </div>
   );
 }
