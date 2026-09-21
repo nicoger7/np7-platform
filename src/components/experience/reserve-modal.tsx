@@ -276,7 +276,11 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
   const symbol = ctx.currency === "EUR" || !ctx.currency ? "€" : `${ctx.currency} `;
   const fmt = (n: number) => `${symbol}${num(n)}`;
   const refundDays = quote?.refundDays ?? 14;
-  const reassurance = `No payment now · downpayment fully refundable for ${refundDays} days · cancel anytime.`;
+  /* What is true before any money moves: signing up is free, the down-payment
+     has its own window, and cancelling costs nothing until it is paid. The old
+     line promised the down-payment back, which is not a promise we give — it
+     becomes the cancellation fee the moment it lands. */
+  const reassurance = `No payment now · ${refundDays} days to pay · free to cancel until you do.`;
   // How many spots the quote on screen was computed for, and whether that is
   // still the roster. One payer plus their companions is one plan, so the panel
   // must never label a solo plan as the group's while a refetch is in flight.
@@ -597,8 +601,8 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
             )}
             <p className="text-[14.5px] text-[#5a6b72] leading-relaxed mb-6">
               {securingAmount > 0
-                ? <>We&apos;ve emailed you how it works. <strong>Secure {spotsWord}</strong> now, fully refundable for {refundDays} days.</>
-                : <>We&apos;ve emailed you how it works. When you&apos;re ready, <strong>secure your spot</strong> with the refundable downpayment in your account, no rush, you&apos;ve got time.</>}
+                ? <>We&apos;ve emailed you how it works. <strong>Secure {spotsWord}</strong> now, or take up to {refundDays} days.</>
+                : <>We&apos;ve emailed you how it works. When you&apos;re ready, <strong>secure your spot</strong> with the downpayment in your account, no rush, you&apos;ve got time.</>}
             </p>
 
             {/* The moment somebody is most willing to pay is right now, so the
@@ -723,7 +727,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                     ? quote.deposit > 0
                       ? `Secure ${spotsWord} with the refundable ${fmt(quote.deposit)} deposit · ${quote.refundDays} days to change your mind.${quote.milestones.some((m) => m.kind === "downpayment") ? ` Your ${quote.downpaymentPercent}% downpayment tops it up within ${quote.refundDays} days of signing up.` : ""}`
                       : `Secure ${spotsWord} with the ${quote.downpaymentPercent}% downpayment${quote.milestones[0] ? ` (${fmt(quote.milestones[0].amount)})` : ""}, due within ${quote.refundDays} days, so you've got time to sort flights first.`
-                    : "Secure your spot with the refundable downpayment, no rush, you've got time.",
+                    : "Secure your spot with the downpayment, no rush, you've got time.",
                   "Plan it in your account: flights, extra nights & your team.",
                   "Pay the balance later, then show up & ride.",
                 ].map((t, i) => (

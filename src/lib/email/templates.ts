@@ -238,7 +238,11 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       bodyHtml:
         greet(v) +
         p(`You're registered for <strong>${esc(v.experienceTitle || "")}${v.editionLabel ? " · " + esc(v.editionLabel) : ""}</strong>. Awesome to have you. Here's how it works from here:`) +
-        p(`<strong>1. Secure your spot.</strong> Attached are your payment details (pro-forma invoice). Pay the downpayment by bank transfer within the window shown and your place is locked in.${v.refundDays ? ` Fully refundable for ${esc(String(v.refundDays))} days after you pay, so there's plenty of time to sort flights.` : ""}`) +
+        /* The refund window belongs to a DEPOSIT, and this mail is about the
+           down-payment, which is the cancellation fee from the moment it is
+           paid. The days are still worth naming: they are how long the guest
+           has BEFORE paying, which is the part that buys time for flights. */
+        p(`<strong>1. Secure your spot.</strong> Attached are your payment details (pro-forma invoice). Pay the downpayment by bank transfer within the window shown and your place is locked in.${v.refundDays ? ` You have ${esc(String(v.refundDays))} days to pay it, so there's time to sort flights first.` : ""}`) +
         p(`<strong>2. Plan it with us.</strong> Manage your booking and meet your crew in your trip account.${v.addonsSummary ? ` You can also add ${esc(v.addonsSummary)} any time.` : ""}`) +
         p(`<strong>3. Pay the balance later</strong> by bank transfer, in good time before the trip.`) +
         (v.bookingLink ? emailButton("Secure my spot", v.bookingLink) : "") +

@@ -192,7 +192,10 @@ export function buildWhatsNext(input: {
       // down-payment on something larger.
       label: m.kind === "final" ? `Balance · ${money(m.amount)}` : `${isEvent ? "Ticket" : m.kind === "deposit" ? "Deposit" : "Down-payment"} · ${money(m.amount)}`,
       short: m.kind === "final" ? "Balance" : isEvent ? "Ticket" : m.kind === "deposit" ? "Deposit" : "Down-payment",
-      detail: paid ? "Received, thank you." : m.kind === "final" ? "Bank transfer, details in your payment plan." : "Secures your spot. Fully refundable for 14 days.",
+      /* The down-payment is NOT refundable: from the moment it lands it is the
+         cancellation fee. Only a deposit has a refund window, and this line
+         named a flat "14 days" for both (Nico, 21 Sep 2026). */
+      detail: paid ? "Received, thank you." : m.kind === "final" ? "Bank transfer, details in your payment plan." : m.kind === "deposit" ? "Secures your spot, and stays refundable for a while." : "Secures your spot.",
       done: paid,
       due: asking && m.status === "due",
       href: paid ? undefined : "#payment",

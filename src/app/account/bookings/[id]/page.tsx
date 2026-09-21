@@ -170,9 +170,17 @@ export default async function BookingDetail({ params }: Props) {
   const secured = isSecured(b);
   const securingLabel = hasDeposit ? "Pay your deposit" : "Secure your spot";
 
-  // Cancellation copy — deposit-aware: many trips have no deposit (the 50%
-  // downpayment is the first, 14-day-refundable payment), so don't mention one.
-  const cancellation = b.experience?.cancellation_policy || defaultCancellationPolicy(hasDeposit);
+  /* Cancellation copy, from this package's OWN terms.
+     Which payment is refundable is not a detail: the deposit is, the
+     down-payment is not, and most trips have no deposit at all. The window and
+     the percentage come from the package rather than from a sentence someone
+     typed once (Nico, 21 Sep 2026: "this shouldnt be hardcoded"). */
+  const cancelTerms = {
+    hasDeposit,
+    refundDays: payCfg?.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays,
+    downpaymentPct: payCfg?.downpayment_percent ?? PAYMENT_DEFAULTS.downpaymentPercent,
+  };
+  const cancellation = b.experience?.cancellation_policy || defaultCancellationPolicy(cancelTerms);
 
   const photoCount = galleryGroups.reduce((n, g) => n + g.photos.length, 0);
   const memoriesContent = (photoCount === 0 && !b.edition?.memories_video_url && tripVideos.length === 0) ? (
@@ -413,10 +421,14 @@ export default async function BookingDetail({ params }: Props) {
        has not, and the panel further down would then contradict it. */
     hero = { eyebrow: "Your next step", title: "Nothing to do, your transfer is on its way", body: `${money(step.amount, cur)} is on its way to us. Most transfers arrive in one to three working days, and your spot is held until it does.`, ctaLabel: "See the details", ctaHref: "#payment", tone: "amber" };
   } else if (step.kind === "secure") {
-    // Honest loss-aversion: name the real date we hold the place until (from the
-    // engine), then reassure with the 14-day refund. No fake scarcity.
+    /* Honest loss-aversion: name the real date we hold the place until (from
+       the engine). The old line then promised "fully refundable for 14 days"
+       about a payment that is refundable for none of them — the down-payment IS
+       the cancellation fee from the moment it lands. What is true is that
+       nothing is owed before the deadline. */
     const heldUntil = step.dueDate ? new Date(step.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long" }) : null;
-    hero = { eyebrow: "Your next step", title: "Secure your spot", body: `Pay the ${money(step.amount, cur)} down-payment to lock in your place.${heldUntil ? ` We hold it for you until ${heldUntil}.` : ""} Fully refundable for 14 days.`, ctaLabel: "See how to pay", ctaHref: "#payment", tone: "coral" };
+    const securingWord = hasDeposit ? "deposit" : "down-payment";
+    hero = { eyebrow: "Your next step", title: "Secure your spot", body: `Pay the ${money(step.amount, cur)} ${securingWord} to lock in your place.${heldUntil ? ` We hold it for you until ${heldUntil}, and cancelling before then costs you nothing.` : ""}`, ctaLabel: "See how to pay", ctaHref: "#payment", tone: "coral" };
   } else if (step.kind === "balance") {
     hero = { eyebrow: "Your next step", title: `Balance due · ${money(step.amount, cur)}`, body: `Pay by bank transfer${step.dueDate ? ` (due ${new Date(step.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})` : ""}. The bank details are in your payment plan.`, ctaLabel: "View payment plan", ctaHref: "#payment", tone: "amber" };
   } else {
@@ -614,8 +626,12 @@ export default async function BookingDetail({ params }: Props) {
                 bookingId={b.id}
                 amount={Math.min(dueNow, Math.max(0, (total ?? 0) - paid))}
                 balance={Math.max(0, (total ?? 0) - paid)}
-                refundableUntil={addDays(new Date().toISOString().slice(0, 10), payCfg?.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays)
-                  ? new Date(`${addDays(new Date().toISOString().slice(0, 10), payCfg?.deposit_refund_days ?? PAYMENT_DEFAULTS.depositRefundDays)}T00:00:00Z`)
+                /* Only a DEPOSIT carries a refund window. This printed
+                   "refundable until …" over every payment the page ever asked
+                   for, including the final balance, on trips that charge no
+                   deposit at all. */
+                refundableUntil={hasDeposit && step.kind === "secure"
+                  ? new Date(`${addDays(new Date().toISOString().slice(0, 10), cancelTerms.refundDays)}T00:00:00Z`)
                       .toLocaleDateString("en-GB", { day: "numeric", month: "long", timeZone: "UTC" })
                   : null}
                 currency={cur}

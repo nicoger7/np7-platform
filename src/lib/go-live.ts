@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase";
 import { isLostStatus } from "@/lib/types";
 import { defaultCancellationPolicy } from "@/lib/cancellation-policy";
+import { PAYMENT_DEFAULTS } from "@/lib/payments";
 import {
   DEFAULT_DAILY_PROGRAM, DEFAULT_FAQ, DEFAULT_OUTCOMES, DEFAULT_WEEK_INFO, DEFAULT_WEEK_TITLE, sameAsDefault,
 } from "@/lib/experience-defaults";
@@ -317,7 +318,7 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       // that genuinely differ.
       ok("cancellationPolicy", "Cancellation terms", "warning", true, detail, undefined, {
         okDetail: has(e.cancellation_policy) ? "Own terms set for this trip" : "Standard EU terms — override only if this trip differs",
-        fix: { table: "exp_experiences", id, column: "cancellation_policy", kind: "textarea", title: "Cancellation terms", help: "This is the short summary a guest reads on their trip page — not the full legal terms, which live on /terms and in the trip files. Leave it empty and every guest gets the standard wording below. Fill it in only when this trip genuinely differs (a charter, a non-refundable flight block).", value: (e.cancellation_policy as string) ?? null, fallback: defaultCancellationPolicy(false) },
+        fix: { table: "exp_experiences", id, column: "cancellation_policy", kind: "textarea", title: "Cancellation terms", help: "This is the short summary a guest reads on their trip page — not the full legal terms, which live on /terms and in the trip files. Leave it empty and every guest gets the standard wording below. Fill it in only when this trip genuinely differs (a charter, a non-refundable flight block).", value: (e.cancellation_policy as string) ?? null, fallback: defaultCancellationPolicy({ hasDeposit: false, refundDays: PAYMENT_DEFAULTS.depositRefundDays, downpaymentPct: PAYMENT_DEFAULTS.downpaymentPercent }) },
       }),
       // A week can carry its own list, and the mail prefers it — so an experience
       // with none is still covered when every upcoming week has one. Warning

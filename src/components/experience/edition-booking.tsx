@@ -66,7 +66,7 @@ export function EditionBooking({
 
   // When a week's full, don't dead-end: surface the other bookable weeks — this
   // season's still-open weeks, and any FUTURE-year edition as an early-bird
-  // pre-sale (same register + refundable-downpayment flow, no special code).
+  // pre-sale (same register + downpayment flow, no special code).
   const yearOf = (e: EditionLite) => (e.dateStart ? new Date(e.dateStart + "T00:00:00Z").getUTCFullYear() : new Date().getUTCFullYear());
   const currentYear = ed?.dateStart ? yearOf(ed) : new Date().getUTCFullYear();
   const openOthers = editions
@@ -169,12 +169,12 @@ export function EditionBooking({
             </div>
           )}
 
-          {/* Next-year edition = early-bird pre-sale: real, refundable down-payment now. */}
+          {/* Next-year edition = early-bird pre-sale: a real down-payment now. */}
           {nextSeason.length > 0 && (
             <div className="mt-5 rounded-xl border-2 border-[#00afdb]/30 bg-[#00afdb]/[0.04] p-4">
               <p className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#0782a0] mb-1">Beat the rush · {yearOf(nextSeason[0])}</p>
               <p className="text-[15px] text-[#00374a] font-black mb-0.5">Secure your {yearOf(nextSeason[0])} spot early</p>
-              <p className="text-[13px] text-[#5a6b72] mb-3">These weeks sell out. Lock yours in now with a fully-refundable down-payment.</p>
+              <p className="text-[13px] text-[#5a6b72] mb-3">These weeks sell out. Lock yours in now with the down-payment.</p>
               <div className="space-y-2">
                 {nextSeason.map((e) => (
                   <button key={e.id} onClick={() => setSel(e.id)}

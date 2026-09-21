@@ -57,7 +57,11 @@ export const DEFAULT_BODIES: Record<string, string> = {
   reservation_received:
     P("Hey {{firstName}} 🤙") +
     P("You're registered for <strong>{{experienceTitle}}</strong>. Awesome to have you. Here's how it works from here:") +
-    P("<strong>1. Secure your spot.</strong> Pay the down-payment in your trip account, straight from your bank in about a minute, or by transfer using the attached payment details. Either way your place is locked in, and it stays fully refundable for 14 days.") +
+    /* NOT "fully refundable for 14 days". The down-payment is the cancellation
+       fee from the moment it lands; only a deposit has a refund window, and
+       hardly any trip charges one (Nico, 21 Sep 2026). What is true, and just
+       as reassuring, is that nothing is owed until the deadline. */
+    P("<strong>1. Secure your spot.</strong> Pay the down-payment in your trip account, straight from your bank in about a minute, or by transfer using the attached payment details. Either way your place is locked in.") +
     P("<strong>2. Plan it with us.</strong> Manage your booking, add extra nights and meet your crew in your trip account.") +
     P("<strong>3. Pay the balance later</strong>, whenever suits you before the trip. You can pay it early from the same page if you would rather be done with it.") +
     BTN("Secure my spot", "bookingLink") +

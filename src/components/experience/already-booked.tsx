@@ -68,7 +68,7 @@ export function AlreadyBooked({
     kind === "secured"
       ? `Your spot on ${tripLabel} is secured. There's nothing to book again here.`
     : kind === "pending"
-      ? `You signed up for ${tripLabel} already, so there's no need to fill this in twice. The spot is held once the refundable downpayment lands, and that's the only thing left to do.`
+      ? `You signed up for ${tripLabel} already, so there's no need to fill this in twice. The spot is held once the downpayment lands, and that's the only thing left to do.`
     : kind === "covered"
       ? (payerName
           ? `${payerName} has booked this week for you and your spot sits on their payment plan. There's nothing to book or pay here.`
