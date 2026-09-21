@@ -410,9 +410,12 @@ input[type="number"] {
 /* The review band easing in and out, so leaving it hands over to the next
  * section instead of stopping dead. Scroll-position driven, like the cards. */
 @keyframes np7-band-settle {
-  from { transform: translateY(22px) scale(.988); }
-  28%, 72% { transform: none; }
-  to { transform: translateY(-14px) scale(.994); }
+  /* Translation only, and applied to the whole section. Scaling it pulled the
+     paper away from the waves at each end, which is the drifting-then-jumping
+     edge Nico caught on 21 Sep 2026: the band moved, the waves did not. */
+  from { transform: translateY(20px); }
+  30%, 70% { transform: none; }
+  to { transform: translateY(-12px); }
 }
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {

@@ -223,9 +223,9 @@ export function CrewReviews({ items, count, avg, eyebrow, title, sub }: {
      * is made of. The band also settles as it scrolls, so leaving it hands the
      * eye over to what comes next instead of just ending.
      */
-    <section id="reviews" aria-labelledby="crew-reviews-title" className="scroll-mt-20 relative">
+    <section id="reviews" aria-labelledby="crew-reviews-title" className="np7-band scroll-mt-20 relative">
       <WaveDivider topColor="#fff7ec" bottomColor="transparent" flip />
-      <div className="np7-band bg-[#fff7ec] pt-10 sm:pt-14 pb-4">
+      <div className="bg-[#fff7ec] pt-10 sm:pt-14 pb-4">
       <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-12">
           <div className="max-w-[560px]">
