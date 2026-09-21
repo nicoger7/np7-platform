@@ -224,7 +224,7 @@ export function CrewReviews({ items, count, avg, eyebrow, title, sub }: {
      * eye over to what comes next instead of just ending.
      */
     <section id="reviews" aria-labelledby="crew-reviews-title" className="np7-band scroll-mt-20 relative">
-      <WaveDivider topColor="#fff7ec" bottomColor="transparent" flip />
+      <WaveDivider topColor="#fff7ec" bottomColor="transparent" />
       <div className="bg-[#fff7ec] pt-10 sm:pt-14 pb-4">
       <div className="max-w-[1200px] mx-auto px-6 sm:px-8">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-12">
@@ -317,7 +317,7 @@ export function CrewReviews({ items, count, avg, eyebrow, title, sub }: {
           })}
       </Track>
       </div>
-      <WaveDivider topColor="#fff7ec" bottomColor="transparent" />
+      <WaveDivider topColor="#fff7ec" bottomColor="transparent" flip />
 
       {open && createPortal(
         <div className="fixed inset-0 z-[130] bg-[#00131b]/70 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6"
