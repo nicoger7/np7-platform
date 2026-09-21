@@ -171,15 +171,21 @@ export function EpicWeekScroll({
   // The switcher crowns the section HEADER (Nico's final call, fourth
   // placement): directly above the eyebrow, left-aligned with the copy it
   // switches, no explainer label — the two level names explain themselves.
+  // WRAPS. The pinned layout gives this column 290px and the pill did not know
+  // it: three levels (Beginner · Advanced · Coaching only) grew one unbroken
+  // row straight across the gap and slid under the photo card (Nico, 21 Sep
+  // 2026, screenshot). flex-wrap + w-fit keeps it inside its column at any
+  // number of levels; the radius is the one-row height, so a single row still
+  // reads as a capsule and a second row stacks neatly under it.
   const levelSwitcher = variants ? (
-      <div className="inline-flex items-center gap-1 rounded-full bg-white/95 backdrop-blur border border-[#e2e9ec] p-1 shadow-[0_10px_30px_rgba(0,55,74,0.14)]" role="tablist" aria-label="Coaching level">
+      <div className="flex flex-wrap items-center gap-1 w-fit max-w-full rounded-[22px] bg-white/95 backdrop-blur border border-[#e2e9ec] p-1 shadow-[0_10px_30px_rgba(0,55,74,0.14)]" role="tablist" aria-label="Coaching level">
         {variants.map((v, i) => {
           const on = i === levelIdx;
           return (
             <button
               key={v.key} type="button" role="tab" aria-selected={on}
               onClick={() => setLevelIdx(i)}
-              className={`px-6 sm:px-8 py-2 rounded-full text-[14px] font-bold transition-all ${
+              className={`grow px-4 sm:px-5 py-2 rounded-full text-[13.5px] font-bold whitespace-nowrap transition-all ${
                 on ? "bg-[#00afdb] text-white shadow-[0_5px_16px_rgba(0,175,219,0.35)]" : "text-[#5a6b72] hover:text-[#00374a]"
               }`}
             >
