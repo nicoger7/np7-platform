@@ -270,18 +270,24 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
       description: exp.description,
       hero_image: exp.hero_image,
       flag: flagFromLocation(exp.location, flagRules),
-      // no upcoming edition → no price (avoids showing a stale price from a
-      // finished trip; the tile reads "Dates coming soon" instead)
-      // The cheapest package you can actually buy — not exp_experiences.price,
-      // which is a hand-typed legacy column nobody keeps in step with the
-      // packages. The detail page already derives it this way, which is how the
-      // grid ended up advertising Lake Garda at €1,490 against a €2,390 entry
-      // package. Fall back to the stored price only when there are no packages.
-      priceLabel: ed ? money(cheapestPackagePrice(exp) ?? exp.price, exp.currency) : null,
+      /*
+       * THE CHEAPEST PACKAGE YOU CAN ACTUALLY BUY, or no price at all.
+       *
+       * exp_experiences.price is a hand-typed legacy column nobody keeps in
+       * step with the packages, and the fallback to it was not a safety net, it
+       * was a way to print a number for a week that has none. Lake Garda's 2027
+       * week has nothing on sale yet — Nico asked for it online "but no price
+       * yet" — and the card was advertising €1,490 from that column anyway.
+       *
+       * A week with nothing purchasable now shows no price. That is what
+       * Croatia has always done, and it is the honest state for a season whose
+       * packages are still being priced.
+       */
+      priceLabel: ed ? money(cheapestPackagePrice(exp), exp.currency) : null,
       // The raw number behind the label, so the card can strike the old price
       // and show the discounted one when an advantage applies — same
       // Math.round(price · (1 − pct/100)) the checkout charges (lib/tier-perks).
-      priceValue: ed ? (cheapestPackagePrice(exp) ?? exp.price) : null,
+      priceValue: ed ? cheapestPackagePrice(exp) : null,
       // One week: exact dates, as always. Several UPCOMING weeks: the full span
       // plus a count — "30 Nov – 20 Dec 2026 · 3 weeks" — the tile-sized echo
       // of the detail hero's "2 weeks to choose from". No extra chrome.
