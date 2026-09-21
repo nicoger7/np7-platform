@@ -293,6 +293,28 @@ export async function PATCH(
     });
   }
 
+  /*
+   * AND THE FLAGS HAVE TO FOLLOW THE SAME MONEY.
+   *
+   * The payment request was refreshed above, but the booking's own paid flags
+   * were not, and they are derived from a total that just changed. Paul Mohr's
+   * booking read "Paid · fully paid" in green with €188.67 open, because his
+   * extra night and second breakfast were confirmed after his last payment and
+   * nothing re-derived anything (Nico, 22 Sep 2026: "fix paul also").
+   *
+   * Runs on every status change, not just confirm: declining or removing an
+   * add-on shrinks the total, and a booking that is now fully paid should say
+   * so without waiting for the next payment to land.
+   */
+  after(async () => {
+    try {
+      const { syncBookingMoneyStatus } = await import("@/lib/booking-money-status");
+      await syncBookingMoneyStatus(client, id);
+    } catch (e) {
+      console.error("[addons] money-status sync failed:", e);
+    }
+  });
+
   /* What actually left, reported back with the row.
      Confirming an add-on mails the guest, but `addon_confirmed` is lifecycle
      mail: with EMAIL_LIFECYCLE_LIVE unset it is held, and the guest hears
@@ -431,6 +453,16 @@ export async function DELETE(
   // invoice already covered more than the new total, this can't undo it (the
   // balance goes ≤ 0) — that case needs a credit note, handled separately.
   after(() => resyncBookingBilling(id).catch((e) => console.error("[addons] resync billing failed:", e)));
+  // Removing an add-on shrinks the total, and a booking that is now fully paid
+  // should say so without waiting for the next payment to land.
+  after(async () => {
+    try {
+      const { syncBookingMoneyStatus } = await import("@/lib/booking-money-status");
+      await syncBookingMoneyStatus(client, id);
+    } catch (e) {
+      console.error("[addons] money-status sync failed:", e);
+    }
+  });
 
   return NextResponse.json({ success: true });
 }
