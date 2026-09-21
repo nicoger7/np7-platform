@@ -1729,7 +1729,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           Team preview — drafts included, the public may see less
         </div>
       )}
-      <StickyCta title={experience.title} priceFrom={fromPrice ?? 0} spotsLeft={multi ? scarceLeft : (typeof spotsLeft === "number" && spotsLeft > 0 && spotsLeft <= SCARCE_AT ? spotsLeft : null)} target="#packages" soldOut={soldOut} />
+      <StickyCta title={experience.title} priceFrom={fromPrice} spotsLeft={multi ? scarceLeft : (typeof spotsLeft === "number" && spotsLeft > 0 && spotsLeft <= SCARCE_AT ? spotsLeft : null)} target="#packages" soldOut={soldOut} />
     </SelectedEditionProvider>
   );
 }

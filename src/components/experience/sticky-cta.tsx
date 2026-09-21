@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 
 type Props = {
   title: string;
-  priceFrom: number;
+  /** The cheapest bookable package, or null when nothing is on sale yet.
+   *  NOT a number with 0 as a stand-in: the bar printed "from €0" on Croatia
+   *  and Lake Garda, both deliberately online without prices. */
+  priceFrom?: number | null;
   currency?: string;
   spotsLeft?: number | null;
   /** anchor to scroll to when the button is clicked */
@@ -49,9 +52,11 @@ export function StickyCta({
                 <span className="text-[#f9a35a] font-semibold">Fully booked</span>
               ) : (
                 <>
-                  <span className="text-white/60">
-                    from <span className="text-white font-bold">{currency}{priceFrom.toLocaleString("en-US")}</span>
-                  </span>
+                  {typeof priceFrom === "number" && priceFrom > 0 && (
+                    <span className="text-white/60">
+                      from <span className="text-white font-bold">{currency}{priceFrom.toLocaleString("en-US")}</span>
+                    </span>
+                  )}
                   {typeof spotsLeft === "number" && spotsLeft > 0 && spotsLeft <= 5 && (
                     <span className="inline-flex items-center gap-1.5 text-[#5fd0e8] font-semibold">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />
