@@ -53,9 +53,10 @@ export function OceanHeader({
   variant?: "overlay" | "docked";
   showExperience?: boolean;
   showHardware?: boolean;
-  /** /about ist Teil des öffentlichen Launches — Members im Soft-Launch sehen
-   *  es nicht (die Seite wäre für sie ohnehin 404). Default: wie showExperience,
-   *  damit sich öffentliche Seiten nach dem Reveal nicht ändern. */
+  /** /about hat seinen EIGENEN Flag (SHOW_ABOUT) und gehört zu keiner der
+   *  beiden Welten. Der alte Default "wie showExperience" hat die Seite genau
+   *  dann mit in die Navigation gehoben, als Experience live ging. Default jetzt
+   *  false: ein Aufrufer, der nichts sagt, verlinkt nichts. */
   showAbout?: boolean;
   showBlog?: boolean;
   sectionVariant?: "experience";
@@ -65,7 +66,7 @@ export function OceanHeader({
   // Umschalten gibt es nur, wenn es ZWEI Welten gibt. ODER zeigte Members im
   // Soft-Launch einen Hardware-Knopf, dessen Ziel für sie 404 ist.
   const showSwitch = showExperience && showHardware;
-  const visibleNav = NAV.filter((n) => (n.need === "blog" ? showBlog : n.need === "about" ? (showAbout ?? showExperience) : n.need === "experience" ? showExperience : true));
+  const visibleNav = NAV.filter((n) => (n.need === "blog" ? showBlog : n.need === "about" ? showAbout === true : n.need === "experience" ? showExperience : true));
   const leftNav = visibleNav.filter((n) => n.side !== "right");
   const rightNav = visibleNav.filter((n) => n.side === "right");
   const [scrolled, setScrolled] = useState(false);

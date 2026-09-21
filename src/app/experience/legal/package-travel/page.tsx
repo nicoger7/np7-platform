@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export default function PackageTravelInfoPage() {
   return (
     <>
-      <OceanHeader  showAbout={flags.showExperience} showHardware={flags.showHardware} />
+      <OceanHeader  showAbout={flags.showAbout} showHardware={flags.showHardware} />
       <main className="bg-[#fff7ec] min-h-[100svh]">
         <div className="max-w-[760px] mx-auto px-6 sm:px-8 pt-28 pb-20">
           <p className="text-[11px] font-bold tracking-[0.25em] uppercase text-[#00afdb] mb-3">PACKAGE TRAVEL · STANDARD INFORMATION</p>

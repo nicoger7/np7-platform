@@ -187,7 +187,7 @@ export function DestinationView({ res, preview = false }: { res: DestinationData
 
   return (
     <>
-      <OceanHeader bookHref="#trips"  showAbout={flags.showExperience} showHardware={flags.showHardware} />
+      <OceanHeader bookHref="#trips"  showAbout={flags.showAbout} showHardware={flags.showHardware} />
       {preview && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] rounded-full bg-[#00374a] text-white text-[12.5px] font-bold px-4 py-2 shadow-lg">
           Preview · {(res.destination as { status?: string }).status === "published" ? "published" : "draft, only the team sees this"}

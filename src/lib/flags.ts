@@ -31,4 +31,10 @@ export const flags = {
   // The NP7 Method flagship (/method). Built but kept OFFLINE — hidden in
   // production until SHOW_METHOD=true; visible in dev + preview for review.
   showMethod: show(process.env.SHOW_METHOD),
+  // The About page (/about). It used to ride on showExperience, so the day the
+  // Experience world went live About went live with it and appeared in the nav
+  // (Nico, 21 Sep 2026: "'about' page should not be on main/production"). It is
+  // its own surface now: hidden in production until SHOW_ABOUT=true, visible in
+  // dev + preview like everything else.
+  showAbout: show(process.env.SHOW_ABOUT),
 };

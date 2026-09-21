@@ -58,10 +58,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   }
 
+  // /about has its own flag: it is not part of the Experience launch.
+  if (flags.showAbout) {
+    entries.push({ url: `${SITE}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.4 });
+  }
+
   // experience world — appears the day the flag flips
   if (flags.showExperience) {
     entries.push({ url: `${SITE}/experience`, lastModified: now, changeFrequency: "weekly", priority: 0.9 });
-    entries.push({ url: `${SITE}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.4 });
     // website_visible postdates the generated DB types (migration 059) — cast.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: exps } = await (supabase as any)

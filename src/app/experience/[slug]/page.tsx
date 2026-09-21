@@ -1035,7 +1035,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
 
   return (
     <SelectedEditionProvider initialId={edition?.id ?? null}>
-      <OceanHeader bookHref="#packages"  showAbout={flags.showExperience} showHardware={flags.showHardware} />
+      <OceanHeader bookHref="#packages"  showAbout={flags.showAbout} showHardware={flags.showHardware} />
 
       {/* HERO */}
       <section className="relative min-h-[74vh] flex items-end bg-[#00374a] overflow-hidden">

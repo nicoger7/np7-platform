@@ -13,7 +13,7 @@ export default async function GiftPage() {
 
   return (
     <>
-      <OceanHeader variant="docked"  showAbout={flags.showExperience} showHardware={flags.showHardware} />
+      <OceanHeader variant="docked"  showAbout={flags.showAbout} showHardware={flags.showHardware} />
       <main className="min-h-[100svh] bg-[#fff7ec]">
         <section className="relative bg-[#00374a] text-white overflow-hidden">
           <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full opacity-25 blur-[120px]" style={{ background: "radial-gradient(circle,#f47b20,transparent 70%)" }} aria-hidden />

@@ -26,6 +26,7 @@ export function SectionHeader({ section }: { section?: Section } = {}) {
     bookHref: "/experience#experiences",
     showExperience: flags.showExperience,
     showHardware: flags.showHardware,
+    showAbout: flags.showAbout,
     showBlog: flags.showBlog,
   };
 

@@ -176,7 +176,7 @@ export default async function ExperienceOverviewPage() {
 
   return (
     <>
-      <OceanHeader  showAbout={flags.showExperience} showHardware={flags.showHardware} />
+      <OceanHeader  showAbout={flags.showAbout} showHardware={flags.showHardware} />
 
       {/* ---------------------------------------------------------------- */}
       {/* HERO — scroll-scrubbed windsurf "dive"                            */}

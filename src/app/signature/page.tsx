@@ -95,7 +95,7 @@ export default async function SignatureTripsPage() {
 
   return (
     <>
-      <OceanHeader showExperience={flags.showExperience} showHardware={flags.showHardware} showBlog={flags.showBlog} bookHref="#apply" />
+      <OceanHeader showExperience={flags.showExperience} showHardware={flags.showHardware} showAbout={flags.showAbout} showBlog={flags.showBlog} bookHref="#apply" />
 
       <main className="bg-[#02212e]">
         <ParallaxHero image={HERO}>

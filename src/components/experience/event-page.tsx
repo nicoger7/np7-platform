@@ -131,7 +131,7 @@ export async function EventPage({ event, isMember, paid, paidBookingId = null }:
           otherwise 404 — so the nav must not offer Experiences / Hardware /
           Magazine while those are still hidden, or the page advertises dead
           ends to the very people we sent the link to. */}
-      <OceanHeader bookHref="#ticket" showExperience={flags.showExperience} showAbout={flags.showExperience} showHardware={flags.showHardware} showBlog={flags.showBlog} />
+      <OceanHeader bookHref="#ticket" showExperience={flags.showExperience} showAbout={flags.showAbout} showHardware={flags.showHardware} showBlog={flags.showBlog} />
 
       {/* HERO — compact, event-forward */}
       <section className="relative min-h-[52vh] flex items-end bg-[#00374a] overflow-hidden">
