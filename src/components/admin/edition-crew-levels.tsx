@@ -37,7 +37,7 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
   async function emailUpdate(m: EditionCrewMember) {
     const go = await askMail({
       title: `Tell ${m.name} about their new skills`,
-      mail: "Skills verified, with a link to their progress page",
+      mail: "The skills you verified on this trip, by name, with a link to their progress page",
       to: { kind: "person", name: m.name, email: m.email },
       also: "One per rider per day. A second press today sends nothing.",
     });
@@ -169,7 +169,7 @@ export function EditionCrewLevels({ editionId }: { editionId: string }) {
                 every other sender in the admin now (Nico, 14 Sep 2026). */}
             <button onClick={() => emailUpdate(m)}
               className="text-xs px-2.5 py-1.5 rounded" style={{ backgroundColor: "rgba(255,196,46,0.18)", color: "#b97608" }}
-              title="Email the rider that their coach verified new skills — links to their progress page">✉ Email update</button>
+              title="Email the rider the skills you verified on this trip, by name, with a link to their progress page">✉ Email update</button>
             {catalog.length > 0 && <span className="ml-auto text-xs admin-faint">{m.achievedIds.length}/{catalog.length} skills</span>}
           </div>
           {selfCount > 0 && (

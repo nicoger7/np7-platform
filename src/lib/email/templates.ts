@@ -277,6 +277,9 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       bodyHtml:
         greet(v) +
         p(`Good news from the water: your coach verified <strong>${esc(String(v.skillCount ?? "new"))} skill${String(v.skillCount ?? "") === "1" ? "" : "s"}</strong>${v.experienceTitle ? ` after <strong>${esc(v.experienceTitle)}</strong>` : ""} on your NP7 progress ladder.`) +
+        // The skills themselves. A count tells a rider something happened; the
+        // names tell them what they can now do, which is the whole point.
+        checklist(v.skillList) +
         (v.levelLabel ? p(`Your verified rank now reads <strong>${esc(String(v.levelLabel))}</strong>.`) : "") +
         (v.portalLink ? emailButton("See my progress", String(v.portalLink)) : "") +
         p(`Keep it rolling. The next trip builds straight on top.<br>Nico & the NP7 team`),

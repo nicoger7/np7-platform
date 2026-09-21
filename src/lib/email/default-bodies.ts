@@ -73,7 +73,9 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("<em>“{{personalNote}}”</em>") +
     P("As their guest you get <strong>{{rewardFriend}} off</strong> your spot.") +
     BTN("See the trip & join", "joinLink") +
-    P("Signing up is free and holds no payment. Your spot is fully refundable for 14 days. Hope to see you on the water!" + SIGN),
+    /* The down-payment is the cancellation fee, not a refund ([[refund rule]],
+       21 Sep 2026). Signing up really is free, and that is the true half. */
+    P("Signing up is free and holds no payment, and cancelling costs you nothing until you pay. Hope to see you on the water!" + SIGN),
 
   deposit_confirmation:
     P("Hey {{firstName}} 🤙") +
@@ -386,6 +388,7 @@ export const DEFAULT_BODIES: Record<string, string> = {
   skills_verified:
     P("Hey {{firstName}} 🤙") +
     P("Good news from the water: your coach verified <strong>{{skillCount}}</strong> new skills{{?experienceTitle}} after <strong>{{experienceTitle}}</strong>{{/experienceTitle}} on your NP7 progress ladder.") +
+    "{{?skillList}}" + P("{{skillList}}") + "{{/skillList}}" +
     "{{?levelLabel}}" + P("Your verified rank now reads <strong>{{levelLabel}}</strong>.") + "{{/levelLabel}}" +
     BTN("See my progress", "portalLink") +
     P("Keep it rolling. The next trip builds straight on top." + SIGN),

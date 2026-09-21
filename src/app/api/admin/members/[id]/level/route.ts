@@ -95,21 +95,60 @@ export async function POST(req: NextRequest, { params }: Ctx) {
     const db = createAdminClient() as any;
     const { data: contact } = await db.from("contacts").select("id,name,email,level,level_status").eq("id", id).maybeSingle();
     if (!contact?.email) return NextResponse.json({ error: "This rider has no email address." }, { status: 400 });
-    const { count } = await db.from("contact_milestones")
-      .select("id", { count: "exact", head: true })
-      .eq("contact_id", id).in("verified_via", ["coach", "windcoach"]);
+    /*
+     * NAME THE SKILLS, not just a number.
+     *
+     * The mail said "your coach verified 28 new skills", and 28 was the rider's
+     * LIFETIME coach-verified count — so a trip where one skill was signed off
+     * read as twenty-eight, and the rider was never told which ones (Nico,
+     * 21 Sep 2026: "can we make it that the email writes the updated skills?").
+     *
+     * New = verified since this trip began. The button lives on the edition's
+     * Levels tab, so the edition's start date is the window the coach means.
+     * Without an edition, the last 60 days. Nothing in the window means there
+     * is nothing to tell the rider, and the send is refused rather than a mail
+     * going out saying "0 skills".
+     */
     let experienceTitle: string | undefined;
+    let since: string | null = null;
     if (typeof body.editionId === "string" && body.editionId) {
-      const { data: ed } = await db.from("exp_editions").select("exp_experiences(title)").eq("id", body.editionId).maybeSingle();
+      const { data: ed } = await db.from("exp_editions").select("date_start,exp_experiences(title)").eq("id", body.editionId).maybeSingle();
       experienceTitle = ed?.exp_experiences?.title ?? undefined;
+      if (ed?.date_start) since = `${ed.date_start}T00:00:00Z`;
     }
+    if (!since) since = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
+
+    const { data: fresh } = await db.from("contact_milestones")
+      .select("milestone_id")
+      .eq("contact_id", id).in("verified_via", ["coach", "windcoach"])
+      .gte("verified_at", since);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const freshIds = [...new Set(((fresh ?? []) as any[]).map((r) => r.milestone_id as string))];
+    let skillNames: string[] = [];
+    if (freshIds.length) {
+      // Catalogue order (sort_order) so they read Beginner → Pro, not row order.
+      const { data: cat } = await db.from("level_milestones")
+        .select("id,label,sort_order").in("id", freshIds).order("sort_order");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      skillNames = ((cat ?? []) as any[]).map((m) => String(m.label ?? "").trim()).filter(Boolean);
+    }
+    if (!skillNames.length) {
+      return NextResponse.json({
+        error: experienceTitle
+          ? `No skills were coach-verified for this rider since ${experienceTitle} started, so there is nothing new to tell them.`
+          : "No skills were coach-verified for this rider in the last 60 days, so there is nothing new to tell them.",
+      }, { status: 400 });
+    }
+    const count = skillNames.length;
     const { sendEmail } = await import("@/lib/email/send");
     const res = await sendEmail({
       to: contact.email,
       templateKey: "skills_verified",
       vars: {
         firstName: String(contact.name ?? "").split(" ")[0] || undefined,
-        skillCount: String(count ?? ""),
+        skillCount: String(count),
+        // newline-joined: the template renders it as a ticked checklist
+        skillList: skillNames.join("\n"),
         levelLabel: contact.level_status === "verified" ? contact.level ?? undefined : undefined,
         experienceTitle,
         portalLink: `${process.env.NEXT_PUBLIC_SITE_URL || "https://www.np-seven.com"}/account/level`,
