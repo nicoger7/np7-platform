@@ -27,6 +27,8 @@ export type Edition = {
   launch_discount_pct?: number | null;
   launch_price_until?: string | null;
   public_from?: string | null;
+  /** Archived (soft-deleted) weeks never reach the website. */
+  archived_at?: string | null;
 };
 
 export type RawExperience = {
@@ -50,7 +52,7 @@ function nextEdition(editions: Edition[] | null) {
   const today = new Date().toISOString().slice(0, 10);
   return (editions ?? [])
     // public view only (these cards are cached): early-access weeks stay off
-    .filter((e) => e.status === "published" && e.date_start && e.date_start >= today
+    .filter((e) => e.status === "published" && !e.archived_at && e.date_start && e.date_start >= today
       && (!e.public_from || e.public_from <= today))
     .sort((a, b) => (a.date_start! < b.date_start! ? -1 : 1))[0];
 }
@@ -81,7 +83,7 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
   const { data } = await supabase
     .from("exp_experiences")
     .select(
-      "id,title,slug,location,price,currency,description,hero_image,destination_id,page_template,exp_packages(price,status,edition_id,website_visible),exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active,coaches,launch_discount_pct,launch_price_until,public_from)"
+      "id,title,slug,location,price,currency,description,hero_image,destination_id,page_template,exp_packages(price,status,edition_id,website_visible),exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active,coaches,launch_discount_pct,launch_price_until,public_from,archived_at)"
     )
     .eq("status", "published");
 
@@ -104,6 +106,7 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
     return prices.length ? Math.min(...prices) : null;
   };
 
+  const todayIso = new Date().toISOString().slice(0, 10);
   const withEd = ((data as RawExperience[] | null) ?? [])
     .filter((exp) => !hiddenIds.has(exp.id))
     .map((exp) => ({ ...exp, ed: nextEdition(exp.exp_editions) }))
@@ -118,7 +121,39 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
   // Per-package availability rolled up to the week: a week is bookable while
   // any one of its packages still has room, so a full hotel no longer hides the
   // no-hotel packages that have no beds to lose.
-  const availability = await availabilityFor(withEd.map((x) => x.ed?.id));
+  /*
+   * A CARD IS A SEASON, NOT AN EXPERIENCE.
+   *
+   * Bonaire runs three weeks in December 2026 and three more in December 2027,
+   * and one card could only ever name one of them: it read "30 Nov – 20 Dec
+   * 2026 · 3 weeks" while the 2027 weeks, already published, were nowhere on
+   * the overview (Nico, 21 Sep 2026: "if there are editions in separate years,
+   * they should be listed separately in the overview"). Not a bug in the label
+   * — a span across two Decembers a year apart is not a thing anyone can book.
+   *
+   * So each calendar year that has upcoming weeks gets its own card, and every
+   * card still links to the same experience page. An experience running inside
+   * a single year is one card, exactly as before.
+   */
+  const upcomingOf = (eds: Edition[] | null) => (eds ?? [])
+    .filter((e) => e.status === "published" && !e.archived_at && e.date_start && e.date_start >= todayIso
+      && (!e.public_from || e.public_from <= todayIso))
+    .sort((a, b) => (a.date_start! < b.date_start! ? -1 : 1));
+
+  type Season = { exp: RawExperience; ups: Edition[]; ed: Edition | undefined; year: string | null };
+  const seasons: Season[] = withEd.flatMap((exp) => {
+    const ups = upcomingOf(exp.exp_editions);
+    const years = [...new Set(ups.map((e) => e.date_start!.slice(0, 4)))];
+    if (years.length < 2) return [{ exp, ups, ed: exp.ed, year: null } as Season];
+    return years.map((year) => {
+      const list = ups.filter((e) => e.date_start!.slice(0, 4) === year);
+      return { exp, ups: list, ed: list[0], year } as Season;
+    });
+  }).sort((a, b) => ((a.ed?.date_start ?? "9999") < (b.ed?.date_start ?? "9999") ? -1 : 1));
+
+  // Availability is per WEEK, so it is asked for the first week of every season
+  // card, not just the one week that happens to come next overall.
+  const availability = await availabilityFor(seasons.map((x) => x.ed?.id));
   const experiences: ExpListItem[] = withEd
     .map((exp) => ({ ...exp, spotsLeft: exp.ed ? (availability.get(exp.ed.id)?.bestSpotsLeft ?? null) : null }))
     .sort((a, b) => {
@@ -170,7 +205,7 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
   // one coach renders exactly the tile it always has.
   const crewByEdition = new Map<string, { name: string; cutout: string | null }[]>();
   {
-    const nextEdIds = experiences.map((e) => e.ed?.id).filter((x): x is string => !!x);
+    const nextEdIds = seasons.map((e) => e.ed?.id).filter((x): x is string => !!x);
     if (nextEdIds.length) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: ecRows } = await (supabase as any)
@@ -214,21 +249,21 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
 
   // Card data for the month-filtered grid. `months` = every upcoming edition's
   // YYYY-MM, so the month chips reflect exactly what's bookable.
-  const today = new Date().toISOString().slice(0, 10);
   // One read for the whole grid, on the server. /experience is ISR, so this
   // happens once an hour and not once a visitor; the member home is dynamic and
   // leans on the store's own short cache.
   const flagRules = await customFlagRules();
-  const cards: ExpCard[] = experiences.map((exp) => {
+  const cards: ExpCard[] = seasons.map(({ exp, ups, ed, year }) => {
+    const spotsLeft = ed ? (availability.get(ed.id)?.bestSpotsLeft ?? null) : null;
     // 1) the week's assigned HEAD COACH → 2) a name typed in the edition's
     // free-text coaches field → 3) the library's head coach.
-    const named = leadCoach(exp.ed?.coaches);
+    const named = leadCoach(ed?.coaches);
     const coach =
-      (exp.ed?.id ? headCoachByEdition.get(exp.ed.id) : undefined) ??
+      (ed?.id ? headCoachByEdition.get(ed.id) : undefined) ??
       (named ? coachByName.get(named.toLowerCase()) : undefined) ??
       headCoach;
     return {
-      id: exp.id,
+      id: year ? `${exp.id}:${year}` : exp.id,
       slug: exp.slug,
       title: exp.title,
       location: exp.location,
@@ -242,20 +277,16 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
       // packages. The detail page already derives it this way, which is how the
       // grid ended up advertising Lake Garda at €1,490 against a €2,390 entry
       // package. Fall back to the stored price only when there are no packages.
-      priceLabel: exp.ed ? money(cheapestPackagePrice(exp) ?? exp.price, exp.currency) : null,
+      priceLabel: ed ? money(cheapestPackagePrice(exp) ?? exp.price, exp.currency) : null,
       // The raw number behind the label, so the card can strike the old price
       // and show the discounted one when an advantage applies — same
       // Math.round(price · (1 − pct/100)) the checkout charges (lib/tier-perks).
-      priceValue: exp.ed ? (cheapestPackagePrice(exp) ?? exp.price) : null,
+      priceValue: ed ? (cheapestPackagePrice(exp) ?? exp.price) : null,
       // One week: exact dates, as always. Several UPCOMING weeks: the full span
       // plus a count — "30 Nov – 20 Dec 2026 · 3 weeks" — the tile-sized echo
       // of the detail hero's "2 weeks to choose from". No extra chrome.
       dateLabel: (() => {
-        const ups = (exp.exp_editions ?? [])
-          .filter((e) => e.status === "published" && e.date_start && e.date_start >= today
-            && (!e.public_from || e.public_from <= today))
-          .sort((a, b) => (a.date_start! < b.date_start! ? -1 : 1));
-        if (ups.length <= 1) return fmtRange(exp.ed?.date_start, exp.ed?.date_end);
+        if (ups.length <= 1) return fmtRange(ed?.date_start, ed?.date_end);
         /* A clinic series is scattered, not a season: its runs can be eleven
            months apart, so a first-to-last span reads as a year-long trip.
            Name the next one and count the rest. */
@@ -265,7 +296,7 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
         const last = ups[ups.length - 1];
         return `${fmtRange(ups[0].date_start, last.date_end ?? last.date_start)} · ${ups.length} weeks`;
       })(),
-      spotsLeft: exp.spotsLeft,
+      spotsLeft: spotsLeft,
       tileAuto: autoIds.has(exp.id),
       coachName: coach?.name ?? named,
       coachCutout: coach?.cutout ?? null,
@@ -278,27 +309,21 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
             .map((c) => ({ name: c.name as string, cutout: (c.cutout_url ?? null) as string | null }));
           if (picked.length) return picked.slice(0, 3);
         }
-        return exp.ed?.id ? (crewByEdition.get(exp.ed.id) ?? null) : null;
+        return ed?.id ? (crewByEdition.get(ed.id) ?? null) : null;
       })(),
       placement: placementByExp.get(exp.id) ?? null,
       // The genius-style hint: the launch price is public; a signed-in Crew/
       // Legend sees the combined figure (launch + tier stack additively).
       advantage: (() => {
-        if (!exp.ed) return null;
+        if (!ed) return null;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const launch = activeLaunch(exp.ed as any);
+        const launch = activeLaunch(ed as any);
         const tierPct = viewer && (viewer.tierKey === "crew" || viewer.tierKey === "legend")
-          ? resolveTierPct(perkRules.filter((r) => r.experience_id === exp.id), { tier: viewer.tierKey, editionId: exp.ed.id, packageId: null })
+          ? resolveTierPct(perkRules.filter((r) => r.experience_id === exp.id), { tier: viewer.tierKey, editionId: ed.id, packageId: null })
           : 0;
         return bestAdvantage(launch, tierPct, viewer?.tierLabel ?? null);
       })(),
-      months: Array.from(
-        new Set(
-          (exp.exp_editions ?? [])
-            .filter((e) => e.status === "published" && e.date_start && e.date_start >= today)
-            .map((e) => e.date_start!.slice(0, 7))
-        )
-      ).sort(),
+      months: Array.from(new Set(ups.map((e) => e.date_start!.slice(0, 7)))).sort(),
     };
   });
 
