@@ -40,8 +40,12 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: Exp[]
     .filter((p) => p.experience_id === expId && p.price != null && p.price > 0)
     .sort((a, b) => (a.price as number) - (b.price as number));
   const selectedPkg = expPkgs.find((p) => p.id === pkgId) || expPkgs[0] || null;
-  const expPrice = selectedExp?.price ?? null;
-  const amount = isAny ? AMOUNTS[idx] : (selectedPkg?.price ?? expPrice ?? AMOUNTS[idx]);
+  /* No fallback to the experience's own price column: it is a number typed in
+     once and never revisited, and showing it here is how a Lake Garda voucher
+     came to say €1,490 for a week with nothing on sale. An experience with no
+     purchasable package falls back to the slider, so the buyer chooses a value
+     rather than being quoted one nobody has checked. */
+  const amount = isAny || !selectedPkg ? AMOUNTS[idx] : (selectedPkg.price ?? AMOUNTS[idx]);
   const currency = selectedExp?.currency ?? experiences[0]?.currency ?? "EUR";
   const over5k = amount > 5000;
 

@@ -50,14 +50,24 @@ export async function POST(req: Request) {
   if (packageId && (!pkg || pkg.status === "archived")) return NextResponse.json({ error: "That package isn't available." }, { status: 404 });
   if (pkg && experienceId && pkg.experience_id !== experienceId) return NextResponse.json({ error: "That package doesn't belong to the chosen experience." }, { status: 400 });
 
-  // Value is server-authoritative: a chosen package's price, else the experience
-  // price, else a free amount ("any experience" value voucher).
+  /*
+   * Value is server-authoritative: a chosen package's price, else a free amount
+   * ("any experience" value voucher).
+   *
+   * NOT exp_experiences.price. That column is a single number typed in when the
+   * experience was created and never revisited — Tenerife's still said €3,120
+   * against a real entry package of €2,190, Bonaire's €2,890 against €2,560 —
+   * and this is the line that turned it into money. It only fired where an
+   * experience had no purchasable package, which is exactly the state a trip is
+   * in between seasons: on 21 Sep 2026 a Lake Garda gift voucher charged €1,490
+   * for a week with nothing on sale.
+   *
+   * With no package price, the buyer picks an amount. Asking is always better
+   * than inventing a number nobody has checked since June.
+   */
   const pkgPrice = pkg?.price != null ? Math.round(Number(pkg.price)) : null;
-  const expPrice = exp?.price != null ? Math.round(Number(exp.price)) : null;
   if (pkgPrice && pkgPrice > 0) {
     amount = pkgPrice;
-  } else if (experienceId && expPrice && expPrice > 0) {
-    amount = expPrice;
   } else if (!validAmount(amount)) {
     return NextResponse.json({ error: "Please choose a voucher amount between €200 and €10,000." }, { status: 400 });
   }
