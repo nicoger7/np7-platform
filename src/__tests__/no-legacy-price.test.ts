@@ -24,6 +24,7 @@ const MONEY_PATHS = [
   "src/app/api/voucher/route.ts",
   "src/components/experience/gift-buy-form.tsx",
   "src/lib/experience-cards.ts",
+  "src/app/api/event/checkout/route.ts",
 ];
 
 describe("the legacy experience price never decides money", () => {

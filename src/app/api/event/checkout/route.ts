@@ -208,9 +208,19 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // The edition's own price wins — the same rule lib/events.ts uses to build
-  // the number the buyer just read on the page.
-  const price = Number(edition?.price ?? exp.price);
+  /*
+   * The edition's own price, and only that — the same rule lib/events.ts uses
+   * to build the number the buyer just read on the page.
+   *
+   * NOT exp_experiences.price as a fallback. That column is a single figure
+   * typed in when the experience was created and never revisited: on 22 Sep
+   * 2026 Tenerife's still said €3,120 against a real entry package of €2,190
+   * and Bonaire's €2,890 against €2,560. Charging from it means taking money
+   * at a number nobody has checked since June, and it would only ever do so on
+   * a run whose own price was never set — the one case where refusing is
+   * obviously right.
+   */
+  const price = Number(edition?.price);
   if (!Number.isFinite(price) || price <= 0) return bad("This event has no ticket price set.", 409);
   const { deposit } = eventPricing(price, exp.event_deposit_pct ?? 20, exp.event_refund_pct ?? 15);
 
