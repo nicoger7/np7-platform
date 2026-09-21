@@ -322,10 +322,17 @@ export function CrewReviews({ items, count, avg, eyebrow, title, sub }: {
       {open && createPortal(
         <div className="fixed inset-0 z-[130] bg-[#00131b]/70 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-6"
           onClick={() => setOpenIdx(null)} role="dialog" aria-modal="true" aria-label={`Review by ${open.name}`}>
-          <div className="relative w-full sm:max-w-[540px] max-h-[92svh] sm:max-h-[86svh] flex flex-col rounded-t-3xl sm:rounded-3xl bg-[#fffdf8] shadow-2xl overflow-hidden"
+          {/* On a phone this is a SHEET, and a sheet only as tall as its text
+              opens as a strip hugging the bottom with a blurred no-man's-land
+              above it (Nico, 21 Sep 2026: "on mobile its akward, all super
+              low"). A floor height makes it open like a sheet every time, and
+              the body scrolls inside it rather than the sheet growing. On a
+              desktop it stays the centred card it was. */}
+          <div className="relative w-full sm:max-w-[540px] min-h-[68svh] sm:min-h-0 max-h-[92svh] sm:max-h-[86svh] flex flex-col rounded-t-3xl sm:rounded-3xl bg-[#fffdf8] shadow-2xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}>
-            <div className="overflow-y-auto overscroll-contain">
-              <div className="relative h-[170px] sm:h-[210px] bg-[#0a4f66]">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+              {/* 170px over a phone's full width is a letterbox, not a photo. */}
+              <div className="relative h-[250px] sm:h-[210px] shrink-0 bg-[#0a4f66]">
                 {open.image && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={open.image} alt="" className="absolute inset-0 w-full h-full object-cover object-[50%_28%]" />
@@ -340,7 +347,7 @@ export function CrewReviews({ items, count, avg, eyebrow, title, sub }: {
                   <Face r={open} size="w-[60px] h-[60px] text-[20px]" ring="ring-4 ring-[#fffdf8]" />
                 </div>
               </div>
-              <div className="px-6 sm:px-7 pt-10 pb-7">
+              <div className="px-6 sm:px-7 pt-10 pb-12 sm:pb-7" style={{ paddingBottom: "max(3rem, calc(env(safe-area-inset-bottom) + 2rem))" }}>
                 <div className="flex items-center gap-3 flex-wrap">
                   <Stars n={open.rating} className="text-[15px] text-[#f5a623]" />
                 </div>
