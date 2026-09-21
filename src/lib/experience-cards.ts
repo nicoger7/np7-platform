@@ -95,10 +95,14 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
   const hiddenIds = new Set(((visRows ?? []) as any[]).filter((e) => e.website_visible === false).map((e) => e.id as string));
 
   /** Lowest price among packages that are active, visible, and either shared or
-   *  on the edition being shown. */
+   *  on the WEEK being priced.
+   *
+   *  The week is passed in. It used to be read off exp.ed, the experience's
+   *  single next edition, which was the same thing until a card became a
+   *  season: the Bonaire 2027 card then priced itself off Bonaire's next 2026
+   *  week and advertised 2027 at the 2026 entry price. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cheapestPackagePrice = (exp: any): number | null => {
-    const edId = exp.ed?.id;
+  const cheapestPackagePrice = (exp: any, edId: string | undefined): number | null => {
     const prices = ((exp.exp_packages ?? []) as { price: number | null; status: string | null; edition_id: string | null; website_visible: boolean | null }[])
       .filter((p) => p.price != null && p.status === "active" && p.website_visible !== false)
       .filter((p) => !p.edition_id || p.edition_id === edId)
@@ -283,11 +287,11 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
        * Croatia has always done, and it is the honest state for a season whose
        * packages are still being priced.
        */
-      priceLabel: ed ? money(cheapestPackagePrice(exp), exp.currency) : null,
+      priceLabel: ed ? money(cheapestPackagePrice(exp, ed.id), exp.currency) : null,
       // The raw number behind the label, so the card can strike the old price
       // and show the discounted one when an advantage applies — same
       // Math.round(price · (1 − pct/100)) the checkout charges (lib/tier-perks).
-      priceValue: ed ? cheapestPackagePrice(exp) : null,
+      priceValue: ed ? cheapestPackagePrice(exp, ed.id) : null,
       // One week: exact dates, as always. Several UPCOMING weeks: the full span
       // plus a count — "30 Nov – 20 Dec 2026 · 3 weeks" — the tile-sized echo
       // of the detail hero's "2 weeks to choose from". No extra chrome.
