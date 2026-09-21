@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { flags } from "@/lib/flags";
+import { SCARCE_AT as SHARED_SCARCE_AT } from "@/lib/scarcity";
 import { WindMiniChart } from "@/components/experience/wind-mini-chart";
 import { DEFAULT_WEEK_INFO, DEFAULT_CLINIC_TITLE, DEFAULT_CLINIC_INFO, DEFAULT_PROGRAM_NOTE, DEFAULT_CLINIC_PROGRAM_NOTE } from "@/lib/experience-defaults";
 import { notFound } from "next/navigation";
@@ -575,7 +576,16 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
    * as wide open. Show the TIGHTEST week rather than the sum, and only when it
    * is genuinely tight.
    */
-  const SCARCE_AT = 3;
+  const SCARCE_AT = SHARED_SCARCE_AT;
+  /*
+   * Capacity is counted from the packages themselves, so a week whose packages
+   * are all hidden still reports free beds. Bonaire 2027 went live announcing
+   * "Spots available" on three weeks nobody could buy. Every capacity claim on
+   * this page is gated on this.
+   */
+  const sellable = (edId: string | null | undefined) =>
+    !!edId && (packagesByEdition[edId]?.length ?? 0) > 0;
+  const selectedSellable = multi ? editionsLite.some((e) => sellable(e.id)) : sellable(edition?.id);
   const tightestWeek = editionsLite
     .map((e) => e.spotsLeft)
     .filter((n): n is number => typeof n === "number" && n > 0)
@@ -1116,7 +1126,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                   <span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />
                   {allEditions.length} weeks{scarceLeft != null ? ` · one week down to ${scarceLeft}` : ""}
                 </span>
-              ) : typeof spotsLeft === "number" ? (
+              ) : typeof spotsLeft === "number" && selectedSellable ? (
                 <span className={`inline-flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1 rounded-full ${spotsLeft > 0 ? "text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30" : "text-white bg-[#f47b20]"}`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
                   {spotsLeft === 0 ? "Fully booked" : spotsLeft <= SCARCE_AT ? `Only ${spotsLeft} spots left` : "Spots available"}
@@ -1688,7 +1698,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
             </>
           ) : (
             <>
-              {typeof spotsLeft === "number" && spotsLeft > 0 && spotsLeft <= SCARCE_AT && (
+              {typeof spotsLeft === "number" && spotsLeft > 0 && spotsLeft <= SCARCE_AT && selectedSellable && (
                 <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5fd0e8] bg-[#00afdb]/15 border border-[#00afdb]/30 px-3 py-1 rounded-full mb-6"><span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />Only {spotsLeft} spots left</span>
               )}
               {/* A clinic is not a week away, and it has no deposit plan to
@@ -1729,7 +1739,7 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
           Team preview — drafts included, the public may see less
         </div>
       )}
-      <StickyCta title={experience.title} priceFrom={fromPrice} spotsLeft={multi ? scarceLeft : (typeof spotsLeft === "number" && spotsLeft > 0 && spotsLeft <= SCARCE_AT ? spotsLeft : null)} target="#packages" soldOut={soldOut} />
+      <StickyCta title={experience.title} priceFrom={fromPrice} spotsLeft={selectedSellable ? (multi ? scarceLeft : (typeof spotsLeft === "number" && spotsLeft > 0 && spotsLeft <= SCARCE_AT ? spotsLeft : null)) : null} target="#packages" soldOut={soldOut} />
     </SelectedEditionProvider>
   );
 }

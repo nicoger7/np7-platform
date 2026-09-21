@@ -27,3 +27,27 @@ export function scarcityLabel(free: number | null | undefined): string | null {
   if (free <= SCARCE_AT) return "Only a few spots left";
   return null;
 }
+
+/**
+ * The count a tile may show, or null for "say nothing about spots".
+ *
+ * Two rules in one place, because the tiles each carried their own copy of 5
+ * and the trip hero used 3, so the same week could read "Only 5 left" on the
+ * grid and nothing at all on its own page (Nico, 21 Sep 2026: "we never want to
+ * say X places left if X is too high. 3 spots left is maybe good.").
+ *
+ * `sellable` is the second rule and the reason this is a function rather than a
+ * comparison: capacity is counted from the packages themselves, so a week whose
+ * packages are all hidden still reports free beds. Bonaire 2027 went live
+ * announcing 15, 8 and 8 spots on weeks nobody could buy. No purchasable
+ * package, no claim about spots, in either direction.
+ */
+export function scarceCount(spotsLeft: number | null | undefined, sellable: boolean): number | null {
+  if (!sellable || typeof spotsLeft !== "number") return null;
+  return spotsLeft > 0 && spotsLeft <= SCARCE_AT ? spotsLeft : null;
+}
+
+/** Whether "Fully booked" may be said: only about a week that was ever sellable. */
+export function showFullyBooked(spotsLeft: number | null | undefined, sellable: boolean): boolean {
+  return sellable && spotsLeft === 0;
+}

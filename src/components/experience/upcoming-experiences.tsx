@@ -6,6 +6,7 @@ import { Reveal } from "./reveal";
 import { BrandedTile } from "./branded-tile";
 import { placeFromLocation, flagFromLocation, type FlagInfo, type TilePlacement } from "@/lib/experience-tile";
 import { cdn } from "@/lib/cdn";
+import { scarceCount, showFullyBooked } from "@/lib/scarcity";
 
 const SIG_IMG = cdn("hero/windsurf-hero-poster.jpg");
 
@@ -182,9 +183,12 @@ export function ExpTileCardCompact({ exp }: { exp: ExpCard }) {
             <span className="absolute bottom-2 left-3 text-[10.5px] font-bold tracking-wide uppercase text-white drop-shadow">{exp.location}</span>
           </>
         )}
-        {typeof exp.spotsLeft === "number" && exp.spotsLeft <= 5 && (
-          <span className={`absolute top-2 left-2 z-20 text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-md ${exp.spotsLeft > 0 ? "bg-white/85 text-[#00374a]" : "bg-[#f47b20] text-white"}`}>
-            {exp.spotsLeft > 0 ? `Only ${exp.spotsLeft} left` : "Fully booked"}
+        {/* sellable = this season has a package you can actually buy; a price is
+            the proof of one. Without it the week still reports free beds and the
+            badge would advertise a week nobody can book. */}
+        {(scarceCount(exp.spotsLeft, exp.priceValue != null) ?? (showFullyBooked(exp.spotsLeft, exp.priceValue != null) ? 0 : null)) !== null && (
+          <span className={`absolute top-2 left-2 z-20 text-[10px] font-bold px-2 py-1 rounded-full backdrop-blur-md ${exp.spotsLeft! > 0 ? "bg-white/85 text-[#00374a]" : "bg-[#f47b20] text-white"}`}>
+            {exp.spotsLeft! > 0 ? `Only ${exp.spotsLeft} left` : "Fully booked"}
           </span>
         )}
       </div>
@@ -231,9 +235,9 @@ export function ExpTileCard({ exp }: { exp: ExpCard }) {
               <span className="absolute bottom-3 left-3 text-[11px] font-bold tracking-wide uppercase text-white drop-shadow">{exp.location}</span>
             </>
           )}
-          {typeof exp.spotsLeft === "number" && (exp.spotsLeft <= 0 || exp.spotsLeft <= 5) && (
-            <span className={`absolute top-3 left-3 z-20 text-[11px] font-bold px-3 py-1.5 rounded-full backdrop-blur-md ${exp.spotsLeft > 0 ? "bg-white/85 text-[#00374a]" : "bg-[#f47b20] text-white"}`}>
-              {exp.spotsLeft > 0 ? `Only ${exp.spotsLeft} spots left` : "Fully booked"}
+          {(scarceCount(exp.spotsLeft, exp.priceValue != null) ?? (showFullyBooked(exp.spotsLeft, exp.priceValue != null) ? 0 : null)) !== null && (
+            <span className={`absolute top-3 left-3 z-20 text-[11px] font-bold px-3 py-1.5 rounded-full backdrop-blur-md ${exp.spotsLeft! > 0 ? "bg-white/85 text-[#00374a]" : "bg-[#f47b20] text-white"}`}>
+              {exp.spotsLeft! > 0 ? `Only ${exp.spotsLeft} spots left` : "Fully booked"}
             </span>
           )}
         </div>

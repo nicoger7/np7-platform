@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PackagePicker, type RealPackage, type BookingExtra } from "./package-picker";
 import { useSelectedEdition } from "./selected-edition";
+import { SCARCE_AT } from "@/lib/scarcity";
 
 export type EditionLite = {
   id: string;
@@ -75,7 +76,7 @@ export function EditionBooking({
   const sameSeason = openOthers.filter((e) => yearOf(e) <= currentYear);
   // "N left" is an urgency signal, not inventory — it only appears when it's
   // genuinely tight (or the week is gone). "12 left" on every card is noise.
-  const SCARCE = 5;
+  const SCARCE = SCARCE_AT;   // one threshold for the whole site, see lib/scarcity
   const nextSeason = openOthers.filter((e) => yearOf(e) > currentYear);
 
   return (
@@ -121,7 +122,9 @@ export function EditionBooking({
                     {e.fromPrice != null ? (
                       <span className="text-[13px] font-bold text-[#00374a]">from {fmt(e.fromPrice)}</span>
                     ) : <span />}
-                    {e.spotsLeft != null && (full || e.spotsLeft <= SCARCE) && (
+                    {/* fromPrice is the proof that this week has something buyable;
+                        without it the chip would advertise beds nobody can book */}
+                    {e.spotsLeft != null && e.fromPrice != null && (full || e.spotsLeft <= SCARCE) && (
                       <span className={`text-[11px] font-bold ${full ? "text-[#f47b20]" : "text-green-600"}`}>
                         {full ? "Fully booked" : `Only ${e.spotsLeft} left`}
                       </span>

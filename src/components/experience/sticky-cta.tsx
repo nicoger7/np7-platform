@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SCARCE_AT } from "@/lib/scarcity";
 
 type Props = {
   title: string;
@@ -57,7 +58,7 @@ export function StickyCta({
                       from <span className="text-white font-bold">{currency}{priceFrom.toLocaleString("en-US")}</span>
                     </span>
                   )}
-                  {typeof spotsLeft === "number" && spotsLeft > 0 && spotsLeft <= 5 && (
+                  {typeof spotsLeft === "number" && spotsLeft > 0 && spotsLeft <= SCARCE_AT && (
                     <span className="inline-flex items-center gap-1.5 text-[#5fd0e8] font-semibold">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#5fd0e8] animate-pulse" />
                       {spotsLeft} spots left
