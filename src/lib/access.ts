@@ -198,6 +198,7 @@ export const SECTIONS: Section[] = [
   { key: "products", label: "Products", world: "hardware", group: "Hardware", paths: ["/admin/products", "/api/admin/products", "/api/admin/variants", "/api/admin/gtin"] },
   { key: "product_pages", label: "Product pages (website)", world: "hardware", group: "Hardware", paths: ["/admin/product-pages", "/api/admin/products"] },
   { key: "orders", label: "Orders", world: "hardware", group: "Hardware", paths: ["/admin/orders", "/api/admin/orders"] },
+  { key: "preorders", label: "Pre-orders", world: "hardware", group: "Hardware", paths: ["/admin/preorders", "/api/admin/preorders"] },
   { key: "inventory", label: "Inventory", world: "hardware", group: "Hardware", paths: ["/admin/inventory", "/api/admin/inventory"] },
   { key: "returns", label: "Returns", world: "hardware", group: "Hardware", paths: ["/admin/returns", "/api/admin/returns"] },
   { key: "purchasing", label: "Purchasing", world: "hardware", group: "Hardware", paths: ["/admin/purchasing", "/api/admin/purchasing", "/api/admin/inbound"] },
@@ -306,6 +307,7 @@ export const SECTION_EXPOSES: Record<string, FieldKey[]> = {
   purchasing: ["money", "costs"],
   inventory: ["costs"],
   orders: ["money", "contact_pii"],
+  preorders: ["money"],
   returns: ["money", "contact_pii"],
 };
 
