@@ -1452,6 +1452,8 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                 experienceTitle={experience.title}
                 heroImage={heroMediaImage}
                 showAllTrips={flags.showExperience}
+                /* A signed-in member never retypes what we already hold. */
+                viewer={viewer?.email ? { firstName: String(viewer.name ?? "").trim().split(" ")[0] || "", email: viewer.email } : null}
               />
             </Reveal>
           ) : (

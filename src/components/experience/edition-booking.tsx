@@ -35,6 +35,7 @@ export function EditionBooking({
   experienceTitle,
   heroImage,
   showAllTrips = true,
+  viewer = null,
 }: {
   editions: EditionLite[];
   packagesByEdition: Record<string, RealPackage[]>;
@@ -46,6 +47,10 @@ export function EditionBooking({
   launchByEdition?: Record<string, { pct: number; until?: string | null; label?: string } | null>;
   currency?: string;
   experienceId: string;
+  /** The signed-in member, if there is one. A member has already told us their
+   *  name and address; asking for them again to join a waiting list is a form
+   *  standing between them and a one-tap yes. */
+  viewer?: { firstName: string; email: string } | null;
   experienceTitle: string;
   heroImage?: string | null;
   /** Is there a public experiences index to send people to? A page opened by
@@ -217,7 +222,7 @@ export function EditionBooking({
           }}
         />
       ) : (
-        <WeekInterestForm experienceId={experienceId} editionId={ed?.id ?? null} />
+        <WeekInterestForm experienceId={experienceId} editionId={ed?.id ?? null} viewer={viewer} />
       )}
     </div>
   );
@@ -231,26 +236,27 @@ export function EditionBooking({
  * put it. Name + email here files a plain LEAD booking on that week, so the
  * follow-up lives in the admin pipeline like every other lead.
  */
-function WeekInterestForm({ experienceId, editionId }: { experienceId: string; editionId: string | null }) {
-  const [firstName, setFirstName] = useState("");
-  const [email, setEmail] = useState("");
+function WeekInterestForm({ experienceId, editionId, viewer }:
+  { experienceId: string; editionId: string | null; viewer?: { firstName: string; email: string } | null }) {
+  const [firstName, setFirstName] = useState(viewer?.firstName ?? "");
+  const [email, setEmail] = useState(viewer?.email ?? "");
   const [state, setState] = useState<"idle" | "busy" | "done" | "error">("idle");
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  async function post(name: string, addr: string) {
     if (state === "busy") return;
     setState("busy");
     try {
       const res = await fetch("/api/week-interest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ experienceId, editionId, firstName, email }),
+        body: JSON.stringify({ experienceId, editionId, firstName: name, email: addr }),
       });
       setState(res.ok ? "done" : "error");
     } catch {
       setState("error");
     }
   }
+  const submit = (e: React.FormEvent) => { e.preventDefault(); post(firstName, email); };
 
   if (state === "done") {
     return (
@@ -259,6 +265,27 @@ function WeekInterestForm({ experienceId, editionId }: { experienceId: string; e
       </p>
     );
   }
+  /* A MEMBER GETS A BUTTON, NOT A FORM.
+     They are signed in: we have their name and their address, and asking for
+     both again is a form standing between them and a one-tap yes. Same lead,
+     same pipeline row, one less reason to leave (Nico, 22 Sep 2026: "when I'm
+     logged in, should it not just offer me the button without the form? so we
+     can already generate leads when we dont have packages?"). */
+  if (viewer) {
+    return (
+      <div className="max-w-md mx-auto text-center">
+        <p className="text-[#6a7a80]">Packages for this week are being finalised.</p>
+        <p className="mt-1 text-[13px] text-[#5a6b72]">Say the word and we&apos;ll email you the moment they&apos;re live.</p>
+        <button type="button" disabled={state === "busy"} onClick={() => post(viewer.firstName, viewer.email)}
+          className="mt-3 w-full sm:w-auto rounded-full bg-[#00afdb] hover:bg-[#0099c2] disabled:opacity-60 px-7 py-3 text-[15px] font-bold text-white transition-colors">
+          {state === "busy" ? "Saving…" : "Keep me posted"}
+        </button>
+        {state === "error" && <p className="mt-2 text-[13px] text-[#c2410c]">That didn&apos;t save. Try once more?</p>}
+        <p className="mt-2 text-[12px] text-[#9aa8ad]">We&apos;ll email {viewer.email}. No commitment.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-md mx-auto text-center">
       <p className="text-[#6a7a80]">Packages for this week are being finalised.</p>
