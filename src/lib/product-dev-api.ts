@@ -147,7 +147,7 @@ export const PD_ENTITIES = {
   boards: {
     table: "pd_boards",
     editable: [
-      "project_id", "name", "brand", "model", "year", "category", "origin",
+      "project_id", "name", "brand", "model", "size", "year", "category", "origin",
       "volume_l", "length_cm", "max_width_cm", "tail_width_cm", "weight_kg",
       "construction", "fin_box", "station_origin", "station_unit", "stations",
       "measured_at", "measured_by", "summary", "notes", "photos", "source_id",

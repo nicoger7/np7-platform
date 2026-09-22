@@ -219,25 +219,26 @@ export function BoardMeasureGrid({ board, series, points, onSaved }: {
       </div>
 
       {!activeMetrics.length ? (
-        <div className="py-16 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>
-          <p className="text-sm admin-faint max-w-md mx-auto leading-relaxed">
-            No measurements on this board yet. Paste a session straight out of your notes app —
-            metric heading, then one station per line — and it fills the table.
+        <div className="py-16 text-center rounded-2xl" style={{ border: "1px dashed var(--admin-border-strong)" }}>
+          <p className="text-sm font-semibold admin-heading">No measurements yet</p>
+          <p className="text-xs admin-faint max-w-md mx-auto leading-relaxed mt-1">
+            Paste a session straight out of your notes app (metric heading, then one station per line) and it fills the table.
           </p>
         </div>
       ) : (
-        <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
+        <div className="rounded-2xl admin-tablecard" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
           {/* Header: the metric, its unit, and the button into its settings. */}
-          <div className="gap-2 px-3 py-2 admin-surface"
-            style={{ display: "grid", gridTemplateColumns: gridCols, borderBottom: "1px solid var(--admin-border)" }}>
-            <span className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase self-center">Station</span>
+          <div className="gap-2 px-3 py-2.5"
+            style={{ display: "grid", gridTemplateColumns: gridCols, borderBottom: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)" }}>
+            <span className="text-[11px] font-semibold admin-faint self-end">Station</span>
             {activeMetrics.map((m) => {
               const s = seriesFor(m.key);
               const unit = metricUnit(m.key, s as PdBoardSeries);
               return (
                 <button key={m.key} onClick={() => setOpenSettings(openSettings === m.key ? null : m.key)}
-                  className="text-left group">
-                  <span className="block text-[11px] font-bold admin-heading truncate" style={{ color: m.color }}>
+                  className="text-left group" title="Settings for this measurement">
+                  <span className="block h-1 w-8 rounded-full mb-1.5" style={{ backgroundColor: m.color }} />
+                  <span className="block text-xs font-bold admin-heading truncate">
                     {m.label}
                   </span>
                   <span className="block text-[10px] admin-faint truncate">
@@ -267,7 +268,7 @@ export function BoardMeasureGrid({ board, series, points, onSaved }: {
               <div key={station}>
                 <div className="gap-2 px-3 py-1.5 group"
                   style={{ display: "grid", gridTemplateColumns: gridCols, borderBottom: "1px solid var(--admin-border)" }}>
-                  <span className="text-xs font-semibold admin-muted self-center tabular-nums">{station}</span>
+                  <span className="text-xs font-bold admin-heading self-center tabular-nums">{station}</span>
                   {activeMetrics.map((m) => (
                     <MetricCell key={m.key} metric={m} cell={cell(m.key, station)}
                       series={seriesFor(m.key)}
@@ -331,8 +332,10 @@ function MetricCell({ metric, cell, series, onChange, onNote }: {
   if (metric.kind === "choice") {
     return (
       <div className="flex items-center gap-1">
-        <select className={`${inputClass} py-1`} value={cell.text} onChange={(e) => onChange({ text: e.target.value })}>
-          <option value="">—</option>
+        <select className="w-full px-2 py-1 rounded-md text-sm admin-heading border border-transparent hover:border-[var(--admin-border-strong)] focus:outline-none"
+          style={{ backgroundColor: `color-mix(in srgb, ${metric.color} 9%, transparent)` }}
+          value={cell.text} onChange={(e) => onChange({ text: e.target.value })}>
+          <option value="">-</option>
           {metric.choices?.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
         </select>
         <button onClick={onNote} title="Note" className={`text-xs px-1 ${cell.note ? "text-[var(--admin-accent)]" : "admin-faint hover:admin-muted"}`}>✎</button>
@@ -340,13 +343,17 @@ function MetricCell({ metric, cell, series, onChange, onNote }: {
     );
   }
 
+  // Tinted in the metric's own colour rather than boxed: the column says
+  // which measurement it is before the header does.
+  const tint = { backgroundColor: `color-mix(in srgb, ${metric.color} 9%, transparent)` };
   return (
     <div className="flex items-center gap-1">
       <div className="flex-1 min-w-0">
         <input
-          className={`${inputClass} py-1 tabular-nums`} inputMode="decimal"
+          className="w-full px-2 py-1 rounded-md text-sm admin-heading tabular-nums border border-transparent hover:border-[var(--admin-border-strong)] focus:outline-none transition-colors placeholder:text-[var(--admin-text-faint)]"
+          style={tint} inputMode="decimal"
           value={cell.value !== "" ? cell.value : cell.text}
-          placeholder="—"
+          placeholder="-"
           onChange={(e) => {
             const raw = e.target.value;
             // A word in a number column is a real reading ("start"), not a
@@ -413,9 +420,9 @@ function SeriesSettings({ metric, value, onChange, onRemove, onClose }: {
             </select>
           ) : (
             <select className={inputClass} value={String(value.scale ?? 1)} onChange={(e) => onChange({ scale: Number(e.target.value) })}>
-              <option value="1">×1 — as read</option>
-              <option value="0.5">×0.5 — halve them</option>
-              <option value="2">×2 — double them</option>
+              <option value="1">×1, as read</option>
+              <option value="0.5">×0.5, halve them</option>
+              <option value="2">×2, double them</option>
             </select>
           )}
         </div>
@@ -430,7 +437,7 @@ function SeriesSettings({ metric, value, onChange, onRemove, onClose }: {
         </div>
       </div>
       <div className="mb-3">
-        <label className={labelClass}>How it was measured — kept verbatim</label>
+        <label className={labelClass}>How it was measured (kept verbatim)</label>
         <input className={inputClass} value={value.convention ?? ""} placeholder='e.g. "rail to rail off a straightedge, alles halbieren"'
           onChange={(e) => onChange({ convention: e.target.value })} />
       </div>
@@ -622,7 +629,7 @@ export function ImportDialog({ board, onClose, onDone, initialText }: {
                               if (e.target.checked) n.add(`${s.metric}:${g.kind}`); else n.delete(`${s.metric}:${g.kind}`);
                               return n;
                             })} />
-                          Apply <strong className="admin-heading">{g.kind === "scale" ? `×${g.value}` : String(g.value)}</strong> — {g.because}
+                          Apply <strong className="admin-heading">{g.kind === "scale" ? `×${g.value}` : String(g.value)}</strong>: {g.because}
                         </label>
                       ))}
                     </div>
@@ -686,7 +693,7 @@ export function SeriesSummary({ series, points }: { series: PdBoardSeries[]; poi
         return (
           <li key={m.key} className="text-xs admin-muted">
             <span className="font-semibold" style={{ color: m.color }}>{m.label}</span>
-            {" — "}
+            {" · "}
             {read.length} reading{read.length === 1 ? "" : "s"}
             {vals.length ? ` · ${round(Math.min(...vals), 2)} to ${round(Math.max(...vals), 2)} ${unit}` : ""}
             {own.length > read.length ? ` · ${own.length - read.length} still to measure` : ""}

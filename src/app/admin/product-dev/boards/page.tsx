@@ -1,34 +1,38 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BOARD_DISCIPLINES, BOARD_METRICS, BOARD_ORIGINS, DEFAULT_STATIONS, disciplineLabel, type BoardCategory, type BoardOrigin } from "@/lib/board-measurements";
+import {
+  BOARD_DISCIPLINES, BOARD_METRICS, BOARD_ORIGINS, DEFAULT_STATIONS, boardTitle, compareBoards, disciplineLabel,
+  type BoardCategory, type BoardOrigin,
+} from "@/lib/board-measurements";
+import {
+  BoardName, Card, Empty, FilterPills, Icon, InfoTip, ORIGIN_META, OriginChip, PageHeader, SearchBox, Tag,
+  btnPrimary, btnPrimaryStyle, btnSecondary, btnSecondaryStyle, inputCls, labelCls, toneVars,
+} from "@/components/admin/pd-ui";
+import { BoardOutlineThumb, type WidthPair } from "@/components/admin/pd-thumbs";
 
 type BoardRow = {
   id: string;
   name: string;
   brand: string | null;
+  model: string | null;
+  size?: string | null;
   year: number | null;
   category: BoardCategory;
   origin: BoardOrigin;
   volume_l: number | null;
+  length_cm: number | null;
   max_width_cm: number | null;
+  station_origin: "tail" | "nose";
   measured_at: string | null;
   readings: number;
   metrics: number;
+  measured?: string[];
+  outline?: { w: WidthPair[]; wt: WidthPair[] };
+  last_station?: number;
 };
-
-const ORIGIN_COLOR: Record<BoardOrigin, string> = {
-  own: "text-green-400",
-  prototype: "text-[var(--admin-accent)]",
-  competitor: "text-amber-400",
-  reference: "admin-faint",
-};
-
-const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
-const labelClass = "block text-xs font-medium admin-muted mb-1";
-const GRID = "1fr 110px 90px 80px 80px 90px 110px 40px";
 
 export default function BoardsPage() {
   const router = useRouter();
@@ -40,36 +44,41 @@ export default function BoardsPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
-    name: "", brand: "", year: String(new Date().getFullYear()),
+    year: String(new Date().getFullYear()), brand: "", model: "", size: "", name: "",
     category: "slalom" as BoardCategory, origin: "competitor" as BoardOrigin,
     volume_l: "", station_origin: "tail" as "tail" | "nose",
   });
 
+  // One request, filtered here: the search matches the title (year, brand,
+  // model, size) as well as the typed name, which the server-side name search
+  // could not.
   const fetchData = useCallback(() => {
-    const qs = search ? `?search=${encodeURIComponent(search)}` : "";
-    fetch(`/api/admin/product-dev/boards${qs}`)
+    fetch("/api/admin/product-dev/boards")
       .then((r) => r.json())
       .then((d) => { setBoards(Array.isArray(d) ? d : []); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [search]);
+  }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  useEffect(() => {
-    const t = setTimeout(fetchData, search ? 300 : 0);
-    return () => clearTimeout(t);
-  }, [fetchData, search]);
+  const newTitle = boardTitle({
+    name: "", year: form.year ? Number(form.year) : null, brand: form.brand || null, model: form.model || null, size: form.size || null,
+  }).text;
 
   async function handleCreate() {
-    if (!form.name) return;
+    const name = form.name.trim() || newTitle.trim();
+    if (!name) return;
     setCreating(true); setError("");
     const res = await fetch("/api/admin/product-dev/boards", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: form.name,
+        name,
         brand: form.brand || null,
+        model: form.model || null,
+        size: form.size || null,
         year: form.year ? Number(form.year) : null,
         category: form.category,
         origin: form.origin,
-        volume_l: form.volume_l ? Number(form.volume_l) : null,
+        volume_l: form.volume_l ? Number(form.volume_l.replace(",", ".")) : null,
         station_origin: form.station_origin,
         // A new board starts with a station grid rather than an empty table:
         // the first thing you do is fill in numbers, not build a form.
@@ -86,158 +95,207 @@ export default function BoardsPage() {
   }
 
   async function handleArchive(b: BoardRow) {
-    if (!confirm(`Archive "${b.name}"?\n\nEvery reading, cut-out and note stays in the database.`)) return;
+    if (!confirm(`Archive "${boardTitle(b).text}"?\n\nEvery reading, cut-out and note stays in the database.`)) return;
     const res = await fetch(`/api/admin/product-dev/boards/${b.id}`, { method: "DELETE" });
     if (res.ok) fetchData();
     else setError((await res.json().catch(() => ({}))).error || "Couldn't archive that board.");
   }
 
+  const q = search.trim().toLowerCase();
+  const shown = useMemo(() => boards
+    .filter((b) => !discipline || b.category === discipline)
+    .filter((b) => !q || `${boardTitle(b).text} ${b.name} ${b.brand ?? ""}`.toLowerCase().includes(q))
+    .sort(compareBoards), [boards, discipline, q]);
+
+  // Year is the first thing a board is known by, so the list is grouped by it.
+  const byYear = useMemo(() => {
+    const groups: { year: number | null; rows: BoardRow[] }[] = [];
+    for (const b of shown) {
+      const last = groups[groups.length - 1];
+      if (last && last.year === b.year) last.rows.push(b);
+      else groups.push({ year: b.year, rows: [b] });
+    }
+    return groups;
+  }, [shown]);
+
+  // One scale for every thumbnail on the page, so a longer board looks longer.
+  const scale = useMemo(() => {
+    let len = 0, wid = 0;
+    for (const b of boards) {
+      const pairs = [...(b.outline?.w ?? []), ...(b.outline?.wt ?? [])];
+      len = Math.max(len, b.length_cm ?? 0, b.last_station ?? 0, ...pairs.map(([s]) => s));
+      wid = Math.max(wid, ...pairs.map(([, w]) => w));
+    }
+    return { len: len || 240, wid: wid || 90 };
+  }, [boards]);
+
   return (
     <div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold admin-heading mb-1">Boards</h1>
-          <p className="text-sm admin-muted">
-            {boards.length} board{boards.length !== 1 ? "s" : ""} · measurements, 2D plans and cut-outs
-          </p>
-        </div>
-        <button onClick={() => setShowNew(!showNew)}
-          className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
-          New board
-        </button>
-      </div>
+      <PageHeader
+        title="Boards"
+        subtitle={
+          <span className="inline-flex items-center gap-1.5">
+            Measured boards: ours, prototypes and the competition.
+            <InfoTip>
+              Each card draws the outline from the width readings, all at the same scale, so a longer board looks longer.
+              The coloured dots are the {BOARD_METRICS.length} measurements ({BOARD_METRICS.map((m) => m.label.toLowerCase()).join(", ")}); a filled dot has at least one reading.
+            </InfoTip>
+          </span>
+        }
+        actions={
+          <button onClick={() => setShowNew(!showNew)} className={btnPrimary} style={btnPrimaryStyle}>
+            <Icon name="plus" className="w-4 h-4" strokeWidth={2.2} />New board
+          </button>
+        }
+      />
 
-      <div className="mb-5 flex flex-col gap-3">
-        <input className={`${inputClass} max-w-sm`} placeholder="Search by name…" value={search} onChange={(e) => setSearch(e.target.value)} />
-        {/* Discipline pills: only the disciplines that have a board, plus All. */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
+        <SearchBox value={search} onChange={setSearch} placeholder="Year, brand, model, size" />
         {boards.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {[{ key: "", label: "All" }, ...BOARD_DISCIPLINES.filter((d) => boards.some((b) => b.category === d.key))].map((d) => {
-              const on = discipline === d.key;
-              const n = d.key ? boards.filter((b) => b.category === d.key).length : boards.length;
-              return (
-                <button key={d.key} onClick={() => setDiscipline(d.key)} aria-pressed={on}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-full transition-colors ${on ? "" : "admin-muted"}`}
-                  style={on
-                    ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }
-                    : { border: "1px solid var(--admin-border)" }}>
-                  {d.label} <span className={on ? "opacity-80" : "admin-faint"}>{n}</span>
-                </button>
-              );
-            })}
-          </div>
+          <FilterPills value={discipline} onChange={setDiscipline} options={[
+            { key: "", label: "All", count: boards.length },
+            ...BOARD_DISCIPLINES.filter((d) => boards.some((b) => b.category === d.key))
+              .map((d) => ({ key: d.key as string, label: d.label, count: boards.filter((b) => b.category === d.key).length, tone: "sky" as const })),
+          ]} />
         )}
       </div>
 
-      {error && (
-        <div className="mb-4 px-4 py-3 rounded-lg text-sm text-red-400" style={{ border: "1px solid var(--admin-border)" }}>{error}</div>
-      )}
+      {error && <div className="mb-4 px-4 py-3 rounded-xl text-sm text-red-500" style={{ border: "1px solid var(--admin-border)" }}>{error}</div>}
 
       {showNew && (
-        <div className="mb-6 p-5 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-          <h3 className="text-sm font-bold admin-heading mb-4">New board</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-6 gap-4 mb-4">
-            <div className="sm:col-span-3">
-              <label className={labelClass}>Name *</label>
-              <input className={inputClass} value={form.name} autoFocus
-                onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. FMX 2026 Slalom 85" />
+        <Card title="New board" icon="board" tone="sky" className="mb-6"
+          subtitle={newTitle ? `Will be called: ${newTitle}` : "Called by year, brand, model and size"}>
+          <div className="grid grid-cols-2 sm:grid-cols-[90px_1fr_1fr_110px] gap-3 mb-4">
+            <div><label className={labelCls}>Year</label>
+              <input className={inputCls} inputMode="numeric" value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} /></div>
+            <div><label className={labelCls}>Brand</label>
+              <input className={inputCls} value={form.brand} autoFocus placeholder="FMX" onChange={(e) => setForm({ ...form, brand: e.target.value })} /></div>
+            <div><label className={labelCls}>Model</label>
+              <input className={inputCls} value={form.model} placeholder="Slalom" onChange={(e) => setForm({ ...form, model: e.target.value })} /></div>
+            <div><label className={labelCls}>Size</label>
+              <input className={inputCls} value={form.size} placeholder="85" onChange={(e) => setForm({ ...form, size: e.target.value })} /></div>
+          </div>
+
+          <div className="mb-4">
+            <label className={labelCls}>Whose board</label>
+            <div className="flex flex-wrap gap-1.5">
+              {BOARD_ORIGINS.map((o) => {
+                const on = form.origin === o.key;
+                const m = ORIGIN_META[o.key];
+                return (
+                  <button key={o.key} onClick={() => setForm({ ...form, origin: o.key })} aria-pressed={on}
+                    className="pd-tone inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+                    style={{
+                      ...toneVars(m.tone),
+                      ...(on ? { backgroundColor: "var(--tone-bg)", color: "var(--tone)", border: "1px solid var(--tone-line)" }
+                        : { border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }),
+                    }}>
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: "var(--tone)" }} />{o.label}
+                  </button>
+                );
+              })}
             </div>
-            <div className="sm:col-span-2">
-              <label className={labelClass}>Brand</label>
-              <input className={inputClass} value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} placeholder="FMX" />
-            </div>
-            <div>
-              <label className={labelClass}>Year</label>
-              <input className={inputClass} value={form.year} onChange={(e) => setForm({ ...form, year: e.target.value })} />
-            </div>
-            <div className="sm:col-span-2">
-              <label className={labelClass}>Discipline *</label>
-              <select className={inputClass} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as BoardCategory })}>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+            <div><label className={labelCls}>Discipline</label>
+              <select className={inputCls} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as BoardCategory })}>
                 {BOARD_DISCIPLINES.map((d) => <option key={d.key} value={d.key}>{d.label}</option>)}
-              </select>
-            </div>
-            <div className="sm:col-span-2">
-              <label className={labelClass}>Whose board</label>
-              <select className={inputClass} value={form.origin} onChange={(e) => setForm({ ...form, origin: e.target.value as BoardOrigin })}>
-                {BOARD_ORIGINS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={labelClass}>Volume (l)</label>
-              <input className={inputClass} value={form.volume_l} onChange={(e) => setForm({ ...form, volume_l: e.target.value })} />
-            </div>
-            <div>
-              <label className={labelClass} title="Which end the tape hooks on.">Measure from</label>
-              <select className={inputClass} value={form.station_origin}
+              </select></div>
+            <div><label className={labelCls}>Volume (l)</label>
+              <input className={inputCls} inputMode="decimal" value={form.volume_l} onChange={(e) => setForm({ ...form, volume_l: e.target.value })} /></div>
+            <div><label className={labelCls} title="Which end the tape hooks on.">Measure from</label>
+              <select className={inputCls} value={form.station_origin}
                 onChange={(e) => setForm({ ...form, station_origin: e.target.value as "tail" | "nose" })}>
                 <option value="tail">the tail</option>
                 <option value="nose">the nose</option>
-              </select>
-            </div>
+              </select></div>
+            <div><label className={labelCls}>Own name (optional)</label>
+              <input className={inputCls} value={form.name} placeholder={newTitle || "only if you want one"}
+                onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
           </div>
+
           <div className="flex gap-2">
-            <button onClick={handleCreate} disabled={!form.name || creating}
-              className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
-              {creating ? "Creating…" : "Create"}
+            <button onClick={handleCreate} disabled={!(form.name.trim() || newTitle.trim()) || creating} className={btnPrimary} style={btnPrimaryStyle}>
+              {creating ? "Creating…" : "Create board"}
             </button>
-            <button onClick={() => setShowNew(false)} className="px-4 py-2 admin-muted text-sm rounded-lg">Cancel</button>
+            <button onClick={() => setShowNew(false)} className={btnSecondary} style={btnSecondaryStyle}>Cancel</button>
           </div>
-        </div>
+        </Card>
       )}
 
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading…</div>
-      ) : boards.length === 0 ? (
-        <div className="py-16 text-center">
-          <p className="text-sm admin-faint max-w-md mx-auto leading-relaxed">
-            {search
-              ? "No board matches that."
-              : "Nothing here yet. Start with a board you can put a straightedge on — your own or somebody else's."}
-          </p>
-        </div>
+      ) : shown.length === 0 ? (
+        <Empty icon="board" tone="sky" title={search || discipline ? "No board matches that" : "No boards yet"}>
+          {search || discipline ? "Try another word or filter." : "Start with a board you can put a straightedge on, yours or somebody else's."}
+        </Empty>
       ) : (
-        <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-          <div className="gap-3 px-5 py-3 admin-surface" style={{ display: "grid", gridTemplateColumns: GRID, borderBottom: "1px solid var(--admin-border)" }}>
-            {["Board", "Discipline", "Whose", "Volume", "Readings", "Metrics", "Measured", ""].map((h, i) => (
-              <span key={i} className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase">{h}</span>
-            ))}
-          </div>
-          {boards.filter((b) => !discipline || b.category === discipline).map((b) => (
-            <div key={b.id} className="gap-3 px-5 py-3 transition-colors group"
-              style={{ display: "grid", gridTemplateColumns: GRID, borderBottom: "1px solid var(--admin-border)" }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--admin-surface-hover)")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}>
-              <Link href={`/admin/product-dev/boards/${b.id}`} className="min-w-0 self-center">
-                <span className="block text-sm font-medium admin-heading truncate hover:text-[var(--admin-accent)] transition-colors">{b.name}</span>
-                {(b.brand || b.year) && (
-                  <span className="block text-[11px] admin-faint truncate">{[b.brand, b.year].filter(Boolean).join(" · ")}</span>
-                )}
-              </Link>
-              <span className="text-xs admin-muted self-center">{disciplineLabel(b.category)}</span>
-              <span className={`text-xs self-center ${ORIGIN_COLOR[b.origin] ?? "admin-muted"}`}>
-                {BOARD_ORIGINS.find((o) => o.key === b.origin)?.label.replace(/^Our /, "").replace(/ board$/, "") ?? b.origin}
-              </span>
-              <span className="text-xs admin-muted self-center">{b.volume_l ? `${b.volume_l} l` : "—"}</span>
-              <span className={`text-xs self-center ${b.readings > 0 ? "text-[var(--admin-accent)] font-semibold" : "admin-faint"}`}>
-                {b.readings || "—"}
-              </span>
-              <span className="text-xs admin-muted self-center" title={`${b.metrics} of ${BOARD_METRICS.length} measurements have at least one reading`}>
-                {b.metrics > 0 ? `${b.metrics} of ${BOARD_METRICS.length}` : "—"}
-              </span>
-              <span className="text-xs admin-muted self-center">
-                {b.measured_at ? new Date(b.measured_at).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "2-digit" }) : "—"}
-              </span>
-              <button onClick={() => handleArchive(b)} title="Archive"
-                className="text-xs admin-faint hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity self-center">✕</button>
-            </div>
+        <div className="space-y-8">
+          {byYear.map((g) => (
+            <section key={g.year ?? "none"}>
+              <div className="flex items-baseline gap-2 mb-3">
+                <h2 className="text-lg font-bold admin-heading tabular-nums">{g.year ?? "No year"}</h2>
+                <span className="text-xs admin-faint">{g.rows.length} board{g.rows.length === 1 ? "" : "s"}</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                {g.rows.map((b) => <BoardCard key={b.id} b={b} scale={scale} onArchive={() => handleArchive(b)} />)}
+              </div>
+            </section>
           ))}
         </div>
       )}
+    </div>
+  );
+}
 
-      <p className="mt-6 text-xs admin-faint max-w-2xl leading-relaxed">
-        Readings is every number on the board; Metrics is how many of the {BOARD_METRICS.length} measurements
-        ({BOARD_METRICS.map((m) => m.label.toLowerCase()).join(", ")}) have at least one. Everything in this section is internal.
-      </p>
+function BoardCard({ b, scale, onArchive }: { b: BoardRow; scale: { len: number; wid: number }; onArchive: () => void }) {
+  const measured = new Set(b.measured ?? []);
+  const hasOutline = (b.outline?.w.length ?? 0) >= 2 || (b.outline?.wt.length ?? 0) >= 2;
+  const widest = Math.max(0, ...(b.outline?.wt.length ? b.outline.wt : b.outline?.w ?? []).map(([, w]) => w));
+  const facts = [
+    b.length_cm ? `${b.length_cm} cm long` : null,
+    widest ? `${widest} cm wide` : b.max_width_cm ? `${b.max_width_cm} cm wide` : null,
+    b.volume_l ? `${b.volume_l} l` : null,
+  ].filter(Boolean);
+  return (
+    <div className="group relative rounded-2xl overflow-hidden transition-shadow hover:shadow-lg"
+      style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+      <Link href={`/admin/product-dev/boards/${b.id}`} className="block">
+        <div className="h-32 px-4 flex items-center justify-center" style={{ backgroundColor: "var(--admin-bg)" }}>
+          {hasOutline ? (
+            <BoardOutlineThumb width={b.outline!.w} widthTop={b.outline!.wt} lengthCm={b.length_cm ?? b.last_station} origin={b.station_origin}
+              scaleCm={scale.len} maxWidthCm={scale.wid} tone={ORIGIN_META[b.origin]?.tone ?? "sky"} className="w-full h-full" />
+          ) : (
+            <span className="text-xs admin-faint">No widths yet, so no outline</span>
+          )}
+        </div>
+        <div className="p-4">
+          <p className="text-[15px] font-bold admin-heading leading-snug group-hover:text-[var(--admin-accent)] transition-colors">
+            <BoardName board={b} />
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5 mt-2">
+            <OriginChip origin={b.origin} />
+            <Tag>{disciplineLabel(b.category)}</Tag>
+          </div>
+          <div className="flex items-center gap-2 mt-3">
+            <span className="flex items-center gap-[3px]" aria-hidden>
+              {BOARD_METRICS.map((m) => (
+                <span key={m.key} title={`${m.label}${measured.has(m.key) ? "" : ": not measured"}`}
+                  className="w-2 h-2 rounded-full"
+                  style={measured.has(m.key) ? { backgroundColor: m.color } : { border: "1px solid var(--admin-border-strong)" }} />
+              ))}
+            </span>
+            <span className="text-xs admin-muted tabular-nums">{b.readings} reading{b.readings === 1 ? "" : "s"}</span>
+          </div>
+          {facts.length > 0 && <p className="text-xs admin-faint mt-1.5">{facts.join(" · ")}</p>}
+        </div>
+      </Link>
+      <button onClick={onArchive} title="Archive"
+        className="absolute top-2.5 right-2.5 w-7 h-7 rounded-lg inline-flex items-center justify-center admin-faint hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+        <Icon name="archive" className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 }

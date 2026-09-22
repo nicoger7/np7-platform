@@ -222,6 +222,8 @@ export type PdBoard = {
   name: string;
   brand: string | null;
   model: string | null;
+  /** The size as the brand names it: "85", "107 l" (migration 256). */
+  size?: string | null;
   year: number | null;
   category: BoardCategory;
   origin: BoardOrigin;
@@ -312,6 +314,64 @@ export type FiledNote = {
   sortedAt?: string;
   by?: "parser" | "model";
 };
+
+// ─── What a board is called ──────────────────────────────────────────────────
+
+/**
+ * The title on screen: year, brand, model, size, in that order of importance
+ * (Nico, 2026-09-23: "year is the first important criteria, then brand, then
+ * model, then size"). The free-typed `name` is only the last fallback.
+ *
+ * Boards entered before `size` existed carry model and size inside the typed
+ * name ("FMX 2026 Slalom 85"), so when those fields are empty they are read
+ * out of it, and flagged as read rather than stored so the page can say so.
+ */
+export type BoardTitle = {
+  year: number | null;
+  brand: string | null;
+  model: string | null;
+  size: string | null;
+  guessed: { model: boolean; size: boolean };
+  text: string;
+};
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export function boardTitle(b: Pick<PdBoard, "name" | "brand" | "model" | "year"> & { size?: string | null }): BoardTitle {
+  let model = b.model?.trim() || null;
+  let size = b.size?.trim() || null;
+  const guessed = { model: false, size: false };
+  if (!model || !size) {
+    let rest = ` ${b.name ?? ""} `;
+    if (b.year) rest = rest.replace(new RegExp(`\\s${b.year}\\s`), " ");
+    // "JP-Australia" is written "JP" in a name, so the first word counts too.
+    const brand = b.brand?.trim();
+    for (const w of brand ? [brand, brand.split(/[\s-]/)[0]] : []) {
+      if (w) rest = rest.replace(new RegExp(`\\s${escapeRe(w)}\\s`, "i"), " ");
+    }
+    rest = rest.trim().replace(/\s+/g, " ");
+    const m = rest.match(/^(.*?)(?:\s*\b(\d+(?:[.,]\d+)?\s*(?:l|L|cm)?))?$/);
+    const fromName = { model: m?.[1]?.trim() || null, size: m?.[2]?.trim() || null };
+    if (!model && fromName.model) { model = fromName.model; guessed.model = true; }
+    if (!size && fromName.size) { size = fromName.size; guessed.size = true; }
+  }
+  const text = [b.year, b.brand?.trim(), model, size].filter(Boolean).join(" ") || b.name;
+  return { year: b.year, brand: b.brand?.trim() || null, model, size, guessed, text };
+}
+
+const collator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+
+/** Newest year first, then brand, model and size, numbers compared as numbers. */
+export function compareBoards(
+  a: Parameters<typeof boardTitle>[0],
+  b: Parameters<typeof boardTitle>[0],
+): number {
+  const ta = boardTitle(a), tb = boardTitle(b);
+  return (tb.year ?? 0) - (ta.year ?? 0)
+    || collator.compare(ta.brand ?? "", tb.brand ?? "")
+    || collator.compare(ta.model ?? "", tb.model ?? "")
+    || collator.compare(ta.size ?? "", tb.size ?? "");
+}
 
 // ─── Units ───────────────────────────────────────────────────────────────────
 

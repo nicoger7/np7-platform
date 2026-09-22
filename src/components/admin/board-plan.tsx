@@ -105,7 +105,7 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
     return (
       <div className="py-16 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>
         <p className="text-sm admin-faint max-w-md mx-auto leading-relaxed">
-          Nothing to draw yet. The plan is built from the readings — add a width or rocker series on the
+          Nothing to draw yet. The plan is built from the readings: add a width or rocker series on the
           Measurements tab and the outline appears here.
         </p>
       </div>
@@ -279,7 +279,7 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels }: {
   if (!width.length && !widthTop.length) {
     return (
       <div className="py-12 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>
-        <p className="text-sm admin-faint">No width readings yet — the outline is drawn from them.</p>
+        <p className="text-sm admin-faint">No width readings yet. The outline is drawn from them.</p>
       </div>
     );
   }
@@ -377,13 +377,13 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels }: {
         [
           width.length ? `Bottom: ${width.length} readings, ${width[0].station} to ${width[width.length - 1].station} cm.` : "",
           widthTop.length ? `Top: ${widthTop.length} readings, ${widthTop[0].station} to ${widthTop[widthTop.length - 1].station} cm.` : "No top width readings yet: add a “Width (top)” column on the Measurements tab and the deck outline appears outside the bottom.",
-          "Each curve stops at its last reading — it does not guess a nose or a tail.",
+          "Each curve stops at its last reading: it does not guess a nose or a tail.",
         ].filter(Boolean).join(" "),
         wideTop && wrapAt
           ? `At ${wideTop.station} cm the top is ${round(wideTop.value / 10, 1)} cm and the bottom ${round(wrapAt.value / 10, 1)} cm: ${round((wideTop.value - wrapAt.value) / 20, 1)} cm of rail wrap per side.`
           : board.max_width_cm
             ? `Overall max width ${board.max_width_cm} cm (stated) vs ${wide ? round(wide.value / 10, 1) : "—"} cm widest bottom reading. The difference is the rail wrap.`
-            : "No overall max width on the board yet — add one on Overview, or measure the top width per station.",
+            : "No overall max width on the board yet. Add one on Overview, or measure the top width per station.",
       ]} />
     </div>
   );
@@ -477,7 +477,7 @@ function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points
 
       <Caption lines={[
         exag === 1
-          ? "True scale. At 1:1 a scoop-rocker line is almost a straight line — that is what it actually looks like."
+          ? "True scale. At 1:1 a scoop-rocker line is almost a straight line. That is what it actually looks like."
           : `Vertical scale exaggerated ×${exag} so the curve is readable. Horizontal is true scale; the two axes are NOT comparable in this view.`,
         `The curve runs from ${rocker[0].station} to ${rocker[rocker.length - 1].station} cm, through the readings only. Nothing outside them is drawn.`,
         r.scoop ? `Scoop ${round(r.scoop.value, 1)} mm at station ${r.scoop.station} (the nose end).` : "No scoop measured at the nose end.",
@@ -490,7 +490,7 @@ function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points
           ? `Solid = rocker on the centreline. Dashed = the off-centre line${rockerOffNote ? ` (${rockerOffNote})` : ""}; the gap between the two at a station is how far the bottom rises towards the rail there.`
           : "",
         thickness.length
-          ? `Thickness was read at ${thickness.map((p) => `${p.station}`).join(", ")} cm — shown as ticks, not as a deck line.`
+          ? `Thickness was read at ${thickness.map((p) => `${p.station}`).join(", ")} cm, shown as ticks, not as a deck line.`
           : "No thickness readings.",
       ].filter(Boolean)} />
     </div>
@@ -732,7 +732,7 @@ export function BoardReadout({ board, series, points }: { board: PdBoard; series
   const r = rockerReadout(rocker, board.station_origin, riseMarkerStation(points));
   const cross = zeroCrossing(vee);
 
-  const cells: { label: string; value: string; hint?: string }[] = [
+  const cells: { label: string; value: string; hint?: string; color?: string }[] = [
     { label: "Widest bottom", value: wide ? `${round(wide.value / 10, 1)} cm` : "—", hint: wide ? `at ${wide.station} cm` : undefined },
     wideTop
       ? { label: "Max width", value: `${round(wideTop.value / 10, 1)} cm`, hint: `top, measured at ${wideTop.station} cm${board.max_width_cm ? ` · stated ${board.max_width_cm}` : ""}` }
@@ -751,14 +751,27 @@ export function BoardReadout({ board, series, points }: { board: PdBoard; series
     { label: "V crossover", value: cross != null ? `${cross} cm` : "—", hint: vee.length ? "inverted → V" : "no V readings" },
   ];
 
+  // Each number in the colour of the series it comes from, same as the grid
+  // columns and the plan's curves.
+  const colour: Record<string, string> = {
+    "Widest bottom": BOARD_METRIC_BY_KEY.width.color,
+    "Max width": BOARD_METRIC_BY_KEY.width_top.color,
+    "Scoop": BOARD_METRIC_BY_KEY.rocker.color,
+    "Tail kick": BOARD_METRIC_BY_KEY.rocker.color,
+    "Rocker starts": BOARD_METRIC_BY_KEY.rocker.color,
+    "V crossover": BOARD_METRIC_BY_KEY.v.color,
+  };
+
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-px rounded-xl overflow-hidden mb-5"
-      style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-border)" }}>
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-5">
       {cells.map((c) => (
-        <div key={c.label} className="px-3 py-2.5" style={{ backgroundColor: "var(--admin-surface)" }}>
-          <div className="text-[10px] font-bold tracking-[0.08em] admin-faint uppercase">{c.label}</div>
-          <div className="text-base font-bold admin-heading leading-tight">{c.value}</div>
-          {c.hint && <div className="text-[10px] admin-faint">{c.hint}</div>}
+        <div key={c.label} className="px-3 py-2.5 rounded-xl" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+          <div className="flex items-center gap-1.5 text-[11px] font-medium admin-faint">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: colour[c.label] ?? "var(--admin-border-strong)" }} />
+            {c.label}
+          </div>
+          <div className={`text-base font-bold leading-tight mt-0.5 ${c.value === "—" ? "admin-faint" : "admin-heading"}`}>{c.value === "—" ? "-" : c.value}</div>
+          {c.hint && <div className="text-[10px] admin-faint truncate" title={c.hint}>{c.hint}</div>}
         </div>
       ))}
     </div>

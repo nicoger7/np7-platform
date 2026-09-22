@@ -6,6 +6,10 @@ import {
   PD_METHODS, fmtDuration, fmtRange,
   type PdProcess, type PdProcessStep, type PdPhoto,
 } from "@/lib/product-dev";
+import {
+  AddInline, Card, Chip, Empty, Icon, METHOD_META, SaveNote, Tag,
+  btnPrimary, btnPrimaryStyle, btnSecondary, btnSecondaryStyle, btnSmall, toneVars, type Tone,
+} from "@/components/admin/pd-ui";
 
 /**
  * The building process — "step by step, with photos, very organized".
@@ -53,9 +57,8 @@ export function BuildProcess({ owner, processes, steps, onChanged, readOnly = fa
   const [error, setError] = useState("");
   const active = ordered.find((p) => p.id === activeId) ?? ordered[0] ?? null;
 
-  async function addStage() {
-    const name = prompt("Stage name (e.g. “Stage 1 — press the blade”)");
-    if (!name) return;
+  async function addStage(name: string) {
+    if (!name) return false;
     const res = await fetch("/api/admin/product-dev/processes", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -63,8 +66,9 @@ export function BuildProcess({ owner, processes, steps, onChanged, readOnly = fa
         name, method: "prepreg_press", stage_order: ordered.length + 1,
       }),
     });
-    if (res.ok) { const d = await res.json(); setActiveId(d.id); onChanged(); }
-    else setError((await res.json().catch(() => ({}))).error ?? "Couldn't add that stage.");
+    if (res.ok) { const d = await res.json(); setActiveId(d.id); onChanged(); return true; }
+    setError((await res.json().catch(() => ({}))).error ?? "Couldn't add that stage.");
+    return false;
   }
 
   async function removeStage(p: PdProcess) {
@@ -76,54 +80,51 @@ export function BuildProcess({ owner, processes, steps, onChanged, readOnly = fa
   if (!ordered.length) {
     return (
       <div>
-        <div className="py-16 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>
-          <p className="text-sm admin-faint max-w-lg mx-auto leading-relaxed mb-4">
-            No building process recorded yet. A stage is one run through a machine or a bench —
-            press, oven, bonding, finishing — and the steps inside it are what a person actually does,
-            in order, with the photo that shows it.
-          </p>
-          {!readOnly && (
-            <button onClick={addStage} className="px-4 py-2 text-sm font-bold rounded-lg"
-              style={{ backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }}>
-              Add the first stage
-            </button>
-          )}
-        </div>
-        {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
+        <Empty icon="steps" tone="teal" title="No building process yet"
+          action={!readOnly && <AddInline label="Add the first stage" placeholder="e.g. Press the blade" onAdd={addStage} />}>
+          A stage is one run through a machine or a bench (press, oven, bonding, finishing). The steps inside it are what a person does, in order, with the photo that shows it.
+        </Empty>
+        {error && <p className="mt-3 text-xs text-red-500">{error}</p>}
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6">
-      <aside>
-        <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-          {ordered.map((p, i) => {
-            const count = steps.filter((s) => s.process_id === p.id).length;
-            const on = p.id === active?.id;
-            return (
-              <button key={p.id} onClick={() => setActiveId(p.id)}
-                className="w-full text-left px-4 py-3 transition-colors"
-                style={{
-                  borderBottom: i < ordered.length - 1 ? "1px solid var(--admin-border)" : undefined,
-                  backgroundColor: on ? "var(--admin-surface)" : "transparent",
-                  borderLeft: on ? "3px solid var(--admin-accent)" : "3px solid transparent",
-                }}>
-                <span className="block text-[10px] font-bold tracking-[0.08em] admin-faint uppercase">Stage {p.stage_order}</span>
-                <span className="block text-sm font-semibold admin-heading truncate">{p.name}</span>
-                <span className="block text-[11px] admin-faint">
-                  {p.method.replace(/_/g, " ")} · {count} step{count === 1 ? "" : "s"}
+    <div className="grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] gap-5">
+      <aside className="space-y-2">
+        {ordered.map((p) => {
+          const count = steps.filter((s) => s.process_id === p.id).length;
+          const critical = steps.filter((s) => s.process_id === p.id && s.critical).length;
+          const on = p.id === active?.id;
+          const m = METHOD_META[p.method] ?? { label: p.method, tone: "slate" as const };
+          return (
+            <button key={p.id} onClick={() => setActiveId(p.id)}
+              className="pd-tone w-full text-left rounded-xl p-3 flex gap-3 transition-colors hover:bg-[var(--admin-surface-hover)]"
+              style={{
+                ...toneVars(m.tone),
+                backgroundColor: "var(--admin-surface)",
+                border: on ? "1.5px solid var(--tone)" : "1px solid var(--admin-border)",
+                boxShadow: on ? "0 0 0 3px var(--tone-bg)" : undefined,
+              }}>
+              <span className="w-7 h-7 shrink-0 rounded-full inline-flex items-center justify-center text-xs font-bold"
+                style={{ backgroundColor: on ? "var(--tone)" : "var(--tone-bg)", color: on ? "var(--admin-surface)" : "var(--tone)" }}>
+                {p.stage_order}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold admin-heading leading-snug">{p.name}</span>
+                <span className="flex flex-wrap items-center gap-1 mt-1">
+                  <Chip tone={m.tone}>{m.label}</Chip>
+                  <span className="text-[11px] admin-faint">{count} step{count === 1 ? "" : "s"}</span>
+                  {critical > 0 && <Chip tone="red" icon="alert">{critical}</Chip>}
                 </span>
-              </button>
-            );
-          })}
-        </div>
+              </span>
+            </button>
+          );
+        })}
         {!readOnly && (
-          <button onClick={addStage} className="mt-2 w-full px-3 py-2 text-xs font-semibold admin-muted rounded-lg"
-            style={{ border: "1px solid var(--admin-border)" }}>
-            + Stage
-          </button>
+          <div className="pt-1"><AddInline label="Stage" placeholder="e.g. Finishing" onAdd={addStage} /></div>
         )}
+        {error && <p className="text-xs text-red-500">{error}</p>}
       </aside>
 
       {active && (
@@ -131,7 +132,6 @@ export function BuildProcess({ owner, processes, steps, onChanged, readOnly = fa
           steps={steps.filter((s) => s.process_id === active.id).sort((a, b) => a.step_no - b.step_no)}
           onChanged={onChanged} onRemove={() => removeStage(active)} readOnly={readOnly} />
       )}
-      {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );
 }
@@ -146,7 +146,10 @@ function StageEditor({ process, steps, onChanged, onRemove, readOnly }: {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
-  const [open, setOpen] = useState<number | null>(steps.length ? 0 : null);
+  // Everything starts folded: the page is read far more often than it is
+  // edited, and one open form used to push the rest of the stage off screen.
+  const [open, setOpen] = useState<number | null>(null);
+  const [editHeader, setEditHeader] = useState(false);
 
   function patchStep(i: number, patch: Partial<StepDraft>) {
     setDraft((d) => d.map((s, j) => (j === i ? { ...s, ...patch } : s)));
@@ -193,7 +196,7 @@ function StageEditor({ process, steps, onChanged, onRemove, readOnly }: {
       body: JSON.stringify({ steps: draft.map((s, i) => ({ ...s, step_no: i + 1 })) }),
     });
     setSaving(false);
-    if (!res.ok) { setMsg((await res.json().catch(() => ({}))).error ?? "Save failed — your changes are NOT stored."); return; }
+    if (!res.ok) { setMsg((await res.json().catch(() => ({}))).error ?? "Save failed. Your changes are NOT stored."); return; }
     setDirty(false); setMsg("Saved."); onChanged();
     setTimeout(() => setMsg(""), 2000);
   }
@@ -207,61 +210,73 @@ function StageEditor({ process, steps, onChanged, onRemove, readOnly }: {
     else grouped.push({ section: s.section || null, from: i, steps: [s] });
   });
 
-  return (
-    <div>
-      <div className="mb-5">
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_170px_90px] gap-3 mb-3">
-          <div>
-            <label className={labelClass}>Stage</label>
-            <input className={inputClass} value={header.name} disabled={readOnly}
-              onChange={(e) => { setHeader({ ...header, name: e.target.value }); setDirty(true); }} />
-          </div>
-          <div>
-            <label className={labelClass}>Method</label>
-            <select className={inputClass} value={header.method} disabled={readOnly}
-              onChange={(e) => { setHeader({ ...header, method: e.target.value as PdProcess["method"] }); setDirty(true); }}>
-              {PD_METHODS.map((m) => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>Order</label>
-            <input type="number" className={inputClass} value={header.stage_order} disabled={readOnly}
-              onChange={(e) => { setHeader({ ...header, stage_order: Number(e.target.value) }); setDirty(true); }} />
-          </div>
-        </div>
-        <div>
-          <label className={labelClass}>What this stage is</label>
-          <textarea className={`${inputClass} min-h-[60px]`} value={header.summary} disabled={readOnly}
-            placeholder="One or two sentences — the thing somebody needs to know before they start."
-            onChange={(e) => { setHeader({ ...header, summary: e.target.value }); setDirty(true); }} />
-        </div>
-      </div>
+  const m = METHOD_META[header.method] ?? { label: header.method, tone: "slate" as const };
 
-      <div className="flex items-center gap-3 mb-3">
-        <h3 className="text-sm font-bold admin-heading">
-          {draft.length} step{draft.length === 1 ? "" : "s"}
-        </h3>
-        {!readOnly && (
-          <button onClick={() => addStep()} className="px-3 py-1.5 text-xs font-semibold admin-muted rounded-lg"
-            style={{ border: "1px solid var(--admin-border)" }}>+ Step</button>
+  return (
+    <div className="min-w-0 space-y-4">
+      <Card icon="steps" tone={m.tone}
+        title={<span className="inline-flex items-center gap-2">Stage {header.stage_order}: {header.name}</span>}
+        subtitle={`${draft.length} step${draft.length === 1 ? "" : "s"}`}
+        actions={
+          <>
+            <SaveNote msg={msg} />
+            {!readOnly && !editHeader && (
+              <button onClick={() => setEditHeader(true)} className={btnSmall}><Icon name="edit" className="w-3.5 h-3.5" />Edit stage</button>
+            )}
+            {!readOnly && (dirty || saving) && (
+              <button onClick={save} disabled={saving} className={btnPrimary} style={btnPrimaryStyle}>
+                {saving ? "Saving…" : "Save stage"}
+              </button>
+            )}
+          </>
+        }>
+        {editHeader && !readOnly ? (
+          <div>
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_190px_90px] gap-3 mb-3">
+              <div>
+                <label className={labelClass}>Stage</label>
+                <input className={inputClass} value={header.name}
+                  onChange={(e) => { setHeader({ ...header, name: e.target.value }); setDirty(true); }} />
+              </div>
+              <div>
+                <label className={labelClass}>Method</label>
+                <select className={inputClass} value={header.method}
+                  onChange={(e) => { setHeader({ ...header, method: e.target.value as PdProcess["method"] }); setDirty(true); }}>
+                  {PD_METHODS.map((k) => <option key={k} value={k}>{METHOD_META[k]?.label ?? k.replace(/_/g, " ")}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Order</label>
+                <input type="number" className={inputClass} value={header.stage_order}
+                  onChange={(e) => { setHeader({ ...header, stage_order: Number(e.target.value) }); setDirty(true); }} />
+              </div>
+            </div>
+            <label className={labelClass}>What this stage is</label>
+            <textarea className={`${inputClass} min-h-[60px]`} value={header.summary}
+              placeholder="One or two sentences: the thing somebody needs to know before they start."
+              onChange={(e) => { setHeader({ ...header, summary: e.target.value }); setDirty(true); }} />
+            <div className="flex items-center justify-between mt-3">
+              <button onClick={() => setEditHeader(false)} className={btnSecondary} style={btnSecondaryStyle}>Done</button>
+              <button onClick={onRemove} className="inline-flex items-center gap-1 text-xs text-red-500 hover:underline">
+                <Icon name="archive" className="w-3.5 h-3.5" />Archive this stage
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-start gap-3">
+            <Chip tone={m.tone}>{m.label}</Chip>
+            <p className="text-sm admin-muted leading-relaxed flex-1 min-w-[200px]">
+              {header.summary || <span className="admin-faint">No summary yet.</span>}
+            </p>
+          </div>
         )}
-        <div className="ml-auto flex items-center gap-3">
-          {msg && <span className={`text-xs ${msg === "Saved." ? "text-green-400" : "text-red-400"}`}>{msg}</span>}
-          {!readOnly && (
-            <button onClick={save} disabled={!dirty || saving}
-              className="px-4 py-2 text-xs font-bold rounded-lg disabled:opacity-40"
-              style={{ backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }}>
-              {saving ? "Saving…" : dirty ? "Save stage" : "Saved"}
-            </button>
-          )}
-        </div>
-      </div>
+      </Card>
 
       {grouped.map((g, gi) => (
-        <div key={gi} className="mb-4">
+        <div key={gi}>
           {!readOnly ? (
             <input
-              className="w-full px-0 py-1 mb-1.5 bg-transparent text-[11px] font-bold tracking-[0.12em] uppercase admin-faint focus:outline-none focus:text-[var(--admin-accent)]"
+              className="w-full px-1 py-1 mb-1 bg-transparent text-xs font-bold admin-muted focus:outline-none focus:text-[var(--admin-accent)] placeholder:font-medium placeholder:text-[var(--admin-text-faint)]"
               value={g.section ?? ""} placeholder="+ sub-section heading (optional)"
               onChange={(e) => {
                 // Renaming a heading renames it for every step under it.
@@ -270,14 +285,14 @@ function StageEditor({ process, steps, onChanged, onRemove, readOnly }: {
                 setDirty(true);
               }} />
           ) : g.section ? (
-            <h4 className="text-[11px] font-bold tracking-[0.12em] uppercase admin-faint mb-1.5">{g.section}</h4>
+            <h4 className="text-xs font-bold admin-muted mb-1 px-1">{g.section}</h4>
           ) : null}
 
-          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+          <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
             {g.steps.map((s, k) => {
               const i = g.from + k;
               return (
-                <StepRow key={i} step={s} index={i} open={open === i} readOnly={readOnly}
+                <StepRow key={i} step={s} index={i} open={open === i} readOnly={readOnly} tone={m.tone}
                   onToggle={() => setOpen(open === i ? null : i)}
                   onChange={(patch) => patchStep(i, patch)}
                   onMove={(dir) => move(i, dir)}
@@ -291,7 +306,9 @@ function StageEditor({ process, steps, onChanged, onRemove, readOnly }: {
       ))}
 
       {!readOnly && (
-        <button onClick={onRemove} className="mt-4 text-xs text-red-400 hover:underline">Archive this stage</button>
+        <button onClick={() => addStep()} className={btnSecondary} style={btnSecondaryStyle}>
+          <Icon name="plus" className="w-4 h-4" strokeWidth={2.2} />Add a step
+        </button>
       )}
     </div>
   );
@@ -299,27 +316,27 @@ function StageEditor({ process, steps, onChanged, onRemove, readOnly }: {
 
 // ─── One step ────────────────────────────────────────────────────────────────
 
-function StepRow({ step, index, open, onToggle, onChange, onMove, onRemove, onAddAfter, first, last, readOnly }: {
+function StepRow({ step, index, open, onToggle, onChange, onMove, onRemove, onAddAfter, first, last, readOnly, tone }: {
   step: StepDraft; index: number; open: boolean; onToggle: () => void;
   onChange: (patch: Partial<StepDraft>) => void;
   onMove: (dir: -1 | 1) => void; onRemove: () => void; onAddAfter: () => void;
-  first: boolean; last: boolean; readOnly: boolean;
+  first: boolean; last: boolean; readOnly: boolean; tone: Tone;
 }) {
-  const params = [
-    fmtRange(step.pressure_t_min, step.pressure_t_max, "t"),
-    fmtRange(step.temp_c_min, step.temp_c_max, "°C"),
-    fmtDuration(step.duration_min),
-  ].filter(Boolean) as string[];
+  const pressure = fmtRange(step.pressure_t_min, step.pressure_t_max, "t");
+  const temp = fmtRange(step.temp_c_min, step.temp_c_max, "°C");
+  const time = fmtDuration(step.duration_min);
+  const tolerance = step.tolerance_target != null
+    ? `${step.tolerance_target}${step.tolerance_unit ? ` ${step.tolerance_unit}` : ""}`
+    : step.tolerance_note ? "in words" : null;
 
   return (
-    <div style={{ borderBottom: "1px solid var(--admin-border)" }}>
-      <div className="flex items-start gap-3 px-4 py-3 cursor-pointer group" onClick={onToggle}>
-        <span className="mt-0.5 w-6 h-6 shrink-0 rounded-full flex items-center justify-center text-[11px] font-bold"
-          style={{
-            backgroundColor: step.critical ? "#ef4444" : "var(--admin-surface)",
-            color: step.critical ? "#fff" : "var(--admin-text-muted)",
-            border: "1px solid var(--admin-border)",
-          }}>
+    <div style={{ borderTop: index > 0 ? "1px solid var(--admin-border)" : undefined }}>
+      <div className="flex items-start gap-3 px-4 py-3 cursor-pointer group hover:bg-[var(--admin-surface-hover)] transition-colors" onClick={onToggle}>
+        <span className="pd-tone mt-0.5 w-7 h-7 shrink-0 rounded-full inline-flex items-center justify-center text-xs font-bold"
+          style={step.critical
+            ? { backgroundColor: "#dc2626", color: "#fff" }
+            : { ...toneVars(tone), backgroundColor: "var(--tone-bg)", color: "var(--tone)" }}
+          title={step.critical ? "Critical: getting this wrong scraps the part" : undefined}>
           {index + 1}
         </span>
         {step.hero_photo && (
@@ -327,25 +344,35 @@ function StepRow({ step, index, open, onToggle, onChange, onMove, onRemove, onAd
             className="w-14 h-14 rounded-lg object-cover shrink-0" />
         )}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold admin-heading truncate">{step.title || <span className="admin-faint">Untitled step</span>}</p>
-          <p className="text-[11px] admin-faint truncate">
-            {params.length ? params.join(" · ") : step.equipment || "—"}
-            {step.photos.length ? ` · ${step.photos.length} photo${step.photos.length === 1 ? "" : "s"}` : ""}
-            {step.tolerance_note || step.tolerance_target != null ? " · tolerance" : ""}
+          <p className="text-sm font-semibold admin-heading">
+            {step.title || <span className="admin-faint">Untitled step</span>}
           </p>
+          {!open && step.body && <p className="text-xs admin-muted mt-0.5 line-clamp-1">{step.body}</p>}
+          {(step.critical || pressure || temp || time || step.equipment || tolerance || step.photos.length > 0) && (
+            <div className="flex flex-wrap items-center gap-1 mt-1.5">
+              {step.critical && <Chip tone="red" icon="alert">Critical</Chip>}
+              {pressure && <Chip tone="violet" icon="press">{pressure}</Chip>}
+              {temp && <Chip tone="orange" icon="flame">{temp}</Chip>}
+              {time && <Chip tone="blue" icon="clock">{time}</Chip>}
+              {tolerance && <Chip tone="amber" title={step.tolerance_note ?? undefined}>tolerance {tolerance}</Chip>}
+              {step.equipment && <Tag title={step.equipment}><span className="max-w-[220px] truncate">{step.equipment}</span></Tag>}
+              {step.photos.length > 0 && <Tag>{step.photos.length} photo{step.photos.length === 1 ? "" : "s"}</Tag>}
+            </div>
+          )}
         </div>
         {!readOnly && (
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => onMove(-1)} disabled={first} title="Move up" className="text-xs admin-faint hover:admin-heading disabled:opacity-20 px-1">↑</button>
-            <button onClick={() => onMove(1)} disabled={last} title="Move down" className="text-xs admin-faint hover:admin-heading disabled:opacity-20 px-1">↓</button>
-            <button onClick={onAddAfter} title="Add a step after this one" className="text-xs admin-faint hover:text-[var(--admin-accent)] px-1">+</button>
-            <button onClick={onRemove} title="Delete" className="text-xs admin-faint hover:text-red-400 px-1">✕</button>
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => onMove(-1)} disabled={first} title="Move up" className="w-6 h-6 inline-flex items-center justify-center rounded admin-faint hover:admin-heading disabled:opacity-20"><Icon name="chevron" className="w-3.5 h-3.5 -rotate-90" /></button>
+            <button onClick={() => onMove(1)} disabled={last} title="Move down" className="w-6 h-6 inline-flex items-center justify-center rounded admin-faint hover:admin-heading disabled:opacity-20"><Icon name="chevron" className="w-3.5 h-3.5 rotate-90" /></button>
+            <button onClick={onAddAfter} title="Add a step after this one" className="w-6 h-6 inline-flex items-center justify-center rounded admin-faint hover:text-[var(--admin-accent)]"><Icon name="plus" className="w-3.5 h-3.5" /></button>
+            <button onClick={onRemove} title="Delete" className="w-6 h-6 inline-flex items-center justify-center rounded admin-faint hover:text-red-500"><Icon name="x" className="w-3.5 h-3.5" /></button>
           </div>
         )}
+        <Icon name="chevron" className={`w-4 h-4 mt-1.5 admin-faint shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
       </div>
 
       {open && (
-        <div className="px-4 pb-4" style={{ backgroundColor: "var(--admin-surface)" }}>
+        <div className="px-4 pt-3 pb-4" style={{ backgroundColor: "var(--admin-bg)", borderTop: "1px solid var(--admin-border)" }}>
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-3 mb-3">
             <div>
               <label className={labelClass}>What to do</label>
@@ -396,7 +423,7 @@ function StepRow({ step, index, open, onToggle, onChange, onMove, onRemove, onAd
           <label className="flex items-center gap-2 text-xs admin-muted mb-3 cursor-pointer">
             <input type="checkbox" checked={step.critical} disabled={readOnly}
               onChange={(e) => onChange({ critical: e.target.checked })} />
-            Critical — getting this wrong scraps the part
+            Critical: getting this wrong scraps the part
           </label>
 
           <StepPhotos step={step} readOnly={readOnly} onChange={onChange} />

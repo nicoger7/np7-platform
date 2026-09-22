@@ -89,6 +89,20 @@ html {
   background-color: var(--admin-active); color: var(--admin-text-muted);
 }
 
+/* Colour tones (Product Dev first): one hue per meaning. A component sets
+   --tone-l / --tone-d inline (see src/components/admin/pd-ui.tsx) and reads
+   var(--tone), var(--tone-bg) and var(--tone-line), which follow the admin theme. */
+.pd-tone {
+  --tone: var(--tone-l);
+  --tone-bg: color-mix(in srgb, var(--tone-l) 10%, transparent);
+  --tone-line: color-mix(in srgb, var(--tone-l) 30%, transparent);
+}
+[data-admin-theme="dark"] .pd-tone {
+  --tone: var(--tone-d);
+  --tone-bg: color-mix(in srgb, var(--tone-d) 15%, transparent);
+  --tone-line: color-mix(in srgb, var(--tone-d) 32%, transparent);
+}
+
 /* Dense data tables: clip + round on desktop; on mobile, let the grid rows keep
    their column widths and scroll the card sideways instead of breaking the page.
    Only grid rows (inline grid-template-columns) get the min-width, so non-table

@@ -1,8 +1,7 @@
 "use client";
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { PlyDiagram, PlyFins, PlyLegend, plyTotals } from "@/components/admin/ply-diagram";
 import { LayupBuilder } from "@/components/admin/layup-builder";
 import { BuildProcess } from "@/components/admin/build-process";
@@ -12,6 +11,13 @@ import {
   type PdConstruction, type PdKind, type PdLayup, type PdMaterial, type PdMold,
   type PdPly, type PdProcess, type PdProcessStep, type PdProject, type PdSize, type PdSource,
 } from "@/lib/product-dev";
+import {
+  AddInline, Card, Chip, ChipSelect, Empty, Fact, Icon, InfoTip, KIND_META, KindChip, METHOD_META,
+  MOLD_KIND_META, MOLD_STATUS_META, PageHeader, SaveNote, STATUS_META, StatusTrack, Tabs, Tag,
+  btnPrimary, btnPrimaryStyle, btnSecondary, btnSecondaryStyle, btnSmall, inputCls, labelCls, toneVars,
+  type TabDef, type Tone,
+} from "@/components/admin/pd-ui";
+import { FinThumb, KindGlyph } from "@/components/admin/pd-thumbs";
 
 type Bundle = PdProject & {
   constructions: PdConstruction[];
@@ -25,19 +31,33 @@ type Bundle = PdProject & {
   sizes?: PdSize[];
 };
 
-const TABS = [
-  { key: "overview", label: "Overview" },
-  { key: "tooling", label: "Tooling" },
-  { key: "layups", label: "Build sheets" },
-  { key: "building", label: "Building" },
-] as const;
+type TabKey = "overview" | "tooling" | "layups" | "building";
 
-const inputClass = "w-full px-3 py-2 admin-input border rounded-lg text-sm focus:outline-none focus:border-[var(--admin-accent)] focus:ring-1 focus:ring-[var(--admin-accent)] transition-colors";
-const labelClass = "block text-xs font-medium admin-muted mb-1";
-const PLY_GRID = "60px minmax(120px,1.4fr) 92px 60px 76px minmax(80px,1fr) 28px";
+const inputClass = inputCls;
+const labelClass = labelCls;
+const PLY_GRID = "56px minmax(110px,1.4fr) 84px 52px 64px minmax(60px,1fr) 24px";
+
+/** Constructions have no colour of their own, so each gets one by position,
+ *  from hues no section on this page uses. Glass stays the same colour on
+ *  every tab. */
+const CONSTRUCTION_TONES: Tone[] = ["indigo", "pink", "lime", "orange", "blue", "red"];
+const constructionTone = (bundle: Pick<Bundle, "constructions">, id: string | null | undefined): Tone => {
+  const i = bundle.constructions.findIndex((c) => c.id === id);
+  return i < 0 ? "slate" : CONSTRUCTION_TONES[i % CONSTRUCTION_TONES.length];
+};
+
+/** The sheet a project is drawn from: the quoting reference, else the first. */
+function referenceSheet(b: Bundle): PdLayup | null {
+  return b.layups.find((l) => l.is_reference) ?? b.layups[0] ?? null;
+}
+function finPlies(b: Pick<Bundle, "plies" | "materials">, layupId: string) {
+  const colour = new Map(b.materials.map((m) => [m.id, m.diagram_color]));
+  return b.plies.filter((p) => p.layup_id === layupId).sort((a, c) => a.ply_index - c.ply_index)
+    .map((p) => ({ l: Number(p.length_cm) || 0, c: colour.get(p.material_id) ?? null }));
+}
 
 /**
- * Numbers or picture — and it remembers which.
+ * Numbers or picture, and it remembers which.
  *
  * The layup sheets have always been drawn as fin outlines, and that view answers
  * a different question from the table: not "what is ply 9" but "what shape is
@@ -61,12 +81,12 @@ function useSheetView(): [SheetView, (v: SheetView) => void] {
 
 function ViewToggle({ view, onChange }: { view: SheetView; onChange: (v: SheetView) => void }) {
   return (
-    <div className="inline-flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
+    <div className="inline-flex p-0.5 rounded-lg" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-bg)" }}>
       {(["numbers", "graphic"] as const).map((v) => (
-        <button key={v} onClick={() => onChange(v)}
-          aria-pressed={view === v}
-          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${view === v ? "" : "admin-muted hover:admin-heading"}`}
-          style={view === v ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" } : undefined}>
+        <button key={v} onClick={() => onChange(v)} aria-pressed={view === v}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${view === v ? "admin-heading" : "admin-muted"}`}
+          style={view === v ? { backgroundColor: "var(--admin-surface)", boxShadow: "0 1px 2px rgba(0,0,0,0.08)" } : undefined}>
+          <Icon name={v === "numbers" ? "steps" : "fin"} className="w-3.5 h-3.5" />
           {v === "numbers" ? "Numbers" : "Graphic"}
         </button>
       ))}
@@ -77,12 +97,14 @@ function ViewToggle({ view, onChange }: { view: SheetView; onChange: (v: SheetVi
 export default function ProductDevProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const pathname = usePathname();
   const sp = useSearchParams();
-  const tab = (sp.get("tab") ?? "overview") as (typeof TABS)[number]["key"];
+  const tab = (sp.get("tab") ?? "overview") as TabKey;
 
   const [d, setD] = useState<Bundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [statusMsg, setStatusMsg] = useState("");
   // True while a build sheet holds unsaved edits. A ref, not state: navigation
   // guards read it at click time and none of this should re-render the tree.
   const sheetDirtyRef = useRef(false);
@@ -95,45 +117,61 @@ export default function ProductDevProjectPage({ params }: { params: Promise<{ id
   }
   useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function setTab(next: string) {
+  function go(next: TabKey, extra?: Record<string, string>) {
     if (sheetDirtyRef.current && !confirm("You have unsaved build-sheet changes. Leave and lose them?")) return;
     const q = new URLSearchParams(Array.from(sp.entries()));
     q.set("tab", next);
-    router.replace(`/admin/product-dev/projects/${id}?${q.toString()}`, { scroll: false });
+    for (const [k, v] of Object.entries(extra ?? {})) q.set(k, v);
+    router.replace(`${pathname}?${q.toString()}`, { scroll: false });
+  }
+
+  async function setStatus(status: PdProject["status"]) {
+    if (!d) return;
+    setD({ ...d, status });
+    const res = await fetch(`/api/admin/product-dev/projects/${d.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+    });
+    if (res.ok) { setStatusMsg("Saved"); load(); setTimeout(() => setStatusMsg(""), 1500); }
+    else { setStatusMsg((await res.json().catch(() => ({}))).error || "Status not saved"); load(); }
   }
 
   if (loading) return <div className="py-12 text-center text-sm admin-faint">Loading…</div>;
-  if (error || !d) return <div className="py-12 text-center text-sm text-red-400">{error || "Not found."}</div>;
+  if (error || !d) return <div className="py-12 text-center text-sm text-red-500">{error || "Not found."}</div>;
+
+  const ref = referenceSheet(d);
+  const kind = KIND_META[d.kind] ?? KIND_META.accessory;
+  const tabs: TabDef<TabKey>[] = [
+    { key: "overview", label: "Overview", icon: "overview", tone: "slate" },
+    { key: "tooling", label: "Tooling", icon: "mold", tone: "amber", count: d.molds.length },
+    { key: "layups", label: "Build sheets", icon: "layers", tone: "violet", count: d.layups.length },
+    { key: "building", label: "Building", icon: "steps", tone: "teal", count: d.processes.length },
+  ];
 
   return (
     <div>
-      <div className="mb-5">
-        <Link href="/admin/product-dev/projects" className="text-xs admin-faint hover:text-[var(--admin-accent)] transition-colors">
-          ← R&amp;D projects
-        </Link>
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between mt-2">
-          <div>
-            <h1 className="text-2xl font-bold admin-heading">{d.name}</h1>
-            <p className="text-sm admin-muted">
-              {d.kind} · {d.layups.length} build sheet{d.layups.length !== 1 ? "s" : ""} · {d.molds.length} mold{d.molds.length !== 1 ? "s" : ""}
-            </p>
+      <PageHeader
+        back={{ href: "/admin/product-dev/projects", label: "Projects" }}
+        thumb={
+          <div className="pd-tone w-[72px] h-[72px] rounded-2xl flex items-center justify-center" style={{ ...toneVars(kind.tone), backgroundColor: "var(--tone-bg)" }}>
+            {d.kind === "fin" && ref && finPlies(d, ref.id).length
+              ? <FinThumb plies={finPlies(d, ref.id)} className="h-16" />
+              : <KindGlyph kind={d.kind} className="w-9 h-9" />}
           </div>
-        </div>
-      </div>
+        }
+        title={d.name}
+        chips={
+          <>
+            <KindChip kind={d.kind} />
+            <ChipSelect value={d.status} options={PD_STATUSES} meta={STATUS_META} onChange={setStatus} title="Where this project stands" />
+            <StatusTrack status={d.status} className="ml-1" />
+            <SaveNote msg={statusMsg} />
+          </>
+        }
+      />
 
-      <div className="flex gap-1 mb-6 overflow-x-auto" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-        {TABS.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-semibold whitespace-nowrap transition-colors ${
-              tab === t.key ? "admin-heading" : "admin-faint hover:admin-muted"
-            }`}
-            style={tab === t.key ? { borderBottom: "2px solid var(--admin-accent)", marginBottom: "-1px" } : undefined}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={tabs} active={tab} onChange={(k) => go(k)} />
 
-      {tab === "overview" && <OverviewTab project={d} onSaved={load} />}
+      {tab === "overview" && <OverviewTab bundle={d} onSaved={load} go={go} />}
       {tab === "tooling" && <ToolingTab bundle={d} onChanged={load} />}
       {tab === "layups" && <LayupsTab bundle={d} onChanged={load} dirtyRef={sheetDirtyRef} />}
       {tab === "building" && (
@@ -144,8 +182,138 @@ export default function ProductDevProjectPage({ params }: { params: Promise<{ id
 }
 
 // ─── Overview ────────────────────────────────────────────────────────────────
+// Read first: what this is, what exists for it, where it stands. The form is
+// one click away instead of being the page.
 
-function OverviewTab({ project, onSaved }: { project: PdProject; onSaved: () => void }) {
+function OverviewTab({ bundle, onSaved, go }: { bundle: Bundle; onSaved: () => void; go: (t: TabKey, extra?: Record<string, string>) => void }) {
+  const [editing, setEditing] = useState(false);
+  const sizes = bundle.sizes ?? [];
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-5">
+      <div className="space-y-5 min-w-0">
+        {editing ? (
+          <AboutForm project={bundle} onDone={(saved) => { setEditing(false); if (saved) onSaved(); }} />
+        ) : (
+          <Card title="About" icon="note" tone="slate"
+            actions={<button onClick={() => setEditing(true)} className={btnSmall}><Icon name="edit" className="w-3.5 h-3.5" />Edit</button>}>
+            {bundle.summary
+              ? <p className="text-sm admin-heading leading-relaxed whitespace-pre-wrap">{bundle.summary}</p>
+              : <p className="text-sm admin-faint">No summary yet. One or two sentences on what this is and where it stands.</p>}
+            {bundle.notes && (
+              <div className="mt-4 p-3 rounded-xl text-xs admin-muted leading-relaxed whitespace-pre-wrap" style={{ backgroundColor: "var(--admin-bg)" }}>
+                <span className="block text-[11px] font-semibold admin-faint mb-1">Internal notes</span>
+                {bundle.notes}
+              </div>
+            )}
+          </Card>
+        )}
+
+        <Card title="Build sheets" icon="layers" tone="violet" subtitle="One per construction and mold"
+          actions={<button onClick={() => go("layups")} className={btnSmall}>Open<Icon name="chevron" className="w-3.5 h-3.5" /></button>}>
+          {bundle.layups.length === 0 ? (
+            <p className="text-sm admin-faint">No build sheets yet. Add a construction and a blade mold on Tooling first.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+              {bundle.layups.map((l) => {
+                const mold = bundle.molds.find((m) => m.id === l.mold_id);
+                const con = bundle.constructions.find((c) => c.id === l.construction_id);
+                const plies = finPlies(bundle, l.id);
+                return (
+                  <button key={l.id} onClick={() => go("layups", { layup: l.id })}
+                    className="text-left rounded-xl p-3 transition-colors hover:bg-[var(--admin-surface-hover)]"
+                    style={{ border: "1px solid var(--admin-border)" }}>
+                    <div className="h-24 flex items-center justify-center mb-2">
+                      {plies.length ? <FinThumb plies={plies} className="h-24" /> : <KindGlyph icon="layers" tone="violet" className="w-8 h-8" />}
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-base font-bold admin-heading tabular-nums">{mold?.name ?? "?"}</span>
+                      <span className="text-[11px] admin-faint">mm</span>
+                      {l.is_reference && <Chip tone="violet" solid className="ml-auto">REF</Chip>}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1 mt-1">
+                      {con && <Chip tone={constructionTone(bundle, con.id)}>{con.name}</Chip>}
+                    </div>
+                    <p className="text-[11px] admin-faint mt-1">{plies.length} plies</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <div className="space-y-5 min-w-0">
+        <Card title="Tooling" icon="mold" tone="amber"
+          actions={<button onClick={() => go("tooling")} className={btnSmall}>Open<Icon name="chevron" className="w-3.5 h-3.5" /></button>}>
+          <div className="space-y-3">
+            <div>
+              <p className="text-[11px] font-semibold admin-faint mb-1.5">Constructions</p>
+              {bundle.constructions.length === 0 ? <p className="text-xs admin-faint">None yet</p> : (
+                <div className="flex flex-wrap gap-1.5">
+                  {bundle.constructions.map((c) => <Chip key={c.id} tone={constructionTone(bundle, c.id)} dot>{c.name}</Chip>)}
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold admin-faint mb-1.5">Molds</p>
+              {bundle.molds.length === 0 ? <p className="text-xs admin-faint">None yet</p> : (
+                <ul className="space-y-1.5">
+                  {bundle.molds.map((m) => (
+                    <li key={m.id} className="flex items-center gap-2">
+                      <span className="text-sm font-semibold admin-heading tabular-nums min-w-[48px]">{m.name}</span>
+                      <span className="text-[11px] admin-faint">{MOLD_KIND_META[m.kind]?.label ?? m.kind}</span>
+                      <span className="ml-auto"><Chip tone={MOLD_STATUS_META[m.status]?.tone ?? "slate"} dot>{MOLD_STATUS_META[m.status]?.label ?? m.status}</Chip></span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Sizes" icon="tag" tone="sky"
+          actions={<button onClick={() => go("tooling")} className={btnSmall}>Open<Icon name="chevron" className="w-3.5 h-3.5" /></button>}>
+          {sizes.length === 0 ? <p className="text-xs admin-faint">No sizes yet</p> : (
+            <ul className="space-y-1.5">
+              {sizes.map((s) => (
+                <li key={s.id} className="flex items-center gap-2 text-xs">
+                  <span className="font-semibold admin-heading truncate">{s.label}</span>
+                  <span className="ml-auto flex gap-1">
+                    {s.rake_deg != null && <Tag>{s.rake_deg}° rake</Tag>}
+                    {s.back_end_mm != null && <Tag>{s.back_end_mm} mm back</Tag>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title="Building" icon="steps" tone="teal"
+          actions={<button onClick={() => go("building")} className={btnSmall}>Open<Icon name="chevron" className="w-3.5 h-3.5" /></button>}>
+          {bundle.processes.length === 0 ? <p className="text-xs admin-faint">No stages yet</p> : (
+            <ol className="space-y-2">
+              {[...bundle.processes].sort((a, b) => a.stage_order - b.stage_order).map((p) => {
+                const n = bundle.steps.filter((s) => s.process_id === p.id).length;
+                const m = METHOD_META[p.method];
+                return (
+                  <li key={p.id} className="flex items-center gap-2">
+                    <span className="pd-tone w-5 h-5 rounded-full shrink-0 inline-flex items-center justify-center text-[10px] font-bold"
+                      style={{ ...toneVars(m?.tone ?? "slate"), backgroundColor: "var(--tone-bg)", color: "var(--tone)" }}>{p.stage_order}</span>
+                    <span className="text-xs font-semibold admin-heading truncate flex-1">{p.name}</span>
+                    <span className="text-[11px] admin-faint shrink-0">{n} step{n === 1 ? "" : "s"}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function AboutForm({ project, onDone }: { project: PdProject; onDone: (saved: boolean) => void }) {
   const [form, setForm] = useState({
     name: project.name, kind: project.kind, status: project.status,
     summary: project.summary ?? "", notes: project.notes ?? "",
@@ -159,70 +327,80 @@ function OverviewTab({ project, onSaved }: { project: PdProject; onSaved: () => 
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
     });
     setSaving(false);
-    if (res.ok) { setMsg("Saved."); onSaved(); setTimeout(() => setMsg(""), 2000); }
-    else setMsg((await res.json().catch(() => ({}))).error || "Save failed — your changes are NOT stored.");
+    if (res.ok) onDone(true);
+    else setMsg((await res.json().catch(() => ({}))).error || "Save failed. Your changes are NOT stored.");
   }
 
   return (
-    <div className="max-w-3xl">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-        <div className="sm:col-span-3"><label className={labelClass}>Name</label>
+    <Card title="Edit project" icon="edit" tone="violet">
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 mb-4">
+        <div><label className={labelClass}>Name</label>
           <input className={inputClass} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-        <div><label className={labelClass}>Kind</label>
-          <select className={inputClass} value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value as PdKind })}>
-            {PD_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
-          </select></div>
-        <div className="sm:col-span-2"><label className={labelClass}>Status</label>
+        <div><label className={labelClass}>Status</label>
           <select className={inputClass} value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as PdProject["status"] })}>
-            {PD_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+            {PD_STATUSES.map((s) => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
           </select></div>
+      </div>
+      <div className="mb-4">
+        <label className={labelClass}>Kind</label>
+        <div className="flex flex-wrap gap-1.5">
+          {PD_KINDS.map((k) => {
+            const on = form.kind === k;
+            const m = KIND_META[k];
+            return (
+              <button key={k} onClick={() => setForm({ ...form, kind: k as PdKind })} aria-pressed={on}
+                className="pd-tone inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors"
+                style={{
+                  ...toneVars(m.tone),
+                  ...(on ? { backgroundColor: "var(--tone-bg)", color: "var(--tone)", border: "1px solid var(--tone-line)" }
+                    : { border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }),
+                }}>
+                <Icon name={m.icon} className="w-4 h-4" style={{ color: "var(--tone)" }} />{m.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
       <div className="mb-4"><label className={labelClass}>Summary</label>
         <textarea className={`${inputClass} min-h-[90px]`} value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })}
           placeholder="What this program is and where it stands." /></div>
       <div className="mb-4"><label className={labelClass}>Internal notes</label>
         <textarea className={`${inputClass} min-h-[70px]`} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-      <div className="flex items-center gap-3">
-        <button onClick={save} disabled={saving}
-          className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
-          {saving ? "Saving…" : "Save"}
-        </button>
-        {msg && <span className={`text-xs ${msg === "Saved." ? "text-green-400" : "text-red-400"}`}>{msg}</span>}
+      <div className="flex items-center gap-2">
+        <button onClick={save} disabled={saving} className={btnPrimary} style={btnPrimaryStyle}>{saving ? "Saving…" : "Save"}</button>
+        <button onClick={() => onDone(false)} className={btnSecondary} style={btnSecondaryStyle}>Cancel</button>
+        <SaveNote msg={msg} />
       </div>
-    </div>
+    </Card>
   );
 }
 
 // ─── Tooling ─────────────────────────────────────────────────────────────────
 
 function ToolingTab({ bundle, onChanged }: { bundle: Bundle; onChanged: () => void }) {
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  async function addConstruction() {
-    const name = prompt("Construction name (e.g. Carbon)");
-    if (!name) return;
-    const code = prompt("Short code (e.g. carbon)", name.toLowerCase().replace(/[^a-z0-9]+/g, "_"));
-    if (!code) return;
-    setBusy(true); setError("");
+  async function addConstruction(name: string) {
+    setError("");
+    const code = name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "construction";
     const res = await fetch("/api/admin/product-dev/constructions", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project_id: bundle.id, code, name, sort_order: bundle.constructions.length + 1 }),
     });
-    setBusy(false);
-    if (res.ok) onChanged(); else setError((await res.json().catch(() => ({}))).error || "Couldn't add that.");
+    if (res.ok) { onChanged(); return true; }
+    setError((await res.json().catch(() => ({}))).error || "Couldn't add that.");
+    return false;
   }
 
-  async function addMold() {
-    const name = prompt("Mold name (e.g. 8.6)");
-    if (!name) return;
-    setBusy(true); setError("");
+  async function addMold(name: string) {
+    setError("");
     const res = await fetch("/api/admin/product-dev/molds", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ project_id: bundle.id, name, kind: "blade", key_dimension_mm: Number(name) || null }),
+      body: JSON.stringify({ project_id: bundle.id, name, kind: "blade", key_dimension_mm: Number(name.replace(",", ".")) || null }),
     });
-    setBusy(false);
-    if (res.ok) onChanged(); else setError((await res.json().catch(() => ({}))).error || "Couldn't add that.");
+    if (res.ok) { onChanged(); return true; }
+    setError((await res.json().catch(() => ({}))).error || "Couldn't add that.");
+    return false;
   }
 
   async function patchConstruction(id: string, patch: Record<string, unknown>) {
@@ -240,72 +418,58 @@ function ToolingTab({ bundle, onChanged }: { bundle: Bundle; onChanged: () => vo
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {error && <div className="lg:col-span-2 text-xs text-red-400">{error}</div>}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {error && <div className="lg:col-span-2 text-xs text-red-500">{error}</div>}
 
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold admin-heading">Constructions</h2>
-          <button onClick={addConstruction} disabled={busy} className="text-xs admin-muted hover:text-[var(--admin-accent)]">+ Add</button>
-        </div>
-        <p className="text-xs admin-faint mb-3 leading-relaxed">
-          The commercial variants — and usually the MODELS: glass and carbon off the same mold are two
-          products. Name the model here and every sheet under this construction inherits it. Descriptions
-          stay in the supplier&apos;s own words — if no percentage was quoted, none is invented here.
-        </p>
-        <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-          {bundle.constructions.length === 0 ? (
-            <p className="px-5 py-6 text-xs admin-faint">None yet.</p>
-          ) : bundle.constructions.map((c) => (
-            <div key={c.id} className="px-5 py-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-              <div className="flex items-baseline gap-2">
-                <span className="text-sm font-medium admin-heading">{c.name}</span>
+      <Card title="Constructions" icon="fabric" tone="indigo" flush
+        subtitle="The models: glass and carbon off one mold are two products"
+        info={<>Name the model here and every sheet under this construction inherits it. Descriptions stay in the supplier&apos;s own words: if no percentage was quoted, none is invented here.</>}
+        actions={<AddInline label="Add" placeholder="e.g. Carbon" onAdd={addConstruction} />}>
+        {bundle.constructions.length === 0 ? (
+          <p className="px-4 py-6 text-xs admin-faint">None yet.</p>
+        ) : bundle.constructions.map((c, i) => (
+          <div key={c.id} className="px-4 py-3 flex gap-3" style={{ borderTop: i ? "1px solid var(--admin-border)" : undefined }}>
+            <span className="pd-tone w-1 self-stretch rounded-full shrink-0" style={{ ...toneVars(constructionTone(bundle, c.id)), backgroundColor: "var(--tone)" }} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold admin-heading">{c.name}</span>
                 <code className="text-[10px] admin-faint">{c.code}</code>
               </div>
-              {c.description && <p className="text-xs admin-muted mt-1">{c.description}</p>}
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="text-[10px] font-bold tracking-[0.08em] uppercase admin-faint shrink-0">Model</span>
+              {c.description && <p className="text-xs admin-muted mt-0.5 line-clamp-2" title={c.description}>{c.description}</p>}
+              <label className="flex items-center gap-2 mt-2">
+                <span className="text-[11px] font-semibold admin-faint shrink-0">Model</span>
                 <input
-                  className="flex-1 bg-transparent text-xs admin-heading focus:outline-none focus:text-[var(--admin-accent)] placeholder:italic"
-                  defaultValue={c.model_name ?? ""} placeholder={`not named — sheets show "${bundle.name}"`}
+                  className="flex-1 min-w-0 px-2 py-1 rounded-md text-xs admin-heading bg-transparent border border-transparent hover:border-[var(--admin-border)] focus:outline-none placeholder:italic"
+                  defaultValue={c.model_name ?? ""} placeholder={`not named, sheets show "${bundle.name}"`}
                   onBlur={(e) => { const v = e.target.value.trim(); if (v !== (c.model_name ?? "")) patchConstruction(c.id, { model_name: v || null }); }}
                   onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
-              </div>
+              </label>
             </div>
-          ))}
-        </div>
-      </section>
+          </div>
+        ))}
+      </Card>
 
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold admin-heading">Molds</h2>
-          <button onClick={addMold} disabled={busy} className="text-xs admin-muted hover:text-[var(--admin-accent)]">+ Add</button>
-        </div>
-        <p className="text-xs admin-faint mb-3 leading-relaxed">
-          Physical tooling. <strong>Holder</strong> is who has it right now — molds travel between partners.
-        </p>
-        <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-          {bundle.molds.length === 0 ? (
-            <p className="px-5 py-6 text-xs admin-faint">None yet.</p>
-          ) : bundle.molds.map((m) => (
-            <div key={m.id} className="px-5 py-3 flex flex-wrap items-center gap-3" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-              <span className="text-sm font-medium admin-heading min-w-[70px]">{m.name}</span>
-              <span className="text-xs admin-muted">
-                {m.key_dimension_mm != null ? `${m.key_dimension_mm} mm` : "—"}
-                <span className="admin-faint"> · {m.key_dimension_label}</span>
+      <Card title="Molds" icon="mold" tone="amber" flush
+        subtitle="Physical tooling, and where it is"
+        info={<>Molds travel between partners. The status says whether a mold is planned, ordered, in use, shipped or retired; click the coloured chip to change it.</>}
+        actions={<AddInline label="Add" placeholder="e.g. 8.6" onAdd={addMold} />}>
+        {bundle.molds.length === 0 ? (
+          <p className="px-4 py-6 text-xs admin-faint">None yet.</p>
+        ) : bundle.molds.map((m, i) => (
+          <div key={m.id} className="px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-2" style={{ borderTop: i ? "1px solid var(--admin-border)" : undefined }}>
+            <div className="min-w-[88px]">
+              <span className="text-lg font-bold admin-heading tabular-nums leading-none">{m.name}</span>
+              <span className="block text-[11px] admin-faint mt-0.5">
+                {m.key_dimension_mm != null ? `${m.key_dimension_mm} mm ${m.key_dimension_label}` : m.key_dimension_label !== "n/a" ? m.key_dimension_label : ""}
               </span>
-              <select className="text-xs admin-input border rounded px-2 py-1 ml-auto" value={m.kind}
-                onChange={(e) => patchMold(m.id, { kind: e.target.value })}>
-                {PD_MOLD_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
-              </select>
-              <select className="text-xs admin-input border rounded px-2 py-1" value={m.status}
-                onChange={(e) => patchMold(m.id, { status: e.target.value })}>
-                {PD_MOLD_STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
-              </select>
             </div>
-          ))}
-        </div>
-      </section>
+            <div className="ml-auto flex items-center gap-1.5">
+              <ChipSelect value={m.kind} options={PD_MOLD_KINDS} meta={MOLD_KIND_META} onChange={(v) => patchMold(m.id, { kind: v })} title="Kind of mold" />
+              <ChipSelect value={m.status} options={PD_MOLD_STATUSES} meta={MOLD_STATUS_META} onChange={(v) => patchMold(m.id, { status: v })} title="Status" />
+            </div>
+          </div>
+        ))}
+      </Card>
 
       <SizesSection bundle={bundle} onChanged={onChanged} setError={setError} />
     </div>
@@ -313,25 +477,25 @@ function ToolingTab({ bundle, onChanged }: { bundle: Bundle; onChanged: () => vo
 }
 
 // ─── Sizes ───────────────────────────────────────────────────────────────────
-// Rake and back end live HERE, per sellable size — the 37 TT (27 mm / 6°) and
+// Rake and back end live HERE, per sellable size: the 37 TT (27 mm / 6°) and
 // the 44 DTT (20 mm / 4°) come off the same ply stack, so the layup cannot
 // carry them. One blade, many fins.
 
+const SIZE_GRID = "minmax(120px,1.4fr) 84px 70px 70px 84px minmax(90px,1fr) 28px";
+
 function SizesSection({ bundle, onChanged, setError }: { bundle: Bundle; onChanged: () => void; setError: (e: string) => void }) {
   const sizes = bundle.sizes ?? [];
-  const [busy, setBusy] = useState(false);
 
-  async function addSize() {
-    const label = prompt('Size label (e.g. "37 NP7 TT BOX")');
-    if (!label) return;
-    setBusy(true); setError("");
+  async function addSize(label: string) {
+    setError("");
     const guessedLen = Number((label.match(/\d+(\.\d+)?/) ?? [])[0]) || null;
     const res = await fetch("/api/admin/product-dev/sizes", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project_id: bundle.id, label, length_cm: guessedLen }),
     });
-    setBusy(false);
-    if (res.ok) onChanged(); else setError((await res.json().catch(() => ({}))).error || "Couldn't add that size.");
+    if (res.ok) { onChanged(); return true; }
+    setError((await res.json().catch(() => ({}))).error || "Couldn't add that size.");
+    return false;
   }
 
   async function patchSize(id: string, patch: Record<string, unknown>) {
@@ -347,69 +511,67 @@ function SizesSection({ bundle, onChanged, setError }: { bundle: Bundle; onChang
     if (res.ok) onChanged(); else setError((await res.json().catch(() => ({}))).error || "Couldn't remove that.");
   }
 
-  const cell = "text-xs admin-input border rounded px-1.5 py-1 w-full";
+  // Borderless until touched: a table of numbers, not a wall of boxes.
+  const cell = "text-xs admin-heading tabular-nums rounded-md px-1.5 py-1 w-full bg-transparent border border-transparent hover:border-[var(--admin-border)] focus:outline-none";
   const numCell = (s: PdSize, key: "length_cm" | "rake_deg" | "back_end_mm") => (
-    <input className={cell} type="number" step="0.5" defaultValue={s[key] ?? ""}
+    <input className={cell} type="number" step="0.5" defaultValue={s[key] ?? ""} placeholder="-"
       onBlur={(e) => { const v = e.target.value === "" ? null : Number(e.target.value); if (v !== s[key]) patchSize(s.id, { [key]: v }); }}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
   );
 
   return (
-    <section className="lg:col-span-2">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-bold admin-heading">Sizes</h2>
-        <button onClick={addSize} disabled={busy} className="text-xs admin-muted hover:text-[var(--admin-accent)]">+ Add</button>
-      </div>
-      <p className="text-xs admin-faint mb-3 leading-relaxed max-w-2xl">
-        The sellable sizes, each with its own rake and back end — one pressed blade is trimmed into all of
-        them, which is why these numbers don&apos;t live on the build sheet. Supplier drawings often state
-        the trailing-edge angle instead: 84° drawn = rake 6°.
-      </p>
-      <div className="rounded-xl admin-tablecard" style={{ border: "1px solid var(--admin-border)" }}>
-        <div className="gap-3 px-4 py-2 admin-surface" style={{ display: "grid", gridTemplateColumns: "1.4fr 90px 80px 80px 90px 1fr 32px", borderBottom: "1px solid var(--admin-border)" }}>
+    <Card className="lg:col-span-2" title="Sizes" icon="tag" tone="sky" flush
+      subtitle="The sellable sizes, each with its own rake and back end"
+      info={<>One pressed blade is trimmed into all of these, which is why these numbers don&apos;t live on the build sheet. Supplier drawings often state the trailing-edge angle instead: 84° drawn = rake 6°.</>}
+      actions={<AddInline label="Add size" placeholder='e.g. 37 NP7 TT BOX' onAdd={addSize} />}>
+      <div className="admin-tablecard">
+        <div className="gap-3 px-4 py-2" style={{ display: "grid", gridTemplateColumns: SIZE_GRID, backgroundColor: "var(--admin-bg)" }}>
           {["Size", "Length cm", "Box", "Rake °", "Back end mm", "Notes", ""].map((h, i) => (
-            <span key={i} className="text-[10px] font-bold tracking-[0.08em] admin-faint uppercase">{h}</span>
+            <span key={i} className="text-[11px] font-semibold admin-faint">{h}</span>
           ))}
         </div>
         {sizes.length === 0 ? (
-          <p className="px-4 py-5 text-xs admin-faint">No sizes yet — add the ones the partner quoted.</p>
+          <p className="px-4 py-5 text-xs admin-faint">No sizes yet. Add the ones the partner quoted.</p>
         ) : sizes.map((s) => (
-          <div key={s.id} className="gap-3 px-4 py-2 items-center" style={{ display: "grid", gridTemplateColumns: "1.4fr 90px 80px 80px 90px 1fr 32px", borderBottom: "1px solid var(--admin-border)" }}>
-            <span className="text-xs font-medium admin-heading truncate" title={s.label}>{s.label}</span>
+          <div key={s.id} className="gap-3 px-4 py-1.5 items-center group" style={{ display: "grid", gridTemplateColumns: SIZE_GRID, borderTop: "1px solid var(--admin-border)" }}>
+            <span className="text-sm font-semibold admin-heading truncate" title={s.label}>{s.label}</span>
             {numCell(s, "length_cm")}
             <input className={cell} defaultValue={s.box ?? ""} placeholder="TT"
               onBlur={(e) => { const v = e.target.value || null; if (v !== s.box) patchSize(s.id, { box: v }); }}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
             {numCell(s, "rake_deg")}
             {numCell(s, "back_end_mm")}
-            <input className={cell} defaultValue={s.notes ?? ""}
+            <input className={cell} defaultValue={s.notes ?? ""} placeholder="-"
               onBlur={(e) => { const v = e.target.value || null; if (v !== s.notes) patchSize(s.id, { notes: v }); }}
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
-            <button onClick={() => removeSize(s)} className="text-xs admin-faint hover:text-red-400">✕</button>
+            <button onClick={() => removeSize(s)} title="Remove" className="admin-faint hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Icon name="x" className="w-3.5 h-3.5" />
+            </button>
           </div>
         ))}
       </div>
-    </section>
+    </Card>
   );
 }
 
 
 // ─── Build sheets ────────────────────────────────────────────────────────────
 //
-// This is a DOCUMENT, not a form. It is read far more often than it is edited —
+// This is a DOCUMENT, not a form. It is read far more often than it is edited:
 // you open it to check a ply length or quote a construction, not to retype the
 // stack. So it renders as a typeset spec sheet and only becomes editable when
 // you say so; eighteen rows of live dropdowns is what made the first version
 // unreadable.
 //
 // The other half of "annoying to use" is creation. A sheet is a variation on
-// another sheet — 8.3 and 8.6 differ by a few lengths — so new sheets are born
+// another sheet (8.3 and 8.6 differ by a few lengths), so new sheets are born
 // by copying, and a stack can be pasted straight out of the supplier's email
 // rather than typed row by row.
 
 function LayupsTab({ bundle, onChanged, dirtyRef }: { bundle: Bundle; onChanged: () => void; dirtyRef: React.MutableRefObject<boolean> }) {
   const sp = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
   const selectedId = sp.get("layup") ?? bundle.layups[0]?.id ?? null;
   const [compare, setCompare] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -432,12 +594,12 @@ function LayupsTab({ bundle, onChanged, dirtyRef }: { bundle: Bundle; onChanged:
     if (layupId !== selectedId && dirtyRef.current && !confirm("You have unsaved changes on this sheet. Switch and lose them?")) return;
     const q = new URLSearchParams(Array.from(sp.entries()));
     q.set("tab", "layups"); q.set("layup", layupId);
-    router.replace(`/admin/product-dev/projects/${bundle.id}?${q.toString()}`, { scroll: false });
+    router.replace(`${pathname}?${q.toString()}`, { scroll: false });
   }
 
   const globalMax = Math.max(1, ...bundle.plies.map((p) => Number(p.length_cm) || 0));
 
-  // Pairs that could still have a sheet. The ones already taken aren't offered —
+  // Pairs that could still have a sheet. The ones already taken aren't offered:
   // the unique constraint is the matrix, so the UI shouldn't invite a 409.
   const taken = new Set(bundle.layups.map((l) => `${l.construction_id}/${l.mold_id}`));
   const openPairs = bundle.constructions.flatMap((c) =>
@@ -446,35 +608,28 @@ function LayupsTab({ bundle, onChanged, dirtyRef }: { bundle: Bundle; onChanged:
 
   if (bundle.layups.length === 0) {
     return (
-      <div className="py-16 text-center">
-        <p className="text-sm admin-muted mb-1">No build sheets yet.</p>
-        <p className="text-xs admin-faint max-w-md mx-auto">
-          A sheet is one construction in one mold. Add a construction and a blade mold on the Tooling tab,
-          and the pair becomes available here.
-        </p>
-      </div>
+      <Empty icon="layers" tone="violet" title="No build sheets yet">
+        A sheet is one construction in one mold. Add a construction and a blade mold on the Tooling tab, and the pair becomes available here.
+      </Empty>
     );
   }
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <p className="text-xs admin-faint max-w-lg leading-relaxed">
-          One sheet per construction × mold. The pairs with no sheet are combinations this model
-          doesn&apos;t build — that absence is part of the record.
-        </p>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="inline-flex items-center gap-1.5 text-xs admin-muted">
+          One sheet per construction and mold
+          <InfoTip>The pairs with no sheet are combinations this model doesn&apos;t build. That absence is part of the record.</InfoTip>
+        </span>
+        <div className="ml-auto flex items-center gap-2">
           {openPairs.length > 0 && (
-            <button onClick={() => setAdding(true)}
-              className="text-xs px-3 py-1.5 rounded-lg admin-muted hover:text-[var(--admin-accent)] whitespace-nowrap"
-              style={{ border: "1px solid var(--admin-border)" }}>
-              + New sheet
+            <button onClick={() => setAdding(true)} className={btnSecondary} style={btnSecondaryStyle}>
+              <Icon name="plus" className="w-4 h-4" strokeWidth={2.2} />New sheet
             </button>
           )}
           <button onClick={() => { if (!compare && dirtyRef.current && !confirm("You have unsaved changes on this sheet. Leave and lose them?")) return; setCompare(!compare); }}
-            className="text-xs px-3 py-1.5 rounded-lg admin-muted hover:text-[var(--admin-accent)] whitespace-nowrap"
-            style={{ border: "1px solid var(--admin-border)" }}>
-            {compare ? "Single sheet" : "Compare all"}
+            className={btnSecondary} style={btnSecondaryStyle}>
+            <Icon name="compare" className="w-4 h-4" />{compare ? "One sheet" : "Compare all"}
           </button>
         </div>
       </div>
@@ -496,11 +651,11 @@ function LayupsTab({ bundle, onChanged, dirtyRef }: { bundle: Bundle; onChanged:
         <CompareSheets bundle={bundle} pliesByLayup={pliesByLayup}
           constructionById={constructionById} moldById={moldById} globalMax={globalMax} />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[228px_1fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[210px_minmax(0,1fr)] gap-5">
           <SheetRail
-            layups={bundle.layups} selectedId={selectedId} onSelect={select}
+            bundle={bundle} layups={bundle.layups} selectedId={selectedId} onSelect={select}
             constructionById={constructionById} moldById={moldById}
-            pliesByLayup={pliesByLayup} materials={bundle.materials} globalMax={globalMax}
+            pliesByLayup={pliesByLayup} materials={bundle.materials}
           />
           {selected && (
             <BuildSheet
@@ -522,41 +677,44 @@ function LayupsTab({ bundle, onChanged, dirtyRef }: { bundle: Bundle; onChanged:
   );
 }
 
-// ─── Left rail — a sheet is identified by its mold, so lead with the mold ────
+// ─── Left rail: a sheet is identified by its mold, so lead with the mold ─────
 
 function SheetRail({
-  layups, selectedId, onSelect, constructionById, moldById, pliesByLayup, materials, globalMax,
+  bundle, layups, selectedId, onSelect, constructionById, moldById, pliesByLayup, materials,
 }: {
-  layups: PdLayup[]; selectedId: string | null; onSelect: (id: string) => void;
+  bundle: Bundle; layups: PdLayup[]; selectedId: string | null; onSelect: (id: string) => void;
   constructionById: Map<string, PdConstruction>; moldById: Map<string, PdMold>;
-  pliesByLayup: Map<string, PdPly[]>; materials: PdMaterial[]; globalMax: number;
+  pliesByLayup: Map<string, PdPly[]>; materials: PdMaterial[];
 }) {
+  const colour = new Map(materials.map((m) => [m.id, m.diagram_color]));
   return (
-    <nav className="rounded-xl overflow-hidden self-start" style={{ border: "1px solid var(--admin-border)" }}>
+    <nav className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible self-start">
       {layups.map((l) => {
         const plies = pliesByLayup.get(l.id) ?? [];
         const mold = moldById.get(l.mold_id);
+        const con = constructionById.get(l.construction_id);
         const active = l.id === selectedId;
         return (
           <button key={l.id} onClick={() => onSelect(l.id)}
-            className={`w-full text-left px-3.5 py-3 transition-colors ${active ? "admin-surface" : "hover:bg-[var(--admin-surface-hover)]"}`}
-            style={{ borderBottom: "1px solid var(--admin-border)", borderLeft: active ? "3px solid var(--admin-accent)" : "3px solid transparent" }}>
-            <span className="flex items-baseline gap-1.5">
-              <span className="text-[15px] font-bold admin-heading tabular-nums">{mold?.name ?? "—"}</span>
-              <span className="text-[10px] admin-faint">mm</span>
-              {l.is_reference && <span className="ml-auto text-[10px] text-[var(--admin-accent)] font-bold">REF</span>}
+            className="shrink-0 w-[190px] lg:w-full text-left rounded-xl p-2.5 flex items-center gap-3 transition-colors hover:bg-[var(--admin-surface-hover)]"
+            style={{
+              backgroundColor: "var(--admin-surface)",
+              border: active ? "1.5px solid var(--admin-accent)" : "1px solid var(--admin-border)",
+              boxShadow: active ? "0 0 0 3px var(--admin-accent-weak)" : undefined,
+            }}>
+            <span className="w-9 h-12 shrink-0 flex items-center justify-center">
+              {plies.length
+                ? <FinThumb plies={plies.map((p) => ({ l: Number(p.length_cm) || 0, c: colour.get(p.material_id) ?? null }))} className="h-12" />
+                : <Icon name="layers" className="w-5 h-5 admin-faint" />}
             </span>
-            <span className="block text-xs admin-muted truncate">{constructionById.get(l.construction_id)?.name ?? ""}</span>
-            {/* A five-bar echo of the stack — enough to tell two sheets apart at a glance. */}
-            <span className="flex items-end gap-px h-3 mt-1.5" aria-hidden>
-              {plies.length === 0
-                ? <span className="text-[10px] admin-faint leading-none">no plies yet</span>
-                : plies.filter((_, i) => i % Math.ceil(plies.length / 14) === 0).map((p) => {
-                    const mat = materials.find((m) => m.id === p.material_id);
-                    return <span key={p.id} className="w-1 rounded-sm"
-                      style={{ height: `${Math.max(15, ((Number(p.length_cm) || 0) / globalMax) * 100)}%`,
-                               backgroundColor: mat?.diagram_color || "var(--admin-border-strong)" }} />;
-                  })}
+            <span className="min-w-0 flex-1">
+              <span className="flex items-baseline gap-1">
+                <span className="text-base font-bold admin-heading tabular-nums">{mold?.name ?? "?"}</span>
+                <span className="text-[10px] admin-faint">mm</span>
+                {l.is_reference && <Chip tone="violet" solid className="ml-auto">REF</Chip>}
+              </span>
+              {con && <Chip tone={constructionTone(bundle, con.id)} className="mt-1 max-w-full"><span className="truncate">{con.name}</span></Chip>}
+              <span className="block text-[11px] admin-faint mt-1">{plies.length ? `${plies.length} plies` : "no plies yet"}</span>
             </span>
           </button>
         );
@@ -565,7 +723,7 @@ function SheetRail({
   );
 }
 
-// ─── New sheet — copy an existing stack rather than typing 18 rows ───────────
+// ─── New sheet: copy an existing stack rather than typing 18 rows ────────────
 
 function NewSheetCard({
   pairs, layups, constructionById, moldById, pliesByLayup, defaultCopyFrom, onClose, onCreated,
@@ -597,11 +755,8 @@ function NewSheetCard({
   }
 
   return (
-    <div className="mb-5 p-4 rounded-xl" style={{ border: "1px solid var(--admin-accent)", backgroundColor: "var(--admin-surface)" }}>
-      <h3 className="text-sm font-bold admin-heading mb-1">New build sheet</h3>
-      <p className="text-xs admin-faint mb-4">
-        It starts as a copy of an existing stack — change the lengths that differ instead of re-entering all of them.
-      </p>
+    <Card title="New build sheet" icon="plus" tone="violet" className="mb-5"
+      subtitle="Starts as a copy: change the lengths that differ instead of re-entering all of them">
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[200px]">
           <label className={labelClass}>For</label>
@@ -619,14 +774,13 @@ function NewSheetCard({
             ))}
           </select>
         </div>
-        <button onClick={create} disabled={busy || !target}
-          className="px-4 py-2 bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg disabled:opacity-40">
+        <button onClick={create} disabled={busy || !target} className={btnPrimary} style={btnPrimaryStyle}>
           {busy ? "Creating…" : `Create with ${sourcePlies} plies`}
         </button>
-        <button onClick={onClose} className="px-3 py-2 admin-muted text-sm">Cancel</button>
+        <button onClick={onClose} className={btnSecondary} style={btnSecondaryStyle}>Cancel</button>
       </div>
-      {error && <p className="mt-3 text-xs text-red-400">{error}</p>}
-    </div>
+      {error && <p className="mt-3 text-xs text-red-500">{error}</p>}
+    </Card>
   );
 }
 
@@ -659,6 +813,7 @@ function BuildSheet({
   const pliesDirty = JSON.stringify(draft.map(stripPly)) !== JSON.stringify(plies.map(stripPly));
   const headerDirty =
     header.name !== layup.name || header.ref !== (layup.ref ?? "") ||
+    header.model_name !== (layup.model_name ?? "") ||
     header.is_reference !== layup.is_reference ||
     header.resin_pct_min !== String(layup.resin_pct_min ?? "") ||
     header.resin_pct_max !== String(layup.resin_pct_max ?? "") ||
@@ -731,61 +886,54 @@ function BuildSheet({
 
   // Reindex by ARRAY order before anything reads ply_index: the Baukasten
   // reorders rows, so a draft's stored indices go stale until save renumbers
-  // them — and groupPliesByStack sorts by ply_index, which would scramble the
+  // them, and groupPliesByStack sorts by ply_index, which would scramble the
   // table mid-edit.
   const shown = (editing ? draft : plies).map((p, i) => ({ ...p, ply_index: i + 1 }));
   const groups = groupPliesByStack(shown as PdPly[]);
   const diagramPlies = shown.map((p) => ({ ...p, created_at: "", updated_at: "" })) as PdPly[];
+  const model = resolveModelName(layup, construction, project);
 
   return (
-    <div className="pb-20">
+    <div className="pb-20 min-w-0">
       {/* Title + spec strip. Reads as a document header, not a row of form fields. */}
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
         <div className="min-w-0">
           {editing ? (
             <input className={`${inputClass} text-lg font-bold`} value={header.name}
               onChange={(e) => setHeader({ ...header, name: e.target.value })} />
           ) : (
-            <h2 className="text-xl font-bold admin-heading flex items-center gap-2">
+            <h2 className="text-xl font-bold admin-heading flex flex-wrap items-center gap-2">
               {layup.name}
-              {layup.is_reference && (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                  style={{ backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }}>
-                  QUOTING REFERENCE
-                </span>
-              )}
+              {layup.is_reference && <Chip tone="violet" solid icon="check">Quoting reference</Chip>}
             </h2>
           )}
-          <p className="text-xs admin-faint mt-0.5">
-            {construction?.name}{mold ? ` · ${mold.name} mm mold` : ""}{layup.ref ? ` · ref ${layup.ref}` : ""}
-          </p>
-          {/* Which MODEL this sheet is — the question the sheet's own name (a
+          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+            {construction && <Chip tone={constructionTone(project, construction.id)} icon="fabric">{construction.name}</Chip>}
+            {mold && <Chip tone="amber" icon="mold">{mold.name} mm mold</Chip>}
+            {layup.ref && <Tag>ref {layup.ref}</Tag>}
+          </div>
+          {/* Which MODEL this sheet is: the question the sheet's own name (a
               factory reference) never answered. Resolved most-specific first. */}
           {editing ? (
-            <input className={`${inputClass} mt-1.5 max-w-sm text-xs`} value={header.model_name}
-              placeholder={`Model — leave empty to inherit "${resolveModelName(null, construction, project).name}"`}
+            <input className={`${inputClass} mt-2 max-w-sm text-xs`} value={header.model_name}
+              placeholder={`Model: leave empty to inherit "${resolveModelName(null, construction, project).name}"`}
               onChange={(e) => setHeader({ ...header, model_name: e.target.value })} />
-          ) : (() => {
-            const m = resolveModelName(layup, construction, project);
-            return (
-              <p className="text-xs mt-0.5">
-                <span className="font-semibold admin-heading">Model: {m.name}</span>
-                <span className="admin-faint">
-                  {m.from === "layup" ? " · named on this sheet" : m.from === "construction" ? " · from the construction" : " · not named — falls back to the project"}
-                </span>
-              </p>
-            );
-          })()}
+          ) : (
+            <p className="text-xs mt-1.5 inline-flex items-center gap-1.5">
+              <span className="font-semibold admin-heading">Model: {model.name}</span>
+              <InfoTip>
+                {model.from === "layup" ? "Named on this sheet." : model.from === "construction" ? "Inherited from the construction." : "Not named yet, so it falls back to the project name. Name it on the construction (Tooling) or on this sheet."}
+              </InfoTip>
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {/* The toggle stays available while editing: Numbers edits the table,
               Graphic edits the Baukasten. Same draft either way. */}
           <ViewToggle view={view} onChange={setView} />
           {!editing && (
-            <button onClick={() => setEditing(true)}
-              className="text-xs px-3 py-1.5 rounded-lg admin-muted hover:text-[var(--admin-accent)] whitespace-nowrap"
-              style={{ border: "1px solid var(--admin-border)" }}>
-              Edit sheet
+            <button onClick={() => setEditing(true)} className={btnSecondary} style={btnSecondaryStyle}>
+              <Icon name="edit" className="w-4 h-4" />Edit sheet
             </button>
           )}
         </div>
@@ -807,63 +955,52 @@ function BuildSheet({
         </div>
       ) : view === "graphic" ? (
         <div className="mt-5">
-          <div className="p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-            <PlyFins plies={diagramPlies} materials={materials} maxLengthCm={maxLengthCm} />
-            <div className="flex flex-wrap items-end justify-between gap-4 mt-4 pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
-              <PlyLegend plies={diagramPlies} materials={materials} />
-              <div className="text-right">
-                <p className="text-sm font-black admin-heading tracking-tight">NP7</p>
-                <p className="text-xs admin-muted uppercase tracking-wide">{layup.name}</p>
+          <Card flush>
+            <div className="p-4">
+              <PlyFins plies={diagramPlies} materials={materials} maxLengthCm={maxLengthCm} />
+              <div className="flex flex-wrap items-end justify-between gap-4 mt-4 pt-4" style={{ borderTop: "1px solid var(--admin-border)" }}>
+                <PlyLegend plies={diagramPlies} materials={materials} />
+                <div className="text-right">
+                  <p className="text-sm font-black admin-heading tracking-tight">NP7</p>
+                  <p className="text-xs admin-muted uppercase tracking-wide">{layup.name}</p>
+                </div>
               </div>
             </div>
-          </div>
-          <dl className="flex flex-wrap gap-x-6 gap-y-1 mt-3">
-            {plyTotals(diagramPlies, materials).map((t) => (
-              <div key={t.label} className="flex items-baseline gap-1.5">
-                <dt className="text-[10px] font-bold tracking-[0.08em] admin-faint uppercase">{t.label}</dt>
-                <dd className="text-sm admin-heading tabular-nums font-semibold">{t.value}</dd>
-              </div>
-            ))}
-          </dl>
+          </Card>
+          <Totals plies={diagramPlies} materials={materials} className="mt-3" />
         </div>
       ) : (
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_330px] gap-6 mt-5">
-        <section>
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase">Plies</h3>
-            {editing && (
-              <div className="flex items-center gap-2">
-                <button onClick={() => setPasting(!pasting)} className="text-xs admin-muted hover:text-[var(--admin-accent)]">
-                  Paste a stack
-                </button>
-                <button onClick={() => setDraft(addPly(draft, layup.id, materials))} className="text-xs admin-muted hover:text-[var(--admin-accent)]">
-                  + Add ply
-                </button>
-              </div>
-            )}
-          </div>
-
+      <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_340px] gap-5 mt-5">
+        <Card title="Plies" icon="layers" tone="violet" flush className="min-w-0"
+          subtitle={`${shown.length} plies${groups.length > 1 ? ` in ${groups.length} stacks` : ""}`}
+          info={<>Lengths are the bend curve and restart at each stack: the sequence is not meant to descend all the way down.</>}
+          actions={editing ? (
+            <>
+              <button onClick={() => setPasting(!pasting)} className={btnSmall}><Icon name="paste" className="w-3.5 h-3.5" />Paste a stack</button>
+              <button onClick={() => setDraft(addPly(draft, layup.id, materials))} className={btnSmall}><Icon name="plus" className="w-3.5 h-3.5" />Add ply</button>
+            </>
+          ) : undefined}>
           {pasting && editing && (
-            <PasteStack materials={materials}
-              onCancel={() => setPasting(false)}
-              onParsed={(rows) => { setDraft(rows.map((r, i) => ({ ...r, id: `new-${i}`, layup_id: layup.id, ply_index: i + 1 }))); setPasting(false); }} />
+            <div className="p-3">
+              <PasteStack materials={materials}
+                onCancel={() => setPasting(false)}
+                onParsed={(rows) => { setDraft(rows.map((r, i) => ({ ...r, id: `new-${i}`, layup_id: layup.id, ply_index: i + 1 }))); setPasting(false); }} />
+            </div>
           )}
 
-          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
-            <div className="gap-3 px-4 py-2 admin-surface" style={{ display: "grid", gridTemplateColumns: PLY_GRID, borderBottom: "1px solid var(--admin-border)" }}>
+          <div className="admin-tablecard">
+            <div className="gap-2 px-4 py-2" style={{ display: "grid", gridTemplateColumns: PLY_GRID, backgroundColor: "var(--admin-bg)" }}>
               {["#", "Material", "Orientation", "Tpl", "Length", "Note", ""].map((h, i) => (
-                <span key={i} className={`text-[10px] font-bold tracking-[0.08em] admin-faint uppercase ${i === 4 ? "text-right" : ""}`}>{h}</span>
+                <span key={i} className={`text-[11px] font-semibold admin-faint ${i === 4 ? "text-right" : ""}`}>{h}</span>
               ))}
             </div>
             {groups.map((g, gi) => (
               <div key={`${g.stack ?? "none"}-${gi}`}>
                 {groups.length > 1 && (
-                  <div className="px-4 py-1.5 flex items-baseline gap-2 admin-surface" style={{ borderBottom: "1px solid var(--admin-border)" }}>
-                    <span className="text-[10px] font-bold tracking-[0.08em] admin-heading uppercase">
-                      Stack {g.stack ?? "—"}
-                    </span>
-                    <span className="text-[10px] admin-faint">
-                      {g.plies.length} plies · {g.plies[0]?.length_cm ?? "—"}–{g.plies[g.plies.length - 1]?.length_cm ?? "—"} cm
+                  <div className="px-4 py-1.5 flex items-center gap-2" style={{ borderTop: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+                    <Chip tone="violet">Stack {g.stack ?? "-"}</Chip>
+                    <span className="text-[11px] admin-faint">
+                      {g.plies.length} plies · {g.plies[0]?.length_cm ?? "-"} to {g.plies[g.plies.length - 1]?.length_cm ?? "-"} cm
                     </span>
                   </div>
                 )}
@@ -872,11 +1009,11 @@ function BuildSheet({
                   const mat = matById.get(p.material_id);
                   const ori = plyOrientation(p, mat);
                   return (
-                    <div key={p.id} className="gap-3 px-4 py-2 items-center"
-                      style={{ display: "grid", gridTemplateColumns: PLY_GRID, borderBottom: "1px solid var(--admin-border)" }}>
+                    <div key={p.id} className="gap-2 px-4 py-1.5 items-center"
+                      style={{ display: "grid", gridTemplateColumns: PLY_GRID, borderTop: "1px solid var(--admin-border)" }}>
                       <span className="flex items-center gap-2 text-xs admin-faint tabular-nums">
-                        <span className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                          style={{ backgroundColor: mat?.diagram_color || "var(--admin-border-strong)" }} />
+                        <span className="inline-block w-3 h-3 rounded-[3px] flex-shrink-0"
+                          style={{ backgroundColor: mat?.diagram_color || "var(--admin-border-strong)", boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.12)" }} />
                         {p.ply_index}
                       </span>
                       {editing ? (
@@ -885,14 +1022,14 @@ function BuildSheet({
                           {materials.map((m) => <option key={m.id} value={m.id}>{shortMaterialName(m)}</option>)}
                         </select>
                       ) : (
-                        <span className="text-xs admin-heading truncate" title={mat?.name}>{shortMaterialName(mat)}</span>
+                        <span className="text-xs font-medium admin-heading truncate" title={mat?.name}>{shortMaterialName(mat)}</span>
                       )}
                       {editing ? (
                         <input className="text-xs admin-input border rounded px-1.5 py-1 w-full" value={p.orientation ?? ""}
                           placeholder={mat?.default_orientation ?? ""}
                           onChange={(e) => setDraft(patchPly(draft, i, { orientation: e.target.value || null }))} />
                       ) : (
-                        // An inherited value is shown as the real value, dimmed —
+                        // An inherited value is shown as the real value, dimmed:
                         // a grey placeholder read as "empty" in the first version.
                         <span className={`text-xs tabular-nums ${ori.inherited ? "admin-faint" : "admin-muted"}`}>{ori.value}</span>
                       )}
@@ -900,23 +1037,23 @@ function BuildSheet({
                         <input className="text-xs admin-input border rounded px-1.5 py-1 w-full" value={p.template_ref ?? ""}
                           onChange={(e) => setDraft(patchPly(draft, i, { template_ref: e.target.value || null }))} />
                       ) : (
-                        <span className="text-xs admin-muted tabular-nums">{p.template_ref ?? "—"}</span>
+                        <span className="text-xs admin-muted tabular-nums">{p.template_ref ?? "-"}</span>
                       )}
                       {editing ? (
                         <input className="text-xs admin-input border rounded px-1.5 py-1 w-full text-right" type="number" step="0.1"
                           value={p.length_cm ?? ""}
                           onChange={(e) => setDraft(patchPly(draft, i, { length_cm: e.target.value === "" ? null : Number(e.target.value) }))} />
                       ) : (
-                        <span className="text-xs admin-heading tabular-nums text-right">{p.length_cm ?? "—"}</span>
+                        <span className="text-xs font-semibold admin-heading tabular-nums text-right">{p.length_cm ?? "-"}</span>
                       )}
                       {editing ? (
                         <input className="text-xs admin-input border rounded px-1.5 py-1 w-full" value={p.note ?? ""}
                           onChange={(e) => setDraft(patchPly(draft, i, { note: e.target.value || null }))} />
                       ) : (
-                        <span className="text-xs admin-faint truncate">{p.note ?? ""}</span>
+                        <span className="text-xs admin-faint truncate" title={p.note ?? undefined}>{p.note ?? ""}</span>
                       )}
                       {editing
-                        ? <button onClick={() => setDraft(removePly(draft, i))} className="text-xs admin-faint hover:text-red-400">✕</button>
+                        ? <button onClick={() => setDraft(removePly(draft, i))} className="admin-faint hover:text-red-500" title="Remove"><Icon name="x" className="w-3.5 h-3.5" /></button>
                         : <span />}
                     </div>
                   );
@@ -924,52 +1061,49 @@ function BuildSheet({
               </div>
             ))}
           </div>
+        </Card>
 
-          <p className="mt-2 text-[11px] admin-faint leading-relaxed">
-            Lengths are the bend curve and restart at each stack — the sequence is not meant to descend
-            all the way down.
-          </p>
-        </section>
-
-        <section className="xl:sticky xl:top-4 self-start">
-          <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-2">Diagram</h3>
-          <div className="p-3 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-            <PlyDiagram plies={diagramPlies} materials={materials} maxLengthCm={maxLengthCm} />
-            <PlyLegend plies={diagramPlies} materials={materials} />
-          </div>
-          <dl className="mt-3 space-y-1">
-            {plyTotals(diagramPlies, materials).map((t) => (
-              <div key={t.label} className="flex justify-between text-[11px]">
-                <dt className="admin-faint">{t.label}</dt>
-                <dd className="admin-muted tabular-nums">{t.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
+        <div className="2xl:sticky 2xl:top-4 self-start min-w-0">
+          <Card title="Diagram" icon="fin" tone="violet" flush>
+            <div className="p-3">
+              <PlyDiagram plies={diagramPlies} materials={materials} maxLengthCm={maxLengthCm} />
+              <PlyLegend plies={diagramPlies} materials={materials} />
+            </div>
+          </Card>
+          <Totals plies={diagramPlies} materials={materials} className="mt-3" />
+        </div>
       </div>
       )}
 
       {/* One save bar, and only when there is something to save. */}
       {editing && (
         <div className="fixed bottom-0 left-0 right-0 z-30 px-5 py-3 flex items-center justify-end gap-3"
-          style={{ backgroundColor: "var(--admin-surface)", borderTop: "1px solid var(--admin-border)" }}>
-          {msg && <span className={`text-xs mr-auto ${msg === "Saved" ? "text-green-400" : "text-red-400"}`}>{msg}</span>}
-          {!msg && dirty && <span className="text-xs admin-faint mr-auto">Unsaved changes</span>}
+          style={{ backgroundColor: "var(--admin-surface)", borderTop: "1px solid var(--admin-border)", boxShadow: "0 -6px 20px rgba(0,0,0,0.06)" }}>
+          <span className="mr-auto">{msg ? <SaveNote msg={msg} /> : dirty ? <span className="text-xs admin-faint">Unsaved changes</span> : null}</span>
           <label className="flex items-center gap-2 text-xs admin-muted cursor-pointer select-none mr-2">
             <input type="checkbox" checked={header.is_reference}
               onChange={(e) => setHeader({ ...header, is_reference: e.target.checked })} />
             Quoting reference
           </label>
-          <button onClick={discard} className="px-3 py-2 text-sm admin-muted rounded-lg">
-            {dirty ? "Discard" : "Done"}
-          </button>
-          <button onClick={save} disabled={saving || !dirty}
-            className="px-4 py-2 bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg disabled:opacity-40">
-            {saving ? "Saving…" : "Save"}
-          </button>
+          <button onClick={discard} className={btnSecondary} style={btnSecondaryStyle}>{dirty ? "Discard" : "Done"}</button>
+          <button onClick={save} disabled={saving || !dirty} className={btnPrimary} style={btnPrimaryStyle}>{saving ? "Saving…" : "Save"}</button>
         </div>
       )}
     </div>
+  );
+}
+
+/** The quick sanity numbers under a diagram, as small tiles. */
+function Totals({ plies, materials, className = "" }: { plies: PdPly[]; materials: PdMaterial[]; className?: string }) {
+  return (
+    <dl className={`grid grid-cols-3 gap-2 ${className}`}>
+      {plyTotals(plies, materials).map((t) => (
+        <div key={t.label} className="px-3 py-2 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+          <dt className="text-[10px] font-medium admin-faint truncate">{t.label}</dt>
+          <dd className="text-sm font-bold admin-heading tabular-nums">{t.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -988,7 +1122,7 @@ function addPly(rows: DraftPly[], layupId: string, materials: PdMaterial[]): Dra
   }];
 }
 
-// ─── Spec strip — the numbers you actually look this sheet up for ────────────
+// ─── Spec strip: the numbers you actually look this sheet up for ─────────────
 
 function SpecStrip({
   editing, header, setHeader, geometryFields, plyCount,
@@ -1002,7 +1136,7 @@ function SpecStrip({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const set = (patch: Record<string, unknown>) => (setHeader as any)({ ...header, ...patch });
   const resin = header.resin_pct_min || header.resin_pct_max
-    ? `${header.resin_pct_min || "?"}–${header.resin_pct_max || "?"}%` : null;
+    ? `${header.resin_pct_min || "?"} to ${header.resin_pct_max || "?"}%` : null;
 
   if (!editing) {
     const items = [
@@ -1012,20 +1146,15 @@ function SpecStrip({
     ].filter((i) => i.value);
     if (!items.length) return null;
     return (
-      <dl className="flex flex-wrap gap-x-6 gap-y-1 mt-3 px-4 py-2.5 rounded-lg"
+      <dl className="flex flex-wrap gap-x-8 gap-y-2 px-4 py-3 rounded-xl"
         style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-        {items.map((i) => (
-          <div key={i.label} className="flex items-baseline gap-1.5">
-            <dt className="text-[10px] font-bold tracking-[0.08em] admin-faint uppercase">{i.label}</dt>
-            <dd className="text-sm admin-heading tabular-nums font-semibold">{i.value}</dd>
-          </div>
-        ))}
+        {items.map((i) => <Fact key={i.label} label={i.label} value={i.value} />)}
       </dl>
     );
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <div><label className={labelClass}>Reference</label>
         <input className={inputClass} value={header.ref} placeholder="357"
           onChange={(e) => set({ ref: e.target.value })} /></div>
@@ -1033,7 +1162,7 @@ function SpecStrip({
         <div className="flex items-center gap-1">
           <input className={inputClass} value={header.resin_pct_min} placeholder="40"
             onChange={(e) => set({ resin_pct_min: e.target.value })} />
-          <span className="admin-faint text-xs">–</span>
+          <span className="admin-faint text-xs">to</span>
           <input className={inputClass} value={header.resin_pct_max} placeholder="45"
             onChange={(e) => set({ resin_pct_max: e.target.value })} />
         </div></div>
@@ -1088,7 +1217,7 @@ function PasteStack({
   const unmatched = parsed.filter((p) => !p.matched).length;
 
   return (
-    <div className="mb-3 p-3 rounded-xl" style={{ border: "1px solid var(--admin-accent)", backgroundColor: "var(--admin-surface)" }}>
+    <div className="p-3 rounded-xl" style={{ border: "1px solid var(--admin-accent)", backgroundColor: "var(--admin-bg)" }}>
       <p className="text-xs admin-muted mb-2">
         One ply per line: <code className="admin-faint">template &nbsp; length &nbsp; material</code>.
         Tabs, commas or spaces all work. <strong>This replaces the whole stack.</strong>
@@ -1103,14 +1232,13 @@ function PasteStack({
         </div>
         <span className="text-xs admin-faint">
           {parsed.length} row{parsed.length !== 1 ? "s" : ""}
-          {unmatched > 0 && <span className="text-amber-400"> · {unmatched} without a material match — set those after</span>}
+          {unmatched > 0 && <span className="text-amber-600"> · {unmatched} without a material match, set those after</span>}
         </span>
         <button onClick={() => onParsed(parsed.map(({ matched, ...r }) => { void matched; return r; }))}
-          disabled={!parsed.length}
-          className="ml-auto px-3 py-1.5 bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] text-xs font-bold rounded-lg disabled:opacity-40">
+          disabled={!parsed.length} className={`ml-auto ${btnPrimary}`} style={btnPrimaryStyle}>
           Use these {parsed.length} plies
         </button>
-        <button onClick={onCancel} className="px-2 py-1.5 admin-muted text-xs">Cancel</button>
+        <button onClick={onCancel} className={btnSecondary} style={btnSecondaryStyle}>Cancel</button>
       </div>
     </div>
   );
@@ -1132,24 +1260,19 @@ function CompareSheets({
     return (
       <div>
         <div className="flex justify-end mb-3"><ViewToggle view={view} onChange={setView} /></div>
-        <div className="space-y-5">
+        <div className="space-y-4">
           {bundle.layups.map((l) => {
             const plies = pliesByLayup.get(l.id) ?? [];
+            const con = constructionById.get(l.construction_id);
             return (
-              <div key={l.id} className="p-4 rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-                <div className="flex items-baseline justify-between gap-3 mb-2">
-                  <h3 className="text-sm font-bold admin-heading">
-                    {l.name} {l.is_reference && <span className="text-[var(--admin-accent)]">★</span>}
-                  </h3>
-                  <p className="text-[11px] admin-faint">
-                    {resolveModelName(l, constructionById.get(l.construction_id), bundle).name} · {constructionById.get(l.construction_id)?.name} · {moldById.get(l.mold_id)?.name} mm · {plies.length} plies
-                  </p>
-                </div>
+              <Card key={l.id} title={<span className="inline-flex items-center gap-2">{l.name}{l.is_reference && <Chip tone="violet" solid>REF</Chip>}</span>}
+                icon="layers" tone="violet"
+                subtitle={`${resolveModelName(l, con, bundle).name} · ${con?.name ?? ""} · ${moldById.get(l.mold_id)?.name} mm · ${plies.length} plies`}>
                 {plies.length === 0
                   ? <p className="text-xs admin-faint py-6 text-center">No plies yet</p>
                   : <><PlyFins plies={plies} materials={bundle.materials} maxLengthCm={globalMax} />
                       <PlyLegend plies={plies} materials={bundle.materials} /></>}
-              </div>
+              </Card>
             );
           })}
         </div>
@@ -1160,23 +1283,26 @@ function CompareSheets({
   return (
     <div>
       <div className="flex justify-end mb-3"><ViewToggle view={view} onChange={setView} /></div>
-      <div className="flex gap-6 overflow-x-auto pb-2">
+      <div className="flex gap-4 overflow-x-auto pb-2">
         {bundle.layups.map((l) => {
           const plies = pliesByLayup.get(l.id) ?? [];
+          const con = constructionById.get(l.construction_id);
           return (
-            <div key={l.id} className="min-w-[290px] flex-shrink-0">
-              <h3 className="text-sm font-bold admin-heading">
-                {moldById.get(l.mold_id)?.name} mm {l.is_reference && <span className="text-[var(--admin-accent)]">★</span>}
-              </h3>
-              <p className="text-[11px] admin-faint mb-2">{constructionById.get(l.construction_id)?.name}</p>
-              {plies.length === 0
-                ? <p className="text-xs admin-faint py-6 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>No plies yet</p>
-                : <PlyDiagram plies={plies} materials={bundle.materials} maxLengthCm={globalMax} />}
-              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
-                {plyTotals(plies, bundle.materials).map((t) => (
-                  <span key={t.label} className="text-[11px] admin-faint">{t.label}: <span className="admin-muted tabular-nums">{t.value}</span></span>
-                ))}
-              </div>
+            <div key={l.id} className="min-w-[300px] flex-shrink-0">
+              <Card flush>
+                <div className="p-3">
+                  <div className="flex items-baseline gap-1 mb-1">
+                    <span className="text-base font-bold admin-heading tabular-nums">{moldById.get(l.mold_id)?.name}</span>
+                    <span className="text-[11px] admin-faint">mm</span>
+                    {l.is_reference && <Chip tone="violet" solid className="ml-auto">REF</Chip>}
+                  </div>
+                  {con && <Chip tone={constructionTone(bundle, con.id)} className="mb-2">{con.name}</Chip>}
+                  {plies.length === 0
+                    ? <p className="text-xs admin-faint py-6 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>No plies yet</p>
+                    : <PlyDiagram plies={plies} materials={bundle.materials} maxLengthCm={globalMax} />}
+                </div>
+              </Card>
+              <Totals plies={plies} materials={bundle.materials} className="mt-2" />
             </div>
           );
         })}

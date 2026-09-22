@@ -4,6 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { keyUrl } from "@/lib/img";
 import { ImportDialog } from "@/components/admin/board-measure-grid";
 import {
+  Card, Chip, Empty, Icon, InfoTip, btnPrimary, btnPrimaryStyle, btnSecondary, btnSecondaryStyle, btnSmall,
+  type Tone,
+} from "@/components/admin/pd-ui";
+import {
   BOARD_METRIC_BY_KEY, defaultScale, fmtReading,
   type FiledNote, type ParsedSeries, type PdBoard, type PdBoardNote,
 } from "@/lib/board-measurements";
@@ -80,10 +84,10 @@ export function NoteComposer({ board, onSaved, onFile }: {
     onSaved();
   }
 
-  const primary = "px-4 py-2 text-xs font-bold rounded-lg disabled:opacity-40";
-  const primaryStyle = { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" };
-  const secondary = "px-3 py-2 text-xs font-semibold admin-muted rounded-lg disabled:opacity-40";
-  const secondaryStyle = { border: "1px solid var(--admin-border)" };
+  const primary = btnPrimary;
+  const primaryStyle = btnPrimaryStyle;
+  const secondary = btnSecondary;
+  const secondaryStyle = btnSecondaryStyle;
 
   return (
     <div>
@@ -101,15 +105,16 @@ export function NoteComposer({ board, onSaved, onFile }: {
           Save as note
         </button>
         <Recorder onDone={addVoice} disabled={busy} />
-        <button onClick={() => setGuide(!guide)} aria-expanded={guide}
-          className="ml-auto text-[11px] font-semibold admin-muted hover:text-[var(--admin-accent)] px-1">
-          {guide ? "Hide format guide" : "Format guide"}
-        </button>
+        <span className="ml-auto inline-flex items-center gap-1">
+          <InfoTip align="right">
+            Filing shows what it read before anything is written. Voice notes stay audio; add the transcript afterwards and file it.
+          </InfoTip>
+          <button onClick={() => setGuide(!guide)} aria-expanded={guide} className={btnSmall}>
+            {guide ? "Hide format guide" : "Format guide"}
+          </button>
+        </span>
       </div>
-      {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
-      <p className="mt-2 text-[11px] admin-faint leading-snug">
-        Filing shows what it read before anything is written. Voice notes stay audio; add the transcript afterwards and file it.
-      </p>
+      {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
       {guide && <SessionBrief />}
     </div>
   );
@@ -181,20 +186,19 @@ export function BoardNotes({ board, notes, onChanged }: { board: PdBoard; notes:
   const [composerKey, setComposerKey] = useState(0);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-8">
+    <div className="grid grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)] gap-5">
       <div>
-        <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-2">New note</h3>
-        <NoteComposer key={composerKey} board={board} onSaved={onChanged} onFile={setFileText} />
+        <Card title="New note" icon="note" tone="amber" subtitle="Type, paste or record">
+          <NoteComposer key={composerKey} board={board} onSaved={onChanged} onFile={setFileText} />
+        </Card>
       </div>
 
-      <div>
-        <h3 className="text-xs font-bold tracking-[0.1em] admin-faint uppercase mb-2">
+      <div className="min-w-0">
+        <p className="text-sm font-bold admin-heading mb-3">
           {notes.length} note{notes.length === 1 ? "" : "s"}
-        </h3>
+        </p>
         {!notes.length ? (
-          <div className="py-12 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>
-            <p className="text-sm admin-faint">Nothing yet.</p>
-          </div>
+          <Empty icon="note" tone="amber" title="No notes yet" />
         ) : (
           <div className="space-y-3">
             {notes.map((n) => <NoteCard key={n.id} board={board} note={n} onChanged={onChanged} />)}
@@ -218,6 +222,11 @@ function NoteCard({ board, note, onChanged }: { board: PdBoard; note: PdBoardNot
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set((note.filed?.proposals ?? []).map((p) => p.metric)));
+  // A note already filed into the board is a record, not a to-do: show its
+  // first lines and fold the rest.
+  const lines = (note.body ?? "").split("\n");
+  const foldable = note.status === "applied" && lines.length > 8;
+  const [unfolded, setUnfolded] = useState(false);
 
   const filed: FiledNote = note.filed ?? {};
   const proposals: ParsedSeries[] = filed.proposals ?? [];
@@ -279,33 +288,33 @@ function NoteCard({ board, note, onChanged }: { board: PdBoard; note: PdBoardNot
     if (res.ok) onChanged();
   }
 
-  const STATUS: Record<PdBoardNote["status"], { label: string; cls: string }> = {
-    raw: { label: "raw", cls: "admin-faint" },
-    sorted: { label: "sorted — waiting for you", cls: "text-amber-400" },
-    applied: { label: "in the board", cls: "text-green-400" },
-    discarded: { label: "discarded", cls: "admin-faint" },
+  const STATUS: Record<PdBoardNote["status"], { label: string; tone: Tone }> = {
+    raw: { label: "Raw", tone: "slate" },
+    sorted: { label: "Sorted, waiting for you", tone: "amber" },
+    applied: { label: "In the board", tone: "green" },
+    discarded: { label: "Discarded", tone: "slate" },
   };
 
   return (
-    <div className="rounded-xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-[10px] font-bold tracking-[0.08em] uppercase admin-faint">
-          {note.kind === "voice" ? "🎙 voice" : "text"} · {new Date(note.created_at).toLocaleString("de-DE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+    <div className="rounded-2xl p-4" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <Chip tone={note.kind === "voice" ? "pink" : "slate"} icon={note.kind === "voice" ? "mic" : "note"}>{note.kind === "voice" ? "Voice" : "Text"}</Chip>
+        <Chip tone={STATUS[note.status].tone} dot>{STATUS[note.status].label}</Chip>
+        <span className="text-[11px] admin-faint">
+          {new Date(note.created_at).toLocaleString("de-DE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
         </span>
-        <span className={`text-[10px] font-semibold ${STATUS[note.status].cls}`}>· {STATUS[note.status].label}</span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1">
           {note.status !== "applied" && (
             <button onClick={sort} disabled={busy || !(note.body ?? "").trim()}
               title={(note.body ?? "").trim() ? "Read the note and propose what to file" : "Add a transcript first"}
-              className="text-[11px] font-semibold px-2 py-1 rounded disabled:opacity-40"
-              style={{ border: "1px solid var(--admin-border)" }}>
+              className={btnSecondary} style={btnSecondaryStyle}>
               {busy ? "…" : note.status === "sorted" ? "Sort again" : "Sort into the board"}
             </button>
           )}
-          <button onClick={() => setEditing(!editing)} className="text-[11px] admin-faint hover:admin-muted px-1">
-            {editing ? "cancel" : note.kind === "voice" && !note.body ? "add transcript" : "edit"}
+          <button onClick={() => setEditing(!editing)} className={btnSmall}>
+            {editing ? "Cancel" : note.kind === "voice" && !note.body ? "Add transcript" : <><Icon name="edit" className="w-3.5 h-3.5" />Edit</>}
           </button>
-          <button onClick={remove} className="text-[11px] admin-faint hover:text-red-400 px-1">✕</button>
+          <button onClick={remove} className={btnSmall} title="Delete"><Icon name="x" className="w-3.5 h-3.5" /></button>
         </div>
       </div>
 
@@ -323,12 +332,21 @@ function NoteCard({ board, note, onChanged }: { board: PdBoard; note: PdBoardNot
             style={{ backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }}>Save</button>
         </div>
       ) : note.body ? (
-        <pre className="text-xs admin-heading whitespace-pre-wrap font-mono leading-relaxed">{note.body}</pre>
+        <>
+          <pre className="text-xs admin-heading whitespace-pre-wrap font-mono leading-relaxed">
+            {foldable && !unfolded ? lines.slice(0, 6).join("\n") : note.body}
+          </pre>
+          {foldable && (
+            <button onClick={() => setUnfolded(!unfolded)} className={`${btnSmall} mt-1`}>
+              {unfolded ? "Show less" : `Show all ${lines.length} lines`}
+            </button>
+          )}
+        </>
       ) : (
         <p className="text-xs admin-faint italic">No transcript yet.</p>
       )}
 
-      {msg && <p className="mt-2 text-[11px] text-amber-400 leading-relaxed">{msg}</p>}
+      {msg && <p className="mt-2 text-[11px] text-amber-600 leading-relaxed">{msg}</p>}
 
       {(filed.summary || proposals.length > 0 || (filed.bullets?.length ?? 0) > 0) && (
         <div className="mt-3 pt-3" style={{ borderTop: "1px solid var(--admin-border)" }}>
@@ -427,14 +445,12 @@ function Recorder({ onDone, disabled }: { onDone: (blob: Blob, seconds: number) 
   return (
     <div className="flex items-center gap-2">
       {recording ? (
-        <button onClick={stop} className="px-3 py-2 text-xs font-bold rounded-lg text-white" style={{ backgroundColor: "#ef4444" }}>
-          ■ Stop · {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")}
+        <button onClick={stop} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold rounded-lg text-white" style={{ backgroundColor: "#dc2626" }}>
+          <span className="w-2.5 h-2.5 rounded-sm bg-white" />Stop · {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, "0")}
         </button>
       ) : (
-        <button onClick={start} disabled={disabled}
-          className="px-3 py-2 text-xs font-semibold admin-muted rounded-lg disabled:opacity-40"
-          style={{ border: "1px solid var(--admin-border)" }}>
-          🎙 Record
+        <button onClick={start} disabled={disabled} className={btnSecondary} style={btnSecondaryStyle}>
+          <Icon name="mic" className="w-4 h-4" />Record
         </button>
       )}
       {err && <span className="text-[11px] text-red-400">{err}</span>}

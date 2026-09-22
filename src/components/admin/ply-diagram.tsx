@@ -55,7 +55,7 @@ export function PlyDiagram({
   const longest = maxLengthCm ?? Math.max(1, ...plies.map((p) => Number(p.length_cm) || 0));
 
   if (!plies.length) {
-    return <p className="text-xs admin-faint py-6 text-center">No plies yet — add the first row and the diagram draws itself.</p>;
+    return <p className="text-xs admin-faint py-6 text-center">No plies yet. Add the first row and the diagram draws itself.</p>;
   }
 
   const barMaxW = 340;
@@ -67,7 +67,7 @@ export function PlyDiagram({
 
   return (
     <div className="overflow-x-auto">
-      <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img"
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" className="w-full h-auto" style={{ maxWidth: width }}
         aria-label={`Layup diagram, ${plies.length} plies in ${stacks.length} stack${stacks.length !== 1 ? "s" : ""}`}>
         {laidOut.map((group, gi) => {
           const startY = group.startY;
@@ -180,7 +180,7 @@ export function PlyFins({
   return (
     <div className="overflow-x-auto">
       <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img"
-        aria-label={`Layup diagram — ${ordered.length} plies drawn as fin outlines`}>
+        aria-label={`Layup diagram: ${ordered.length} plies drawn as fin outlines`}>
         {/* Baseline the plies hang from, plus quiet depth guides. */}
         <line x1={4} y1={TOP} x2={width - 8} y2={TOP} stroke="var(--admin-border-strong)" strokeWidth="1" />
         {[0.25, 0.5, 0.75, 1].map((f) => (

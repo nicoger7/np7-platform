@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  Empty, Icon, InfoTip, PageHeader, btnPrimary, btnPrimaryStyle, btnSecondary, btnSecondaryStyle, toneVars, type Tone,
+} from "@/components/admin/pd-ui";
 
 /**
  * The Product Development media root.
@@ -32,6 +35,17 @@ function fmtSize(bytes: number) {
 }
 
 const isImage = (t: string | null) => (t ?? "").startsWith("image/");
+
+/** File types by colour, so a drawing, a CAD file and a spreadsheet are
+ *  told apart before the name is read. */
+function fileTone(name: string): Tone {
+  const ext = (name.split(".").pop() ?? "").toLowerCase();
+  if (["pdf"].includes(ext)) return "red";
+  if (["s3dx", "s3d", "brd", "stp", "step", "igs", "iges", "dxf", "dwg", "stl", "3dm"].includes(ext)) return "violet";
+  if (["xlsx", "xls", "csv", "numbers"].includes(ext)) return "green";
+  if (["mp4", "mov", "m4a", "webm", "ogg", "mp3"].includes(ext)) return "pink";
+  return "slate";
+}
 
 export default function ProductDevMediaPage() {
   const [folder, setFolder] = useState(ROOT);
@@ -80,7 +94,7 @@ export default function ProductDevMediaPage() {
   }
 
   async function remove(item: Item) {
-    if (!confirm(`Delete ${item.name}?\n\nThis removes it from storage — anything referencing it will show a broken image.`)) return;
+    if (!confirm(`Delete ${item.name}?\n\nThis removes it from storage. Anything referencing it will show a broken image.`)) return;
     const res = await fetch("/api/admin/product-dev/media", {
       method: "DELETE", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paths: [item.path] }),
@@ -98,25 +112,31 @@ export default function ProductDevMediaPage() {
       onDragLeave={() => setDragOver(false)}
       onDrop={(e) => { e.preventDefault(); setDragOver(false); upload(Array.from(e.dataTransfer.files)); }}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-5">
-        <div>
-          <h1 className="text-2xl font-bold admin-heading mb-1">Media</h1>
-          <p className="text-sm admin-muted">
-            Photos, drawings and CAD files for R&amp;D. Locked to this section — nothing here appears in the
-            Experience or Hardware pickers.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button onClick={newFolder} className="px-3 py-2 text-sm rounded-lg admin-muted hover:text-[var(--admin-accent)]"
-            style={{ border: "1px solid var(--admin-border)" }}>New folder</button>
-          <button onClick={() => inputRef.current?.click()} disabled={uploading}
-            className="px-4 py-2 bg-[var(--admin-accent)] hover:bg-[var(--admin-accent)]/90 disabled:opacity-40 text-[var(--admin-accent-contrast)] text-sm font-bold rounded-lg transition-colors">
-            {uploading ? "Uploading…" : "Upload"}
-          </button>
-          <input ref={inputRef} type="file" multiple hidden
-            onChange={(e) => { if (e.target.files) upload(Array.from(e.target.files)); e.target.value = ""; }} />
-        </div>
-      </div>
+      <PageHeader
+        title="Media"
+        subtitle={
+          <span className="inline-flex items-center gap-1.5">
+            Photos, drawings and CAD files for R&amp;D. Drop files anywhere on the page.
+            <InfoTip>
+              Locked to Product Dev: nothing here appears in the Experience or Hardware pickers. The storage bucket
+              itself is public, though, so anyone holding a direct URL can still open a file. Treat it as
+              &ldquo;not discoverable&rdquo;, not &ldquo;secret&rdquo;.
+            </InfoTip>
+          </span>
+        }
+        actions={
+          <>
+            <button onClick={newFolder} className={btnSecondary} style={btnSecondaryStyle}>
+              <Icon name="folder" className="w-4 h-4" />New folder
+            </button>
+            <button onClick={() => inputRef.current?.click()} disabled={uploading} className={btnPrimary} style={btnPrimaryStyle}>
+              <Icon name="upload" className="w-4 h-4" />{uploading ? "Uploading…" : "Upload"}
+            </button>
+            <input ref={inputRef} type="file" multiple hidden
+              onChange={(e) => { if (e.target.files) upload(Array.from(e.target.files)); e.target.value = ""; }} />
+          </>
+        }
+      />
 
       <div className="flex items-center gap-1.5 mb-4 text-xs">
         {crumbs.map((c, i) => {
@@ -134,33 +154,34 @@ export default function ProductDevMediaPage() {
         })}
       </div>
 
-      {error && <div className="mb-4 px-4 py-3 rounded-lg text-sm text-red-400" style={{ border: "1px solid var(--admin-border)" }}>{error}</div>}
+      {error && <div className="mb-4 px-4 py-3 rounded-xl text-sm text-red-500" style={{ border: "1px solid var(--admin-border)" }}>{error}</div>}
 
       {loading ? (
         <div className="py-12 text-center text-sm admin-faint">Loading…</div>
       ) : files.length === 0 ? (
-        <div className="py-16 text-center rounded-xl" style={{ border: `1px dashed ${dragOver ? "var(--admin-accent)" : "var(--admin-border)"}` }}>
-          <p className="text-sm admin-faint">Nothing here yet — drop files anywhere on this page.</p>
+        <div style={dragOver ? { outline: "2px dashed var(--admin-accent)", borderRadius: 16 } : undefined}>
+          <Empty icon="image" tone="pink" title="Nothing here yet">Drop files anywhere on this page, or use Upload.</Empty>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"
+          style={dragOver ? { outline: "2px dashed var(--admin-accent)", outlineOffset: 6, borderRadius: 16 } : undefined}>
           {files.map((f) => (
-            <div key={f.path} className="rounded-xl overflow-hidden group relative" style={{ border: "1px solid var(--admin-border)" }}>
+            <div key={f.path} className="rounded-2xl overflow-hidden group relative" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
               {f.isFolder ? (
-                <button onClick={() => setFolder(f.path)} className="w-full aspect-square flex flex-col items-center justify-center gap-2 admin-surface hover:bg-[var(--admin-surface-hover)] transition-colors">
-                  <svg className="w-8 h-8 admin-faint" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
-                  </svg>
-                  <span className="text-xs admin-muted px-2 truncate max-w-full">{f.name}</span>
+                <button onClick={() => setFolder(f.path)} className="pd-tone w-full h-full min-h-[140px] flex flex-col items-center justify-center gap-2 transition-colors hover:brightness-95"
+                  style={{ ...toneVars("amber"), backgroundColor: "var(--tone-bg)" }}>
+                  <Icon name="folder" className="w-10 h-10" style={{ color: "var(--tone)" }} strokeWidth={1.5} />
+                  <span className="text-xs font-semibold admin-heading px-2 truncate max-w-full">{f.name}</span>
                 </button>
               ) : (
                 <>
-                  <div className="aspect-square admin-surface flex items-center justify-center overflow-hidden">
+                  <div className="aspect-square flex items-center justify-center overflow-hidden" style={{ backgroundColor: "var(--admin-bg)" }}>
                     {isImage(f.type) && f.thumbUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={f.thumbUrl} alt={f.name} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
-                      <span className="text-[10px] font-bold tracking-wider admin-faint uppercase">
+                      <span className="pd-tone px-2.5 py-1 rounded-lg text-xs font-bold uppercase tracking-wide"
+                        style={{ ...toneVars(fileTone(f.name)), color: "var(--tone)", backgroundColor: "var(--tone-bg)" }}>
                         {(f.name.split(".").pop() || "file").slice(0, 5)}
                       </span>
                     )}
@@ -170,8 +191,8 @@ export default function ProductDevMediaPage() {
                     <p className="text-[10px] admin-faint">{fmtSize(f.size)}</p>
                   </div>
                   <button onClick={() => remove(f)} title="Delete"
-                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity admin-surface admin-faint hover:text-red-400"
-                    style={{ border: "1px solid var(--admin-border)" }}>✕</button>
+                    className="absolute top-2 right-2 w-7 h-7 rounded-lg inline-flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity admin-faint hover:text-red-500"
+                    style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}><Icon name="x" className="w-3.5 h-3.5" /></button>
                 </>
               )}
             </div>
@@ -179,11 +200,6 @@ export default function ProductDevMediaPage() {
         </div>
       )}
 
-      <p className="mt-6 text-xs admin-faint max-w-2xl leading-relaxed">
-        Files here are hidden from the shared media library, but the storage bucket itself is public —
-        anyone holding a direct URL can still open one. Treat that as &ldquo;not discoverable&rdquo;, not
-        &ldquo;secret&rdquo;.
-      </p>
     </div>
   );
 }

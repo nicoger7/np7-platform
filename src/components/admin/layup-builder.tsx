@@ -242,7 +242,7 @@ export function LayupBuilder<T extends BuilderPlyBase>({
             onPointerDown={(e) => onPaletteDown(e, m.id)}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
-            title={`${m.name} — click to add, drag into the stack to place`}
+            title={`${m.name}: click to add, drag into the stack to place`}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs admin-muted hover:admin-heading transition-colors cursor-grab active:cursor-grabbing"
             style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)", touchAction: "none" }}>
             <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: m.diagram_color || "var(--admin-border-strong)" }} />
@@ -254,7 +254,7 @@ export function LayupBuilder<T extends BuilderPlyBase>({
       {/* The stack. */}
       <div className="overflow-x-auto rounded-xl" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
         {plies.length === 0 && (
-          <p className="text-xs admin-faint text-center pt-10 -mb-6">Drag a material in — the first ply starts the stack.</p>
+          <p className="text-xs admin-faint text-center pt-10 -mb-6">Drag a material in. The first ply starts the stack.</p>
         )}
         <svg ref={svgRef} width={width} height={height} viewBox={`0 0 ${width} ${height}`}
           style={{ touchAction: "none", display: "block" }}
@@ -355,7 +355,7 @@ export function LayupBuilder<T extends BuilderPlyBase>({
               onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
           </label>
           <label className="flex items-center gap-1.5 text-xs admin-muted cursor-pointer pb-1.5"
-            title="The two sides of a blade (or a board's deck vs bottom) are separate stacks — lengths restart here.">
+            title="The two sides of a blade (or a board's deck vs bottom) are separate stacks: lengths restart here.">
             <input type="checkbox" disabled={selectedIndex === 0}
               checked={selectedIndex > 0 && stackBoundaries(plies).has(selectedIndex)}
               onChange={() => commit(withBoundaryToggled(plies, selectedIndex))} />
