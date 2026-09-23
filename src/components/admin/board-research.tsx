@@ -99,8 +99,8 @@ export function BoardResearchTab({ board, onChanged }: { board: PdBoard; onChang
         <a key={l.label} href={l.href} target="_blank" rel="noreferrer" className={btnSecondary} style={btnSecondaryStyle}>{l.label}</a>
       ))}
       <InfoTip align="right">
-        Search the web asks Claude to find the official page, the published specs of this size, and what testers and riders say,
-        each point with its source. One run costs a few cents and takes up to a minute. It needs PD_ANTHROPIC_API_KEY in Vercel.
+        Search the web asks the AI (ChatGPT or Claude, whichever key is set) to find the official page, the published specs of
+        this size, and what testers and riders say, each point with its source. One run costs a few cents and takes up to a minute.
       </InfoTip>
       <span className="ml-auto"><SaveNote msg={msg === "Saved" ? msg : ""} /></span>
     </div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { pdDb, requirePdEdit } from "@/lib/product-dev-api";
 import { requireAdminGate } from "@/lib/admin-auth";
+import { openAiJson, pdAiKey } from "@/lib/pd-ai";
 import { parseMeasurementText, BOARD_METRICS, type FiledNote, type ParsedSeries } from "@/lib/board-measurements";
 
 /**
@@ -114,8 +115,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // ── 2. The model ───────────────────────────────────────────────────────────
-  const apiKey = process.env.PD_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  // Either key works: pd-ai tells a Claude key from a ChatGPT key by its prefix.
+  const ai = pdAiKey();
+  if (!ai) {
     // Not an error state — this is the documented "connect the key later"
     // path, and it says exactly what would have happened and what to do now.
     return NextResponse.json({
@@ -130,25 +132,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       by: "none",
       needsKey: true,
       message:
-        "Nothing in this note is in the station format, so it needs the assistant — and PD_ANTHROPIC_API_KEY isn't set yet. " +
+        "Nothing in this note is in the station format, so it needs the assistant, and no AI key (ChatGPT or Claude) is set yet. " +
         "Until it is, write the note as a metric heading with one station per line and it files itself, no key needed.",
     }, { status: 200 });
   }
 
   try {
-    const client = new Anthropic({ apiKey });
-    const msg = await client.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      system: SYSTEM,
-      messages: [{ role: "user", content: text }],
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      output_config: { format: { type: "json_schema", schema: SCHEMA } } as any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any);
-
-    const raw = msg.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("");
-    const answer = safeJson(raw) as { summary?: string; bullets?: string[]; series?: ParsedSeries[] } | null;
+    type Answer = { summary?: string; bullets?: string[]; series?: ParsedSeries[] };
+    let answer: Answer | null;
+    if (ai.provider === "openai") {
+      answer = await openAiJson<Answer>({ key: ai.key, instructions: SYSTEM, input: text, name: "filed_note", schema: SCHEMA as unknown as Record<string, unknown> });
+    } else {
+      const client = new Anthropic({ apiKey: ai.key });
+      const msg = await client.messages.create({
+        model: MODEL,
+        max_tokens: 4000,
+        system: SYSTEM,
+        messages: [{ role: "user", content: text }],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        output_config: { format: { type: "json_schema", schema: SCHEMA } } as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+      const raw = msg.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("");
+      answer = safeJson(raw) as Answer | null;
+    }
     if (!answer) throw new Error("The assistant returned an unreadable answer.");
 
     const proposals: ParsedSeries[] = (answer.series ?? []).map((s) => ({

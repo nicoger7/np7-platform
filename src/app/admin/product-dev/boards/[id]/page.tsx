@@ -94,13 +94,22 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
       <PageHeader
         back={{ href: "/admin/product-dev/boards", label: "Boards" }}
         thumb={
-          <div className="w-[176px] h-[72px] rounded-2xl px-2 flex items-center justify-center" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+          // The picture is also the way to the picture finder: a board without
+          // a top view says so right where the picture would be.
+          <button onClick={() => setTab("photos")} title={top ? "Photos" : "Find a top-view picture"}
+            className="group relative w-[176px] h-[72px] rounded-2xl px-2 flex items-center justify-center transition-shadow hover:shadow-md"
+            style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
             {top
               ? <BoardPhotoThumb photo={top} width={400} />
               : w.length >= 2 || wt.length >= 2
                 ? <BoardOutlineThumb width={w} widthTop={wt} lengthCm={d.length_cm ?? lastStation} origin={d.station_origin} tone={tone} className="w-full h-full" />
                 : <Icon name="board" className="w-8 h-8 admin-faint" strokeWidth={1.4} />}
-          </div>
+            {!top && (
+              <span className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                <Chip tone="pink" icon="search">Find a top view</Chip>
+              </span>
+            )}
+          </button>
         }
         title={<BoardName board={d} />}
         chips={

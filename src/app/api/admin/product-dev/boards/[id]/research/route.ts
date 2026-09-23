@@ -3,6 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { pdDb, requirePdEdit } from "@/lib/product-dev-api";
 import { requireAdminGate } from "@/lib/admin-auth";
 import { NEEDS_KEY, PD_RESEARCH_MODEL, pdClaude } from "@/lib/pd-web";
+import { openAiSearchThenRecord, pdAiKey } from "@/lib/pd-ai";
 import { boardTitle, disciplineLabel, type BoardResearch } from "@/lib/board-measurements";
 
 /**
@@ -95,8 +96,8 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
   if (edit) return edit;
   const { id } = await params;
 
-  const client = pdClaude();
-  if (!client) return NextResponse.json(NEEDS_KEY);
+  const ai = pdAiKey();
+  if (!ai) return NextResponse.json(NEEDS_KEY);
 
   const db = pdDb();
   const { data: board, error } = await db.from("pd_boards").select("*").eq("id", id).single();
@@ -123,9 +124,31 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     },
   };
 
-  const messages: Anthropic.Beta.BetaMessageParam[] = [
-    { role: "user", content: `Research this board:\n${JSON.stringify(facts, null, 2)}` },
-  ];
+  const ask = `Research this board:\n${JSON.stringify(facts, null, 2)}`;
+  async function save(found: BoardResearch, meta: NonNullable<BoardResearch["meta"]>) {
+    const research = { ...found, meta };
+    const research_at = new Date().toISOString();
+    const { error: saveError } = await db.from("pd_boards").update({ research, research_at }).eq("id", id);
+    if (saveError) return NextResponse.json({ error: saveError.message }, { status: 500 });
+    return NextResponse.json({ research, research_at });
+  }
+
+  // ChatGPT key: search, then answer through the same strict shape.
+  if (ai.provider === "openai") {
+    try {
+      const r = await openAiSearchThenRecord<BoardResearch>({
+        key: ai.key, instructions: SYSTEM, input: ask,
+        fn: { name: RECORD.name, description: RECORD.description, parameters: RECORD.input_schema },
+      });
+      return save(r.args, { model: r.model, searches: r.searches, input_tokens: r.inputTokens, output_tokens: r.outputTokens });
+    } catch (err) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : "The web search failed." }, { status: 502 });
+    }
+  }
+
+  const client = pdClaude();
+  if (!client) return NextResponse.json(NEEDS_KEY);
+  const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: ask }];
   let searches = 0, inputTokens = 0, outputTokens = 0;
 
   try {
@@ -155,11 +178,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
       const call = msg.content.find((b) => b.type === "tool_use" && b.name === "record_research");
       if (call && call.type === "tool_use") {
-        const research = { ...(call.input as BoardResearch), meta: { model: msg.model, searches, input_tokens: inputTokens, output_tokens: outputTokens } };
-        const research_at = new Date().toISOString();
-        const { error: saveError } = await db.from("pd_boards").update({ research, research_at }).eq("id", id);
-        if (saveError) return NextResponse.json({ error: saveError.message }, { status: 500 });
-        return NextResponse.json({ research, research_at });
+        return save(call.input as BoardResearch, { model: msg.model, searches, input_tokens: inputTokens, output_tokens: outputTokens });
       }
       if (msg.stop_reason === "refusal") {
         return NextResponse.json({ error: "The search was declined. Try again, or rename the board if the name is ambiguous." }, { status: 502 });

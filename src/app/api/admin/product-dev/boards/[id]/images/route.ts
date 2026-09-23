@@ -5,6 +5,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { pdDb, requirePdEdit } from "@/lib/product-dev-api";
 import { requireAdminGate } from "@/lib/admin-auth";
 import { NEEDS_KEY, PD_RESEARCH_MODEL, extractImages, pageTitle, pdClaude, safeFetch, type ImageCandidate } from "@/lib/pd-web";
+import { openAiSearchThenRecord, pdAiKey } from "@/lib/pd-ai";
 import { resizeForStorage, makeThumb } from "@/lib/image-resize";
 import { r2Enabled, uploadToR2 } from "@/lib/r2";
 import { boardSearchQuery, boardTitle, type BoardPhoto } from "@/lib/board-measurements";
@@ -90,16 +91,22 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   // 2. Find the pages first.
-  const client = pdClaude();
-  if (!client) return NextResponse.json(NEEDS_KEY);
+  const ai = pdAiKey();
+  if (!ai) return NextResponse.json(NEEDS_KEY);
+  const ask = `Find the web pages with the best product pictures of this windsurf board, ideally a full top view of the deck or bottom: ${boardSearchQuery(board)}. ` +
+    `The brand's own product page comes first; add at most two shop or review pages that show the same board clearly. Then call report_pages.`;
   let urls: string[] = [];
   try {
-    const messages: Anthropic.Beta.BetaMessageParam[] = [{
-      role: "user",
-      content: `Find the web pages with the best product pictures of this windsurf board, ideally a full top view of the deck or bottom: ${boardSearchQuery(board)}. ` +
-        `The brand's own product page comes first; add at most two shop or review pages that show the same board clearly. Then call report_pages.`,
-    }];
-    for (let round = 0; round < 3 && !urls.length; round++) {
+    if (ai.provider === "openai") {
+      const r = await openAiSearchThenRecord<{ pages: { url: string }[] }>({
+        key: ai.key, instructions: "You find product pages for windsurf boards.", input: ask, searchContext: "low",
+        fn: { name: PAGES.name, description: PAGES.description, parameters: PAGES.input_schema },
+      });
+      urls = (r.args.pages ?? []).map((p) => p.url).slice(0, 3);
+    }
+    const client = ai.provider === "anthropic" ? pdClaude() : null;
+    const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content: ask }];
+    for (let round = 0; client && round < 3 && !urls.length; round++) {
       const msg = await client.beta.messages.stream({
         model: PD_RESEARCH_MODEL,
         max_tokens: 4000,

@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { keyUrl } from "@/lib/img";
+import { fitPhoto, readPhotoMask, type PhotoFit, type PhotoMask } from "@/components/admin/board-photo-outline";
 import {
   BOARD_METRICS, BOARD_METRIC_BY_KEY, effectiveValue, exactValue, fmtReading, methodForScale, metricUnit, round, riseMarkerStation,
-  rockerReadout, smoothPath, toMm, widestPoint, zeroCrossing,
-  type PdBoard, type PdBoardCutout, type PdBoardPoint, type PdBoardSeries, type SeriesPoints,
+  rockerReadout, smoothPath, toMm, topPhoto, widestPoint, zeroCrossing,
+  type BoardPhoto, type PdBoard, type PdBoardCutout, type PdBoardPoint, type PdBoardSeries, type SeriesPoints,
 } from "@/lib/board-measurements";
 
 /**
@@ -57,6 +59,8 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
   const [exag, setExag] = useState(6);
   const [station, setStation] = useState<number | null>(null);
   const [labels, setLabels] = useState(true);
+  const [photoOn, setPhotoOn] = useState(true);
+  const top = topPhoto(board.photos);
 
   const width = useMemo(() => mmSeries(points, series, "width"), [points, series]);
   const widthTop = useMemo(() => mmSeries(points, series, "width_top"), [points, series]);
@@ -152,14 +156,21 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
           </label>
         )}
 
-        <label className="flex items-center gap-1.5 text-xs admin-muted ml-auto">
+        {view === "outline" && top && (
+          <label className="flex items-center gap-1.5 text-xs admin-muted ml-auto" title="Lay the board's top-view picture under the measured outline">
+            <input type="checkbox" checked={photoOn} onChange={(e) => setPhotoOn(e.target.checked)} />
+            Photo underneath
+          </label>
+        )}
+        <label className={`flex items-center gap-1.5 text-xs admin-muted ${view === "outline" && top ? "" : "ml-auto"}`}>
           <input type="checkbox" checked={labels} onChange={(e) => setLabels(e.target.checked)} />
           Value labels
         </label>
       </div>
 
       {view === "outline" && (
-        <OutlineView board={board} width={width} widthTop={widthTop} cutouts={cutouts} stations={stations} labels={labels} />
+        <OutlineView board={board} width={width} widthTop={widthTop} cutouts={cutouts} stations={stations} labels={labels}
+          photo={photoOn ? top : null} />
       )}
       {view === "rocker" && (
         <RockerView board={board} rocker={rocker} rockerOff={rockerOff}
@@ -245,14 +256,49 @@ const frame = { className: "w-full rounded-xl", style: { border: "1px solid var(
 
 // ─── Outline (top view) ──────────────────────────────────────────────────────
 
-function OutlineView({ board, width, widthTop, cutouts, stations, labels }: {
+const PHOTO_COL = "#d946ef";
+
+/** Read the picture once, then fit it to the board whenever the readings change. */
+function usePhotoFit(board: PdBoard, photo: BoardPhoto | null, width: SeriesPoints, widthTop: SeriesPoints) {
+  const url = photo ? keyUrl(photo.key) : null;
+  // The result remembers which picture it belongs to, so "loading" is simply
+  // "no result for this picture yet" and nothing is set synchronously.
+  const [read, setRead] = useState<{ url: string; mask: PhotoMask | null } | null>(null);
+  useEffect(() => {
+    if (!url) return;
+    let alive = true;
+    readPhotoMask(url)
+      .then((m) => { if (alive) setRead({ url, mask: m }); })
+      .catch(() => { if (alive) setRead({ url, mask: null }); });
+    return () => { alive = false; };
+  }, [url]);
+  const current = url && read?.url === url ? read : null;
+  const mask = current?.mask ?? null;
+  const state: "idle" | "loading" | "failed" = !url ? "idle" : !current ? "loading" : mask ? "idle" : "failed";
+  const fit = useMemo<PhotoFit | null>(() => {
+    if (!mask) return null;
+    const cm = (pts: SeriesPoints) => pts.map((p) => ({ station: p.station, value: p.value / 10 }));
+    return fitPhoto(mask, {
+      lengthCm: board.length_cm ?? null,
+      publishedLengthCm: board.research?.specs?.length_cm ?? null,
+      origin: board.station_origin,
+      measuredTop: cm(widthTop),
+      measuredBottom: cm(width),
+    });
+  }, [mask, board.length_cm, board.research, board.station_origin, width, widthTop]);
+  return { url, mask, fit, state };
+}
+
+function OutlineView({ board, width, widthTop, cutouts, stations, labels, photo }: {
   board: PdBoard; width: SeriesPoints; widthTop: SeriesPoints; cutouts: PdBoardCutout[];
-  stations: { min: number; max: number }; labels: boolean;
+  stations: { min: number; max: number }; labels: boolean; photo: BoardPhoto | null;
 }) {
   const PAD = 34;
   const W = 900;
   const both = width.length > 0 && widthTop.length > 0;
-  const allMm = [...width, ...widthTop].map((p) => p.value);
+  const shot = usePhotoFit(board, photo, width, widthTop);
+  const photoHalf: SeriesPoints = shot.fit ? shot.fit.widths.map((p) => ({ station: p.station, value: (p.value * 10) / 2 })) : [];
+  const allMm = [...width, ...widthTop, ...photoHalf.map((p) => ({ ...p, value: p.value * 2 }))].map((p) => p.value);
   const halfMaxMm = allMm.length ? Math.max(...allMm) / 2 : 300;
   const spanCm = stations.max - stations.min || 100;
   const pxPerCm = (W - PAD * 2) / spanCm;
@@ -276,7 +322,7 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels }: {
   const wideTop = widestPoint(widthTop);
   const hullCutouts = cutouts.filter((c) => c.station_from != null || c.station_to != null);
 
-  if (!width.length && !widthTop.length) {
+  if (!width.length && !widthTop.length && !photoHalf.length) {
     return (
       <div className="py-12 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>
         <p className="text-sm admin-faint">No width readings yet. The outline is drawn from them.</p>
@@ -301,6 +347,12 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels }: {
           toX={toX} toY={(cm) => centre - cm * pxPerCm} step={10} major={50}
           axisLabel={`cm from the ${board.station_origin}`} />
 
+        {/* The board's own picture, turned and scaled onto the same axes, under everything we measured. */}
+        {shot.fit && shot.mask && shot.url && (
+          <image href={shot.url} width={shot.mask.w} height={shot.mask.h} opacity={0.5} preserveAspectRatio="none"
+            transform={shot.fit.matrix(PAD, stations.min, pxPerCm, centre)} />
+        )}
+
         {/* Legend, top-left. It replaced a "widest" label that sat on the curve
             and collided with the value labels. */}
         <g fontSize={9} fill={FAINT}>
@@ -314,6 +366,12 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels }: {
             <>
               <line x1={PAD + (widthTop.length ? 190 : 0)} x2={PAD + (widthTop.length ? 206 : 16)} y1={12} y2={12} stroke={colB} strokeWidth={2} />
               <text x={PAD + (widthTop.length ? 211 : 21)} y={15}>bottom{wide ? `, widest ${round(wide.value / 10, 1)} cm at ${wide.station}` : ""}</text>
+            </>
+          )}
+          {photoHalf.length > 1 && (
+            <>
+              <line x1={PAD} x2={PAD + 16} y1={27} y2={27} stroke={PHOTO_COL} strokeWidth={2} strokeDasharray="5 3" />
+              <text x={PAD + 21} y={30}>outline read from the picture</text>
             </>
           )}
         </g>
@@ -354,6 +412,12 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels }: {
           </>
         )}
 
+        {/* The picture's own edge, traced, so the two outlines can be compared line to line. */}
+        {photoHalf.length > 1 && [1, -1].map((side) => (
+          <path key={`ph${side}`} fill="none" stroke={PHOTO_COL} strokeWidth={1.5} strokeDasharray="5 3"
+            d={photoHalf.map((p, i) => `${i ? "L" : "M"} ${toX(p.station).toFixed(1)} ${toYhalf(side * p.value).toFixed(1)}`).join(" ")} />
+        ))}
+
         {/* Upper curve: dots + labels (full width in cm) */}
         <Dots pts={upper} toX={toX} toY={toYhalf} color={upperCol} labels={labels} fmt={(v) => `${round(v / 5, 1)}`} />
 
@@ -384,9 +448,36 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels }: {
           : board.max_width_cm
             ? `Overall max width ${board.max_width_cm} cm (stated) vs ${wide ? round(wide.value / 10, 1) : "—"} cm widest bottom reading. The difference is the rail wrap.`
             : "No overall max width on the board yet. Add one on Overview, or measure the top width per station.",
+        ...photoLines(shot, !!photo),
       ]} />
     </div>
   );
+}
+
+/**
+ * What the picture says, in one or two sentences. The picture is the plan shape
+ * from above, rail to rail: it should match "Width (top)". Against a bottom
+ * width it will read wider by the rail, and that is said as expected, not as a
+ * mistake. (Nico: "sometimes we take measurements on bottom, sometimes entire
+ * width. They can differ.")
+ */
+function photoLines(shot: ReturnType<typeof usePhotoFit>, wanted: boolean): string[] {
+  if (!wanted) return [];
+  if (shot.state === "loading") return ["Reading the picture…"];
+  if (shot.state === "failed") return ["The board's edge could not be found in the picture. A product shot on a transparent or plain background works best."];
+  const f = shot.fit;
+  if (!f) return shot.mask ? ["Add the board's length on Overview to lay the picture over the outline at true scale."] : [];
+  const from = f.scaleFrom === "length" ? "the board's length" : f.scaleFrom === "published length" ? "the published length" : "the widest top width";
+  const lines = [`Picture scaled to ${round(f.lengthCm, 1)} cm from ${from}, tail on the left, and its edge traced in pink.`];
+  const c = f.compare;
+  if (c) {
+    const dir = c.mean >= 0 ? "wider" : "narrower";
+    const base = `Against our ${c.against === "top" ? "top (full) width" : "bottom width"}: the picture is ${round(Math.abs(c.mean), 1)} cm ${dir} on average over ${c.n} stations, most at ${c.at} cm (${c.maxAbs > 0 ? "+" : ""}${round(c.maxAbs, 1)} cm).`;
+    lines.push(c.against === "bottom"
+      ? `${base} Expected: the picture shows the full outline rail to rail, and the bottom sits inside it by the rail. Measure "Width (top)" for a like-for-like check.`
+      : base);
+  }
+  return lines;
 }
 
 // ─── Rocker (side view) ──────────────────────────────────────────────────────

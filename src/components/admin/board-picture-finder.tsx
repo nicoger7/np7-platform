@@ -59,7 +59,7 @@ export function BoardPictureFinder({ board, onSaved }: { board: PdBoard; onSaved
   return (
     <Card title="Top-view picture" icon="image" tone="pink"
       subtitle="The picture this board is shown by in lists"
-      info={<>Find automatically uses Claude&apos;s web search to find the brand&apos;s product page (it needs the PD key). Pasting the product page link always works. The picture is kept in Product Dev with its source, for internal reference only.</>}
+      info={<>Find automatically asks the AI (ChatGPT or Claude) to search the web for the brand&apos;s product page. Pasting the product page link always works, no key needed. The picture is kept in Product Dev with its source, for internal reference only.</>}
       actions={<SaveNote msg={msg === "Saved" ? msg : ""} />}>
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="w-full lg:w-56 h-28 rounded-xl shrink-0 flex items-center justify-center"

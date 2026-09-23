@@ -2,6 +2,7 @@ import "server-only";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import Anthropic from "@anthropic-ai/sdk";
+import { pdAiKey } from "@/lib/pd-ai";
 
 /**
  * The Product Dev side of the open web: fetch a page, pull the product pictures
@@ -171,15 +172,15 @@ export function pageTitle(html: string): string | null {
 
 // ─── Claude ──────────────────────────────────────────────────────────────────
 
-/** Null when no key is configured: the callers answer with "connect the key". */
+/** A Claude client, only when the configured key IS a Claude key (see pd-ai). */
 export function pdClaude(): Anthropic | null {
-  const apiKey = process.env.PD_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
-  return apiKey ? new Anthropic({ apiKey }) : null;
+  const ai = pdAiKey();
+  return ai?.provider === "anthropic" ? new Anthropic({ apiKey: ai.key }) : null;
 }
 
 export const PD_RESEARCH_MODEL = process.env.PD_RESEARCH_MODEL || "claude-opus-5";
 
 export const NEEDS_KEY = {
   needsKey: true,
-  message: "The web search runs on Claude and needs PD_ANTHROPIC_API_KEY in Vercel. Until then, paste a product page link or use the search links.",
+  message: "The web search needs an AI key (ChatGPT or Claude) in Vercel as PD_ANTHROPIC_API_KEY or PD_OPENAI_API_KEY. Until then, paste a product page link or use the search links.",
 };
