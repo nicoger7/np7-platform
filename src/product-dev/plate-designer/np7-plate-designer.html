@@ -345,6 +345,7 @@
           <button id="export-a-btn" title="Needs the cut-outs: load a board and detect them (a loaded design detects by itself)" class="np-btn np-btn-port" disabled>⬇ Port</button>
           <button id="export-b-btn" title="Needs the cut-outs: load a board and detect them (a loaded design detects by itself)" class="np-btn np-btn-stbd" disabled>⬇ Starboard</button>
         </div>
+        <button id="export-both-btn" class="np-link w-full text-center mt-2" disabled title="Port and starboard side by side in one file, for one print job">⬇ Both plates in one file</button>
         <div id="export-status" class="np-status"></div>
       </div>
       <div class="np-foot-links">
@@ -426,6 +427,7 @@ let detection = {
   edgeInset: 2,             // Inset plate edges from cut-out edge
   smoothing: 0,             // Number of Chaikin smoothing passes (0 = follow STL exactly)
   tailEnd: 'maxX',
+  followBottom: 1,          // plates lie on the real recess floor (V, concaves), not a flat plane
 };
 
 // Detected cut-outs (populated after detection)
@@ -787,21 +789,334 @@ function railLimiter(cutout) {
   return (X, Y) => 10 * s3dxRailHalfWidth(d, (halfLen - X) / 10, -Y / 10) - inset;
 }
 
-// Pull every vertex of an extruded plate part in to the rail at its height.
-// Local shape coords: x along the length (mirror applied), y across from minZ,
-// z up from the plate's floor.
-function railClampGeometry(geom, limit, c) {
-  const pos = geom.attributes.position;
-  let moved = 0;
-  for (let i = 0; i < pos.count; i++) {
-    const lx = pos.getX(i), ly = pos.getY(i);
-    const X = c.minX + (c.mirrored ? c.plateW - lx : lx);
-    const Z = c.minZ + ly;
-    const L = limit(X, c.flatY + pos.getZ(i));
-    if (L > 0 && Math.abs(Z) > L) { pos.setY(i, Math.sign(Z) * L - c.minZ); moved++; }
+// ---- The recess floor, followed ------------------------------------------------
+// A plate lies on the recess floor, and the floor is rarely flat: it follows
+// the bottom's V and concaves (a Shape3D layer is the bottom offset by its
+// depth; an STL has the real floor in its mesh). With "follows the bottom" on,
+// every point of the plate is lifted by the floor's height under it, so each
+// layer keeps its thickness and the steps continue the bottom's shape.
+// A sampler answers the floor's world Y at board (X, Z).
+function floorSampler(cutout) {
+  if (!cutout || !detection.followBottom) return null;
+  if (cutout.fromS3dx) return s3dxFloorSampler();
+  if (cutout.floorTris && cutout.floorTris.length) return stlFloorSampler(cutout);
+  return null;
+}
+
+// The bottom at station x (cm): its height (mm, the file's z) from the
+// centreline out to the edge, in 64 steps.
+function s3dxBottomProfile(d, x) {
+  const w = Math.max(0.05, s3dxAt(d.outline, x)) * 10;
+  const zb = s3dxAt(d.strBot, x, 'z') * 10, zd = s3dxAt(d.strDeck, x, 'z') * 10;
+  const norm = s3dxSectionAt(d, x);
+  if (!norm) return { yEdge: w, zs: new Float32Array(65).fill(zb) };
+  const { e } = s3dxEdgeIndex(norm);
+  const bottom = norm.slice(0, e + 1).map(p => ({ y: p.u * w, z: zb + p.v * (zd - zb) }));
+  const yEdge = bottom[bottom.length - 1].y;
+  const zs = new Float32Array(65);
+  let j = 1;
+  for (let k = 0; k <= 64; k++) {
+    const y = yEdge * k / 64;
+    while (j < bottom.length - 1 && bottom[j].y < y) j++;
+    const a = bottom[Math.max(0, j - 1)], b = bottom[j];
+    zs[k] = a.z + (b.z - a.z) * Math.max(0, Math.min(1, (y - a.y) / Math.max(1e-9, b.y - a.y)));
   }
-  if (moved) { pos.needsUpdate = true; geom.computeVertexNormals(); }
-  return moved;
+  return { yEdge, zs };
+}
+function s3dxProfileAt(p, y) {
+  const f = Math.max(0, Math.min(1, y / Math.max(1e-9, p.yEdge))) * 64;
+  const k = Math.min(63, Math.floor(f));
+  return p.zs[k] + (p.zs[k + 1] - p.zs[k]) * (f - k);
+}
+
+let _s3dxFloor = null;
+function s3dxFloorSampler() {
+  const d = s3dxData;
+  if (!d) return null;
+  const P = s3dxParams;
+  const key = [P.layerIndex, P.tailCut, P.forwardEdge, P.depth].join('|');
+  if (_s3dxFloor && _s3dxFloor.d === d && _s3dxFloor.key === key) return _s3dxFloor.fn;
+  const halfLen = d.length * 10 / 2, STEP = 0.25;
+  const x0 = Math.max(0, P.tailCut - 1), x1 = Math.min(d.length, P.forwardEdge + 2);
+  const rows = [];
+  for (let x = x0; x <= x1 + 1e-9; x += STEP) rows.push(s3dxBottomProfile(d, x));
+  const fn = (X, Z) => {
+    const f = ((halfLen - X) / 10 - x0) / STEP;
+    const i = Math.max(0, Math.min(rows.length - 2, Math.floor(f)));
+    const t = Math.max(0, Math.min(1, f - i));
+    const y = Math.abs(Z);
+    const zA = s3dxProfileAt(rows[i], y), zB = s3dxProfileAt(rows[i + 1], y);
+    return -(zA + t * (zB - zA) + P.depth);
+  };
+  _s3dxFloor = { d, key, fn };
+  return fn;
+}
+
+// An STL's floor: the detected floor triangles, found through a coarse grid.
+function stlFloorSampler(cutout) {
+  if (cutout._floorFn) return cutout._floorFn;
+  const T = cutout.floorTris, n = T.length / 9, CELL = 12;
+  const grid = new Map();
+  for (let t = 0; t < n; t++) {
+    const o = t * 9;
+    const i0 = Math.floor(Math.min(T[o], T[o + 3], T[o + 6]) / CELL), i1 = Math.floor(Math.max(T[o], T[o + 3], T[o + 6]) / CELL);
+    const j0 = Math.floor(Math.min(T[o + 2], T[o + 5], T[o + 8]) / CELL), j1 = Math.floor(Math.max(T[o + 2], T[o + 5], T[o + 8]) / CELL);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const k = i + ',' + j;
+      let a = grid.get(k);
+      if (!a) grid.set(k, a = []);
+      a.push(o);
+    }
+  }
+  const fn = (X, Z) => {
+    const ci = Math.floor(X / CELL), cj = Math.floor(Z / CELL);
+    let best = null, bestOut = Infinity;
+    for (let ring = 0; ring <= 2; ring++) {
+      for (let i = ci - ring; i <= ci + ring; i++) for (let j = cj - ring; j <= cj + ring; j++) {
+        if (ring && Math.abs(i - ci) < ring && Math.abs(j - cj) < ring) continue;
+        const list = grid.get(i + ',' + j);
+        if (!list) continue;
+        for (const o of list) {
+          const ax = T[o], az = T[o + 2], bx = T[o + 3], bz = T[o + 5], cx = T[o + 6], cz = T[o + 8];
+          const det = (bz - cz) * (ax - cx) + (cx - bx) * (az - cz);
+          if (Math.abs(det) < 1e-9) continue;
+          const l1 = ((bz - cz) * (X - cx) + (cx - bx) * (Z - cz)) / det;
+          const l2 = ((cz - az) * (X - cx) + (ax - cx) * (Z - cz)) / det;
+          const l3 = 1 - l1 - l2;
+          const out = Math.max(0, -l1, -l2, -l3);
+          if (out === 0) return l1 * T[o + 1] + l2 * T[o + 4] + l3 * T[o + 7];
+          if (out < bestOut) { bestOut = out; best = [l1, l2, l3, o]; }
+        }
+      }
+      if (best) break;
+    }
+    if (!best) return cutout.flatY;
+    // Just outside every triangle (the plate's edge): the nearest one's height.
+    let [l1, l2, l3] = best.map(v => Math.max(0, v));
+    const sum = l1 + l2 + l3 || 1;
+    const o = best[3];
+    return (l1 * T[o + 1] + l2 * T[o + 4] + l3 * T[o + 7]) / sum;
+  };
+  const seen = new Map();
+  const cached = (X, Z) => {
+    const k = Math.round(X * 100) * 1e7 + Math.round(Z * 100);
+    let v = seen.get(k);
+    if (v === undefined) { if (seen.size > 300000) seen.clear(); seen.set(k, v = fn(X, Z)); }
+    return v;
+  };
+  cutout._floorFn = cached;
+  return cached;
+}
+
+// One layer of a plate as one closed solid: an outline (and its holes) from
+// height h0 up to h1. The faces carry a grid of inner points and the sides are
+// split every 1.5 mm, so the solid can bend with the floor and pull in to the
+// rail; map(x, y, h) gives each point's place in the plate's local frame.
+function buildLayerSolid(outer, holes, h0, h1, map) {
+  // Edges split every 3 mm. The triangulator drops points that lie EXACTLY
+  // in line (and repeats), which would leave the faces and the sides meeting
+  // at different points: a leaky solid a slicer rejects. So repeats go first,
+  // and every point is nudged 0.001 mm off the line, which keeps them all.
+  const dens = ring => {
+    const clean = [];
+    // Points closer than 0.05 mm are one point (traced outlines have them).
+    ring.forEach(p => { const q = clean[clean.length - 1]; if (!q || Math.hypot(p.x - q.x, p.y - q.y) > 0.05) clean.push(p); });
+    while (clean.length > 1 && Math.hypot(clean[0].x - clean[clean.length - 1].x, clean[0].y - clean[clean.length - 1].y) <= 0.05) clean.pop();
+    const out = [];
+    for (let i = 0; i < clean.length; i++) {
+      const p = clean[i], q = clean[(i + 1) % clean.length];
+      const len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+      const nx = -(q.y - p.y) / len, ny = (q.x - p.x) / len;
+      const n = Math.max(1, Math.ceil(len / 4));
+      for (let k = 0; k < n; k++) {
+        const j = out.length, off = (j % 2 ? 1 : -1) * 1e-3 * (1 + (j % 3) * 0.37);
+        out.push(new THREE.Vector2(p.x + (q.x - p.x) * k / n + nx * off, p.y + (q.y - p.y) * k / n + ny * off));
+      }
+    }
+    return out;
+  };
+  const O = dens(outer);
+  if (THREE.ShapeUtils.isClockWise(O)) O.reverse();
+  const H = holes.map(h => { const r = dens(h); if (!THREE.ShapeUtils.isClockWise(r)) r.reverse(); return r; });
+
+  // The faces: the outline triangulated as it is, then every inner edge
+  // longer than 6 mm split in two (both triangles on it with it), until none
+  // is left. Splitting whole edges keeps every triangle attached to its
+  // neighbours, so the faces meet the sides exactly: a closed solid.
+  const rings = [O, ...H];
+  const all = [...O, ...H.flat()];
+  const faces = refineFaces(all, THREE.ShapeUtils.triangulateShape(O.slice(), H.map(h => h.slice())), 8);
+
+  const memo = new Map();
+  const at = (p, h) => {
+    let m = memo.get(p);
+    if (!m) memo.set(p, m = new Map());
+    let r = m.get(h);
+    if (!r) m.set(h, r = map(p, h));
+    return r;
+  };
+  const pos = [];
+  // A triangle with two corners on one spot has no area and no use; dropping
+  // it leaves the solid closed (its edge is still shared by two real ones).
+  const same = (u, v) => u[0] === v[0] && u[1] === v[1] && u[2] === v[2];
+  const tri = (a, b, c) => { if (!same(a, b) && !same(b, c) && !same(a, c)) pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); };
+  for (const f of faces) {
+    const A = all[f[0]], B = all[f[1]], C = all[f[2]];
+    if (!A || !B || !C) continue;
+    const ccw = (B.x - A.x) * (C.y - A.y) - (B.y - A.y) * (C.x - A.x) > 0;
+    const [a, b, c] = ccw ? [A, B, C] : [A, C, B];
+    tri(at(a, h1), at(b, h1), at(c, h1));     // top, facing +z
+    tri(at(a, h0), at(c, h0), at(b, h0));     // bottom, facing -z
+  }
+  const nv = map.sides ? Math.max(1, Math.ceil((h1 - h0) / map.sides)) : 1;
+  for (const r of rings) for (let i = 0; i < r.length; i++) {
+    const p = r[i], q = r[(i + 1) % r.length];
+    for (let j = 0; j < nv; j++) {
+      const ha = h0 + (h1 - h0) * j / nv, hb = h0 + (h1 - h0) * (j + 1) / nv;
+      const a = at(p, ha), b = at(q, ha), c = at(q, hb), d2 = at(p, hb);
+      tri(a, b, c);
+      tri(a, c, d2);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
+}
+// Cut the small loops out of a ring that crosses itself: where two edges a
+// few points apart cross, the points between them go and the crossing point
+// takes their place. Rings are {x, y}.
+function untangleRing(ring) {
+  let r = ring.slice();
+  const cross = (a, b, c, d) => {
+    const d1 = (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    const d2 = (b.x - a.x) * (d.y - a.y) - (b.y - a.y) * (d.x - a.x);
+    const d3 = (d.x - c.x) * (a.y - c.y) - (d.y - c.y) * (a.x - c.x);
+    const d4 = (d.x - c.x) * (b.y - c.y) - (d.y - c.y) * (b.x - c.x);
+    if (!((d1 > 0) !== (d2 > 0) && (d3 > 0) !== (d4 > 0))) return null;
+    const t = d3 / (d3 - d4);
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+  };
+  for (let guard = 0; guard < 200 && r.length > 3; guard++) {
+    let fixed = false;
+    const n = r.length;
+    for (let i = 0; i < n && !fixed; i++) {
+      for (let k = 2; k <= Math.min(40, n - 2) && !fixed; k++) {
+        const j = (i + k) % n;
+        const x = cross(r[i], r[(i + 1) % n], r[j], r[(j + 1) % n]);
+        if (!x) continue;
+        // keep r[0..i], the crossing, r[j+1..] (the loop i+1..j goes)
+        const out = [];
+        for (let m = 0; m < n; m++) {
+          const inLoop = ((m - i - 1 + n) % n) < k;
+          if (!inLoop) out.push(r[m]);
+          if (m === i) out.push(x);
+        }
+        r = out;
+        fixed = true;
+      }
+    }
+    if (!fixed) break;
+  }
+  return r;
+}
+
+// Split every inner edge longer than maxLen at its middle, with both
+// triangles on it, until none is left (boundary edges, on one triangle only,
+// never move). pts is extended in place; faces keep their winding.
+function refineFaces(pts, faces, maxLen) {
+  const M = 4194304;
+  const K = (a, b) => (a < b ? a * M + b : b * M + a);
+  const adj = new Map();
+  const link = fi => {
+    const f = faces[fi];
+    for (let k = 0; k < 3; k++) { const e = K(f[k], f[(k + 1) % 3]); const l = adj.get(e); if (l) l.push(fi); else adj.set(e, [fi]); }
+  };
+  const unlink = fi => {
+    const f = faces[fi];
+    for (let k = 0; k < 3; k++) {
+      const e = K(f[k], f[(k + 1) % 3]), l = adj.get(e);
+      if (!l) continue;
+      const i = l.indexOf(fi);
+      if (i >= 0) l.splice(i, 1);
+      if (!l.length) adj.delete(e);
+    }
+  };
+  faces.forEach((_, i) => link(i));
+  // Delaunay flips: swap the diagonal of two triangles when that gives
+  // fatter ones. Ear-cut fans become an even mesh, and splitting then needs
+  // a fraction of the triangles.
+  const orient = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const inCircle = (a, b, c, d) => {
+    const ax = a.x - d.x, ay = a.y - d.y, bx = b.x - d.x, by = b.y - d.y, cx = c.x - d.x, cy = c.y - d.y;
+    return (ax * ax + ay * ay) * (bx * cy - cx * by) - (bx * bx + by * by) * (ax * cy - cx * ay) + (cx * cx + cy * cy) * (ax * by - bx * ay);
+  };
+  const flipAll = () => {
+    for (let round = 0; round < 30; round++) {
+      let flips = 0;
+      for (const [e, l] of [...adj]) {
+        if (l.length !== 2) continue;
+        const a = Math.floor(e / M), b = e % M;
+        const [f1, f2] = l;
+        const F1 = faces[f1], F2 = faces[f2];
+        const c = F1.find(v => v !== a && v !== b), d = F2.find(v => v !== a && v !== b);
+        if (c === undefined || d === undefined || c === d) continue;
+        // a→b as it runs in F1 (c on its left when F1 turns left)
+        const r1 = F1.indexOf(a), fwd = F1[(r1 + 1) % 3] === b;
+        const A = fwd ? a : b, B = fwd ? b : a;
+        const P = pts[A], Q = pts[B], C = pts[c], D = pts[d];
+        const o = orient(P, Q, C);
+        if (o <= 0 || orient(Q, P, D) <= 0) continue;                 // keep odd triangles as they are
+        if (orient(C, D, P) * orient(C, D, Q) >= 0) continue;           // not a convex quad
+        if (inCircle(P, Q, C, D) <= 1e-9) continue;
+        unlink(f1); unlink(f2);
+        faces[f1] = [A, d, c];
+        faces[f2] = [d, B, c];
+        link(f1); link(f2);
+        flips++;
+      }
+      if (!flips) break;
+    }
+  };
+  flipAll();
+  const L2 = maxLen * maxLen;
+  for (let pass = 0; pass < 14; pass++) {
+    const long = [];
+    for (const [e, l] of adj) {
+      if (l.length !== 2) continue;
+      const a = Math.floor(e / M), b = e % M;
+      const d2 = (pts[a].x - pts[b].x) ** 2 + (pts[a].y - pts[b].y) ** 2;
+      if (d2 > L2) long.push([d2, a, b]);
+    }
+    if (!long.length) break;
+    long.sort((p, q) => q[0] - p[0]);
+    for (const [, a, b] of long) {
+      const l = adj.get(K(a, b));
+      if (!l || l.length !== 2) continue;
+      const m = pts.length;
+      pts.push(new THREE.Vector2((pts[a].x + pts[b].x) / 2, (pts[a].y + pts[b].y) / 2));
+      for (const fi of l.slice()) {
+        const f = faces[fi];
+        let r = 0;
+        while (r < 3 && !((f[r] === a && f[(r + 1) % 3] === b) || (f[r] === b && f[(r + 1) % 3] === a))) r++;
+        if (r === 3) continue;
+        const u = f[r], v = f[(r + 1) % 3], w = f[(r + 2) % 3];
+        unlink(fi);
+        faces[fi] = [u, m, w];
+        faces.push([m, v, w]);
+        link(fi);
+        link(faces.length - 1);
+      }
+    }
+    flipAll();
+  }
+  return faces;
+}
+
+function circleRing(c, r, n = 32) {
+  const out = [];
+  for (let i = 0; i < n; i++) out.push({ x: c.x + r * Math.cos(2 * Math.PI * i / n), y: c.y + r * Math.sin(2 * Math.PI * i / n) });
+  return out;
 }
 
 // Rank layers so the most likely cut-out comes first:
@@ -889,6 +1204,7 @@ function s3dxBuildCutouts() {
   }
   document.getElementById('export-a-btn').disabled = false;
   document.getElementById('export-b-btn').disabled = false;
+  document.getElementById('export-both-btn').disabled = false;
   return true;
 }
 
@@ -999,10 +1315,13 @@ function s3dxBuildBoardFromSections() {
     const rail = resample(sec.slice(e), NF);            // edge → deck centre
 
     const yOut = s3dxOuterY(d, layer, x) * 10 - (P.railInset || 0);
-    const railAtFloor = 10 * s3dxRailHalfWidth(d, x, zFloor / 10);
+    // The floor is the bottom offset by the depth (V and concaves), or flat.
+    const floorAt = y => (detection.followBottom ? zOn(Math.min(y, yEdge)) + P.depth : zFloor);
+    const zRailFloor = floorAt(yEdge);
+    const railAtFloor = 10 * s3dxRailHalfWidth(d, x, zRailFloor / 10);
     const open = yOut >= Math.min(railAtFloor, yEdge) - 0.5;   // the recess runs out through the rail
     const yA = Math.min(yIn, yEdge * 0.98);
-    const cut = notch && yIn < Math.min(yOut, railAtFloor) - 0.5 && zFloor > zOn(yIn) + 0.2;
+    const cut = notch && yIn < Math.min(yOut, railAtFloor) - 0.5 && floorAt(yIn) > zOn(yIn) + 0.2;
 
     const pts = [];
     for (let k = 0; k < NA; k++) { const y = yA * k / (NA - 1); pts.push({ y, z: zOn(y) }); }
@@ -1014,14 +1333,14 @@ function s3dxBuildBoardFromSections() {
       return pts;
     }
     const yFloorEnd = open ? railAtFloor : yOut;
-    pts.push({ y: yIn, z: zOn(yIn) }, { y: yIn, z: zFloor });                        // inner wall
-    for (let k = 0; k < NC; k++) pts.push({ y: lerp(yIn, yFloorEnd, k / (NC - 1)), z: zFloor });   // floor
+    pts.push({ y: yIn, z: zOn(yIn) }, { y: yIn, z: floorAt(yIn) });                  // inner wall
+    for (let k = 0; k < NC; k++) { const y = lerp(yIn, yFloorEnd, k / (NC - 1)); pts.push({ y, z: floorAt(y) }); }   // floor
     if (open) {
-      for (let k = 0; k < 2 + NE; k++) pts.push({ y: railAtFloor, z: zFloor });
+      for (let k = 0; k < 2 + NE; k++) pts.push({ y: railAtFloor, z: zRailFloor });
       // The rail below the floor is cut away: those points sit on the floor's end.
-      rail.forEach(p => pts.push(p.z < zFloor ? { y: railAtFloor, z: zFloor } : p));
+      rail.forEach(p => pts.push(p.z < zRailFloor ? { y: railAtFloor, z: zRailFloor } : p));
     } else {
-      pts.push({ y: yOut, z: zFloor }, { y: yOut, z: zOn(yOut) });                  // outer wall
+      pts.push({ y: yOut, z: floorAt(yOut) }, { y: yOut, z: zOn(yOut) });            // outer wall
       for (let k = 0; k < NE; k++) { const y = lerp(yOut, yEdge, k / (NE - 1)); pts.push({ y, z: zOn(y) }); }
       rail.forEach(p => pts.push(p));
     }
@@ -1096,7 +1415,8 @@ function renderRailView() {
   const xs = P.railStation >= 0 ? Math.min(x1, Math.max(x0, P.railStation)) : Math.round((x0 + x1) / 2);
   const w = s3dxAt(d.outline, xs) * 10;
   const zb = s3dxAt(d.strBot, xs, 'z') * 10, zd = s3dxAt(d.strDeck, xs, 'z') * 10;
-  const floorZ = s3dxAt(d.strBot, (x0 + x1) / 2, 'z') * 10 + P.depth;
+  const prof = s3dxBottomProfile(d, xs);
+  const floorZ = detection.followBottom ? s3dxProfileAt(prof, prof.yEdge) + P.depth : s3dxAt(d.strBot, (x0 + x1) / 2, 'z') * 10 + P.depth;
   const railAt = z => 10 * s3dxRailHalfWidth(d, xs, z / 10);
   const inset = P.railInset || 0;
   const sec = s3dxSectionAt(d, xs).map(p => ({ y: p.u * w, z: zb + p.v * (zd - zb) }));
@@ -1848,13 +2168,24 @@ function detectCutoutsWith(tailEndUsed) {
       return { x: p.x + (dx / len) * inset, z: p.z + (dz / len) * inset };
     });
 
+    // Floor triangles near the floor's own height only: the cluster can take
+    // in a few bottom triangles at the tail, which are no floor to lie on.
+    const ys = clusterTris.map(t => t.cy).sort((a, b) => a - b);
+    const medY = ys[ys.length >> 1];
+    const floorOnly = clusterTris.filter(t => Math.abs(t.cy - medY) <= 8);
+
     return {
-      polygon: insetPolygon,
+      // Moving every point towards the centre can make a concave outline
+      // cross itself, which broke the step clipping and the solids.
+      polygon: untangleRing(insetPolygon.map(p => ({ x: p.x, y: p.z }))).map(p => ({ x: p.x, z: p.y })),
       originalPolygon: smoothed,
       flatY: avgY,
       centroidX: cx,
       centroidZ: cz,
       cellCount: clusterTris.length,
+      // The floor triangles themselves: the floor follows the bottom's V and
+      // concaves, and the plate is laid on it (floorSampler).
+      floorTris: Float32Array.from(floorOnly.flatMap(t => [t.v1.x, t.v1.y, t.v1.z, t.v2.x, t.v2.y, t.v2.z, t.v3.x, t.v3.y, t.v3.z])),
     };
   }).filter(c => c !== null);
 
@@ -1869,6 +2200,24 @@ function detectCutoutsWith(tailEndUsed) {
   detectedCutouts.A = { ...cutouts[0], side: 'port' };
   detectedCutouts.B = { ...cutouts[1], side: 'starboard' };
 
+  // A board is symmetric. When one side's traced outline came out broken (it
+  // wandered through the mesh and encloses far less than the other side),
+  // that side takes the other's outline, mirrored. Its own floor stays.
+  const areaOf = poly => Math.abs(poly.reduce((a, p, i) => { const q = poly[(i + 1) % poly.length]; return a + p.x * q.z - q.x * p.z; }, 0) / 2);
+  const aA = areaOf(detectedCutouts.A.polygon), aB = areaOf(detectedCutouts.B.polygon);
+  let mirroredNote = '';
+  if (Math.min(aA, aB) < 0.85 * Math.max(aA, aB)) {
+    const good = aA >= aB ? detectedCutouts.A : detectedCutouts.B;
+    const badKey = aA >= aB ? 'B' : 'A';
+    const flip = poly => poly.map(p => ({ x: p.x, z: -p.z })).reverse();
+    detectedCutouts[badKey] = {
+      ...detectedCutouts[badKey],
+      polygon: flip(good.polygon), originalPolygon: flip(good.originalPolygon),
+      centroidX: good.centroidX, centroidZ: -good.centroidZ,
+    };
+    mirroredNote = `<div class="mt-1">The ${badKey === 'A' ? 'port' : 'starboard'} outline did not trace cleanly, so it is the ${badKey === 'A' ? 'starboard' : 'port'} one, mirrored.</div>`;
+  }
+
   // If a saved design was loaded, shift its drawn paths onto this cut-out.
   reanchorLoadedPaths();
 
@@ -1880,11 +2229,13 @@ function detectCutoutsWith(tailEndUsed) {
       <strong>✓ Found both cut-outs</strong>
       <div class="mt-1">Port: depth ${depthA.toFixed(1)} mm · ${detectedCutouts.A.cellCount} triangles</div>
       <div>Starboard: depth ${depthB.toFixed(1)} mm · ${detectedCutouts.B.cellCount} triangles</div>
+      ${mirroredNote}
     </div>
   `;
 
   document.getElementById('export-a-btn').disabled = false;
   document.getElementById('export-b-btn').disabled = false;
+  document.getElementById('export-both-btn').disabled = false;
 
   rebuildSceneHelpers();
   rebuildPlates();
@@ -2676,15 +3027,7 @@ function buildPlateGeometry(plate, cutoutKey) {
     return { x: u, y: pt.v };
   };
 
-  const shape = new THREE.Shape();
   if (localPoly.length === 0) return null;
-  const first = transformPoint(localPoly[0]);
-  shape.moveTo(first.x, first.y);
-  for (let i = 1; i < localPoly.length; i++) {
-    const p = transformPoint(localPoly[i]);
-    shape.lineTo(p.x, p.y);
-  }
-  shape.closePath();
 
   const debugInfo = [];
 
@@ -2698,15 +3041,36 @@ function buildPlateGeometry(plate, cutoutKey) {
     if (mirrored) u = plateW - u;
     return { x: u, y: z - minZ };
   };
-  // Following the rail: every part of the plate is pulled in to the board's
-  // real rail at its own height (see railLimiter). Holes must clear the rail
-  // at every height the plate spans.
+  // Every point of the plate goes through one map: lifted onto the real
+  // recess floor under it (floorSampler: the bottom's V and concaves), then
+  // pulled in to the board's real rail at its own height (railLimiter).
   const rail = railLimiter(cutout);
+  const floor = floorSampler(cutout);
+  let railMoved = 0;
+  const lift = (X, Z) => (floor ? floor(X, Z) - cutout.flatY : 0);
+  const mapPoint = (p, h) => {
+    const x = p.x, X = minX + (mirrored ? plateW - x : x);
+    let Z = minZ + p.y;
+    if (p._up === undefined) p._up = lift(X, Z);
+    let up = p._up;
+    if (rail) {
+      // Within half a millimetre of the rail, points ease in to it instead of
+      // being cut flat, so points beyond it never land on top of each other.
+      const L = rail(X, cutout.flatY + up + h), SOFT = 0.5, az = Math.abs(Z);
+      if (L > SOFT && az > L - SOFT) {
+        Z = Math.sign(Z) * (L - SOFT * Math.exp(-(az - (L - SOFT)) / SOFT));
+        if (az > L) { up = lift(X, Z); railMoved++; }
+      }
+    }
+    return [x, Z - minZ, up + h];
+  };
+  mapPoint.sides = rail ? 2.5 : 0;
   const stackHeight = plate.thickness + plate.steps.filter(s => s.enabled).reduce((a, s) => a + (s.height || 0), 0);
   const railClear = (h, r) => {
     if (!rail) return true;
     const z = (cutout.side === 'starboard') ? -h.z : h.z;
-    for (let k = 0; k <= 6; k++) if (Math.abs(z) + r + 0.5 > rail(h.x, cutout.flatY + stackHeight * k / 6)) return false;
+    const up = lift(h.x, z);
+    for (let k = 0; k <= 6; k++) if (Math.abs(z) + r + 0.5 > rail(h.x, cutout.flatY + up + stackHeight * k / 6)) return false;
     return true;
   };
   const holes = [];
@@ -2722,23 +3086,7 @@ function buildPlateGeometry(plate, cutoutKey) {
   if (holesOutside) debugInfo.push(`${holesOutside} hole(s) outside the plate, not drilled`);
   if (holesTooClose) debugInfo.push(`${holesTooClose} hole(s) too close to the edge, not drilled`);
   if (holesAtRail) debugInfo.push(`${holesAtRail} hole(s) too close to the rail, not drilled`);
-  const railCtx = { minX, minZ, plateW, mirrored, flatY: cutout.flatY };
-  const layers = depth => (rail ? Math.max(1, Math.ceil(depth / 1.5)) : 1);
-
-  // Add holes to plate shape
-  holes.forEach(h => {
-    const hole = new THREE.Path();
-    hole.absarc(h.pt.x, h.pt.y, h.r, 0, Math.PI * 2, true);
-    shape.holes.push(hole);
-  });
-
-  const plateGeom = new THREE.ExtrudeGeometry(shape, {
-    depth: plate.thickness,
-    bevelEnabled: false,
-    curveSegments: 32,
-    steps: layers(plate.thickness),
-  });
-  let railMoved = rail ? railClampGeometry(plateGeom, rail, railCtx) : 0;
+  const plateGeom = buildLayerSolid(holePoly, holes.map(h => circleRing(h.pt, h.r)), 0, plate.thickness, mapPoint);
 
   // Steps
   const stepGeoms = [];
@@ -2821,32 +3169,14 @@ function buildPlateGeometry(plate, cutoutKey) {
     // Extrude each footprint piece, punching any screw holes that fall inside.
     const stepBaseHeight = step.cumulative ? cumulativeHeight : 0;
     let built = 0;
+    pieces = pieces.map(pc => untangleRing(pc)).filter(pc => pc.length >= 3);
     pieces.forEach(piece => {
-      const stepShape = new THREE.Shape();
-      stepShape.moveTo(piece[0].x, piece[0].y);
-      for (let i = 1; i < piece.length; i++) stepShape.lineTo(piece[i].x, piece[i].y);
-      stepShape.closePath();
-
-      holes.forEach(h => {
-        if (isPointInsidePolygon(h.pt, piece)) {
-          const minD = distanceToPolygonEdge(h.pt, piece);
-          if (minD > h.r + 0.5) {
-            const hole = new THREE.Path();
-            hole.absarc(h.pt.x, h.pt.y, h.r, 0, Math.PI * 2, true);
-            stepShape.holes.push(hole);
-          }
-        }
-      });
-
+      const pieceHoles = holes
+        .filter(h => isPointInsidePolygon(h.pt, piece) && distanceToPolygonEdge(h.pt, piece) > h.r + 0.5)
+        .map(h => circleRing(h.pt, h.r));
       try {
-        const geom = new THREE.ExtrudeGeometry(stepShape, {
-          depth: step.height,
-          bevelEnabled: false,
-          curveSegments: 32,
-          steps: layers(step.height),
-        });
-        geom.translate(0, 0, plate.thickness + stepBaseHeight);
-        if (rail) railMoved += railClampGeometry(geom, rail, railCtx);
+        const h0 = plate.thickness + stepBaseHeight;
+        const geom = buildLayerSolid(piece, pieceHoles, h0, h0 + step.height, mapPoint);
         stepGeoms.push({ geom, stepId: step.id });
         built++;
       } catch (err) {
@@ -2866,6 +3196,7 @@ function buildPlateGeometry(plate, cutoutKey) {
     if (step.cumulative) cumulativeHeight += step.height;
   });
 
+  if (floor) debugInfo.push('Lies on the real recess floor (follows the bottom)');
   if (rail) debugInfo.push(railMoved ? 'Follows the rail (Shape3D sections)' : 'Follows the rail: nothing to pull in');
 
   return {
@@ -3069,10 +3400,26 @@ function rebuildPlates() {
 // ============================================================================
 // STL EXPORT
 // ============================================================================
+// File names start with the project's name when there is one (the NP7 layer
+// sets window.np7ExportBase), so a folder of prints stays readable.
+function exportName(suffix) {
+  const base = (window.np7ExportBase || 'plate').trim() || 'plate';
+  return `${base}_${suffix}.stl`;
+}
+
 function exportPlateSTL(plate, cutoutKey, filename) {
   const data = buildPlateGeometry(plate, cutoutKey);
   if (!data) return;
   exportGeomsAsSTL([data.plateGeom, ...data.stepGeoms.map(s => s.geom)], filename);
+}
+
+// Both plates in one file, side by side on the bed, for one print job.
+function exportBothSTL() {
+  rebuildPlates();
+  const a = buildPlateGeometry(plateA, 'A'), b = buildPlateGeometry(plateB, 'B');
+  if (!a || !b) return;
+  exportGeomsAsSTL([a.plateGeom, ...a.stepGeoms.map(s => s.geom)], exportName('port+starboard'),
+    [b.plateGeom, ...b.stepGeoms.map(s => s.geom)]);
 }
 
 // Export ONE step as its own solid, without the base plate underneath —
@@ -3086,57 +3433,45 @@ function exportStepSTL(plate, cutoutKey, stepId, filename) {
   exportGeomsAsSTL(geoms, filename);
 }
 
-function exportGeomsAsSTL(allGeoms, filename) {
-  // Geometry is in local coords: X along board length, Y across width,
-  // Z = thickness (extruded up). Export flat: X unchanged, Y = thickness up,
-  // Z = across width — matching the 3D viewer orientation.
-  const transformVertex = (x, y, z) => {
-    return [x, z, y];
+function exportGeomsAsSTL(allGeoms, filename, besideGeoms) {
+  // Ready for the slicer: Z up, the side that sits on the recess floor facing
+  // down, lowest point on the bed (Z = 0), centred, millimetres. The plate's
+  // local frame (x along the length, y across, z up from the floor) is a mirror
+  // of the view, so it is turned (x, -y, z), a true rotation of what the view
+  // shows, and the winding is swapped back.
+  const trisOf = geoms => {
+    const out = [];
+    geoms.forEach(geom => {
+      const g = geom.index ? geom.toNonIndexed() : geom;
+      const pos = g.attributes.position.array;
+      for (let i = 0; i < pos.length; i += 9) {
+        out.push([pos[i], -pos[i + 1], pos[i + 2], pos[i + 6], -pos[i + 7], pos[i + 8], pos[i + 3], -pos[i + 4], pos[i + 5]]);
+      }
+    });
+    return out;
   };
-
-  const allTriangles = [];
-
-  allGeoms.forEach(geom => {
-    const g = geom.index ? geom.toNonIndexed() : geom.clone();
-    const pos = g.attributes.position.array;
-    for (let i = 0; i < pos.length; i += 9) {
-      const v1 = transformVertex(pos[i], pos[i + 1], pos[i + 2]);
-      const v2 = transformVertex(pos[i + 3], pos[i + 4], pos[i + 5]);
-      const v3 = transformVertex(pos[i + 6], pos[i + 7], pos[i + 8]);
-      allTriangles.push([...v1, ...v2, ...v3]);
+  const box = tris => {
+    const b = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity, minZ: Infinity, maxZ: -Infinity };
+    for (const t of tris) for (let k = 0; k < 9; k += 3) {
+      b.minX = Math.min(b.minX, t[k]); b.maxX = Math.max(b.maxX, t[k]);
+      b.minY = Math.min(b.minY, t[k + 1]); b.maxY = Math.max(b.maxY, t[k + 1]);
+      b.minZ = Math.min(b.minZ, t[k + 2]); b.maxZ = Math.max(b.maxZ, t[k + 2]);
     }
-  });
+    return b;
+  };
+  const shift = (tris, dx, dy, dz) => tris.forEach(t => { for (let k = 0; k < 9; k += 3) { t[k] += dx; t[k + 1] += dy; t[k + 2] += dz; } });
 
+  const allTriangles = trisOf(allGeoms);
   if (allTriangles.length === 0) return;
-
-  // Swapping Y and Z reverses triangle winding. Restore by swapping v2 and v3.
-  for (const tri of allTriangles) {
-    const tx = tri[3], ty = tri[4], tz = tri[5];
-    tri[3] = tri[6]; tri[4] = tri[7]; tri[5] = tri[8];
-    tri[6] = tx; tri[7] = ty; tri[8] = tz;
+  if (besideGeoms) {
+    // The second plate goes next to the first, 10 mm apart.
+    const second = trisOf(besideGeoms);
+    const a = box(allTriangles), b = box(second);
+    shift(second, a.minX - b.minX, a.maxY + 10 - b.minY, a.minZ - b.minZ);
+    second.forEach(t => allTriangles.push(t));
   }
-
-  // Compute bounding box and center the plate at origin with bottom at Y=0
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const tri of allTriangles) {
-    for (let k = 0; k < 9; k += 3) {
-      if (tri[k] < minX) minX = tri[k];
-      if (tri[k] > maxX) maxX = tri[k];
-      if (tri[k + 1] < minY) minY = tri[k + 1];
-      if (tri[k + 1] > maxY) maxY = tri[k + 1];
-      if (tri[k + 2] < minZ) minZ = tri[k + 2];
-      if (tri[k + 2] > maxZ) maxZ = tri[k + 2];
-    }
-  }
-  const centerX = (minX + maxX) / 2;
-  const centerZ = (minZ + maxZ) / 2;
-  for (const tri of allTriangles) {
-    for (let k = 0; k < 9; k += 3) {
-      tri[k] -= centerX;
-      tri[k + 1] -= minY;
-      tri[k + 2] -= centerZ;
-    }
-  }
+  const bb = box(allTriangles);
+  shift(allTriangles, -(bb.minX + bb.maxX) / 2, -(bb.minY + bb.maxY) / 2, -bb.minZ);
 
   const triCount = allTriangles.length;
   const fmtSel = document.getElementById('export-format');
@@ -3272,6 +3607,16 @@ function renderPlateTab(plateId) {
   plateSection.className = 'np-card t-violet';
   plateSection.innerHTML = npCardHead('Plate', 'The base the steps sit on', 'layers');
   plateSection.appendChild(makeSlider('Thickness (mm)', 2, 50, 0.5, plate.thickness, v => { plate.thickness = v; rebuildPlates(); }, 'accent-amber-500'));
+  const follow = document.createElement('div');
+  follow.className = 'mt-3';
+  follow.innerHTML = `<label class="np-checkline"><input type="checkbox" ${detection.followBottom ? 'checked' : ''} class="np-check" /><span>Follows the bottom (V and concaves)</span></label>
+    <p class="np-hint mt-1">Every layer lies on the real recess floor and keeps its thickness, so the steps continue the bottom's shape instead of being flat.</p>`;
+  follow.querySelector('input').addEventListener('change', e => {
+    detection.followBottom = e.target.checked ? 1 : 0;
+    if (s3dxData) s3dxRebuild(); else rebuildPlates();
+    renderPlateTab(plateId);
+  });
+  plateSection.appendChild(follow);
   container.appendChild(plateSection);
 
   // --- Screw holes: explicit positions, no grid -----------------------------
@@ -3495,11 +3840,11 @@ function renderPlateTab(plateId) {
         </div>`;
       expWrap.querySelector('[data-exp-step-port]').addEventListener('click', () => {
         rebuildPlates();
-        exportStepSTL(plateA, 'A', step.id, `step${idx + 1}_only_port.stl`);
+        exportStepSTL(plateA, 'A', step.id, exportName(`step${idx + 1}_only_port`));
       });
       expWrap.querySelector('[data-exp-step-stbd]').addEventListener('click', () => {
         rebuildPlates();   // ensures plateB is synced to the latest settings
-        exportStepSTL(plateB, 'B', step.id, `step${idx + 1}_only_starboard.stl`);
+        exportStepSTL(plateB, 'B', step.id, exportName(`step${idx + 1}_only_starboard`));
       });
       body.appendChild(expWrap);
 
@@ -4093,6 +4438,7 @@ document.getElementById('flip-board-btn').addEventListener('click', () => {
     detectedCutouts = { A: null, B: null };
     document.getElementById('export-a-btn').disabled = true;
     document.getElementById('export-b-btn').disabled = true;
+    document.getElementById('export-both-btn').disabled = true;
     document.getElementById('detection-result').innerHTML = '';
     rebuildSceneHelpers();
     rebuildPlates();
@@ -4145,11 +4491,13 @@ document.getElementById('s3dx-layer').addEventListener('change', e => {
 });
 
 document.getElementById('export-a-btn').addEventListener('click', () => {
-  exportPlateSTL(plateA, 'A', 'plate_port.stl');
+  exportPlateSTL(plateA, 'A', exportName('port'));
 });
 document.getElementById('export-b-btn').addEventListener('click', () => {
-  exportPlateSTL(plateB, 'B', 'plate_starboard.stl');
+  rebuildPlates();   // plate B follows plate A's latest settings
+  exportPlateSTL(plateB, 'B', exportName('starboard'));
 });
+document.getElementById('export-both-btn').addEventListener('click', exportBothSTL);
 
 document.getElementById('reset-btn').addEventListener('click', () => {
   plateA = defaultPlate();
@@ -4199,6 +4547,7 @@ function saveDesign() {
       recessDepthMin: detection.recessDepthMin, flatnessTolerance: detection.flatnessTolerance,
       edgeInset: detection.edgeInset, smoothing: detection.smoothing,
       scanLength: detection.scanLength, tailEnd: detection.tailEnd,
+      followBottom: detection.followBottom,
     },
     cutoutRef: detectedCutouts.A ? cutoutMinCorner(detectedCutouts.A) : null,
     plate: {

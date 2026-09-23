@@ -411,6 +411,9 @@
     statusEl.title = text;
     [openBtn, saveBtn, copyBtn, newBtn].forEach(function (b) { b.disabled = !!np7.busy; });
     copyBtn.classList.toggle('hidden', !np7.project);
+    // Exported files carry the project's name (the tool reads this).
+    var nm = nameInput.value.trim() || (np7.project && np7.project.name) || '';
+    window.np7ExportBase = nm.replace(/[^\w\u00C0-\u024F+-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
     document.title = (np7.project ? (nameInput.value.trim() || np7.project.name) + ' · ' : '') + 'NP7 Plate Designer';
   }
 
