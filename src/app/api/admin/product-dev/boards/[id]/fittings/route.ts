@@ -61,7 +61,8 @@ The picture shows one board from straight above, TAIL ON THE LEFT, nose on the r
 Report every fitting you can see, reading its position off the grid labels to the nearest centimetre (interpolate between lines):
 - mast_track: the slot for the mast base, from its tail end to its nose end.
 - footstrap: each strap separately. from_cm/offset_from_cm is where its tail-side end is screwed in, to_cm/offset_to_cm its nose-side end. If a pad offers several insert holes, give the middle of the holes and say how many in the note.
-- fin_box and foil_box: only visible on the bottom. A foil box is usually two parallel tracks; report each track.
+- fin_box and foil_box: on the bottom you see the box itself (a foil box is often two parallel tracks; report each track).
+  On the DECK they still show, by the bolts that hold the fin or foil from above: a Tuttle or Deep Tuttle box shows as TWO round bolt heads or plugs on the centreline near the tail, roughly 10 to 16 cm apart, and the box runs from just behind the rear one to just in front of the front one. A Powerbox or a Slot box shows as ONE screw head on the centreline near the tail. Report such a box from the deck too, with from_cm/to_cm spanning the bolts, offsets 0, confidence medium, and say "from the bolts on the deck" in the note. Dark dots on the centreline between the rear straps are usually exactly this.
 - vent, handle, other: if clearly visible.
 Only report what is really in the picture. If a position is hard to read, still give your best reading and set the confidence low. Never invent fittings that are hidden.`;
 
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (edit) return edit;
   await params;
 
-  const body = (await request.json().catch(() => null)) as { image?: string; lengthCm?: number; halfWidthCm?: number } | null;
+  const body = (await request.json().catch(() => null)) as { image?: string; lengthCm?: number; halfWidthCm?: number; finBox?: string | null; discipline?: string | null } | null;
   const image = typeof body?.image === "string" ? body.image : "";
   if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > MAX_IMAGE) {
     return NextResponse.json({ error: "The picture did not come through. Try again." }, { status: 400 });
@@ -82,7 +83,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const ai = pdAiKey();
   if (!ai) return NextResponse.json(NEEDS_KEY);
 
-  const text = `Board length about ${Math.round(Number(body?.lengthCm) || 0)} cm${body?.halfWidthCm ? `, widest about ${Math.round(Number(body.halfWidthCm) * 2)} cm` : ""}. Find the fittings.`;
+  // What the board's Details already say about it: the box type tells the model what to look for.
+  const finBox = typeof body?.finBox === "string" ? body.finBox.slice(0, 80) : "";
+  const discipline = typeof body?.discipline === "string" ? body.discipline.slice(0, 40) : "";
+  const text = `Board length about ${Math.round(Number(body?.lengthCm) || 0)} cm${body?.halfWidthCm ? `, widest about ${Math.round(Number(body.halfWidthCm) * 2)} cm` : ""}.` +
+    `${discipline ? ` It is a ${discipline} board.` : ""}${finBox ? ` Its fin/foil box: ${finBox}. Find that box too, from the deck if this is the deck.` : ""} Find the fittings.`;
   try {
     if (ai.provider === "openai") {
       const r = await openAiVisionJson<Found>({ key: ai.key, instructions: INSTRUCTIONS, text, image, name: "board_fittings", schema: SCHEMA });

@@ -4,7 +4,8 @@ import { pdDb, requirePdEdit } from "@/lib/product-dev-api";
 import { requireAdminGate } from "@/lib/admin-auth";
 import { NEEDS_KEY, PD_RESEARCH_MODEL, pdClaude } from "@/lib/pd-web";
 import { openAiSearchThenRecord, pdAiKey } from "@/lib/pd-ai";
-import { RESEARCH_FILLABLE, boardTitle, disciplineLabel, type BoardResearch } from "@/lib/board-measurements";
+import { RESEARCH_FILLABLE, boardTitle, disciplineLabel, topPhoto, type BoardResearch } from "@/lib/board-measurements";
+import { autoPicture, loadPictureBoard } from "@/lib/board-pictures";
 
 /**
  * POST /api/admin/product-dev/boards/:id/research — what the web knows about
@@ -16,7 +17,9 @@ import { RESEARCH_FILLABLE, boardTitle, disciplineLabel, type BoardResearch } fr
  * the page gets a fixed shape back instead of prose to parse. The result is
  * kept on the board (migration 257) and replaced by the next run. The specs it
  * finds fill the board's EMPTY Details fields straight away (never one that
- * holds a value) and the research remembers which ones.
+ * holds a value) and the research remembers which ones. A board without a
+ * picture then gets one from the pages this run found, when one of them is
+ * clearly this board (board-pictures.ts; Nico: "cant the system search itself?").
  */
 
 export const runtime = "nodejs";
@@ -143,7 +146,19 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       .update({ research, research_at, ...fill, ...(Object.keys(fill).length ? { updated_at: research_at } : {}) })
       .eq("id", id);
     if (saveError) return NextResponse.json({ error: saveError.message }, { status: 500 });
-    return NextResponse.json({ research, research_at, filled: Object.keys(fill) });
+    // No picture yet: the pages just found usually have it. Never the paid
+    // page search here, and a failure never spoils the research itself.
+    let picture: { outcome: string; note?: string | null } | null = null;
+    if (!topPhoto(board.photos)) {
+      try {
+        const fresh = await loadPictureBoard(id);
+        if (fresh) { const r = await autoPicture(fresh, { aiSearch: false }); picture = { outcome: r.outcome, note: r.note ?? null }; }
+      } catch (err) {
+        picture = { outcome: "failed", note: err instanceof Error ? err.message : null };
+      }
+    }
+    const after = picture ? (await loadPictureBoard(id))?.research ?? research : research;
+    return NextResponse.json({ research: after, research_at, filled: Object.keys(fill), picture });
   }
 
   // ChatGPT key: search, then answer through the same strict shape.

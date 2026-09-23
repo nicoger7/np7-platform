@@ -56,6 +56,9 @@ export function BoardResearchTab({ board, onChanged }: { board: PdBoard; onChang
     if (j.needsKey) { setMsg(j.message); return; }
     if (!res.ok) { setMsg(j.error ?? "The search failed."); return; }
     setResearch(j.research); setAt(j.research_at); onChanged();
+    // A board without a picture gets one from the pages just found, when one is clearly it.
+    if (j.picture?.outcome === "kept") setMsg(`Top view found and kept. ${j.picture.note ?? ""}`.trim());
+    else if (j.picture?.outcome === "unclear") setMsg("Pictures found, none clearly this size: pick one on the Photos tab.");
   }
 
   const fill = research

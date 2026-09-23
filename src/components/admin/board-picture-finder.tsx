@@ -23,6 +23,8 @@ export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoa
   const [busy, setBusy] = useState<"" | "auto" | "link" | "save">("");
   const [msg, setMsg] = useState("");
   const [note, setNote] = useState("");
+  // What the search found besides the picture it kept by itself: "Choose another".
+  const [others, setOthers] = useState<Candidate[]>([]);
   const [pages, setPages] = useState<{ url: string; title: string | null }[]>([]);
   const [images, setImages] = useState<Candidate[] | null>(null);
   const [picked, setPicked] = useState<Candidate | null>(null);
@@ -30,7 +32,7 @@ export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoa
   const query = boardSearchQuery(board);
 
   async function find(auto: boolean) {
-    setBusy(auto ? "auto" : "link"); setMsg(""); setPicked(null);
+    setBusy(auto ? "auto" : "link"); setMsg(""); setNote(""); setPicked(null); setOthers([]);
     const res = await fetch(`/api/admin/product-dev/boards/${board.id}/images`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(auto ? {} : { url }),
@@ -40,7 +42,17 @@ export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoa
     if (j.needsKey) { setMsg(j.message); return; }
     if (!res.ok) { setMsg(j.error ?? "That didn't work."); return; }
     setPages(j.pages ?? []);
+    // The search kept the picture that is clearly this board (or the pasted
+    // link was a picture): done, with the rest on offer.
+    if (j.kept) {
+      setImages(null); setUrl("");
+      setNote(j.note ?? "Kept.");
+      setOthers((j.images ?? []).filter((i: Candidate) => i.src !== j.chosen?.src));
+      onSaved(j.photos ?? []);
+      return;
+    }
     setImages(j.images ?? []);
+    if (j.note) setNote(j.note);
     if (!(j.images ?? []).length) setMsg("No usable pictures on that page. Try the brand's own product page.");
   }
 
@@ -72,7 +84,7 @@ export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoa
   return (
     <Card title="Top-view picture" icon="image" tone="pink"
       subtitle="The picture this board is shown by in lists"
-      info={<>Find automatically asks the AI (ChatGPT or Claude) to search the web for the brand&apos;s product page. Pasting a link always works, no key needed: the product page, the picture itself, or a Google Images link. A picture showing the deck and the bottom side by side is cut apart when you keep it, and the AI says which one is the deck. The picture is kept in Product Dev with its source, for internal reference only.</>}
+      info={<>Find automatically reads the pages the Research tab found (else the AI searches the web for the brand&apos;s product page) and keeps the picture that names this board&apos;s size by itself; when none is that clear, you pick from the grid. Pasting a link always works, no key needed: a product page shows its pictures, a picture or Google Images link is kept straight away. A picture showing the deck and the bottom side by side is cut apart, and the AI says which one is the deck. Kept in Product Dev with its source, for internal reference only.</>}
       actions={<SaveNote msg={msg === "Saved" ? msg : ""} />}>
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="w-full lg:w-56 h-28 rounded-xl shrink-0 flex items-center justify-center"
@@ -90,7 +102,7 @@ export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoa
             </a>
           </div>
           <div className="flex gap-2">
-            <input className={inputCls} value={url} placeholder="…or paste a link: product page, picture or Google Images"
+            <input className={inputCls} value={url} placeholder="…or paste a link: product page, picture or Google Images (a picture link is kept straight away)"
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && url.trim()) find(false); }} />
             <button onClick={() => find(false)} disabled={!!busy || !url.trim()} className={btnSecondary} style={btnSecondaryStyle}>
@@ -101,7 +113,13 @@ export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoa
           {note && (
             <p className="text-xs leading-relaxed admin-muted flex items-start gap-1.5">
               <Icon name="check" className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-500" />
-              <span>{note} <button onClick={() => setNote("")} className="admin-faint hover:text-[var(--admin-accent)] underline">OK</button></span>
+              <span>
+                {note}{" "}
+                {others.length > 0 && !images && (
+                  <button onClick={() => { setImages(others); setNote(""); }} className="font-semibold hover:underline mr-2" style={{ color: "var(--admin-accent)" }}>Choose another</button>
+                )}
+                <button onClick={() => setNote("")} className="admin-faint hover:text-[var(--admin-accent)] underline">OK</button>
+              </span>
             </p>
           )}
         </div>

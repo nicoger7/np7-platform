@@ -150,7 +150,7 @@ export const PD_ENTITIES = {
       "project_id", "name", "brand", "model", "size", "year", "category", "origin",
       "volume_l", "length_cm", "max_width_cm", "tail_width_cm", "weight_kg",
       "construction", "fin_box", "station_origin", "station_unit", "stations",
-      "measured_at", "measured_by", "summary", "notes", "photos", "source_id",
+      "measured_at", "measured_by", "summary", "notes", "photos", "source_id", "tape",
     ],
     required: ["name"],
     projectScoped: true,

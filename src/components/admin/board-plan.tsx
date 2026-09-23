@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { clientSpaceFactor, cssZoomOf, screenToArtboard } from "@/lib/promo-pointer";
 import { keyUrl } from "@/lib/img";
 import { PhotoLoadError, fitPhoto, matchPhoto, readPhotoMask, type PhotoFit, type PhotoMask } from "@/components/admin/board-photo-outline";
 import { fittingsImage, type FoundFitting } from "@/components/admin/board-fittings";
 import { InfoTip } from "@/components/admin/pd-ui";
 import {
-  BOARD_METRICS, BOARD_METRIC_BY_KEY, effectiveValue, exactValue, fmtReading, interpolate, methodForScale, metricUnit, round, riseMarkerStation,
+  BOARD_METRICS, BOARD_METRIC_BY_KEY, disciplineLabel, effectiveValue, exactValue, fmtReading, interpolate, methodForScale, metricUnit, round, riseMarkerStation,
   rockerReadout, seriesPoints, smoothPath, toMm, topPhoto, widestPoint, zeroCrossing,
-  type BoardPhoto, type PdBoard, type PdBoardCutout, type PdBoardPoint, type PdBoardSeries, type SeriesPoints,
+  type BoardPhoto, type PdBoard, type PdBoardCutout, type PdBoardPoint, type PdBoardSeries, type SavedTape, type SeriesPoints,
 } from "@/lib/board-measurements";
 
 /**
@@ -54,6 +55,15 @@ function theoryAt(pts: SeriesPoints, station: number): { value: number; from: nu
   return { value: v, from: pts[i].station, to: pts[i + 1].station };
 }
 
+/** What a series says at a station: the reading, or (theory on) the marked
+ *  value between two readings, or nothing. */
+function valueAt(pts: SeriesPoints, station: number, theory: boolean): { value: number; exact: boolean } | null {
+  const hit = pts.find((p) => p.station === station);
+  if (hit) return { value: hit.value, exact: true };
+  const th = theory ? theoryAt(pts, station) : null;
+  return th ? { value: th.value, exact: false } : null;
+}
+
 type Props = {
   board: PdBoard;
   series: PdBoardSeries[];
@@ -96,8 +106,20 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
   const [numbersOn, setNumbersOn] = useState(false);
   const [tapeOn, setTapeOn] = useState(false);
   const [tape, setTape] = useState<TapeSeg[]>([]);
+  // Kept measurements live on the board (migration 259); shown until removed.
+  const [saved, setSaved] = useState<SavedTape[]>(board.tape ?? []);
+  const [tapeMsg, setTapeMsg] = useState("");
+  async function keepTape(next: SavedTape[]) {
+    const before = saved;
+    setSaved(next); setTapeMsg("");
+    const res = await fetch(`/api/admin/product-dev/boards/${board.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tape: next }),
+    });
+    if (!res.ok) { setSaved(before); setTapeMsg((await res.json().catch(() => ({}))).error ?? "Couldn't save the tape."); }
+  }
   const [finder, setFinder] = useState<{ busy: boolean; error?: string; items?: PlanFitting[]; view?: string } | null>(null);
   const top = topPhoto(board.photos);
+
 
   const width = useMemo(() => mmSeries(points, series, "width"), [points, series]);
   const widthTop = useMemo(() => mmSeries(points, series, "width_top"), [points, series]);
@@ -109,6 +131,36 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
   const railT = useMemo(() => mmSeries(points, series, "rail_thickness"), [points, series]);
   const shot = usePhotoFit(board, photoOn ? top : null, width, widthTop, matchOn);
 
+  // Nico, 24.09.2026: "i still dont see a button where the system searches for
+  // the board 2d and matches it to our measurements". One button: without a
+  // picture it searches and keeps the one that is clearly this board (cut
+  // apart, deck picked out), then lays it under the plan matched to our widths;
+  // with a picture it matches the one there is.
+  const widthReadings = Math.max(width.length, widthTop.length);
+  const [search, setSearch] = useState<{ busy: boolean; msg: string } | null>(null);
+  function showMatched() {
+    setPhotoOn(true); setNumbersOn(true);
+    if (widthReadings >= 3) setMatchOn(true);
+  }
+  async function findAndMatch() {
+    setSearch({ busy: true, msg: "" });
+    const res = await fetch(`/api/admin/product-dev/boards/${board.id}/images`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    });
+    const j = await res.json().catch(() => ({}));
+    if (j.kept) {
+      showMatched();
+      setSearch({ busy: false, msg: `${j.note ?? "Picture kept."}${widthReadings >= 3 ? " Matched to our widths." : " Scaled by the stated length and width (fewer than 3 width readings to match)."}` });
+      onChanged?.();
+      return;
+    }
+    if (j.needsKey) { setSearch({ busy: false, msg: j.message }); return; }
+    if (!res.ok) { setSearch({ busy: false, msg: j.error ?? "The search failed." }); return; }
+    // Pictures, but none clearly this board: a person picks on the Photos tab.
+    setSearch({ busy: false, msg: "" });
+    onFindPicture?.();
+  }
+
   async function findFittings() {
     const fit = shot.fit, mask = shot.mask;
     if (!fit || !mask || !shot.url) return;
@@ -117,7 +169,7 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
       const { dataUrl, lengthCm, halfWidthCm } = await fittingsImage(mask.drawUrl ?? shot.url, mask, fit);
       const res = await fetch(`/api/admin/product-dev/boards/${board.id}/fittings`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: dataUrl, lengthCm, halfWidthCm }),
+        body: JSON.stringify({ image: dataUrl, lengthCm, halfWidthCm, finBox: board.fin_box ?? null, discipline: disciplineLabel(board.category) }),
       });
       const j = await res.json().catch(() => ({}));
       if (j.needsKey) { setFinder({ busy: false, error: j.message }); return; }
@@ -170,8 +222,11 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
   }, [measuredStations, coverage]);
 
   const anyData = points.some((p) => p.value != null);
-  // A click on the outline or the rocker opens the slice there.
-  const pickSlice = (st: number) => { setStation(st); setView("section"); };
+  // A click on the outline or the rocker puts the slice there and shows its
+  // numbers right under the drawing; the view stays (Nico, 24.09.2026: "when
+  // I click it takes me to cross section").
+  const pickSlice = (st: number) => setStation(st);
+  const sliceShown = view === "section" || station != null;
 
   if (!anyData && !top) {
     return (
@@ -197,7 +252,7 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
           ))}
         </div>
 
-        {view === "section" && (
+        {sliceShown && (
           <div className="flex items-center gap-2 text-xs admin-muted pl-1">
             <span>Slice at</span>
             <input type="range" min={Math.floor(stations.min)} max={Math.ceil(stations.max)} step={1}
@@ -215,12 +270,26 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
                 ))}
               </select>
             )}
+            {view !== "section" && (
+              <button onClick={() => setStation(null)} title="Hide the slice" className="w-6 h-6 rounded-md inline-flex items-center justify-center admin-faint hover:text-[var(--admin-accent)]">×</button>
+            )}
           </div>
         )}
 
         <div className="ml-auto flex items-center gap-2">
-          {view === "outline" && !top && onFindPicture && (
-            <ToolButton onClick={onFindPicture} title="Search the web for this board's top-view picture">Find a top view</ToolButton>
+          {view === "outline" && !top && (
+            <ToolButton onClick={findAndMatch} active
+              title="Searches the web for this board's top-view picture (the pages Research found first), keeps the one that is clearly this size, cuts it apart if it shows the deck and the bottom, and matches it to our widths">
+              {search?.busy ? "Searching…" : "🔎 Find the picture & match"}
+            </ToolButton>
+          )}
+          {view === "outline" && top && (
+            <ToolButton onClick={() => { if (photoOn && matchOn) setMatchOn(false); else showMatched(); }} active={photoOn && matchOn}
+              title={widthReadings >= 3
+                ? "Lays the picture under the plan and scales and shifts it until it fits our measured widths best; the numbers show what the picture says where we did not measure"
+                : "Needs at least 3 width readings to match against; until then the picture is scaled by the stated length and width"}>
+              Match to our measurements
+            </ToolButton>
           )}
           {view === "outline" && top && (
             <Menu label="Picture" active={photoOn}>
@@ -287,12 +356,33 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
         </div>
       </div>
 
+      {search?.msg && (
+        <p className="text-xs admin-muted mb-2 flex items-start gap-2">
+          <span>{search.msg}</span>
+          <button onClick={() => setSearch(null)} className="admin-faint underline shrink-0">OK</button>
+        </p>
+      )}
       {view === "outline" && (
         <OutlineView board={board} width={width} widthTop={widthTop} cutouts={cutouts} stations={stations} labels={labels}
-          shot={shot} wanted={photoOn && !!top} slice={station} onPick={pickSlice}
-          tapeOn={tapeOn} tape={tape} setTape={setTape} fittings={finder?.items ?? []} />
+          shot={shot} wanted={photoOn && !!top} slice={station} onPick={pickSlice} theory={theory}
+          tapeOn={tapeOn} tape={tape} setTape={setTape} saved={saved} fittings={finder?.items ?? []} />
       )}
-      {view === "outline" && tape.length > 0 && <TapeList board={board} tape={tape} onClear={() => setTape([])} onRemove={(i) => setTape(tape.filter((_, j) => j !== i))} />}
+      {view === "outline" && (tape.length > 0 || saved.length > 0) && (
+        <TapeList board={board} tape={tape} saved={saved} msg={tapeMsg}
+          onClear={() => setTape([])} onRemove={(i) => setTape(tape.filter((_, j) => j !== i))}
+          onSave={(i) => {
+            const t = tape[i];
+            setTape(tape.filter((_, j) => j !== i));
+            void keepTape([...saved, { a: t.a, b: t.b, label: null, saved_at: new Date().toISOString() }]);
+          }}
+          onSaveAll={() => {
+            const at = new Date().toISOString();
+            void keepTape([...saved, ...tape.map((t) => ({ a: t.a, b: t.b, label: null, saved_at: at }))]);
+            setTape([]);
+          }}
+          onLabel={(i, label) => keepTape(saved.map((t, j) => (j === i ? { ...t, label: label.trim() || null } : t)))}
+          onForget={(i) => keepTape(saved.filter((_, j) => j !== i))} />
+      )}
       {view === "outline" && finder && !finder.busy && (
         <FittingsPanel board={board} finder={finder} cutouts={cutouts} onChanged={onChanged}
           onToggle={(id) => setFinder({ ...finder, items: (finder.items ?? []).map((f) => (f.id === id ? { ...f, pick: !f.pick } : f)) })}
@@ -302,7 +392,18 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
       {view === "rocker" && (
         <RockerView board={board} rocker={rocker} rockerOff={rockerOff}
           rockerOffNote={series.find((x) => x.metric === "rocker_off")?.convention ?? null}
-          thickness={thickness} points={points} stations={stations} exag={exag} labels={labels} slice={station} onPick={pickSlice} />
+          thickness={thickness} points={points} stations={stations} exag={exag} labels={labels} slice={station} onPick={pickSlice} theory={theory} />
+      )}
+      {view !== "section" && station != null && (
+        <div className="mt-3">
+          <SliceReadout board={board} station={station} points={points} series={series} theory={theory}
+            pictureWidth={shot.fit ? (st) => pictureWidthAt(shot.fit as PhotoFit, st) : null} />
+          <div className="flex justify-end -mt-1">
+            <button onClick={() => setView("section")} className="text-xs font-semibold hover:underline" style={{ color: "var(--admin-accent)" }}>
+              See the cross-section at {station} cm →
+            </button>
+          </div>
+        </div>
       )}
       {view === "section" && (
         <SliceReadout board={board} station={station ?? fullestStation} points={points} series={series} theory={theory}
@@ -313,6 +414,143 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
           station={station ?? fullestStation} theory={theory}
           width={width} widthTop={widthTop} vee={vee} concave={concave} thickness={thickness} railT={railT} exag={exag} />
       )}
+    </div>
+  );
+}
+
+// ─── Zoom and the pointer ────────────────────────────────────────────────────
+
+type Box = { x: number; y: number; w: number; h: number };
+
+/**
+ * Zoom into a drawing (Nico, 24.09.2026: "i want to be able to zoom in"), and
+ * the one way a pointer becomes a point on it.
+ *
+ * The zoom is the SVG's viewBox: a smaller window onto the same drawing, so the
+ * true scale, the picture underneath and the tape all stay exact. Pinch or
+ * ⌘/Ctrl + scroll zooms where the pointer is; once zoomed, scrolling or
+ * dragging moves around.
+ *
+ * The pointer goes through promo-pointer's measurement, because the admin is
+ * drawn at zoom 1.1 on desktop and Safari reported the drawing's box UNZOOMED:
+ * the tape landed short of the cursor, further off the further right (Nico:
+ * "the cursor is not on top of the tape").
+ */
+type Zoom = {
+  viewBox: string; box: Box; zoom: number; zoomed: boolean;
+  toView: (e: { clientX: number; clientY: number }) => { x: number; y: number };
+  zoomAt: (factor: number, at?: { x: number; y: number }) => void;
+  reset: () => void;
+  panHandlers: {
+    onPointerDown: (e: React.PointerEvent<SVGSVGElement>) => void;
+    onPointerMove: (e: React.PointerEvent<SVGSVGElement>) => void;
+    onPointerUp: () => void;
+  };
+  /** True right after a drag, so the click that ends it does not also pick a slice. */
+  wasDrag: () => boolean;
+};
+
+function useSvgZoom(W: number, H: number): [React.RefObject<SVGSVGElement | null>, Zoom] {
+  const ref = useRef<SVGSVGElement | null>(null);
+  const [box, setBox] = useState<Box | null>(null);
+  const [size, setSize] = useState(`${W}x${Math.round(H)}`);
+  // A different drawing (other data, other exaggeration): back to the whole of it.
+  if (size !== `${W}x${Math.round(H)}`) { setSize(`${W}x${Math.round(H)}`); setBox(null); }
+  const cur: Box = box ?? { x: 0, y: 0, w: W, h: H };
+
+  const clamp = (b: Box): Box | null => {
+    const w = Math.min(W, Math.max(W / 8, b.w)), h = (w * H) / W;
+    if (w >= W - 0.5) return null;
+    return { x: Math.min(W - w, Math.max(0, b.x)), y: Math.min(H - h, Math.max(0, b.y)), w, h };
+  };
+  /** Client pixels → drawing units (the viewBox's own). */
+  const toView = (e: { clientX: number; clientY: number }) => {
+    const el = ref.current, b = cur;
+    if (!el) return { x: 0, y: 0 };
+    const rect = el.getBoundingClientRect();
+    const k = clientSpaceFactor(rect, { width: el.clientWidth, height: el.clientHeight }, cssZoomOf(el));
+    const p = screenToArtboard(e, rect, { w: b.w, h: b.h }, k);
+    return { x: b.x + p.x, y: b.y + p.y };
+  };
+  /** Drawing units per client pixel, for dragging. */
+  const perPx = () => {
+    const el = ref.current;
+    if (!el) return 1;
+    const rect = el.getBoundingClientRect();
+    const k = clientSpaceFactor(rect, { width: el.clientWidth, height: el.clientHeight }, cssZoomOf(el));
+    return rect.width > 0 ? cur.w / (rect.width * k) : 1;
+  };
+  const zoomAt = (factor: number, at?: { x: number; y: number }) => {
+    const b = cur;
+    const c = at ?? { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+    const w = b.w / factor, h = b.h / factor;
+    setBox(clamp({ x: c.x - (c.x - b.x) * (w / b.w), y: c.y - (c.y - b.y) * (h / b.h), w, h }));
+  };
+  const panBy = (dx: number, dy: number) => {
+    const b = cur;
+    if (b.w >= W - 0.5) return;
+    setBox(clamp({ ...b, x: b.x + dx, y: b.y + dy }));
+  };
+
+  // Wheel: React's is passive, and a pinch must not zoom the whole page.
+  // Re-attached every render, so it always sees the current window.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const zoomed = cur.w < W - 0.5;
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        zoomAt(Math.exp(-e.deltaY * 0.01), toView(e));
+      } else if (zoomed) {
+        e.preventDefault();
+        const u = perPx();
+        panBy((e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * u, (e.shiftKey && !e.deltaX ? 0 : e.deltaY) * u);
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  });
+
+  // Drag to move around while zoomed (only where a drag means nothing else).
+  const drag = useRef<{ x: number; y: number; box: Box; moved: boolean } | null>(null);
+  const moved = useRef(false);
+  const panHandlers = {
+    onPointerDown: (e: React.PointerEvent<SVGSVGElement>) => {
+      moved.current = false;
+      if (!box || e.button !== 0) return;
+      drag.current = { x: e.clientX, y: e.clientY, box: cur, moved: false };
+    },
+    onPointerMove: (e: React.PointerEvent<SVGSVGElement>) => {
+      const d = drag.current;
+      if (!d) return;
+      const dx = e.clientX - d.x, dy = e.clientY - d.y;
+      if (!d.moved && Math.hypot(dx, dy) < 4) return;
+      if (!d.moved) { d.moved = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ } }
+      const u = perPx();
+      setBox(clamp({ ...d.box, x: d.box.x - dx * u, y: d.box.y - dy * u }));
+    },
+    onPointerUp: () => { moved.current = !!drag.current?.moved; drag.current = null; },
+  };
+
+  return [ref, {
+    viewBox: `${cur.x} ${cur.y} ${cur.w} ${cur.h}`, box: cur, zoom: W / cur.w, zoomed: !!box,
+    toView, zoomAt, reset: () => setBox(null), panHandlers,
+    wasDrag: () => moved.current,
+  }];
+}
+
+function ZoomControls({ z }: { z: Zoom }) {
+  const btn = "w-7 h-7 inline-flex items-center justify-center text-sm font-bold admin-muted hover:text-[var(--admin-accent)] disabled:opacity-30";
+  return (
+    <div className="absolute top-2 right-2 flex items-center rounded-lg overflow-hidden shadow-sm"
+      style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
+      <button className={btn} onClick={() => z.zoomAt(1 / 1.5)} disabled={!z.zoomed} title="Zoom out">−</button>
+      <button className="px-1.5 h-7 text-[11px] font-semibold admin-muted hover:text-[var(--admin-accent)] tabular-nums" onClick={z.reset}
+        title="Show the whole board. Pinch or ⌘/Ctrl + scroll to zoom where the pointer is; when zoomed, scroll or drag to move.">
+        {z.zoomed ? `×${z.zoom.toFixed(1)}` : "Fit"}
+      </button>
+      <button className={btn} onClick={() => z.zoomAt(1.5)} disabled={z.zoom >= 7.99} title="Zoom in">+</button>
     </div>
   );
 }
@@ -469,11 +707,11 @@ function usePhotoFit(board: PdBoard, photo: BoardPhoto | null, width: SeriesPoin
   return { url, mask, fit, state };
 }
 
-function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, wanted, slice, onPick, tapeOn, tape, setTape, fittings }: {
+function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, wanted, slice, onPick, theory, tapeOn, tape, setTape, saved, fittings }: {
   board: PdBoard; width: SeriesPoints; widthTop: SeriesPoints; cutouts: PdBoardCutout[];
   stations: { min: number; max: number }; labels: boolean; shot: ReturnType<typeof usePhotoFit>; wanted: boolean;
-  slice: number | null; onPick: (station: number) => void;
-  tapeOn: boolean; tape: TapeSeg[]; setTape: (t: TapeSeg[]) => void; fittings: PlanFitting[];
+  slice: number | null; onPick: (station: number) => void; theory: boolean;
+  tapeOn: boolean; tape: TapeSeg[]; setTape: (t: TapeSeg[]) => void; saved: SavedTape[]; fittings: PlanFitting[];
 }) {
   const [drag, setDrag] = useState<TapeSeg | null>(null);
   const PAD = 34;
@@ -492,6 +730,7 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, 
   const toX = (cm: number) => PAD + (cm - stations.min) * pxPerCm;
   const centre = PAD + 14 + halfPx;
   const toYhalf = (mm: number) => centre - (mm / 10) * pxPerCm;
+  const [zoomRef, z] = useSvgZoom(W, H);
 
   const halfOf = (pts: SeriesPoints): SeriesPoints => pts.map((p) => ({ station: p.station, value: p.value / 2 }));
   const mirror = (pts: SeriesPoints): SeriesPoints => pts.map((p) => ({ ...p, value: -p.value }));
@@ -523,16 +762,14 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, 
   const wrapAt = wideTop ? width.find((p) => p.station === wideTop.station) : null;
 
   const pick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (tapeOn) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const st = stations.min + (((e.clientX - r.left) / r.width) * W - PAD) / pxPerCm;
+    if (tapeOn || z.wasDrag()) return;
+    const st = stations.min + (z.toView(e).x - PAD) / pxPerCm;
     if (st >= stations.min && st <= stations.max) onPick(Math.round(st));
   };
   // The tape: the plan is at true scale in both axes, so a line on it IS a
   // distance on the board. Points are in stations (cm) and cm off the centreline.
   const at = (e: React.PointerEvent<SVGSVGElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - r.left) / r.width) * W, y = ((e.clientY - r.top) / r.height) * H;
+    const { x, y } = z.toView(e);
     return { st: stations.min + (x - PAD) / pxPerCm, off: (centre - y) / pxPerCm };
   };
   const straight = (seg: TapeSeg, shift: boolean): TapeSeg => {
@@ -553,26 +790,33 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, 
       if (Math.hypot(seg.b.st - seg.a.st, seg.b.off - seg.a.off) > 0.5) setTape([...tape, seg]);
       setDrag(null);
     },
-  } : {};
-  const segLine = (seg: TapeSeg, key: string, live: boolean) => {
+  } : z.panHandlers;
+  const segLine = (seg: TapeSeg, key: string, live: boolean, kept?: { label?: string | null }) => {
     const d = Math.hypot(seg.b.st - seg.a.st, seg.b.off - seg.a.off);
     const x1 = toX(seg.a.st), y1 = centre - seg.a.off * pxPerCm, x2 = toX(seg.b.st), y2 = centre - seg.b.off * pxPerCm;
+    // Kept measurements in teal, so the ones on the board and the ones just
+    // taken are told apart at a glance.
+    const ink = kept ? "#0f766e" : "#111827", dot = kept ? "#5eead4" : "#fbbf24";
+    const text = `${kept?.label ? `${kept.label} · ` : ""}${round(d, 1)} cm`;
+    const tw = Math.max(52, text.length * 6 + 10);
     return (
       <g key={key} pointerEvents="none">
-        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#111827" strokeWidth={2} strokeDasharray={live ? "5 3" : undefined} />
-        <circle cx={x1} cy={y1} r={3.5} fill="#fbbf24" stroke="#111827" />
-        <circle cx={x2} cy={y2} r={3.5} fill="#fbbf24" stroke="#111827" />
-        <rect x={(x1 + x2) / 2 - 26} y={(y1 + y2) / 2 - 20} width={52} height={15} rx={4} fill="#111827" opacity={0.85} />
-        <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 9} textAnchor="middle" fontSize={10} fontWeight={700} fill="#fbbf24">{round(d, 1)} cm</text>
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={ink} strokeWidth={2} strokeDasharray={live ? "5 3" : undefined} />
+        <circle cx={x1} cy={y1} r={3.5} fill={dot} stroke={ink} />
+        <circle cx={x2} cy={y2} r={3.5} fill={dot} stroke={ink} />
+        <rect x={(x1 + x2) / 2 - tw / 2} y={(y1 + y2) / 2 - 20} width={tw} height={15} rx={4} fill={ink} opacity={0.88} />
+        <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 9} textAnchor="middle" fontSize={10} fontWeight={700} fill={dot}>{text}</text>
       </g>
     );
   };
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} {...frame} style={{ ...frame.style, cursor: "crosshair", touchAction: tapeOn ? "none" : undefined }}
+      <div className="relative">
+      <svg ref={zoomRef} viewBox={z.viewBox} {...frame}
+        style={{ ...frame.style, cursor: tapeOn ? "crosshair" : z.zoomed ? "grab" : "crosshair", touchAction: tapeOn || z.zoomed ? "none" : undefined }}
         onClick={pick} {...tapeHandlers}>
-        <title>{tapeOn ? "Drag to measure; hold Shift for straight along or across" : "Click anywhere to see the slice there"}</title>
+        <title>{tapeOn ? "Drag to measure; hold Shift for straight along or across" : z.zoomed ? "Click to see the slice there; drag to move around" : "Click anywhere to see the slice there"}</title>
         <Grid x0={stations.min} x1={stations.max} y0={-halfMaxMm / 10} y1={halfMaxMm / 10}
           toX={toX} toY={(cm) => centre - cm * pxPerCm} step={10} major={50}
           axisLabel={`cm from the ${board.station_origin}`} />
@@ -651,12 +895,36 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, 
         {/* Upper curve: dots + labels (full width in cm) */}
         <Dots pts={upper} toX={toX} toY={toYhalf} color={upperCol} labels={labels} fmt={(v) => `${round(v / 5, 1)}`} />
 
-        {slice != null && slice >= stations.min && slice <= stations.max && (
-          <g>
-            <line x1={toX(slice)} x2={toX(slice)} y1={22} y2={H - 8} stroke="var(--admin-accent)" strokeWidth={1.2} strokeDasharray="4 3" />
-            <text x={toX(slice) + 4} y={H - 12} fontSize={9} fill="var(--admin-accent)">slice {slice} cm</text>
-          </g>
-        )}
+        {slice != null && slice >= stations.min && slice <= stations.max && (() => {
+          // The widths where the slice is: readings as they are, between two
+          // readings the marked (≈) value, and the picture's own width.
+          const x = toX(slice);
+          const rows = [
+            { label: "bottom", col: colB, v: valueAt(width, slice, theory) },
+            { label: "top", col: colT, v: valueAt(widthTop, slice, theory) },
+          ].filter((r) => r.v).map((r) => ({ ...r, cm: (r.v as { value: number }).value / 10, exact: (r.v as { exact: boolean }).exact }));
+          const pic = shot.fit ? pictureWidthAt(shot.fit, slice) : null;
+          const all = [...rows, ...(pic != null ? [{ label: "picture", col: PHOTO_COL, cm: pic, exact: false }] : [])];
+          const flip = x > z.box.x + z.box.w * 0.8;
+          return (
+            <g>
+              <line x1={x} x2={x} y1={22} y2={H - 8} stroke="var(--admin-accent)" strokeWidth={1.2} strokeDasharray="4 3" />
+              {all.map((r) => [1, -1].map((side) => (
+                <circle key={`${r.label}${side}`} cx={x} cy={toYhalf((side * r.cm * 10) / 2)} r={3} fill={r.col} stroke="var(--admin-surface)" strokeWidth={1} />
+              )))}
+              <text x={flip ? x - 6 : x + 6} y={H - 12} fontSize={10} fontWeight={700} textAnchor={flip ? "end" : "start"} fill="var(--admin-accent)">slice {slice} cm</text>
+              {all.map((r, i) => (
+                <text key={r.label} x={flip ? x - 6 : x + 6} y={36 + i * 13} fontSize={10.5} fontWeight={600} textAnchor={flip ? "end" : "start"} fill={r.col}
+                  style={{ paintOrder: "stroke", stroke: "var(--admin-surface)", strokeWidth: 3 }}>
+                  {r.label} {r.label === "picture" || !r.exact ? "≈ " : ""}{round(r.cm, 1)} cm
+                </text>
+              ))}
+              {!all.length && (
+                <text x={flip ? x - 6 : x + 6} y={36} fontSize={10} textAnchor={flip ? "end" : "start"} fill="var(--admin-text-faint)">no width here</text>
+              )}
+            </g>
+          );
+        })()}
 
         {/* Fittings the AI found in the picture: proposals, orange, until added to the Cut-outs. */}
         {fittings.map((f) => {
@@ -671,6 +939,7 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, 
             </g>
           );
         })}
+        {saved.map((seg, i) => segLine(seg, `s${i}`, false, { label: seg.label }))}
         {tape.map((seg, i) => segLine(seg, `t${i}`, false))}
         {drag && segLine(drag, "live", true)}
 
@@ -686,6 +955,8 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, 
           </g>
         ))}
       </svg>
+      <ZoomControls z={z} />
+      </div>
 
       <Caption lines={[
         both
@@ -880,28 +1151,63 @@ const FITTING_KIND: Record<string, string> = {
 };
 
 /** What the tape measured, point to point, in the plan's own terms. */
-function TapeList({ board, tape, onClear, onRemove }: { board: PdBoard; tape: TapeSeg[]; onClear: () => void; onRemove: (i: number) => void }) {
+function TapeList({ board, tape, saved, msg, onClear, onRemove, onSave, onSaveAll, onLabel, onForget }: {
+  board: PdBoard; tape: TapeSeg[]; saved: SavedTape[]; msg: string;
+  onClear: () => void; onRemove: (i: number) => void; onSave: (i: number) => void; onSaveAll: () => void;
+  onLabel: (i: number, label: string) => void; onForget: (i: number) => void;
+}) {
   const pos = (p: { st: number; off: number }) => `${round(p.st, 1)} cm from the ${board.station_origin}, ${p.off >= 0 ? "+" : ""}${round(p.off, 1)} off centre`;
+  const row = (seg: TapeSeg) => {
+    const d = Math.hypot(seg.b.st - seg.a.st, seg.b.off - seg.a.off);
+    return (
+      <>
+        <span className="font-bold tabular-nums admin-heading w-16">{round(d, 1)} cm</span>
+        <span className="admin-muted tabular-nums">along {round(Math.abs(seg.b.st - seg.a.st), 1)} · across {round(Math.abs(seg.b.off - seg.a.off), 1)}</span>
+        <span className="admin-faint">from {pos(seg.a)} to {pos(seg.b)}</span>
+      </>
+    );
+  };
   return (
     <div className="mt-3 rounded-xl p-3" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
       <div className="flex items-center gap-2 mb-2">
         <span className="text-sm font-semibold admin-heading">📏 Tape</span>
         <span className="text-xs admin-faint">on the plan at true scale: as accurate as the picture and the readings under it</span>
-        <button onClick={onClear} className="ml-auto text-xs admin-faint underline">clear all</button>
+        {tape.length > 0 && (
+          <span className="ml-auto flex items-center gap-3">
+            <button onClick={onSaveAll} className="text-xs font-semibold" style={{ color: "var(--admin-accent)" }}>save all</button>
+            <button onClick={onClear} className="text-xs admin-faint underline">clear</button>
+          </span>
+        )}
       </div>
-      <ol className="space-y-1">
-        {tape.map((seg, i) => {
-          const d = Math.hypot(seg.b.st - seg.a.st, seg.b.off - seg.a.off);
-          return (
+      {msg && <p className="text-xs text-red-500 mb-2">{msg}</p>}
+      {tape.length > 0 && (
+        <ol className="space-y-1">
+          {tape.map((seg, i) => (
             <li key={i} className="flex flex-wrap items-baseline gap-x-3 text-xs">
-              <span className="font-bold tabular-nums admin-heading w-16">{round(d, 1)} cm</span>
-              <span className="admin-muted tabular-nums">along {round(Math.abs(seg.b.st - seg.a.st), 1)} · across {round(Math.abs(seg.b.off - seg.a.off), 1)}</span>
-              <span className="admin-faint">from {pos(seg.a)} to {pos(seg.b)}</span>
-              <button onClick={() => onRemove(i)} className="admin-faint hover:text-red-500 ml-auto" title="Remove">✕</button>
+              {row(seg)}
+              <span className="ml-auto flex items-center gap-2">
+                <button onClick={() => onSave(i)} className="font-semibold" style={{ color: "var(--admin-accent)" }} title="Keep it on the board">Save</button>
+                <button onClick={() => onRemove(i)} className="admin-faint hover:text-red-500" title="Remove">✕</button>
+              </span>
             </li>
-          );
-        })}
-      </ol>
+          ))}
+        </ol>
+      )}
+      {saved.length > 0 && (
+        <>
+          <div className="text-[10px] font-bold uppercase tracking-[0.08em] admin-faint mt-3 mb-1.5">Saved on this board ({saved.length})</div>
+          <ol className="space-y-1">
+            {saved.map((seg, i) => (
+              <li key={`${seg.saved_at}-${i}`} className="flex flex-wrap items-baseline gap-x-3 text-xs">
+                <input defaultValue={seg.label ?? ""} placeholder="name it, e.g. strap to strap" onBlur={(e) => { if ((e.target.value.trim() || null) !== (seg.label ?? null)) onLabel(i, e.target.value); }}
+                  className="w-40 bg-transparent border-b text-xs focus:outline-none" style={{ borderColor: "var(--admin-border)", color: "#0f766e" }} />
+                {row(seg)}
+                <button onClick={() => { if (confirm("Remove this saved measurement from the board?")) onForget(i); }} className="admin-faint hover:text-red-500 ml-auto" title="Remove from the board">✕</button>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
     </div>
   );
 }
@@ -1016,11 +1322,11 @@ function FittingsPanel({ board, finder, cutouts, onToggle, onClose, onChanged }:
 
 // ─── Rocker (side view) ──────────────────────────────────────────────────────
 
-function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points, stations, exag, labels, slice, onPick }: {
+function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points, stations, exag, labels, slice, onPick, theory }: {
   board: PdBoard; rocker: SeriesPoints; rockerOff: SeriesPoints; rockerOffNote: string | null;
   thickness: SeriesPoints; points: PdBoardPoint[];
   stations: { min: number; max: number }; exag: number; labels: boolean;
-  slice: number | null; onPick: (station: number) => void;
+  slice: number | null; onPick: (station: number) => void; theory: boolean;
 }) {
   const PAD = 40;
   const W = 900;
@@ -1038,6 +1344,7 @@ function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points
 
   const toX = (cm: number) => PAD + (cm - stations.min) * pxPerCm;
   const toY = (mm: number) => base - mm * pxPerMm;
+  const [zoomRef, z] = useSvgZoom(W, H);
 
   const marker = riseMarkerStation(points);
   const r = rockerReadout(rocker, board.station_origin, marker);
@@ -1051,23 +1358,45 @@ function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points
   }
 
   const pick = (e: React.MouseEvent<SVGSVGElement>) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const st = stations.min + (((e.clientX - r.left) / r.width) * W - PAD) / pxPerCm;
+    if (z.wasDrag()) return;
+    const st = stations.min + (z.toView(e).x - PAD) / pxPerCm;
     if (st >= stations.min && st <= stations.max) onPick(Math.round(st));
   };
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} {...frame} style={{ ...frame.style, cursor: "crosshair" }} onClick={pick}>
-        <title>Click anywhere to see the slice there</title>
+      <div className="relative">
+      <svg ref={zoomRef} viewBox={z.viewBox} {...frame} style={{ ...frame.style, cursor: z.zoomed ? "grab" : "crosshair", touchAction: z.zoomed ? "none" : undefined }}
+        onClick={pick} {...z.panHandlers}>
+        <title>{z.zoomed ? "Click to see the slice there; drag to move around" : "Click anywhere to see the slice there"}</title>
         <Grid x0={stations.min} x1={stations.max} y0={0} y1={maxY}
           toX={toX} toY={toY} step={10} major={50} axisLabel={`cm from the ${board.station_origin}`} />
-        {slice != null && slice >= stations.min && slice <= stations.max && (
-          <g>
-            <line x1={toX(slice)} x2={toX(slice)} y1={8} y2={H - 8} stroke="var(--admin-accent)" strokeWidth={1.2} strokeDasharray="4 3" />
-            <text x={toX(slice) + 4} y={16} fontSize={9} fill="var(--admin-accent)">slice {slice} cm</text>
-          </g>
-        )}
+        {slice != null && slice >= stations.min && slice <= stations.max && (() => {
+          const x = toX(slice);
+          const colR = BOARD_METRIC_BY_KEY.rocker.color;
+          const rows = [
+            { label: "rocker", v: valueAt(rocker, slice, theory) },
+            { label: "off centre", v: valueAt(rockerOff, slice, theory) },
+          ].filter((r) => r.v) as { label: string; v: { value: number; exact: boolean } }[];
+          const flip = x > z.box.x + z.box.w * 0.8;
+          return (
+            <g>
+              <line x1={x} x2={x} y1={8} y2={H - 8} stroke="var(--admin-accent)" strokeWidth={1.2} strokeDasharray="4 3" />
+              {rows.map((r) => (
+                <circle key={r.label} cx={x} cy={toY(r.v.value)} r={3.5} fill={colR} stroke="var(--admin-surface)" strokeWidth={1} />
+              ))}
+              <text x={flip ? x - 6 : x + 6} y={16} fontSize={10} fontWeight={700} textAnchor={flip ? "end" : "start"} fill="var(--admin-accent)">
+                slice {slice} cm{rows.length ? "" : " · no rocker here"}
+              </text>
+              {rows.map((r, i) => (
+                <text key={r.label} x={flip ? x - 6 : x + 6} y={30 + i * 13} fontSize={10.5} fontWeight={600} textAnchor={flip ? "end" : "start"} fill={colR}
+                  style={{ paintOrder: "stroke", stroke: "var(--admin-surface)", strokeWidth: 3 }}>
+                  {r.label} {r.v.exact ? "" : "≈ "}{round(r.v.value, 1)} mm
+                </text>
+              ))}
+            </g>
+          );
+        })()}
 
         {/* The straightedge the readings were taken off. */}
         <line x1={toX(stations.min)} x2={toX(stations.max)} y1={base} y2={base} stroke={INK} strokeWidth={1.2} opacity={0.6} />
@@ -1113,6 +1442,8 @@ function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points
           vertical ×{exag} · values in mm
         </text>
       </svg>
+      <ZoomControls z={z} />
+      </div>
 
       <Caption lines={[
         exag === 1

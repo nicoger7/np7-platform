@@ -75,6 +75,27 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   // header's "Find a top view").
   const findPicture = () => setTab("photos", { find: "1" });
 
+  // A board without a picture looks for one by itself, once, on the pages its
+  // Research found (never the paid search). Nico, 24.09.2026: "cant the system
+  // search itself?" The server remembers the try, so this runs once per board.
+  const tried = useRef<string | null>(null);
+  const [looking, setLooking] = useState(false);
+  useEffect(() => {
+    if (!d || tried.current === d.id) return;
+    if (topPhoto(d.photos) || !d.research?.links?.length || d.research.picture) return;
+    tried.current = d.id;
+    const t = setTimeout(() => {
+      setLooking(true);
+      fetch(`/api/admin/product-dev/boards/${d.id}/images`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ auto: "open" }),
+      })
+        .then((r) => r.json())
+        .then((j) => { setLooking(false); if (j.outcome === "kept") load(); })
+        .catch(() => setLooking(false));
+    }, 0);
+    return () => clearTimeout(t);
+  }, [d]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (loading) return <div className="py-12 text-center text-sm admin-faint">Loading…</div>;
   if (error || !d) return <div className="py-12 text-center text-sm text-red-500">{error || "Not found."}</div>;
 
@@ -111,7 +132,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
                 : <Icon name="board" className="w-8 h-8 admin-faint" strokeWidth={1.4} />}
             {!top && (
               <span className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                <Chip tone="pink" icon="search">Find a top view</Chip>
+                <Chip tone="pink" icon="search">{looking ? "Looking for a top view…" : "Find a top view"}</Chip>
               </span>
             )}
           </button>

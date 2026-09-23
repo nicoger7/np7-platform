@@ -235,6 +235,15 @@ export type BoardPhoto = {
   rotate?: number | null;
 };
 
+/** A tape measurement kept on the board: stations in cm from the board's
+ *  origin, offsets in cm off the centreline (+ = the plan's upper side). */
+export type SavedTape = {
+  a: { st: number; off: number };
+  b: { st: number; off: number };
+  label?: string | null;
+  saved_at: string;
+};
+
 /** What the web says about a board: one run of the Research tab (migration 257). */
 export type BoardResearch = {
   identified_as: string;
@@ -259,6 +268,9 @@ export type BoardResearch = {
   meta?: { model: string; searches: number; input_tokens: number; output_tokens: number };
   /** Board fields this search filled because they were empty (Nico: "if we do a search it should also fill in these"). */
   filled?: string[];
+  /** The last automatic try for a top-view picture (board-pictures.ts), so
+   *  opening the board does not search again. Cleared by the next Research run. */
+  picture?: { tried_at: string; outcome: "searching" | "kept" | "unclear" | "none" | "failed"; src?: string | null; note?: string | null };
 };
 
 /** Published specs that fill a board's empty Details fields after a web search. */
@@ -300,6 +312,8 @@ export type PdBoard = {
   photos: BoardPhoto[];
   research?: BoardResearch | null;
   research_at?: string | null;
+  /** Tape measurements kept from the 2D plan (migration 259). */
+  tape?: SavedTape[] | null;
   source_id: string | null;
   created_at: string;
   updated_at: string;
