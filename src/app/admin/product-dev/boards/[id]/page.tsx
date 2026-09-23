@@ -63,12 +63,17 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   }
   useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function setTab(next: TabKey) {
+  function setTab(next: TabKey, extra?: Record<string, string>) {
     if (dirtyRef.current && !confirm("You have unsaved changes. Leave and lose them?")) return;
     const q = new URLSearchParams(Array.from(sp.entries()));
     q.set("tab", next);
+    q.delete("find");
+    for (const [k, v] of Object.entries(extra ?? {})) q.set(k, v);
     router.replace(`${pathname}?${q.toString()}`, { scroll: false });
   }
+  // Straight to the picture search, already searching (the 2D plan's and the
+  // header's "Find a top view").
+  const findPicture = () => setTab("photos", { find: "1" });
 
   if (loading) return <div className="py-12 text-center text-sm admin-faint">Loading…</div>;
   if (error || !d) return <div className="py-12 text-center text-sm text-red-500">{error || "Not found."}</div>;
@@ -96,7 +101,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
         thumb={
           // The picture is also the way to the picture finder: a board without
           // a top view says so right where the picture would be.
-          <button onClick={() => setTab("photos")} title={top ? "Photos" : "Find a top-view picture"}
+          <button onClick={() => (top ? setTab("photos") : findPicture())} title={top ? "Photos" : "Find a top-view picture: searches straight away"}
             className="group relative w-[176px] h-[72px] rounded-2xl px-2 flex items-center justify-center transition-shadow hover:shadow-md"
             style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
             {top
@@ -138,11 +143,11 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
       {tab === "plan" && (
         <>
           <BoardReadout board={d} series={d.series} points={d.points} />
-          <BoardPlan board={d} series={d.series} points={d.points} cutouts={d.cutouts} />
+          <BoardPlan board={d} series={d.series} points={d.points} cutouts={d.cutouts} onFindPicture={findPicture} />
         </>
       )}
       {tab === "cutouts" && <BoardCutouts board={d} cutouts={d.cutouts} onSaved={load} dirtyRef={dirtyRef} />}
-      {tab === "photos" && <PhotosTab board={d} onSaved={load} />}
+      {tab === "photos" && <PhotosTab board={d} onSaved={load} autoFind={sp.get("find") === "1"} />}
       {tab === "notes" && <BoardNotes board={d} notes={d.note_rows} onChanged={load} />}
       {tab === "research" && <BoardResearchTab board={d} onChanged={load} />}
     </div>
@@ -158,6 +163,18 @@ function OverviewTab({ board, onSaved, goMeasure }: { board: Bundle; onSaved: ()
   const [composerKey, setComposerKey] = useState(0);
   const [editing, setEditing] = useState(false);
   const t = boardTitle(board);
+  // Filled by the web search (only while the value is still the one it found).
+  const web = (field: string): string | undefined => {
+    const r = board.research;
+    if (!r?.filled?.includes(field)) return undefined;
+    const spec = { length_cm: "length_cm", max_width_cm: "width_cm", volume_l: "volume_l", weight_kg: "weight_kg", tail_width_cm: "tail_width_cm", fin_box: "fin_box", construction: "construction" }[field] as keyof typeof r.specs | undefined;
+    const found = spec ? r.specs[spec] : null;
+    const cur = (board as unknown as Record<string, unknown>)[field];
+    if (found == null || String(found) !== String(cur)) return undefined;
+    let host = "";
+    try { host = r.specs.source_url ? new URL(r.specs.source_url).hostname.replace(/^www\./, "") : ""; } catch { /* no url */ }
+    return host ? `from the web, ${host}` : "from the web";
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-5">
@@ -189,13 +206,13 @@ function OverviewTab({ board, onSaved, goMeasure }: { board: Bundle; onSaved: ()
                 <Fact label="Brand" value={board.brand} />
                 <Fact label="Model" value={t.model} hint={t.guessed.model ? "from the name" : undefined} />
                 <Fact label="Size" value={t.size} hint={t.guessed.size ? "from the name" : undefined} />
-                <Fact label="Volume" value={board.volume_l ? `${board.volume_l} l` : null} />
-                <Fact label="Length" value={board.length_cm ? `${board.length_cm} cm` : null} />
-                <Fact label="Max width" value={board.max_width_cm ? `${board.max_width_cm} cm` : null} hint="overall, rail to rail" />
-                <Fact label="Tail width" value={board.tail_width_cm ? `${board.tail_width_cm} cm` : null} />
-                <Fact label="Weight" value={board.weight_kg ? `${board.weight_kg} kg` : null} />
-                <Fact label="Construction" value={board.construction} />
-                <Fact label="Fin box" value={board.fin_box} />
+                <Fact label="Volume" value={board.volume_l ? `${board.volume_l} l` : null} hint={web("volume_l")} />
+                <Fact label="Length" value={board.length_cm ? `${board.length_cm} cm` : null} hint={web("length_cm")} />
+                <Fact label="Max width" value={board.max_width_cm ? `${board.max_width_cm} cm` : null} hint={web("max_width_cm") ?? "overall, rail to rail"} />
+                <Fact label="Tail width" value={board.tail_width_cm ? `${board.tail_width_cm} cm` : null} hint={web("tail_width_cm")} />
+                <Fact label="Weight" value={board.weight_kg ? `${board.weight_kg} kg` : null} hint={web("weight_kg")} />
+                <Fact label="Construction" value={board.construction} hint={web("construction")} />
+                <Fact label="Fin box" value={board.fin_box} hint={web("fin_box")} />
                 <Fact label="Measured" value={board.measured_at ? new Date(board.measured_at).toLocaleDateString("de-DE", { day: "2-digit", month: "short", year: "numeric" }) : null}
                   hint={board.measured_by ? `by ${board.measured_by}` : undefined} />
               </dl>
@@ -390,7 +407,7 @@ function DetailsForm({ board, onDone }: { board: Bundle; onDone: (saved: boolean
 
 // ─── Photos ──────────────────────────────────────────────────────────────────
 
-function PhotosTab({ board, onSaved }: { board: Bundle; onSaved: () => void }) {
+function PhotosTab({ board, onSaved, autoFind }: { board: Bundle; onSaved: () => void; autoFind?: boolean }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [photos, setPhotos] = useState<BoardPhoto[]>(board.photos ?? []);
   const [busy, setBusy] = useState(false);
@@ -429,7 +446,7 @@ function PhotosTab({ board, onSaved }: { board: Bundle; onSaved: () => void }) {
 
   return (
     <div className="space-y-5">
-      <BoardPictureFinder board={{ ...board, photos }} onSaved={(next) => { setPhotos(next); onSaved(); }} />
+      <BoardPictureFinder board={{ ...board, photos }} autoStart={autoFind} onSaved={(next) => { setPhotos(next); onSaved(); }} />
 
       <div className="flex flex-wrap items-center gap-3">
         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => upload(e.target.files)} />

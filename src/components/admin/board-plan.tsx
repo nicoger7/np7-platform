@@ -57,6 +57,8 @@ type Props = {
   series: PdBoardSeries[];
   points: PdBoardPoint[];
   cutouts: PdBoardCutout[];
+  /** Straight to the picture search (Photos tab, searching). */
+  onFindPicture?: () => void;
 };
 
 type View = "outline" | "rocker" | "section";
@@ -75,7 +77,7 @@ function mmSeries(points: PdBoardPoint[], series: PdBoardSeries[], metric: strin
     .sort((a, b) => a.station - b.station);
 }
 
-export function BoardPlan({ board, series, points, cutouts }: Props) {
+export function BoardPlan({ board, series, points, cutouts, onFindPicture }: Props) {
   const [view, setView] = useState<View>("outline");
   const [exag, setExag] = useState(6);
   const [station, setStation] = useState<number | null>(null);
@@ -83,6 +85,7 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
   const [labels, setLabels] = useState(true);
   const [photoOn, setPhotoOn] = useState(true);
   const [matchOn, setMatchOn] = useState(false);
+  const [numbersOn, setNumbersOn] = useState(false);
   const top = topPhoto(board.photos);
 
   const width = useMemo(() => mmSeries(points, series, "width"), [points, series]);
@@ -93,6 +96,7 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
   const vee = useMemo(() => mmSeries(points, series, "v"), [points, series]);
   const concave = useMemo(() => mmSeries(points, series, "concave"), [points, series]);
   const railT = useMemo(() => mmSeries(points, series, "rail_thickness"), [points, series]);
+  const shot = usePhotoFit(board, photoOn ? top : null, width, widthTop, matchOn);
 
   // The drawing's x-extent: every station anybody measured, plus the board's
   // stated length if it is longer than the last reading.
@@ -204,6 +208,23 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
             Photo underneath
           </label>
         )}
+        {view === "outline" && !top && onFindPicture && (
+          <button onClick={onFindPicture} className="ml-auto px-2.5 py-1 text-xs font-semibold rounded-lg"
+            style={{ border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }}
+            title="Search the web for this board's top-view picture (it then lies under the outline)">
+            Find a top view
+          </button>
+        )}
+        {view === "outline" && top && photoOn && shot.fit && (
+          <button onClick={() => setNumbersOn(!numbersOn)} aria-pressed={numbersOn}
+            title="What the picture tells us where we have no reading: the full width (rail to rail) anywhere, the max width, tail and nose width. Marked as from the picture, never stored."
+            className="px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors"
+            style={numbersOn
+              ? { backgroundColor: PHOTO_COL, color: "#fff" }
+              : { border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }}>
+            Numbers from the picture
+          </button>
+        )}
         {view === "outline" && top && photoOn && (
           <button onClick={() => setMatchOn(!matchOn)} aria-pressed={matchOn}
             title="Fit the picture onto our measured widths (scale, position, tail end, and the rail when they are bottom widths) instead of scaling it by the board's length alone"
@@ -222,15 +243,17 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
 
       {view === "outline" && (
         <OutlineView board={board} width={width} widthTop={widthTop} cutouts={cutouts} stations={stations} labels={labels}
-          photo={photoOn ? top : null} match={matchOn} slice={station} onPick={pickSlice} />
+          shot={shot} wanted={photoOn && !!top} slice={station} onPick={pickSlice} />
       )}
+      {view === "outline" && numbersOn && shot.fit && <PictureNumbers board={board} fit={shot.fit} width={width} widthTop={widthTop} />}
       {view === "rocker" && (
         <RockerView board={board} rocker={rocker} rockerOff={rockerOff}
           rockerOffNote={series.find((x) => x.metric === "rocker_off")?.convention ?? null}
           thickness={thickness} points={points} stations={stations} exag={exag} labels={labels} slice={station} onPick={pickSlice} />
       )}
       {view === "section" && (
-        <SliceReadout board={board} station={station ?? fullestStation} points={points} series={series} theory={theory} />
+        <SliceReadout board={board} station={station ?? fullestStation} points={points} series={series} theory={theory}
+          pictureWidth={shot.fit ? (st) => pictureWidthAt(shot.fit as PhotoFit, st) : null} />
       )}
       {view === "section" && (
         <SectionView board={board} series={series}
@@ -343,15 +366,14 @@ function usePhotoFit(board: PdBoard, photo: BoardPhoto | null, width: SeriesPoin
   return { url, mask, fit, state };
 }
 
-function OutlineView({ board, width, widthTop, cutouts, stations, labels, photo, match, slice, onPick }: {
+function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, wanted, slice, onPick }: {
   board: PdBoard; width: SeriesPoints; widthTop: SeriesPoints; cutouts: PdBoardCutout[];
-  stations: { min: number; max: number }; labels: boolean; photo: BoardPhoto | null; match: boolean;
+  stations: { min: number; max: number }; labels: boolean; shot: ReturnType<typeof usePhotoFit>; wanted: boolean;
   slice: number | null; onPick: (station: number) => void;
 }) {
   const PAD = 34;
   const W = 900;
   const both = width.length > 0 && widthTop.length > 0;
-  const shot = usePhotoFit(board, photo, width, widthTop, match);
   const photoHalf: SeriesPoints = shot.fit ? shot.fit.widths.map((p) => ({ station: p.station, value: (p.value * 10) / 2 })) : [];
   const allMm = [...width, ...widthTop, ...photoHalf.map((p) => ({ ...p, value: p.value * 2 }))].map((p) => p.value);
   const halfMaxMm = allMm.length ? Math.max(...allMm) / 2 : 300;
@@ -411,7 +433,7 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, photo,
 
         {/* The board's own picture, turned and scaled onto the same axes, under everything we measured. */}
         {shot.fit && shot.mask && shot.url && (
-          <image href={shot.url} width={shot.mask.w} height={shot.mask.h} opacity={0.5} preserveAspectRatio="none"
+          <image href={shot.mask.drawUrl ?? shot.url} width={shot.mask.w} height={shot.mask.h} opacity={0.5} preserveAspectRatio="none"
             transform={shot.fit.matrix(PAD, stations.min, pxPerCm, centre)} />
         )}
 
@@ -433,7 +455,7 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, photo,
           {photoHalf.length > 1 && (
             <>
               <line x1={PAD} x2={PAD + 16} y1={27} y2={27} stroke={PHOTO_COL} strokeWidth={2} strokeDasharray="5 3" />
-              <text x={PAD + 21} y={30}>outline read from the picture</text>
+              <text x={PAD + 21} y={30}>full width, rail to rail, read from the picture{shot.mask && Math.abs(shot.mask.tiltDeg) > 0.1 ? ` (picture straightened ${round(Math.abs(shot.mask.tiltDeg), 1)}°)` : ""}</text>
             </>
           )}
         </g>
@@ -517,7 +539,7 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, photo,
           : board.max_width_cm
             ? `Overall max width ${board.max_width_cm} cm (stated) vs ${wide ? round(wide.value / 10, 1) : "—"} cm widest bottom reading. The difference is the rail wrap.`
             : "No overall max width on the board yet. Add one on Overview, or measure the top width per station.",
-        ...photoLines(shot, !!photo),
+        ...photoLines(shot, wanted),
       ]} />
     </div>
   );
@@ -558,6 +580,99 @@ function photoLines(shot: ReturnType<typeof usePhotoFit>, wanted: boolean): stri
       : base);
   }
   return lines;
+}
+
+/** The full width (rail to rail, cm) the fitted picture shows at a station, or null off the picture. */
+function pictureWidthAt(fit: PhotoFit, station: number): number | null {
+  const pts = fit.widths;
+  if (!pts.length || station < pts[0].station || station > pts[pts.length - 1].station) return null;
+  let i = 0;
+  while (i < pts.length - 2 && pts[i + 1].station < station) i++;
+  const a = pts[i], b = pts[i + 1] ?? a;
+  const t = b.station === a.station ? 0 : (station - a.station) / (b.station - a.station);
+  return a.value + t * (b.value - a.value);
+}
+
+/**
+ * "Numbers from the picture": what the fitted picture says where we have no
+ * reading. The picture shows the FULL width, rail to rail, so it is its own
+ * column next to our bottom width, never mixed into it (Nico: "we need to
+ * distinguish between bottom width and width; we don't have the width of this
+ * board, only bottom"). The difference between the two is the rail.
+ */
+function PictureNumbers({ board, fit, width, widthTop }: { board: PdBoard; fit: PhotoFit; width: SeriesPoints; widthTop: SeriesPoints }) {
+  const L = fit.lengthCm;
+  const fromTail = (d: number) => (board.station_origin === "tail" ? d : L - d);
+  const at = (st: number) => pictureWidthAt(fit, st);
+  const widest = fit.widths.reduce<{ station: number; value: number } | null>((b, p) => (!b || p.value > b.value ? p : b), null);
+  const tail30 = at(fromTail(30)), nose30 = at(fromTail(L - 30));
+  const ours = new Map(width.map((p) => [p.station, p.value / 10]));
+  const oursTop = new Map(widthTop.map((p) => [p.station, p.value / 10]));
+  const stations = Array.from(new Set([...width.map((p) => p.station), ...Array.from({ length: Math.floor(L / 10) + 1 }, (_, i) => i * 10)]))
+    .filter((st) => st >= 0 && st <= L).sort((a, b) => a - b);
+  const how = fit.match
+    ? `matched to our ${fit.match.against === "top" ? "top" : "bottom"} widths (within ${round(fit.match.rmsCm, 1)} cm)`
+    : `scaled by the ${fit.scaleFrom}`;
+  const cell = "px-2 py-1 text-right tabular-nums";
+  // The rail is the full width minus the bottom, a side. Not at the very ends,
+  // where the corners are rounded and the tape reads the edge itself; and a
+  // bottom wider than the whole board cannot be, so it is flagged.
+  const rail = (st: number, f: number | null, b: number | undefined) => {
+    if (f == null || b == null) return { text: "", title: undefined as string | undefined };
+    if (fromTail(st) < 3 || fromTail(st) > L - 3) return { text: "", title: "At the very end the corner is rounded: no rail to read." };
+    const r = (f - b) / 2;
+    if (r < -0.3) return { text: "?", title: "Our bottom reads wider than the whole picture here: check that reading, or the fit." };
+    return { text: String(round(Math.max(0, r), 1)), title: undefined };
+  };
+  return (
+    <div className="mt-4 rounded-xl p-4" style={{ border: `1px solid ${PHOTO_COL}55`, backgroundColor: "var(--admin-surface)" }}>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
+        <span className="text-sm font-semibold admin-heading">Numbers from the picture</span>
+        <span className="text-xs admin-faint">full width, rail to rail · picture {how} · theoretical, not measured, never stored</span>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+        {[
+          ["Max width (full)", widest ? `≈ ${round(widest.value, 1)} cm` : "—", widest ? `at ${widest.station} cm` : ""],
+          ["Tail width, 30 cm", tail30 != null ? `≈ ${round(tail30, 1)} cm` : "—", "30 cm from the tail"],
+          ["Nose width, 30 cm", nose30 != null ? `≈ ${round(nose30, 1)} cm` : "—", "30 cm from the nose"],
+          ["Length (picture)", `≈ ${round(fit.photoLengthCm, 1)} cm`, board.length_cm ? `stated ${board.length_cm} cm` : "no stated length"],
+        ].map(([label, value, hint]) => (
+          <div key={label} className="rounded-lg px-3 py-2" style={{ border: "1px solid var(--admin-border)" }}>
+            <div className="text-[10px] font-bold tracking-[0.08em] uppercase admin-faint">{label}</div>
+            <div className="text-base font-bold italic" style={{ color: PHOTO_COL }}>{value}</div>
+            <div className="text-[10px] admin-faint">{hint}</div>
+          </div>
+        ))}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="text-xs w-full">
+          <thead>
+            <tr className="admin-faint">
+              <th className="px-2 py-1 text-left font-semibold">cm from the {board.station_origin}</th>
+              <th className={`${cell} font-semibold`}>our bottom width</th>
+              {widthTop.length > 0 && <th className={`${cell} font-semibold`}>our top width</th>}
+              <th className={`${cell} font-semibold`} style={{ color: PHOTO_COL }}>full width, picture</th>
+              <th className={`${cell} font-semibold`}>rail a side</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stations.map((st) => {
+              const b = ours.get(st), t = oursTop.get(st), f = at(st);
+              return (
+                <tr key={st} style={{ borderTop: "1px solid var(--admin-border)" }}>
+                  <td className="px-2 py-1 tabular-nums">{st}</td>
+                  <td className={cell}>{b != null ? round(b, 1) : <span className="admin-faint">not measured</span>}</td>
+                  {widthTop.length > 0 && <td className={cell}>{t != null ? round(t, 1) : <span className="admin-faint">—</span>}</td>}
+                  <td className={`${cell} italic`} style={{ color: PHOTO_COL }}>{f != null ? `≈ ${round(f, 1)}` : "—"}</td>
+                  <td className={cell} title={rail(st, f, b).title}>{rail(st, f, b).text}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 // ─── Rocker (side view) ──────────────────────────────────────────────────────
@@ -865,8 +980,9 @@ function SectionView({ board, series, station, theory, width, widthTop, vee, con
  * bare number hides: a display scale ("×0.5 applied, read 2.1") and the note
  * written on the tape at that station ("Normal V from here").
  */
-function SliceReadout({ board, station, points, series, theory }: {
+function SliceReadout({ board, station, points, series, theory, pictureWidth }: {
   board: PdBoard; station: number; points: PdBoardPoint[]; series: PdBoardSeries[]; theory: boolean;
+  pictureWidth: ((station: number) => number | null) | null;
 }) {
   const cells = BOARD_METRICS.map((m) => {
     const s = series.find((x) => x.metric === m.key) ?? null;
@@ -883,6 +999,16 @@ function SliceReadout({ board, station, points, series, theory }: {
           value: `≈ ${fmtReading(m.key, round(th.value, 2), unit)}`,
           hint: `theoretical, between ${th.from} and ${th.to} cm`,
           title: `Not measured at ${station} cm. Read off the curve between the readings at ${th.from} and ${th.to} cm; never stored.`,
+        };
+      }
+      // The full width is what a top-view picture shows: rail to rail.
+      const pw = m.key === "width_top" && pictureWidth ? pictureWidth(station) : null;
+      if (pw != null) {
+        return {
+          ...base, theoretical: true, missing: false, picture: true,
+          value: `≈ ${round(pw, 1)} cm`,
+          hint: "full width, from the picture",
+          title: "Not measured. The full width (rail to rail) the fitted picture shows here; never stored.",
         };
       }
       return { ...base, value: "—", hint: onBoard ? `not measured at ${station} cm` : "not on this board", missing: true };
@@ -930,7 +1056,7 @@ function SliceReadout({ board, station, points, series, theory }: {
               <span className="truncate">{c.label}</span>
             </div>
             <div className={`text-base font-bold leading-tight ${c.missing ? "admin-faint" : c.theoretical ? "italic" : "admin-heading"}`}
-              style={c.theoretical ? { color: "var(--admin-accent)" } : undefined}>{c.value}</div>
+              style={c.theoretical ? { color: "picture" in c && c.picture ? PHOTO_COL : "var(--admin-accent)" } : undefined}>{c.value}</div>
             {c.hint && <div className="text-[10px] admin-faint truncate" title={c.title ?? c.hint}>{c.hint}</div>}
           </div>
         ))}

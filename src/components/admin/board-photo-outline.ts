@@ -21,10 +21,13 @@ import { interpolate, type SeriesPoints } from "@/lib/board-measurements";
  */
 
 export type PhotoMask = {
-  w: number; h: number;                // picture size in px
+  w: number; h: number;                // picture size in px (of drawUrl when the picture was straightened)
   x0: number; x1: number; y0: number; y1: number; // the board's bounding box
   vertical: boolean;                   // long side runs top to bottom
   across: Float32Array;                // board width in px at each px along the long side (from x0 or y0)
+  centre: number;                      // where the board's middle runs, across the long side (px)
+  tiltDeg: number;                     // how much the board leaned in the original picture
+  drawUrl: string | null;              // the straightened picture to draw, or null: draw the original
 };
 
 export type PhotoFit = {
@@ -84,17 +87,58 @@ export async function readPhotoMask(url: string): Promise<PhotoMask | null> {
     const med = (a: number[]) => a.sort((p, q) => p - q)[a.length >> 1];
     bg = [med(rs), med(gs), med(bs)];
   }
+
+  const first = trace(px, w, h, transparent, bg);
+  if (!first) return null;
+
+  // A product shot is rarely laid dead straight: the JP picture leans 0.6°,
+  // which put its edge 0.7 cm off our centreline at the tail. The board's axis
+  // is the line through the middle of every slice; if it leans, the picture
+  // is turned straight and read again, and the straightened copy is what gets
+  // drawn, so the traced edge and the picture always agree.
+  const tilt = Math.atan(first.slope);
+  if (Math.abs(tilt) > (0.1 * Math.PI) / 180) {
+    const cos = Math.abs(Math.cos(tilt)), sin = Math.abs(Math.sin(tilt));
+    const W2 = Math.ceil(w * cos + h * sin), H2 = Math.ceil(w * sin + h * cos);
+    const c2 = document.createElement("canvas");
+    c2.width = W2; c2.height = H2;
+    const x2 = c2.getContext("2d", { willReadFrequently: true });
+    if (x2) {
+      if (!transparent) { x2.fillStyle = `rgb(${bg[0]},${bg[1]},${bg[2]})`; x2.fillRect(0, 0, W2, H2); }
+      x2.translate(W2 / 2, H2 / 2);
+      // Vertical board: axis (slope, 1) turns upright by +tilt. Horizontal: (1, slope) by -tilt.
+      x2.rotate(first.vertical ? tilt : -tilt);
+      x2.drawImage(img, -w / 2, -h / 2, w, h);
+      const px2 = x2.getImageData(0, 0, W2, H2).data;
+      const again = trace(px2, W2, H2, transparent, bg);
+      if (again) {
+        const drawUrl = await new Promise<string | null>((resolve) => c2.toBlob((b) => resolve(b ? URL.createObjectURL(b) : null), "image/webp", 0.92));
+        if (drawUrl) return { ...again, w: W2, h: H2, tiltDeg: (tilt * 180) / Math.PI, drawUrl };
+      }
+    }
+  }
+  // Scale back to the picture's own pixels so the SVG can draw the original unscaled.
+  const k = 1 / scale;
+  return {
+    w: w * k, h: h * k, x0: first.x0 * k, x1: first.x1 * k, y0: first.y0 * k, y1: first.y1 * k,
+    vertical: first.vertical, across: first.across.map((v) => v * k) as Float32Array,
+    centre: first.centre * k, tiltDeg: (tilt * 180) / Math.PI, drawUrl: null,
+  };
+}
+
+/** The board's silhouette in one canvas: its box, its width along the long
+ *  side, where its middle runs, and how much that middle leans. */
+function trace(px: Uint8ClampedArray, w: number, h: number, transparent: boolean, bg: number[]) {
   const mask = new Uint8Array(w * h);
   for (let i = 0, j = 0; j < mask.length; i += 4, j++) {
     mask[j] = transparent
       ? (px[i + 3] > 110 ? 1 : 0)
       : (Math.hypot(px[i] - bg[0], px[i + 1] - bg[1], px[i + 2] - bg[2]) > 48 ? 1 : 0);
   }
-
   const rows = new Uint32Array(h), cols = new Uint32Array(w);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (mask[y * w + x]) { rows[y]++; cols[x]++; }
-  const edge = (counts: Uint32Array, across: number) => {
-    const min = Math.max(3, across * 0.02);
+  const edge = (counts: Uint32Array, acrossN: number) => {
+    const min = Math.max(3, acrossN * 0.02);
     let a = 0, b = counts.length - 1;
     while (a < counts.length && counts[a] < min) a++;
     while (b > a && counts[b] < min) b--;
@@ -108,22 +152,28 @@ export async function readPhotoMask(url: string): Promise<PhotoMask | null> {
   const vertical = y1 - y0 >= x1 - x0;
   const len = vertical ? y1 - y0 + 1 : x1 - x0 + 1;
   const across = new Float32Array(len);
+  const mids: { k: number; c: number }[] = [];
   for (let k = 0; k < len; k++) {
-    let first = -1, last = -1;
+    let a = -1, b = -1;
     if (vertical) {
       const y = y0 + k;
-      for (let x = x0; x <= x1; x++) if (mask[y * w + x]) { if (first < 0) first = x; last = x; }
+      for (let x = x0; x <= x1; x++) if (mask[y * w + x]) { if (a < 0) a = x; b = x; }
     } else {
       const x = x0 + k;
-      for (let y = y0; y <= y1; y++) if (mask[y * w + x]) { if (first < 0) first = y; last = y; }
+      for (let y = y0; y <= y1; y++) if (mask[y * w + x]) { if (a < 0) a = y; b = y; }
     }
-    across[k] = first < 0 ? 0 : last - first + 1;
+    across[k] = a < 0 ? 0 : b - a + 1;
+    // The middle 80% of the length: the tips are rounded and say little.
+    if (a >= 0 && k > len * 0.1 && k < len * 0.9) mids.push({ k, c: (a + b) / 2 });
   }
-  // Scale back to the picture's own pixels so the SVG can use it unscaled.
-  const s = 1 / scale;
-  const out = new Float32Array(len);
-  for (let k = 0; k < len; k++) out[k] = across[k];
-  return { w: w * s, h: h * s, x0: x0 * s, x1: x1 * s, y0: y0 * s, y1: y1 * s, vertical, across: out.map((v) => v * s) as Float32Array };
+  let slope = 0, centre = vertical ? (x0 + x1) / 2 : (y0 + y1) / 2;
+  if (mids.length > 10) {
+    const mk = mids.reduce((s, m) => s + m.k, 0) / mids.length, mc = mids.reduce((s, m) => s + m.c, 0) / mids.length;
+    const sxx = mids.reduce((s, m) => s + (m.k - mk) ** 2, 0);
+    slope = sxx ? mids.reduce((s, m) => s + (m.k - mk) * (m.c - mc), 0) / sxx : 0;
+    centre = mc;
+  }
+  return { x0, x1, y0, y1, vertical, across, centre, slope };
 }
 
 /**
@@ -216,7 +266,9 @@ export function fitPhoto(
   }
 
   const k = cmPerPx;
-  const cx = (m.x0 + m.x1) / 2, cy = (m.y0 + m.y1) / 2;
+  // The board's own middle, not its box's: a picture with a shadow or a lean
+  // would otherwise sit off our centreline.
+  const cx = m.vertical ? m.centre : (m.x0 + m.x1) / 2, cy = m.vertical ? (m.y0 + m.y1) / 2 : m.centre;
   // Picture px → plan px: turn and scale so the tail sits at station 0 on the
   // plan's own x axis (the plan's origin end is on the left).
   const matrix = (pad: number, min: number, p: number, centre: number) => {

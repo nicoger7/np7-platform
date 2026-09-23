@@ -4,7 +4,7 @@ import { pdDb, requirePdEdit } from "@/lib/product-dev-api";
 import { requireAdminGate } from "@/lib/admin-auth";
 import { NEEDS_KEY, PD_RESEARCH_MODEL, pdClaude } from "@/lib/pd-web";
 import { openAiSearchThenRecord, pdAiKey } from "@/lib/pd-ai";
-import { boardTitle, disciplineLabel, type BoardResearch } from "@/lib/board-measurements";
+import { RESEARCH_FILLABLE, boardTitle, disciplineLabel, type BoardResearch } from "@/lib/board-measurements";
 
 /**
  * POST /api/admin/product-dev/boards/:id/research — what the web knows about
@@ -14,9 +14,9 @@ import { boardTitle, disciplineLabel, type BoardResearch } from "@/lib/board-mea
  *
  * Claude runs the searches server-side and answers through one strict tool, so
  * the page gets a fixed shape back instead of prose to parse. The result is
- * kept on the board (migration 257) and replaced by the next run. Nothing here
- * touches the board's own fields: the specs it finds are a proposal the page
- * offers to copy into the EMPTY fields, on a click.
+ * kept on the board (migration 257) and replaced by the next run. The specs it
+ * finds fill the board's EMPTY Details fields straight away (never one that
+ * holds a value) and the research remembers which ones.
  */
 
 export const runtime = "nodejs";
@@ -126,11 +126,24 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
 
   const ask = `Research this board:\n${JSON.stringify(facts, null, 2)}`;
   async function save(found: BoardResearch, meta: NonNullable<BoardResearch["meta"]>) {
-    const research = { ...found, meta };
+    // The published specs go straight into the Details fields that are still
+    // EMPTY (Nico, 23.09.2026: "if we do a search it should also fill in
+    // these"). A value somebody typed is never replaced; what was filled is
+    // remembered, so the page can say it came from the web.
+    const specs = (found.specs ?? {}) as Record<string, unknown>;
+    const fill: Record<string, unknown> = {};
+    for (const f of RESEARCH_FILLABLE) {
+      const v = specs[f.spec];
+      const cur = (board as Record<string, unknown>)[f.field];
+      if (v != null && v !== "" && (cur == null || cur === "")) fill[f.field] = v;
+    }
+    const research = { ...found, meta, filled: Object.keys(fill) };
     const research_at = new Date().toISOString();
-    const { error: saveError } = await db.from("pd_boards").update({ research, research_at }).eq("id", id);
+    const { error: saveError } = await db.from("pd_boards")
+      .update({ research, research_at, ...fill, ...(Object.keys(fill).length ? { updated_at: research_at } : {}) })
+      .eq("id", id);
     if (saveError) return NextResponse.json({ error: saveError.message }, { status: 500 });
-    return NextResponse.json({ research, research_at });
+    return NextResponse.json({ research, research_at, filled: Object.keys(fill) });
   }
 
   // ChatGPT key: search, then answer through the same strict shape.

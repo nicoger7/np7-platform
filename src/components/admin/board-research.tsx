@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { boardSearchQuery, type BoardResearch, type PdBoard } from "@/lib/board-measurements";
+import { boardSearchQuery, type BoardResearch, type PdBoard, RESEARCH_FILLABLE } from "@/lib/board-measurements";
 import { Card, Chip, Empty, Fact, Icon, InfoTip, SaveNote, btnPrimary, btnPrimaryStyle, btnSecondary, btnSecondaryStyle, type Tone } from "@/components/admin/pd-ui";
 
 /**
@@ -23,15 +23,7 @@ const CONFIDENCE: Record<BoardResearch["confidence"], { label: string; tone: Ton
 };
 
 /** The board fields a published spec may fill, and only when they are empty. */
-const FILLABLE: { spec: keyof BoardResearch["specs"]; field: keyof PdBoard; label: string }[] = [
-  { spec: "length_cm", field: "length_cm", label: "Length" },
-  { spec: "width_cm", field: "max_width_cm", label: "Max width" },
-  { spec: "volume_l", field: "volume_l", label: "Volume" },
-  { spec: "weight_kg", field: "weight_kg", label: "Weight" },
-  { spec: "tail_width_cm", field: "tail_width_cm", label: "Tail width" },
-  { spec: "fin_box", field: "fin_box", label: "Fin box" },
-  { spec: "construction", field: "construction", label: "Construction" },
-];
+const FILLABLE = RESEARCH_FILLABLE;
 
 function host(url: string | null): string | null {
   if (!url) return null;

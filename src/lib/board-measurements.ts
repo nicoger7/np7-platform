@@ -250,7 +250,20 @@ export type BoardResearch = {
   rd_notes: string[];
   links: { title: string; url: string; kind: "official" | "review" | "video" | "forum" | "shop" | "other" }[];
   meta?: { model: string; searches: number; input_tokens: number; output_tokens: number };
+  /** Board fields this search filled because they were empty (Nico: "if we do a search it should also fill in these"). */
+  filled?: string[];
 };
+
+/** Published specs that fill a board's empty Details fields after a web search. */
+export const RESEARCH_FILLABLE = [
+  { spec: "length_cm", field: "length_cm", label: "Length" },
+  { spec: "width_cm", field: "max_width_cm", label: "Max width" },
+  { spec: "volume_l", field: "volume_l", label: "Volume" },
+  { spec: "weight_kg", field: "weight_kg", label: "Weight" },
+  { spec: "tail_width_cm", field: "tail_width_cm", label: "Tail width" },
+  { spec: "fin_box", field: "fin_box", label: "Fin box" },
+  { spec: "construction", field: "construction", label: "Construction" },
+] as const;
 
 export type PdBoard = {
   id: string;

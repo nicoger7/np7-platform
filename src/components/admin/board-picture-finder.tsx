@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { boardSearchQuery, topPhoto, type BoardPhoto, type PdBoard } from "@/lib/board-measurements";
 import { Card, Chip, Icon, InfoTip, SaveNote, btnPrimary, btnPrimaryStyle, btnSecondary, btnSecondaryStyle, inputCls } from "@/components/admin/pd-ui";
 import { BoardPhotoThumb } from "@/components/admin/pd-thumbs";
@@ -16,7 +16,7 @@ type Candidate = { src: string; alt: string | null; width: number | null; score:
  * Either way the page's pictures come back as a grid, best guess first, and a
  * person picks. Nothing is kept until they do.
  */
-export function BoardPictureFinder({ board, onSaved }: { board: PdBoard; onSaved: (photos: BoardPhoto[]) => void }) {
+export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoard; onSaved: (photos: BoardPhoto[]) => void; autoStart?: boolean }) {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState<"" | "auto" | "link" | "save">("");
   const [msg, setMsg] = useState("");
@@ -40,6 +40,15 @@ export function BoardPictureFinder({ board, onSaved }: { board: PdBoard; onSaved
     setImages(j.images ?? []);
     if (!(j.images ?? []).length) setMsg("No usable pictures on that page. Try the brand's own product page.");
   }
+
+  // Arriving from "Find a top view" (header or 2D plan): search once, now.
+  const started = useRef(false);
+  useEffect(() => {
+    if (!autoStart || started.current) return;
+    started.current = true;
+    const t = setTimeout(() => { void find(true); }, 0);
+    return () => clearTimeout(t);
+  }, [autoStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function keep() {
     if (!picked) return;
