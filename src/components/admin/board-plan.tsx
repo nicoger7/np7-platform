@@ -64,13 +64,17 @@ function valueAt(pts: SeriesPoints, station: number, theory: boolean): { value: 
   return th ? { value: th.value, exact: false } : null;
 }
 
+/** Pictures a search already found, handed to the Photos tab so it does not search again. */
+export type FoundPictures = { pages: { url: string; title: string | null }[]; images: { src: string; alt: string | null; width: number | null; score: number; page: string }[]; note?: string | null };
+
 type Props = {
   board: PdBoard;
   series: PdBoardSeries[];
   points: PdBoardPoint[];
   cutouts: PdBoardCutout[];
   /** Straight to the picture search (Photos tab, searching). */
-  onFindPicture?: () => void;
+  /** Open the picture finder; with `found`, it shows those pictures instead of searching again. */
+  onFindPicture?: (found?: FoundPictures) => void;
   /** After cut-outs were added from the picture: reload the board. */
   onChanged?: () => void;
 };
@@ -108,15 +112,23 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
   const [tape, setTape] = useState<TapeSeg[]>([]);
   // Kept measurements live on the board (migration 259); shown until removed.
   const [saved, setSaved] = useState<SavedTape[]>(board.tape ?? []);
+  // The board reloaded (after a save, or another tab's): follow it.
+  const [tapeSeen, setTapeSeen] = useState(board.tape);
+  if (board.tape !== tapeSeen) { setTapeSeen(board.tape); setSaved(board.tape ?? []); }
   const [tapeMsg, setTapeMsg] = useState("");
-  async function keepTape(next: SavedTape[]) {
+  async function keepTape(next: SavedTape[]): Promise<boolean> {
     const before = saved;
     setSaved(next); setTapeMsg("");
     const res = await fetch(`/api/admin/product-dev/boards/${board.id}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tape: next }),
     });
-    if (!res.ok) { setSaved(before); setTapeMsg((await res.json().catch(() => ({}))).error ?? "Couldn't save the tape."); }
+    if (!res.ok) { setSaved(before); setTapeMsg((await res.json().catch(() => ({}))).error ?? "Couldn't save the tape."); return false; }
+    // The page holds the board too: reload it, or a tab switch would bring the
+    // old list back and the next save would drop what was kept.
+    onChanged?.();
+    return true;
   }
+  const tapeId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
   const [finder, setFinder] = useState<{ busy: boolean; error?: string; items?: PlanFitting[]; view?: string } | null>(null);
   const top = topPhoto(board.photos);
 
@@ -143,6 +155,7 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
     if (widthReadings >= 3) setMatchOn(true);
   }
   async function findAndMatch() {
+    if (search?.busy) return;
     setSearch({ busy: true, msg: "" });
     const res = await fetch(`/api/admin/product-dev/boards/${board.id}/images`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
@@ -156,9 +169,10 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
     }
     if (j.needsKey) { setSearch({ busy: false, msg: j.message }); return; }
     if (!res.ok) { setSearch({ busy: false, msg: j.error ?? "The search failed." }); return; }
-    // Pictures, but none clearly this board: a person picks on the Photos tab.
+    // Pictures, but none clearly this board: a person picks on the Photos tab,
+    // from the pictures just found (no second search).
     setSearch({ busy: false, msg: "" });
-    onFindPicture?.();
+    onFindPicture?.({ pages: j.pages ?? [], images: j.images ?? [], note: j.note ?? null });
   }
 
   async function findFittings() {
@@ -235,6 +249,13 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
           Nothing to draw yet. Add a width or rocker series on the Measurements tab, or a top-view picture:
           with the stated length and width it gives the whole outline.
         </p>
+        <div className="mt-4 flex justify-center">
+          <ToolButton onClick={findAndMatch} active
+            title="Searches the web for this board's top-view picture (the pages Research found first) and keeps the one that is clearly this size">
+            {search?.busy ? "Searching…" : "🔎 Find the picture & match"}
+          </ToolButton>
+        </div>
+        {search?.msg && <p className="text-xs admin-muted mt-3 max-w-md mx-auto">{search.msg}</p>}
       </div>
     );
   }
@@ -321,7 +342,7 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
                 </>
               )}
               {onFindPicture && (
-                <button onClick={onFindPicture}
+                <button onClick={() => onFindPicture()}
                   className="w-full text-left text-xs px-2 py-1.5 rounded-lg admin-muted hover:bg-[var(--admin-surface-hover)]">
                   Find another picture…
                 </button>
@@ -370,15 +391,17 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture, onCha
       {view === "outline" && (tape.length > 0 || saved.length > 0) && (
         <TapeList board={board} tape={tape} saved={saved} msg={tapeMsg}
           onClear={() => setTape([])} onRemove={(i) => setTape(tape.filter((_, j) => j !== i))}
-          onSave={(i) => {
+          onSave={async (i) => {
             const t = tape[i];
-            setTape(tape.filter((_, j) => j !== i));
-            void keepTape([...saved, { a: t.a, b: t.b, label: null, saved_at: new Date().toISOString() }]);
+            if (await keepTape([...saved, { id: tapeId(), a: t.a, b: t.b, label: null, saved_at: new Date().toISOString() }])) {
+              setTape((cur) => cur.filter((x) => x !== t));
+            }
           }}
-          onSaveAll={() => {
-            const at = new Date().toISOString();
-            void keepTape([...saved, ...tape.map((t) => ({ a: t.a, b: t.b, label: null, saved_at: at }))]);
-            setTape([]);
+          onSaveAll={async () => {
+            const at = new Date().toISOString(), batch = tape;
+            if (await keepTape([...saved, ...batch.map((t) => ({ id: tapeId(), a: t.a, b: t.b, label: null, saved_at: at }))])) {
+              setTape((cur) => cur.filter((x) => !batch.includes(x)));
+            }
           }}
           onLabel={(i, label) => keepTape(saved.map((t, j) => (j === i ? { ...t, label: label.trim() || null } : t)))}
           onForget={(i) => keepTape(saved.filter((_, j) => j !== i))} />
@@ -439,12 +462,13 @@ type Box = { x: number; y: number; w: number; h: number };
 type Zoom = {
   viewBox: string; box: Box; zoom: number; zoomed: boolean;
   toView: (e: { clientX: number; clientY: number }) => { x: number; y: number };
-  zoomAt: (factor: number, at?: { x: number; y: number }) => void;
+  zoomAt: (factor: number) => void;
   reset: () => void;
   panHandlers: {
     onPointerDown: (e: React.PointerEvent<SVGSVGElement>) => void;
     onPointerMove: (e: React.PointerEvent<SVGSVGElement>) => void;
-    onPointerUp: () => void;
+    onPointerUp: (e: React.PointerEvent<SVGSVGElement>) => void;
+    onPointerCancel: (e: React.PointerEvent<SVGSVGElement>) => void;
   };
   /** True right after a drag, so the click that ends it does not also pick a slice. */
   wasDrag: () => boolean;
@@ -457,85 +481,117 @@ function useSvgZoom(W: number, H: number): [React.RefObject<SVGSVGElement | null
   // A different drawing (other data, other exaggeration): back to the whole of it.
   if (size !== `${W}x${Math.round(H)}`) { setSize(`${W}x${Math.round(H)}`); setBox(null); }
   const cur: Box = box ?? { x: 0, y: 0, w: W, h: H };
+  const full: Box = { x: 0, y: 0, w: W, h: H };
 
   const clamp = (b: Box): Box | null => {
     const w = Math.min(W, Math.max(W / 8, b.w)), h = (w * H) / W;
     if (w >= W - 0.5) return null;
     return { x: Math.min(W - w, Math.max(0, b.x)), y: Math.min(H - h, Math.max(0, b.y)), w, h };
   };
+  /** The element's painted box, in the pointer's own space (promo-pointer). */
+  const measure = () => {
+    const el = ref.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const k = clientSpaceFactor(rect, { width: el.clientWidth, height: el.clientHeight }, cssZoomOf(el));
+    const w = rect.width * k, h = rect.height * k;
+    return w > 0 && h > 0 ? { rect, k, w, h } : null;
+  };
   /** Client pixels → drawing units (the viewBox's own). */
   const toView = (e: { clientX: number; clientY: number }) => {
-    const el = ref.current, b = cur;
-    if (!el) return { x: 0, y: 0 };
-    const rect = el.getBoundingClientRect();
-    const k = clientSpaceFactor(rect, { width: el.clientWidth, height: el.clientHeight }, cssZoomOf(el));
-    const p = screenToArtboard(e, rect, { w: b.w, h: b.h }, k);
-    return { x: b.x + p.x, y: b.y + p.y };
+    const m = measure();
+    if (!m) return { x: 0, y: 0 };
+    const p = screenToArtboard(e, m.rect, { w: cur.w, h: cur.h }, m.k);
+    return { x: cur.x + p.x, y: cur.y + p.y };
   };
-  /** Drawing units per client pixel, for dragging. */
-  const perPx = () => {
-    const el = ref.current;
-    if (!el) return 1;
-    const rect = el.getBoundingClientRect();
-    const k = clientSpaceFactor(rect, { width: el.clientWidth, height: el.clientHeight }, cssZoomOf(el));
-    return rect.width > 0 ? cur.w / (rect.width * k) : 1;
+  /** Where a pointer is across the drawing, 0–1 each way: the same whatever the zoom. */
+  const fraction = (e: { clientX: number; clientY: number }) => {
+    const m = measure();
+    if (!m) return { fx: 0.5, fy: 0.5 };
+    return { fx: (e.clientX - m.rect.left * m.k) / m.w, fy: (e.clientY - m.rect.top * m.k) / m.h };
   };
-  const zoomAt = (factor: number, at?: { x: number; y: number }) => {
-    const b = cur;
-    const c = at ?? { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+  // Every change applies to the LATEST window (functional updates): a pinch
+  // sends many events between two paints, and each one counts.
+  const zoomBy = (factor: number, at?: { fx: number; fy: number }) => setBox((prev) => {
+    const b = prev ?? full;
+    const f = at ?? { fx: 0.5, fy: 0.5 };
+    const c = { x: b.x + f.fx * b.w, y: b.y + f.fy * b.h };
     const w = b.w / factor, h = b.h / factor;
-    setBox(clamp({ x: c.x - (c.x - b.x) * (w / b.w), y: c.y - (c.y - b.y) * (h / b.h), w, h }));
-  };
-  const panBy = (dx: number, dy: number) => {
-    const b = cur;
-    if (b.w >= W - 0.5) return;
-    setBox(clamp({ ...b, x: b.x + dx, y: b.y + dy }));
+    return clamp({ x: c.x - f.fx * w, y: c.y - f.fy * h, w, h });
+  });
+  const panPx = (dx: number, dy: number) => {
+    const m = measure();
+    if (!m) return;
+    setBox((prev) => (prev ? clamp({ ...prev, x: prev.x + (dx * prev.w) / m.w, y: prev.y + (dy * prev.h) / m.h }) : prev));
   };
 
-  // Wheel: React's is passive, and a pinch must not zoom the whole page.
-  // Re-attached every render, so it always sees the current window.
+  // Wheel and Safari's pinch: React's listeners are passive, and a pinch must
+  // not zoom the whole page. Re-attached every render (they read `box`).
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      const zoomed = cur.w < W - 0.5;
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        zoomAt(Math.exp(-e.deltaY * 0.01), toView(e));
-      } else if (zoomed) {
+        zoomBy(Math.exp(-e.deltaY * 0.01), fraction(e));
+      } else if (box) {
         e.preventDefault();
-        const u = perPx();
-        panBy((e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * u, (e.shiftKey && !e.deltaX ? 0 : e.deltaY) * u);
+        const horizontal = e.shiftKey && !e.deltaX;
+        panPx(horizontal ? e.deltaY : e.deltaX, horizontal ? 0 : e.deltaY);
       }
     };
+    // Safari reports a trackpad pinch as gesture events with a running scale.
+    let last = 1;
+    type Gesture = Event & { scale: number; clientX: number; clientY: number };
+    const onGestureStart = (e: Event) => { e.preventDefault(); last = 1; };
+    const onGestureChange = (e: Event) => {
+      e.preventDefault();
+      const g = e as Gesture;
+      if (!(g.scale > 0)) return;
+      zoomBy(g.scale / last, fraction(g));
+      last = g.scale;
+    };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    el.addEventListener("gesturestart", onGestureStart, { passive: false } as AddEventListenerOptions);
+    el.addEventListener("gesturechange", onGestureChange, { passive: false } as AddEventListenerOptions);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("gesturestart", onGestureStart);
+      el.removeEventListener("gesturechange", onGestureChange);
+    };
   });
 
-  // Drag to move around while zoomed (only where a drag means nothing else).
-  const drag = useRef<{ x: number; y: number; box: Box; moved: boolean } | null>(null);
+  // Drag to move around while zoomed (only where a drag means nothing else),
+  // one pointer at a time: a second finger is not a drag.
+  const drag = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
   const moved = useRef(false);
+  const endDrag = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!drag.current || drag.current.id !== e.pointerId) return;
+    moved.current = drag.current.moved;
+    drag.current = null;
+  };
   const panHandlers = {
     onPointerDown: (e: React.PointerEvent<SVGSVGElement>) => {
       moved.current = false;
-      if (!box || e.button !== 0) return;
-      drag.current = { x: e.clientX, y: e.clientY, box: cur, moved: false };
+      if (!box || e.button !== 0 || drag.current) return;
+      drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
     },
     onPointerMove: (e: React.PointerEvent<SVGSVGElement>) => {
       const d = drag.current;
-      if (!d) return;
+      if (!d || d.id !== e.pointerId) return;
       const dx = e.clientX - d.x, dy = e.clientY - d.y;
       if (!d.moved && Math.hypot(dx, dy) < 4) return;
       if (!d.moved) { d.moved = true; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ } }
-      const u = perPx();
-      setBox(clamp({ ...d.box, x: d.box.x - dx * u, y: d.box.y - dy * u }));
+      d.x = e.clientX; d.y = e.clientY;
+      panPx(-dx, -dy);
     },
-    onPointerUp: () => { moved.current = !!drag.current?.moved; drag.current = null; },
+    onPointerUp: endDrag,
+    onPointerCancel: endDrag,
   };
 
   return [ref, {
     viewBox: `${cur.x} ${cur.y} ${cur.w} ${cur.h}`, box: cur, zoom: W / cur.w, zoomed: !!box,
-    toView, zoomAt, reset: () => setBox(null), panHandlers,
+    toView, zoomAt: (factor: number) => zoomBy(factor), reset: () => setBox(null), panHandlers,
     wasDrag: () => moved.current,
   }];
 }
@@ -905,22 +961,25 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, 
           ].filter((r) => r.v).map((r) => ({ ...r, cm: (r.v as { value: number }).value / 10, exact: (r.v as { exact: boolean }).exact }));
           const pic = shot.fit ? pictureWidthAt(shot.fit, slice) : null;
           const all = [...rows, ...(pic != null ? [{ label: "picture", col: PHOTO_COL, cm: pic, exact: false }] : [])];
+          // Placed and sized against the part of the plan in view, so the
+          // numbers stay on screen and the same size at any zoom.
           const flip = x > z.box.x + z.box.w * 0.8;
+          const u = 1 / z.zoom, tx = flip ? x - 6 * u : x + 6 * u, top = z.box.y;
           return (
             <g>
-              <line x1={x} x2={x} y1={22} y2={H - 8} stroke="var(--admin-accent)" strokeWidth={1.2} strokeDasharray="4 3" />
+              <line x1={x} x2={x} y1={22} y2={H - 8} stroke="var(--admin-accent)" strokeWidth={1.2 * u} strokeDasharray={`${4 * u} ${3 * u}`} />
               {all.map((r) => [1, -1].map((side) => (
-                <circle key={`${r.label}${side}`} cx={x} cy={toYhalf((side * r.cm * 10) / 2)} r={3} fill={r.col} stroke="var(--admin-surface)" strokeWidth={1} />
+                <circle key={`${r.label}${side}`} cx={x} cy={toYhalf((side * r.cm * 10) / 2)} r={3 * u} fill={r.col} stroke="var(--admin-surface)" strokeWidth={u} />
               )))}
-              <text x={flip ? x - 6 : x + 6} y={H - 12} fontSize={10} fontWeight={700} textAnchor={flip ? "end" : "start"} fill="var(--admin-accent)">slice {slice} cm</text>
+              <text x={tx} y={top + z.box.h - 12 * u} fontSize={10 * u} fontWeight={700} textAnchor={flip ? "end" : "start"} fill="var(--admin-accent)">slice {slice} cm</text>
               {all.map((r, i) => (
-                <text key={r.label} x={flip ? x - 6 : x + 6} y={36 + i * 13} fontSize={10.5} fontWeight={600} textAnchor={flip ? "end" : "start"} fill={r.col}
-                  style={{ paintOrder: "stroke", stroke: "var(--admin-surface)", strokeWidth: 3 }}>
+                <text key={r.label} x={tx} y={top + (36 + i * 13) * u} fontSize={10.5 * u} fontWeight={600} textAnchor={flip ? "end" : "start"} fill={r.col}
+                  style={{ paintOrder: "stroke", stroke: "var(--admin-surface)", strokeWidth: 3 * u }}>
                   {r.label} {r.label === "picture" || !r.exact ? "≈ " : ""}{round(r.cm, 1)} cm
                 </text>
               ))}
               {!all.length && (
-                <text x={flip ? x - 6 : x + 6} y={36} fontSize={10} textAnchor={flip ? "end" : "start"} fill="var(--admin-text-faint)">no width here</text>
+                <text x={tx} y={top + 36 * u} fontSize={10 * u} textAnchor={flip ? "end" : "start"} fill="var(--admin-text-faint)">no width here</text>
               )}
             </g>
           );
@@ -1198,7 +1257,7 @@ function TapeList({ board, tape, saved, msg, onClear, onRemove, onSave, onSaveAl
           <div className="text-[10px] font-bold uppercase tracking-[0.08em] admin-faint mt-3 mb-1.5">Saved on this board ({saved.length})</div>
           <ol className="space-y-1">
             {saved.map((seg, i) => (
-              <li key={`${seg.saved_at}-${i}`} className="flex flex-wrap items-baseline gap-x-3 text-xs">
+              <li key={seg.id ?? `${seg.saved_at}-${seg.a.st}-${seg.a.off}-${seg.b.st}-${seg.b.off}`} className="flex flex-wrap items-baseline gap-x-3 text-xs">
                 <input defaultValue={seg.label ?? ""} placeholder="name it, e.g. strap to strap" onBlur={(e) => { if ((e.target.value.trim() || null) !== (seg.label ?? null)) onLabel(i, e.target.value); }}
                   className="w-40 bg-transparent border-b text-xs focus:outline-none" style={{ borderColor: "var(--admin-border)", color: "#0f766e" }} />
                 {row(seg)}
@@ -1270,7 +1329,7 @@ function FittingsPanel({ board, finder, cutouts, onToggle, onClose, onChanged }:
       <div className="flex flex-wrap items-center gap-2 mb-2">
         <span className="text-sm font-semibold admin-heading">Fittings in the picture</span>
         <span className="text-xs admin-faint">
-          {finder.view === "bottom" ? "bottom view" : finder.view === "top" ? "deck view: fin and foil boxes are on the bottom, not visible here" : ""}
+          {finder.view === "bottom" ? "bottom view" : finder.view === "top" ? "deck view: fin and foil boxes are read from their bolts, when they show" : ""}
           {" · "}read by AI off a cm grid, about ±2 cm · proposals until added
         </span>
         <button onClick={onClose} className="ml-auto text-xs admin-faint underline">close</button>
@@ -1379,18 +1438,19 @@ function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points
             { label: "off centre", v: valueAt(rockerOff, slice, theory) },
           ].filter((r) => r.v) as { label: string; v: { value: number; exact: boolean } }[];
           const flip = x > z.box.x + z.box.w * 0.8;
+          const u = 1 / z.zoom, tx = flip ? x - 6 * u : x + 6 * u, top = z.box.y;
           return (
             <g>
-              <line x1={x} x2={x} y1={8} y2={H - 8} stroke="var(--admin-accent)" strokeWidth={1.2} strokeDasharray="4 3" />
+              <line x1={x} x2={x} y1={8} y2={H - 8} stroke="var(--admin-accent)" strokeWidth={1.2 * u} strokeDasharray={`${4 * u} ${3 * u}`} />
               {rows.map((r) => (
-                <circle key={r.label} cx={x} cy={toY(r.v.value)} r={3.5} fill={colR} stroke="var(--admin-surface)" strokeWidth={1} />
+                <circle key={r.label} cx={x} cy={toY(r.v.value)} r={3.5 * u} fill={colR} stroke="var(--admin-surface)" strokeWidth={u} />
               ))}
-              <text x={flip ? x - 6 : x + 6} y={16} fontSize={10} fontWeight={700} textAnchor={flip ? "end" : "start"} fill="var(--admin-accent)">
+              <text x={tx} y={top + 16 * u} fontSize={10 * u} fontWeight={700} textAnchor={flip ? "end" : "start"} fill="var(--admin-accent)">
                 slice {slice} cm{rows.length ? "" : " · no rocker here"}
               </text>
               {rows.map((r, i) => (
-                <text key={r.label} x={flip ? x - 6 : x + 6} y={30 + i * 13} fontSize={10.5} fontWeight={600} textAnchor={flip ? "end" : "start"} fill={colR}
-                  style={{ paintOrder: "stroke", stroke: "var(--admin-surface)", strokeWidth: 3 }}>
+                <text key={r.label} x={tx} y={top + (30 + i * 13) * u} fontSize={10.5 * u} fontWeight={600} textAnchor={flip ? "end" : "start"} fill={colR}
+                  style={{ paintOrder: "stroke", stroke: "var(--admin-surface)", strokeWidth: 3 * u }}>
                   {r.label} {r.v.exact ? "" : "≈ "}{round(r.v.value, 1)} mm
                 </text>
               ))}

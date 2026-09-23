@@ -3,6 +3,7 @@ import { requirePdEdit } from "@/lib/product-dev-api";
 import { requireAdminGate } from "@/lib/admin-auth";
 import { NEEDS_KEY, resolveGoogleImageLink } from "@/lib/pd-web";
 import { PictureError, autoPicture, hintsFor, keepPicture, loadPictureBoard, picturesFrom } from "@/lib/board-pictures";
+import { topPhoto } from "@/lib/board-measurements";
 
 /**
  * A board's top-view picture, taken from the web.
@@ -58,8 +59,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const google = await resolveGoogleImageLink(link).catch(() => null);
       if (google?.image) {
         // A picture link IS the choice: keep it (cut apart if it shows several boards).
-        const kept = await keepPicture(board, { src: google.image, page: google.page ?? google.image });
-        return NextResponse.json({ kept: true, ...kept, pages: [{ url: google.page ?? google.image, title: null }], images: [] });
+        try {
+          const kept = await keepPicture(board, { src: google.image, page: google.page ?? google.image });
+          return NextResponse.json({ kept: true, ...kept, pages: [{ url: google.page ?? google.image, title: null }], images: [] });
+        } catch (err) {
+          // The picture itself would not come (a shop refusing hotlinks): the
+          // page it sits on usually lists it, so offer that page's pictures.
+          if (!google.page) throw err;
+          const { page, images } = await picturesFrom(google.page, hintsFor(board));
+          return NextResponse.json({ pages: [page], images, note: `That picture could not be downloaded (${err instanceof Error ? err.message : "no answer"}). Here is the page it is on: pick it there.` });
+        }
       }
       if (google?.page) link = google.page;
       else if (/^https?:\/\/[^/]*google\./i.test(link) || /^https?:\/\/share\.google\//i.test(link)) {
@@ -86,13 +95,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
   }
 
-  // 3. "Find automatically" / "Find the picture & match": find, and keep the clear one.
+  // 3. "Find automatically" / "Find the picture & match": find, and keep the
+  // clear one. A board that already has its picture only gets the list
+  // ("Find another picture"): never a second copy of the same one.
   try {
-    const r = await autoPicture(board, { aiSearch: true });
+    const keep = !topPhoto(board.photos);
+    const r = await autoPicture(board, { aiSearch: true, keep });
     if (r.needsKey) return NextResponse.json(NEEDS_KEY);
     if (r.outcome === "kept") return NextResponse.json({ kept: true, photos: r.photos, note: r.note, pages: r.pages, images: r.images, chosen: r.chosen });
     if (!r.images.length) return NextResponse.json({ error: "No product page with pictures found. Paste a link instead." }, { status: 404 });
-    return NextResponse.json({ pages: r.pages, images: r.images, note: "None of these is clearly this size or model: pick the right one." });
+    return NextResponse.json({
+      pages: r.pages, images: r.images,
+      note: r.note ?? (keep ? "None of these is clearly this size or model: pick the right one." : null),
+    });
   } catch (err) {
     return fail(err, "The search failed.");
   }

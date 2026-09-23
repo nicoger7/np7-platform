@@ -18,7 +18,17 @@ const UA = "Mozilla/5.0 (compatible; NP7-ProductDev/1.0; +https://www.np-seven.c
 
 function privateAddress(ip: string): boolean {
   const v = ip.toLowerCase();
+  // IPv4 inside IPv6. URL parsing turns [::ffff:127.0.0.1] into [::ffff:7f00:1],
+  // so the hex form has to be read back into a dotted quad before checking.
+  const hex = v.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (hex) {
+    const hi = parseInt(hex[1], 16), lo = parseInt(hex[2], 16);
+    return privateAddress(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+  }
   if (v.startsWith("::ffff:")) return privateAddress(v.slice(7));
+  // IPv4-compatible (::a.b.c.d / ::7f00:1) and NAT64 (64:ff9b::/96) forms reach IPv4 too.
+  if (/^::[0-9a-f.:]+$/.test(v) && v !== "::1") return true;
+  if (v.startsWith("64:ff9b:")) return true;
   if (isIP(v) === 4) {
     const [a, b] = v.split(".").map(Number);
     return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31)
@@ -70,7 +80,10 @@ export async function safeFetch(raw: string, opts: { maxBytes: number; timeoutMs
 
 // ─── Google image links ──────────────────────────────────────────────────────
 
-const GOOGLE = /(^|\.)google\.[a-z.]+$|^share\.google$/i;
+// Google's own hosts only: google.com, google.de, google.co.uk, google.com.au,
+// www./images. in front, and share.google. Anchored, so "google.evil.example"
+// is not Google.
+const GOOGLE = /^(?:[a-z0-9-]+\.)*google\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$|^share\.google$/i;
 
 /**
  * What a Google link points at. share.google/… redirects (twice) to an imgres
@@ -84,6 +97,7 @@ export async function resolveGoogleImageLink(raw: string): Promise<{ image: stri
   for (let hop = 0; hop < 5 && GOOGLE.test(url.hostname); hop++) {
     const image = url.searchParams.get("imgurl"), page = url.searchParams.get("imgrefurl") ?? url.searchParams.get("url") ?? url.searchParams.get("q");
     if (image || (page && /^https?:\/\//i.test(page))) return { image, page: page && /^https?:\/\//i.test(page) ? page : null };
+    await assertPublic(url);
     const res = await fetch(url, { redirect: "manual", headers: { "User-Agent": UA }, signal: AbortSignal.timeout(10_000) });
     const next = res.headers.get("location");
     if (!next || res.status < 300 || res.status >= 400) return null;

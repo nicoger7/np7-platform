@@ -238,6 +238,8 @@ export type BoardPhoto = {
 /** A tape measurement kept on the board: stations in cm from the board's
  *  origin, offsets in cm off the centreline (+ = the plan's upper side). */
 export type SavedTape = {
+  /** Stable, so a row's name stays with its row when another is removed. */
+  id?: string;
   a: { st: number; off: number };
   b: { st: number; off: number };
   label?: string | null;

@@ -51,7 +51,8 @@ export function hintsFor(b: PictureBoard): string[] {
 }
 
 export async function picturesFrom(url: string, hints: string[]): Promise<{ page: { url: string; title: string | null }; images: ImageCandidate[] }> {
-  const res = await safeFetch(url, { maxBytes: 4_000_000, accept: "text/html,application/xhtml+xml,image/*" });
+  // A pasted link may be the picture itself, so the cap is a picture's (15 MB), not a page's.
+  const res = await safeFetch(url, { maxBytes: 15_000_000, accept: "text/html,application/xhtml+xml,image/*" });
   // A picture link: that picture is the one on offer.
   if (/^image\//i.test(res.contentType)) {
     return { page: { url: res.url, title: null }, images: [{ src: res.url, alt: "The picture from the link", width: null, score: 100, page: res.url }] };
@@ -150,24 +151,17 @@ async function picturesFromPages(urls: string[], hints: string[]) {
   return { pages, images: images.slice(0, 36) };
 }
 
-/**
- * The pictures there are for this board: from the pages Research found, else
- * (when allowed) from the AI's page search.
- */
-export async function findPictures(board: PictureBoard, opts: { aiSearch: boolean }): Promise<{
-  pages: { url: string; title: string | null }[]; images: ImageCandidate[]; via: "research" | "search" | "none"; needsKey?: boolean;
-}> {
-  const hints = hintsFor(board);
+/** The pictures on the pages a Research run found (free: no AI). */
+export async function fromResearch(board: PictureBoard) {
   const known = researchPages(board.research);
-  if (known.length) {
-    const r = await picturesFromPages(known, hints);
-    if (r.images.length) return { ...r, via: "research" };
-  }
-  if (!opts.aiSearch) return { pages: [], images: [], via: "none" };
-  if (!pdAiKey()) return { pages: [], images: [], via: "none", needsKey: true };
+  return known.length ? picturesFromPages(known, hintsFor(board)) : { pages: [], images: [] };
+}
+
+/** The pictures on the pages the AI's web search finds (costs a search). */
+async function fromSearch(board: PictureBoard): Promise<{ pages: { url: string; title: string | null }[]; images: ImageCandidate[]; needsKey?: boolean }> {
+  if (!pdAiKey()) return { pages: [], images: [], needsKey: true };
   const urls = await searchProductPages(board);
-  if (!urls.length) return { pages: [], images: [], via: "none" };
-  return { ...(await picturesFromPages(urls, hints)), via: "search" };
+  return urls.length ? picturesFromPages(urls, hintsFor(board)) : { pages: [], images: [] };
 }
 
 const words = (s: string) => s.toLowerCase().split(/[^a-z0-9.]+/).filter(Boolean);
@@ -189,8 +183,12 @@ function yearsOf(img: ImageCandidate): Set<number> {
   let path = "";
   try { path = decodeURIComponent(new URL(img.page).pathname); } catch { /* none */ }
   for (const w of [...nameWords(img), ...words(path)]) {
-    for (const m of w.matchAll(/(?:^|\D)(20[0-4]\d)(?!\d)/g)) out.add(Number(m[1]));
-    const short = w.match(/^[a-z]{1,4}(\d{2})$/);
+    if (/^\d+x\d*$/.test(w)) continue;                       // 2048x2048, 1200x: a size, not a year
+    // "2026" on its own or after letters ("v2026"); never inside a longer
+    // number (a date stamp like 20250601) or before an "x" (a picture size).
+    const long = w.match(/^(?:[a-z]*)(20[0-4]\d)$/);
+    if (long) out.add(Number(long[1]));
+    const short = w.match(/^[a-z]{1,4}(\d{2})$/);             // a brand's short form: JP25, SB26
     if (short && Number(short[1]) >= 10 && Number(short[1]) <= 40) out.add(2000 + Number(short[1]));
   }
   return out;
@@ -203,18 +201,24 @@ function yearsOf(img: ImageCandidate): Set<number> {
  * A picture that names another year is never it: JP's 2025 HydroFoil 85 deck
  * shot is not the 2026 85, which is a new shape.
  */
-export function clearWinner(board: Pick<PictureBoard, "size" | "model"> & { year?: number | null }, images: ImageCandidate[]): ImageCandidate | null {
+export function clearWinner(board: { name?: string | null; brand?: string | null; model: string | null; size?: string | null; year?: number | null }, images: ImageCandidate[]): ImageCandidate | null {
+  // The title the board is shown by: size and model read from the typed name
+  // when their own fields are still empty (older boards).
+  const t = boardTitle({ name: board.name ?? "", brand: board.brand ?? null, model: board.model, size: board.size ?? null, year: board.year ?? null });
+  const year = t.year;
   const cands = images.slice(0, 40).map((img) => ({ img, w: nameWords(img) }))
     .filter((c) => ![...c.w].some((x) => NOT_A_PLAN.has(x)))
-    .filter((c) => { if (!board.year) return true; const ys = yearsOf(c.img); return !ys.size || ys.has(board.year); });
-  const size = (board.size ?? "").match(/\d+(?:[.,]\d+)?/)?.[0]?.replace(",", ".");
+    .filter((c) => { if (!year) return true; const ys = yearsOf(c.img); return !ys.size || ys.has(year); });
+  const model = words(t.model ?? "").filter((w) => w.length >= 2 && !/^\d+$/.test(w));
+  const size = (t.size ?? "").match(/\d+(?:[.,]\d+)?/)?.[0]?.replace(",", ".");
   if (size) {
-    const hits = cands.filter((c) => c.w.has(size));
+    // The size AND a word of the model: a shop page's "related boards" strip
+    // can hold another brand's board of the same size number.
+    const hits = cands.filter((c) => c.w.has(size) && (!model.length || model.some((w) => c.w.has(w))));
     if (!hits.length) return null;
     hits.sort((a, b) => b.img.score - a.img.score);
     return hits[0].img;
   }
-  const model = words(board.model ?? "").filter((w) => w.length >= 2);
   if (!model.length) return null;
   const hits = cands.filter((c) => model.every((w) => c.w.has(w)));
   return hits.length === 1 ? hits[0].img : null;
@@ -359,11 +363,16 @@ async function recordTry(id: string, picture: NonNullable<BoardResearch["picture
 /**
  * Find this board's picture and keep it when it is clearly the one.
  *
- * `once`: only if this board was never tried (opening a board). The try is
- * claimed first, so two open tabs do not both keep a picture.
+ * The pages Research found come first (free). When they hold nothing clearly
+ * this board, and a search is allowed, the AI's page search runs too.
+ * `keep: false` only lists (a board that already has its picture: "Find
+ * another picture"). `once`: only if this board was never tried (opening a
+ * board); the try is claimed first, so two open tabs do not both keep one.
+ * A picture that looked right but cannot be downloaded sends the grid back.
  */
-export async function autoPicture(board: PictureBoard, opts: { aiSearch: boolean; once?: boolean }): Promise<AutoPicture> {
+export async function autoPicture(board: PictureBoard, opts: { aiSearch: boolean; once?: boolean; keep?: boolean }): Promise<AutoPicture> {
   const empty = { pages: [], images: [] };
+  const keep = opts.keep !== false;
   if (opts.once) {
     if (topPhoto(board.photos)) return { outcome: "has", ...empty };
     if (!board.research) return { outcome: "none", ...empty };
@@ -373,20 +382,40 @@ export async function autoPicture(board: PictureBoard, opts: { aiSearch: boolean
       .eq("id", board.id).is("research->picture", null).select("id");
     if (!data?.length) return { outcome: "tried", ...empty };
   }
-  const found = await findPictures(board, { aiSearch: opts.aiSearch });
-  if (found.needsKey) return { outcome: "none", ...empty, needsKey: true };
-  const chosen = clearWinner(board, found.images);
+
+  let pages: { url: string; title: string | null }[] = [], images: ImageCandidate[] = [];
+  const add = (r: { pages: { url: string; title: string | null }[]; images: ImageCandidate[] }) => {
+    const seen = new Set(images.map((i) => i.src));
+    pages = [...pages, ...r.pages];
+    images = [...images, ...r.images.filter((i) => !seen.has(i.src))];
+  };
+  const known = await fromResearch(board);
+  add(known);
+  let chosen = keep ? clearWinner(board, known.images) : null;
+  let needsKey = false;
+  if (!chosen && opts.aiSearch && (keep || !images.length)) {
+    const searched = await fromSearch(board);
+    needsKey = !!searched.needsKey;
+    add(searched);
+    if (keep) chosen = clearWinner(board, searched.images);
+  }
+  if (needsKey && !images.length) return { outcome: "none", ...empty, needsKey: true };
+
   const at = new Date().toISOString();
   if (!chosen) {
-    await recordTry(board.id, { tried_at: at, outcome: found.images.length ? "unclear" : "none", src: null });
-    return { outcome: found.images.length ? "unclear" : "none", pages: found.pages, images: found.images };
+    if (keep) await recordTry(board.id, { tried_at: at, outcome: images.length ? "unclear" : "none", src: null });
+    return { outcome: images.length ? "unclear" : "none", pages, images };
   }
+  // Somebody (another tab, a Research run) kept one meanwhile: leave it.
+  const fresh = await loadPictureBoard(board.id);
+  if (fresh && topPhoto(fresh.photos)) return { outcome: "has", pages, images };
   try {
-    const kept = await keepPicture(board, { src: chosen.src, page: chosen.page });
+    const kept = await keepPicture(fresh ?? board, { src: chosen.src, page: chosen.page });
     await recordTry(board.id, { tried_at: at, outcome: "kept", src: chosen.src });
-    return { outcome: "kept", ...kept, pages: found.pages, images: found.images, chosen };
+    return { outcome: "kept", ...kept, pages, images, chosen };
   } catch (err) {
-    await recordTry(board.id, { tried_at: at, outcome: "failed", src: chosen.src, note: err instanceof Error ? err.message : null });
-    throw err;
+    const why = err instanceof Error ? err.message : "it could not be downloaded";
+    await recordTry(board.id, { tried_at: at, outcome: "failed", src: chosen.src, note: why });
+    return { outcome: "unclear", pages, images, note: `The picture that looked right could not be kept (${why}). Pick one.` };
   }
 }

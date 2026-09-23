@@ -140,7 +140,13 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       const cur = (board as Record<string, unknown>)[f.field];
       if (v != null && v !== "" && (cur == null || cur === "")) fill[f.field] = v;
     }
-    const research = { ...found, meta, filled: Object.keys(fill) };
+    // No picture yet: claim the picture try in the same write, so a board page
+    // open meanwhile does not look at the same time (board-pictures.ts).
+    const noPicture = !topPhoto(board.photos);
+    const research = {
+      ...found, meta, filled: Object.keys(fill),
+      ...(noPicture ? { picture: { tried_at: new Date().toISOString(), outcome: "searching" as const } } : {}),
+    };
     const research_at = new Date().toISOString();
     const { error: saveError } = await db.from("pd_boards")
       .update({ research, research_at, ...fill, ...(Object.keys(fill).length ? { updated_at: research_at } : {}) })
@@ -149,7 +155,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     // No picture yet: the pages just found usually have it. Never the paid
     // page search here, and a failure never spoils the research itself.
     let picture: { outcome: string; note?: string | null } | null = null;
-    if (!topPhoto(board.photos)) {
+    if (noPicture) {
       try {
         const fresh = await loadPictureBoard(id);
         if (fresh) { const r = await autoPicture(fresh, { aiSearch: false }); picture = { outcome: r.outcome, note: r.note ?? null }; }

@@ -56,6 +56,27 @@ describe("the picture kept by itself", () => {
     expect(clearWinner({ size: "138", model: "Invictus Pro", year: 2026 }, FMX)?.src).toContain("-138-2026.jpg");
   });
 
+  it("never another board of the same size from a shop's related-boards strip", () => {
+    const shopPage = "https://shop.example/product/jp-hydrofoil-slalom";
+    const own: ImageCandidate = { src: "https://shop.example/img/a1b2c3~mv2.jpg", alt: null, width: null, score: 12, page: shopPage };
+    const other: ImageCandidate = { src: "https://shop.example/img/starboard-isonic-85-2026.jpg", alt: "Starboard iSonic 85", width: null, score: 12, page: shopPage };
+    expect(clearWinner({ size: "85", model: "HydroFoil Slalom", year: 2026 }, [own, other])).toBeNull();
+  });
+
+  it("reads the size from the typed name when the size field is still empty", () => {
+    const board = { name: "FMX Invictus Pro 138", brand: "FMX", model: null, size: null, year: 2026 };
+    expect(clearWinner(board, FMX)?.src).toContain("-138-2026.jpg");
+    const wrong: ImageCandidate = { ...img("fmx-invictus-pro-128.jpg"), alt: "FMX Invictus Pro 128" };
+    expect(clearWinner(board, [wrong])).toBeNull();
+  });
+
+  it("does not take a picture size or a date stamp for a year", () => {
+    const sized = img("invictus-pro-138-2048x2048.jpg");
+    expect(clearWinner({ size: "138", model: "Invictus Pro", year: 2026 }, [sized])?.src).toContain("2048x2048");
+    const stamped = img("IMG_20250601_invictus-pro-138.jpg");
+    expect(clearWinner({ size: "138", model: "Invictus Pro", year: 2026 }, [stamped])?.src).toContain("IMG_20250601");
+  });
+
   it("without a size, only a single picture carrying every model word", () => {
     const pics = [img("hydrofoil-slalom-deck.jpg"), img("jp-foil-range.jpg")];
     expect(clearWinner({ size: null, model: "Hydrofoil Slalom" }, pics)?.src).toContain("hydrofoil-slalom-deck.jpg");

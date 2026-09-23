@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { boardSearchQuery, topPhoto, type BoardPhoto, type PdBoard } from "@/lib/board-measurements";
 import { Card, Chip, Icon, InfoTip, SaveNote, btnPrimary, btnPrimaryStyle, btnSecondary, btnSecondaryStyle, inputCls } from "@/components/admin/pd-ui";
 import { BoardPhotoThumb } from "@/components/admin/pd-thumbs";
+import type { FoundPictures } from "@/components/admin/board-plan";
 
 type Candidate = { src: string; alt: string | null; width: number | null; score: number; page: string };
 
@@ -18,7 +19,11 @@ type Candidate = { src: string; alt: string | null; width: number | null; score:
  * Nothing is kept until they do. A picture with the deck and the bottom side
  * by side is cut apart on keeping, and the deck becomes the top view.
  */
-export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoard; onSaved: (photos: BoardPhoto[]) => void; autoStart?: boolean }) {
+export function BoardPictureFinder({ board, onSaved, autoStart, initial }: {
+  board: PdBoard; onSaved: (photos: BoardPhoto[]) => void; autoStart?: boolean;
+  /** Pictures a search already found elsewhere (the 2D plan): shown, not searched again. */
+  initial?: FoundPictures | null;
+}) {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState<"" | "auto" | "link" | "save">("");
   const [msg, setMsg] = useState("");
@@ -56,14 +61,29 @@ export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoa
     if (!(j.images ?? []).length) setMsg("No usable pictures on that page. Try the brand's own product page.");
   }
 
-  // Arriving from "Find a top view" (header or 2D plan): search once, now.
+  // Arriving from "Find a top view" (header or 2D plan): search once, now,
+  // and take ?find=1 off the address so a reload does not search again.
   const started = useRef(false);
   useEffect(() => {
     if (!autoStart || started.current) return;
     started.current = true;
-    const t = setTimeout(() => { void find(true); }, 0);
+    const t = setTimeout(() => {
+      void find(true);
+      try {
+        const u = new URL(window.location.href);
+        if (u.searchParams.has("find")) { u.searchParams.delete("find"); window.history.replaceState(null, "", u.pathname + u.search); }
+      } catch { /* the search still runs */ }
+    }, 0);
     return () => clearTimeout(t);
   }, [autoStart]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handed pictures from the 2D plan: show them as they are.
+  const [shown, setShown] = useState<FoundPictures | null>(null);
+  if (initial && initial !== shown) {
+    setShown(initial);
+    setPages(initial.pages); setImages(initial.images); setPicked(null);
+    setNote(initial.note ?? "None of these is clearly this board: pick the right one.");
+  }
 
   async function keep() {
     if (!picked) return;

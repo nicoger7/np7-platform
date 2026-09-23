@@ -4,7 +4,7 @@ import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cdnImage, keyUrl } from "@/lib/img";
-import { BoardPlan, BoardReadout } from "@/components/admin/board-plan";
+import { BoardPlan, BoardReadout, type FoundPictures } from "@/components/admin/board-plan";
 import { BoardMeasureGrid, ImportDialog } from "@/components/admin/board-measure-grid";
 import { BoardNotes, NoteComposer } from "@/components/admin/board-notes";
 import { BoardCutouts } from "@/components/admin/board-cutouts";
@@ -63,8 +63,10 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   }
   useEffect(() => { load(); }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [handoff, setHandoff] = useState<FoundPictures | null>(null);
   function setTab(next: TabKey, extra?: Record<string, string>) {
     if (dirtyRef.current && !confirm("You have unsaved changes. Leave and lose them?")) return;
+    if (next !== "photos") setHandoff(null);
     const q = new URLSearchParams(Array.from(sp.entries()));
     q.set("tab", next);
     q.delete("find");
@@ -73,7 +75,11 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
   }
   // Straight to the picture search, already searching (the 2D plan's and the
   // header's "Find a top view").
-  const findPicture = () => setTab("photos", { find: "1" });
+  // Pictures a search already found (the 2D plan's "Find the picture & match"
+  // when none was clear) go to the Photos tab as they are: no second search.
+  const findPicture = (found?: FoundPictures) => {
+    if (found) { setHandoff(found); setTab("photos"); } else { setHandoff(null); setTab("photos", { find: "1" }); }
+  };
 
   // A board without a picture looks for one by itself, once, on the pages its
   // Research found (never the paid search). Nico, 24.09.2026: "cant the system
@@ -122,7 +128,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
         thumb={
           // The picture is also the way to the picture finder: a board without
           // a top view says so right where the picture would be.
-          <button onClick={() => (top ? setTab("photos") : findPicture())} title={top ? "Photos" : "Find a top-view picture: searches straight away"}
+          <button onClick={() => (top || looking ? setTab("photos") : findPicture())} title={top ? "Photos" : looking ? "Looking for a top view on the pages Research found" : "Find a top-view picture: searches straight away"}
             className="group relative w-[176px] h-[72px] rounded-2xl px-2 flex items-center justify-center transition-shadow hover:shadow-md"
             style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
             {top
@@ -168,7 +174,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
         </>
       )}
       {tab === "cutouts" && <BoardCutouts board={d} cutouts={d.cutouts} onSaved={load} dirtyRef={dirtyRef} />}
-      {tab === "photos" && <PhotosTab board={d} onSaved={load} autoFind={sp.get("find") === "1"} />}
+      {tab === "photos" && <PhotosTab board={d} onSaved={load} autoFind={sp.get("find") === "1"} found={handoff} />}
       {tab === "notes" && <BoardNotes board={d} notes={d.note_rows} onChanged={load} />}
       {tab === "research" && <BoardResearchTab board={d} onChanged={load} />}
     </div>
@@ -428,9 +434,13 @@ function DetailsForm({ board, onDone }: { board: Bundle; onDone: (saved: boolean
 
 // ─── Photos ──────────────────────────────────────────────────────────────────
 
-function PhotosTab({ board, onSaved, autoFind }: { board: Bundle; onSaved: () => void; autoFind?: boolean }) {
+function PhotosTab({ board, onSaved, autoFind, found }: { board: Bundle; onSaved: () => void; autoFind?: boolean; found?: FoundPictures | null }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [photos, setPhotos] = useState<BoardPhoto[]>(board.photos ?? []);
+  // The board reloaded (a picture kept by itself, another tab): follow it, or
+  // the next save here would write the old list back over it.
+  const [photosSeen, setPhotosSeen] = useState(board.photos);
+  if (board.photos !== photosSeen) { setPhotosSeen(board.photos); setPhotos(board.photos ?? []); }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [cutting, setCutting] = useState<string | null>(null);
@@ -490,7 +500,7 @@ function PhotosTab({ board, onSaved, autoFind }: { board: Bundle; onSaved: () =>
 
   return (
     <div className="space-y-5">
-      <BoardPictureFinder board={{ ...board, photos }} autoStart={autoFind} onSaved={(next) => { setPhotos(next); onSaved(); }} />
+      <BoardPictureFinder board={{ ...board, photos }} autoStart={autoFind && !found} initial={found ?? null} onSaved={(next) => { setPhotos(next); onSaved(); }} />
 
       <div className="flex flex-wrap items-center gap-3">
         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => upload(e.target.files)} />
