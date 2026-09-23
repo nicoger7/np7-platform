@@ -8,8 +8,10 @@ import { BoardPlan, BoardReadout } from "@/components/admin/board-plan";
 import { BoardMeasureGrid, ImportDialog } from "@/components/admin/board-measure-grid";
 import { BoardNotes, NoteComposer } from "@/components/admin/board-notes";
 import { BoardCutouts } from "@/components/admin/board-cutouts";
+import { BoardPictureFinder } from "@/components/admin/board-picture-finder";
+import { BoardResearchTab } from "@/components/admin/board-research";
 import {
-  BOARD_DISCIPLINES, BOARD_METRICS, BOARD_ORIGINS, boardTitle, disciplineLabel, effectiveValue, metricUnit, round, toMm,
+  BOARD_DISCIPLINES, BOARD_METRICS, BOARD_ORIGINS, boardTitle, disciplineLabel, effectiveValue, metricUnit, round, toMm, topPhoto,
   type BoardCategory, type BoardOrigin, type BoardPhoto,
   type PdBoard, type PdBoardCutout, type PdBoardNote, type PdBoardPoint, type PdBoardSeries,
 } from "@/lib/board-measurements";
@@ -18,7 +20,7 @@ import {
   btnPrimary, btnPrimaryStyle, btnSecondary, btnSecondaryStyle, btnSmall, inputCls, labelCls, toneVars,
   type TabDef,
 } from "@/components/admin/pd-ui";
-import { BoardOutlineThumb, type WidthPair } from "@/components/admin/pd-thumbs";
+import { BoardOutlineThumb, BoardPhotoThumb, type WidthPair } from "@/components/admin/pd-thumbs";
 
 type Bundle = PdBoard & {
   series: PdBoardSeries[];
@@ -28,7 +30,7 @@ type Bundle = PdBoard & {
   project: { id: string; name: string; kind: string } | null;
 };
 
-type TabKey = "overview" | "measurements" | "plan" | "cutouts" | "photos" | "notes";
+type TabKey = "overview" | "measurements" | "plan" | "cutouts" | "photos" | "notes" | "research";
 
 const inputClass = inputCls;
 const labelClass = labelCls;
@@ -83,7 +85,9 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
     { key: "cutouts", label: "Cut-outs", icon: "cut", tone: "orange", count: d.cutouts.length },
     { key: "photos", label: "Photos", icon: "camera", tone: "pink", count: d.photos?.length ?? 0 },
     { key: "notes", label: "Notes", icon: "note", tone: "amber", count: d.note_rows.length },
+    { key: "research", label: "Research", icon: "search", tone: "teal" },
   ];
+  const top = topPhoto(d.photos);
 
   return (
     <div>
@@ -91,9 +95,11 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
         back={{ href: "/admin/product-dev/boards", label: "Boards" }}
         thumb={
           <div className="w-[176px] h-[72px] rounded-2xl px-2 flex items-center justify-center" style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border)" }}>
-            {w.length >= 2 || wt.length >= 2
-              ? <BoardOutlineThumb width={w} widthTop={wt} lengthCm={d.length_cm ?? lastStation} origin={d.station_origin} tone={tone} className="w-full h-full" />
-              : <Icon name="board" className="w-8 h-8 admin-faint" strokeWidth={1.4} />}
+            {top
+              ? <BoardPhotoThumb photo={top} width={400} />
+              : w.length >= 2 || wt.length >= 2
+                ? <BoardOutlineThumb width={w} widthTop={wt} lengthCm={d.length_cm ?? lastStation} origin={d.station_origin} tone={tone} className="w-full h-full" />
+                : <Icon name="board" className="w-8 h-8 admin-faint" strokeWidth={1.4} />}
           </div>
         }
         title={<BoardName board={d} />}
@@ -129,6 +135,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
       {tab === "cutouts" && <BoardCutouts board={d} cutouts={d.cutouts} onSaved={load} dirtyRef={dirtyRef} />}
       {tab === "photos" && <PhotosTab board={d} onSaved={load} />}
       {tab === "notes" && <BoardNotes board={d} notes={d.note_rows} onChanged={load} />}
+      {tab === "research" && <BoardResearchTab board={d} onChanged={load} />}
     </div>
   );
 }
@@ -407,9 +414,15 @@ function PhotosTab({ board, onSaved }: { board: Bundle; onSaved: () => void }) {
     if (added.length) await persist([...photos, ...added]);
   }
 
+  function makeTop(i: number) {
+    persist(photos.map((p, j) => ({ ...p, kind: j === i ? (p.kind === "top" ? null : "top") : null })));
+  }
+
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+    <div className="space-y-5">
+      <BoardPictureFinder board={{ ...board, photos }} onSaved={(next) => { setPhotos(next); onSaved(); }} />
+
+      <div className="flex flex-wrap items-center gap-3">
         <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => upload(e.target.files)} />
         <button onClick={() => fileRef.current?.click()} disabled={busy} className={btnPrimary} style={btnPrimaryStyle}>
           <Icon name="upload" className="w-4 h-4" />{busy ? "Uploading…" : "Add photos"}
@@ -417,7 +430,7 @@ function PhotosTab({ board, onSaved }: { board: Bundle; onSaved: () => void }) {
         <span className="text-xs admin-faint">Kept in Product Dev only, never in the Experience or Hardware pickers.</span>
       </div>
 
-      {error && <p className="mb-3 text-xs text-red-500">{error}</p>}
+      {error && <p className="text-xs text-red-500">{error}</p>}
 
       {!photos.length ? (
         <Empty icon="camera" tone="pink" title="No photos yet">
@@ -426,7 +439,7 @@ function PhotosTab({ board, onSaved }: { board: Bundle; onSaved: () => void }) {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {photos.map((p, i) => (
-            <figure key={p.key} className="group relative rounded-2xl overflow-hidden" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+            <figure key={p.key} className="group relative rounded-2xl overflow-hidden" style={{ border: p.kind === "top" ? "2px solid var(--admin-accent)" : "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
               <a href={keyUrl(p.key)} target="_blank" rel="noreferrer">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={cdnImage(keyUrl(p.key), { width: 500 })} alt={p.caption ?? ""} className="w-full aspect-[4/3] object-cover" />
@@ -437,6 +450,14 @@ function PhotosTab({ board, onSaved }: { board: Bundle; onSaved: () => void }) {
                   value={p.caption ?? ""} placeholder="Add a caption"
                   onChange={(e) => setPhotos(photos.map((x, j) => (j === i ? { ...x, caption: e.target.value } : x)))}
                   onBlur={() => persist(photos)} />
+                <div className="flex items-center gap-2 mt-1">
+                  <button onClick={() => makeTop(i)} className={`text-[11px] font-semibold ${p.kind === "top" ? "text-[var(--admin-accent)]" : "admin-faint hover:text-[var(--admin-accent)]"}`}>
+                    {p.kind === "top" ? "Shown in lists" : "Show in lists"}
+                  </button>
+                  {p.source && (
+                    <a href={p.source} target="_blank" rel="noreferrer" className="ml-auto text-[11px] admin-faint hover:text-[var(--admin-accent)] truncate">source</a>
+                  )}
+                </div>
               </figcaption>
               <button onClick={() => { if (confirm("Remove this photo from the board?")) persist(photos.filter((_, j) => j !== i)); }}
                 title="Remove"

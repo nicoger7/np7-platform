@@ -4,14 +4,14 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BOARD_DISCIPLINES, BOARD_METRICS, BOARD_ORIGINS, DEFAULT_STATIONS, boardTitle, compareBoards, disciplineLabel,
-  type BoardCategory, type BoardOrigin,
+  BOARD_DISCIPLINES, BOARD_METRICS, BOARD_ORIGINS, DEFAULT_STATIONS, boardTitle, compareBoards, disciplineLabel, topPhoto,
+  type BoardCategory, type BoardOrigin, type BoardPhoto,
 } from "@/lib/board-measurements";
 import {
   BoardName, Card, Empty, FilterPills, Icon, InfoTip, ORIGIN_META, OriginChip, PageHeader, SearchBox, Tag,
   btnPrimary, btnPrimaryStyle, btnSecondary, btnSecondaryStyle, inputCls, labelCls, toneVars,
 } from "@/components/admin/pd-ui";
-import { BoardOutlineThumb, type WidthPair } from "@/components/admin/pd-thumbs";
+import { BoardOutlineThumb, BoardPhotoThumb, type WidthPair } from "@/components/admin/pd-thumbs";
 
 type BoardRow = {
   id: string;
@@ -32,6 +32,7 @@ type BoardRow = {
   measured?: string[];
   outline?: { w: WidthPair[]; wt: WidthPair[] };
   last_station?: number;
+  photos?: BoardPhoto[];
 };
 
 export default function BoardsPage() {
@@ -251,6 +252,8 @@ export default function BoardsPage() {
 
 function BoardCard({ b, scale, onArchive }: { b: BoardRow; scale: { len: number; wid: number }; onArchive: () => void }) {
   const measured = new Set(b.measured ?? []);
+  // A chosen picture wins; otherwise the outline drawn from the widths.
+  const top = topPhoto(b.photos);
   const hasOutline = (b.outline?.w.length ?? 0) >= 2 || (b.outline?.wt.length ?? 0) >= 2;
   const widest = Math.max(0, ...(b.outline?.wt.length ? b.outline.wt : b.outline?.w ?? []).map(([, w]) => w));
   const facts = [
@@ -263,7 +266,9 @@ function BoardCard({ b, scale, onArchive }: { b: BoardRow; scale: { len: number;
       style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
       <Link href={`/admin/product-dev/boards/${b.id}`} className="block">
         <div className="h-32 px-4 flex items-center justify-center" style={{ backgroundColor: "var(--admin-bg)" }}>
-          {hasOutline ? (
+          {top ? (
+            <BoardPhotoThumb photo={top} className="w-full h-full" />
+          ) : hasOutline ? (
             <BoardOutlineThumb width={b.outline!.w} widthTop={b.outline!.wt} lengthCm={b.length_cm ?? b.last_station} origin={b.station_origin}
               scaleCm={scale.len} maxWidthCm={scale.wid} tone={ORIGIN_META[b.origin]?.tone ?? "sky"} className="w-full h-full" />
           ) : (

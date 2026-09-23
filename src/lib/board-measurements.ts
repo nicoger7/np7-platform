@@ -214,7 +214,43 @@ export const DEFAULT_STATIONS = [0, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 
 
 // ─── Row types ───────────────────────────────────────────────────────────────
 
-export type BoardPhoto = { key: string; caption?: string | null; w?: number | null; h?: number | null };
+export type BoardPhoto = {
+  key: string;
+  caption?: string | null;
+  w?: number | null;
+  h?: number | null;
+  /** "top" = the picture the board is shown by in lists (a top view, usually
+   *  the brand's own product shot). One per board. */
+  kind?: "top" | null;
+  /** Where a picture taken from the web came from, for the record. */
+  source?: string | null;
+  /** Quarter turns to show it nose-right in a card, clockwise: 0 or 90. */
+  rotate?: number | null;
+};
+
+/** What the web says about a board: one run of the Research tab (migration 257). */
+export type BoardResearch = {
+  identified_as: string;
+  confidence: "exact" | "close" | "unsure";
+  summary: string;
+  specs: {
+    length_cm: number | null;
+    width_cm: number | null;
+    volume_l: number | null;
+    weight_kg: number | null;
+    tail_width_cm: number | null;
+    fin_box: string | null;
+    construction: string | null;
+    sail_range: string | null;
+    source_url: string | null;
+  };
+  pros: { point: string; source_url: string | null }[];
+  cons: { point: string; source_url: string | null }[];
+  voices: { who: string; said: string; source_url: string | null }[];
+  rd_notes: string[];
+  links: { title: string; url: string; kind: "official" | "review" | "video" | "forum" | "shop" | "other" }[];
+  meta?: { model: string; searches: number; input_tokens: number; output_tokens: number };
+};
 
 export type PdBoard = {
   id: string;
@@ -242,6 +278,8 @@ export type PdBoard = {
   summary: string | null;
   notes: string | null;
   photos: BoardPhoto[];
+  research?: BoardResearch | null;
+  research_at?: string | null;
   source_id: string | null;
   created_at: string;
   updated_at: string;
@@ -314,6 +352,17 @@ export type FiledNote = {
   sortedAt?: string;
   by?: "parser" | "model";
 };
+
+/** The picture a board is shown by, if one was chosen. */
+export function topPhoto(photos: BoardPhoto[] | null | undefined): BoardPhoto | null {
+  return (photos ?? []).find((p) => p.kind === "top") ?? null;
+}
+
+/** What to type into a search box to find this board. */
+export function boardSearchQuery(b: Parameters<typeof boardTitle>[0]): string {
+  const t = boardTitle(b);
+  return [t.brand, t.model, t.size, t.year].filter(Boolean).join(" ") || b.name;
+}
 
 // ─── What a board is called ──────────────────────────────────────────────────
 

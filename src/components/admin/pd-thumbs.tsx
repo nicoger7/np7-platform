@@ -1,14 +1,15 @@
 "use client";
 
 import { finSilhouettePath } from "@/components/admin/ply-diagram";
-import { interpolate, type SeriesPoints } from "@/lib/board-measurements";
+import { cdnImage, keyUrl } from "@/lib/img";
+import { interpolate, type BoardPhoto, type SeriesPoints } from "@/lib/board-measurements";
 import { Icon, KIND_META, toneVars, type IconName, type Tone } from "@/components/admin/pd-ui";
 import type { PdKind } from "@/lib/product-dev";
 
 /**
- * Thumbnails drawn from the data, never from a stock picture.
+ * Thumbnails: drawn from the data, or the one picture somebody chose.
  *
- * The same rule as the 2D plan: a board's outline is its width readings and
+ * A drawing follows the same rule as the 2D plan: a board's outline is its width readings and
  * nothing else. Where the tape never went, the drawing stops, and a dashed
  * centreline shows the length it would have covered. A made-up nose would
  * look like information (the first mock-up did exactly that, and was called
@@ -108,5 +109,26 @@ export function KindGlyph({ kind, icon, tone, className = "w-10 h-10" }: { kind?
     <span className="pd-tone inline-flex" style={{ ...toneVars(t), color: "var(--tone)", opacity: 0.8 }}>
       <Icon name={icon ?? m?.icon ?? "box"} className={className} strokeWidth={1.4} />
     </span>
+  );
+}
+
+/**
+ * The board's chosen picture (a top view, usually the brand's product shot).
+ * Product shots stand the board up with the nose at the top; `rotate: 90` lies
+ * it down nose-right so it reads like the drawn outlines next to it. The box is
+ * a size container, so the turned picture is fitted to the box's own sides.
+ */
+export function BoardPhotoThumb({ photo, className = "w-full h-full", width = 600 }: { photo: BoardPhoto; className?: string; width?: number }) {
+  const src = cdnImage(keyUrl(photo.key), { width });
+  const turned = (photo.rotate ?? 0) % 180 !== 0;
+  return (
+    <div className={`relative overflow-hidden ${className}`} style={{ containerType: "size" }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={photo.caption ?? ""} loading="lazy"
+        className="absolute left-1/2 top-1/2 object-contain"
+        style={turned
+          ? { width: "100cqh", height: "100cqw", transform: `translate(-50%, -50%) rotate(${photo.rotate}deg)` }
+          : { width: "100%", height: "100%", transform: "translate(-50%, -50%)" }} />
+    </div>
   );
 }
