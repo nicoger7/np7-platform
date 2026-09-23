@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { keyUrl } from "@/lib/img";
 import { PhotoLoadError, fitPhoto, matchPhoto, readPhotoMask, type PhotoFit, type PhotoMask } from "@/components/admin/board-photo-outline";
+import { fittingsImage, type FoundFitting } from "@/components/admin/board-fittings";
+import { InfoTip } from "@/components/admin/pd-ui";
 import {
   BOARD_METRICS, BOARD_METRIC_BY_KEY, effectiveValue, exactValue, fmtReading, interpolate, methodForScale, metricUnit, round, riseMarkerStation,
   rockerReadout, seriesPoints, smoothPath, toMm, topPhoto, widestPoint, zeroCrossing,
@@ -59,7 +61,13 @@ type Props = {
   cutouts: PdBoardCutout[];
   /** Straight to the picture search (Photos tab, searching). */
   onFindPicture?: () => void;
+  /** After cut-outs were added from the picture: reload the board. */
+  onChanged?: () => void;
 };
+
+/** A fitting the AI found, in the plan's own stations and offsets. */
+type PlanFitting = FoundFitting & { id: string; stFrom: number; stTo: number; offFrom: number; offTo: number; pick: boolean };
+type TapeSeg = { a: { st: number; off: number }; b: { st: number; off: number } };
 
 type View = "outline" | "rocker" | "section";
 
@@ -77,7 +85,7 @@ function mmSeries(points: PdBoardPoint[], series: PdBoardSeries[], metric: strin
     .sort((a, b) => a.station - b.station);
 }
 
-export function BoardPlan({ board, series, points, cutouts, onFindPicture }: Props) {
+export function BoardPlan({ board, series, points, cutouts, onFindPicture, onChanged }: Props) {
   const [view, setView] = useState<View>("outline");
   const [exag, setExag] = useState(6);
   const [station, setStation] = useState<number | null>(null);
@@ -86,6 +94,9 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture }: Pro
   const [photoOn, setPhotoOn] = useState(true);
   const [matchOn, setMatchOn] = useState(false);
   const [numbersOn, setNumbersOn] = useState(false);
+  const [tapeOn, setTapeOn] = useState(false);
+  const [tape, setTape] = useState<TapeSeg[]>([]);
+  const [finder, setFinder] = useState<{ busy: boolean; error?: string; items?: PlanFitting[]; view?: string } | null>(null);
   const top = topPhoto(board.photos);
 
   const width = useMemo(() => mmSeries(points, series, "width"), [points, series]);
@@ -97,6 +108,34 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture }: Pro
   const concave = useMemo(() => mmSeries(points, series, "concave"), [points, series]);
   const railT = useMemo(() => mmSeries(points, series, "rail_thickness"), [points, series]);
   const shot = usePhotoFit(board, photoOn ? top : null, width, widthTop, matchOn);
+
+  async function findFittings() {
+    const fit = shot.fit, mask = shot.mask;
+    if (!fit || !mask || !shot.url) return;
+    setFinder({ busy: true });
+    try {
+      const { dataUrl, lengthCm, halfWidthCm } = await fittingsImage(mask.drawUrl ?? shot.url, mask, fit);
+      const res = await fetch(`/api/admin/product-dev/boards/${board.id}/fittings`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: dataUrl, lengthCm, halfWidthCm }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (j.needsKey) { setFinder({ busy: false, error: j.message }); return; }
+      if (!res.ok) { setFinder({ busy: false, error: j.error ?? "Reading the picture failed." }); return; }
+      // The picture's "cm from the tail" starts at its own tail end, which sits
+      // `shift` behind station 0; a board measured from the nose turns round.
+      const toSt = (cm: number) => (board.station_origin === "tail" ? cm - fit.shiftCm : fit.lengthCm - (cm - fit.shiftCm));
+      const toOff = (cm: number) => (board.station_origin === "tail" ? cm : -cm);
+      const items: PlanFitting[] = (j.items ?? []).map((it: FoundFitting, i: number) => ({
+        ...it, id: String(i),
+        stFrom: toSt(it.from_cm), stTo: toSt(it.to_cm), offFrom: toOff(it.offset_from_cm), offTo: toOff(it.offset_to_cm),
+        pick: it.confidence !== "low",
+      }));
+      setFinder({ busy: false, items, view: j.view });
+    } catch (e) {
+      setFinder({ busy: false, error: e instanceof Error ? e.message : "Reading the picture failed." });
+    }
+  }
 
   // The drawing's x-extent: every station anybody measured, plus the board's
   // stated length if it is longer than the last reading.
@@ -134,12 +173,12 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture }: Pro
   // A click on the outline or the rocker opens the slice there.
   const pickSlice = (st: number) => { setStation(st); setView("section"); };
 
-  if (!anyData) {
+  if (!anyData && !top) {
     return (
       <div className="py-16 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>
         <p className="text-sm admin-faint max-w-md mx-auto leading-relaxed">
-          Nothing to draw yet. The plan is built from the readings: add a width or rocker series on the
-          Measurements tab and the outline appears here.
+          Nothing to draw yet. Add a width or rocker series on the Measurements tab, or a top-view picture:
+          with the stated length and width it gives the whole outline.
         </p>
       </div>
     );
@@ -147,7 +186,7 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture }: Pro
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="inline-flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--admin-border)" }}>
           {([["outline", "Outline"], ["rocker", "Rocker"], ["section", "Cross-section"]] as const).map(([k, label]) => (
             <button key={k} onClick={() => setView(k)} aria-pressed={view === k}
@@ -158,92 +197,106 @@ export function BoardPlan({ board, series, points, cutouts, onFindPicture }: Pro
           ))}
         </div>
 
-        {view !== "outline" && (
-          <label className="flex items-center gap-2 text-xs admin-muted">
-            Vertical scale
-            <select className="px-2 py-1 admin-input border rounded text-xs" value={exag}
-              onChange={(e) => setExag(Number(e.target.value))}>
-              <option value={1}>1 : 1 (true)</option>
-              <option value={3}>×3</option>
-              <option value={6}>×6</option>
-              <option value={12}>×12</option>
-              <option value={25}>×25</option>
-            </select>
-          </label>
-        )}
-
         {view === "section" && (
-          <div className="flex flex-wrap items-center gap-3 text-xs admin-muted">
-            <label className="flex items-center gap-2" title="Any station: between readings the values are theoretical and marked">
-              Slice at
-              <input type="range" min={Math.floor(stations.min)} max={Math.ceil(stations.max)} step={1}
-                value={station ?? fullestStation} onChange={(e) => setStation(Number(e.target.value))} className="w-40 accent-[var(--admin-accent)]" />
-              <input type="number" className="w-16 px-2 py-1 admin-input border rounded text-xs text-right" value={station ?? fullestStation}
-                onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStation(v); }} />
-              cm
-            </label>
+          <div className="flex items-center gap-2 text-xs admin-muted pl-1">
+            <span>Slice at</span>
+            <input type="range" min={Math.floor(stations.min)} max={Math.ceil(stations.max)} step={1}
+              value={station ?? fullestStation} onChange={(e) => setStation(Number(e.target.value))} className="w-36 accent-[var(--admin-accent)]" />
+            <input type="number" className="w-16 px-2 py-1 admin-input border rounded text-xs text-right" value={station ?? fullestStation}
+              onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStation(v); }} />
+            <span>cm</span>
             {measuredStations.length > 0 && (
-              <label className="flex items-center gap-2">
-                Measured
-                <select className="px-2 py-1 admin-input border rounded text-xs"
-                  value={measuredStations.includes(station ?? fullestStation) ? (station ?? fullestStation) : ""}
-                  onChange={(e) => setStation(Number(e.target.value))}>
-                  {!measuredStations.includes(station ?? fullestStation) && <option value="">between readings</option>}
-                  {measuredStations.map((s) => (
-                    <option key={s} value={s}>{s} cm · {(coverage.get(s) ?? []).join(" ") || "—"}</option>
-                  ))}
-                </select>
-              </label>
+              <select className="px-2 py-1 admin-input border rounded text-xs" title="Jump to a measured station"
+                value={measuredStations.includes(station ?? fullestStation) ? (station ?? fullestStation) : ""}
+                onChange={(e) => setStation(Number(e.target.value))}>
+                {!measuredStations.includes(station ?? fullestStation) && <option value="">between readings</option>}
+                {measuredStations.map((st) => (
+                  <option key={st} value={st}>{st} cm · {(coverage.get(st) ?? []).join(" ") || "—"}</option>
+                ))}
+              </select>
             )}
-            <label className="flex items-center gap-1.5" title="Between readings: values read off the curve between the two neighbouring readings, marked ≈">
-              <input type="checkbox" checked={theory} onChange={(e) => setTheory(e.target.checked)} />
-              Theoretical in between
-            </label>
           </div>
         )}
 
-        {view === "outline" && top && (
-          <label className="flex items-center gap-1.5 text-xs admin-muted ml-auto" title="Lay the board's top-view picture under the measured outline">
-            <input type="checkbox" checked={photoOn} onChange={(e) => setPhotoOn(e.target.checked)} />
-            Photo underneath
-          </label>
-        )}
-        {view === "outline" && !top && onFindPicture && (
-          <button onClick={onFindPicture} className="ml-auto px-2.5 py-1 text-xs font-semibold rounded-lg"
-            style={{ border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }}
-            title="Search the web for this board's top-view picture (it then lies under the outline)">
-            Find a top view
-          </button>
-        )}
-        {view === "outline" && top && photoOn && shot.fit && (
-          <button onClick={() => setNumbersOn(!numbersOn)} aria-pressed={numbersOn}
-            title="What the picture tells us where we have no reading: the full width (rail to rail) anywhere, the max width, tail and nose width. Marked as from the picture, never stored."
-            className="px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors"
-            style={numbersOn
-              ? { backgroundColor: PHOTO_COL, color: "#fff" }
-              : { border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }}>
-            Numbers from the picture
-          </button>
-        )}
-        {view === "outline" && top && photoOn && (
-          <button onClick={() => setMatchOn(!matchOn)} aria-pressed={matchOn}
-            title="Fit the picture onto our measured widths (scale, position, tail end, and the rail when they are bottom widths) instead of scaling it by the board's length alone"
-            className="px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors"
-            style={matchOn
-              ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }
-              : { border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }}>
-            {matchOn ? "✓ Matched to our widths" : "Match to our widths"}
-          </button>
-        )}
-        <label className={`flex items-center gap-1.5 text-xs admin-muted ${view === "outline" && top ? "" : "ml-auto"}`}>
-          <input type="checkbox" checked={labels} onChange={(e) => setLabels(e.target.checked)} />
-          Value labels
-        </label>
+        <div className="ml-auto flex items-center gap-2">
+          {view === "outline" && !top && onFindPicture && (
+            <ToolButton onClick={onFindPicture} title="Search the web for this board's top-view picture">Find a top view</ToolButton>
+          )}
+          {view === "outline" && top && (
+            <Menu label="Picture" active={photoOn}>
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={photoOn} onChange={(e) => setPhotoOn(e.target.checked)} />
+                Show the picture under the outline
+              </label>
+              {photoOn && (
+                <>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.08em] admin-faint pt-1">Scale it by</div>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="radio" checked={!matchOn} onChange={() => setMatchOn(false)} />
+                    The stated length and width
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="radio" checked={matchOn} onChange={() => setMatchOn(true)} />
+                    Matching it to our widths
+                  </label>
+                  <div className="h-px my-1" style={{ backgroundColor: "var(--admin-border)" }} />
+                  <label className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" checked={numbersOn} disabled={!shot.fit} onChange={(e) => setNumbersOn(e.target.checked)} />
+                    Numbers from the picture
+                  </label>
+                  <button onClick={findFittings} disabled={!shot.fit || !!finder?.busy}
+                    className="w-full text-left text-xs font-semibold px-2 py-1.5 rounded-lg transition-colors hover:bg-[var(--admin-surface-hover)] disabled:opacity-40"
+                    style={{ color: "var(--admin-accent)" }}>
+                    {finder?.busy ? "Looking at the picture…" : "Find the fittings (AI)"}
+                  </button>
+                </>
+              )}
+              {onFindPicture && (
+                <button onClick={onFindPicture}
+                  className="w-full text-left text-xs px-2 py-1.5 rounded-lg admin-muted hover:bg-[var(--admin-surface-hover)]">
+                  Find another picture…
+                </button>
+              )}
+            </Menu>
+          )}
+          {view === "outline" && (
+            <ToolButton onClick={() => setTapeOn(!tapeOn)} active={tapeOn}
+              title="Measure on the plan: drag from one point to another. Hold Shift for straight along or across.">
+              📏 Tape
+            </ToolButton>
+          )}
+          {view !== "outline" && (
+            <label className="flex items-center gap-1.5 text-xs admin-muted">
+              Vertical
+              <select className="px-2 py-1 admin-input border rounded text-xs" value={exag} onChange={(e) => setExag(Number(e.target.value))}>
+                <option value={1}>1 : 1</option><option value={3}>×3</option><option value={6}>×6</option>
+                <option value={12}>×12</option><option value={25}>×25</option>
+              </select>
+            </label>
+          )}
+          <Menu label="View">
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={labels} onChange={(e) => setLabels(e.target.checked)} />
+              Value labels on the curves
+            </label>
+            <label className="flex items-center gap-2 text-xs" title="Between readings: read off the curve between the two neighbouring readings, marked ≈">
+              <input type="checkbox" checked={theory} onChange={(e) => setTheory(e.target.checked)} />
+              Theoretical values between readings
+            </label>
+          </Menu>
+        </div>
       </div>
 
       {view === "outline" && (
         <OutlineView board={board} width={width} widthTop={widthTop} cutouts={cutouts} stations={stations} labels={labels}
-          shot={shot} wanted={photoOn && !!top} slice={station} onPick={pickSlice} />
+          shot={shot} wanted={photoOn && !!top} slice={station} onPick={pickSlice}
+          tapeOn={tapeOn} tape={tape} setTape={setTape} fittings={finder?.items ?? []} />
+      )}
+      {view === "outline" && tape.length > 0 && <TapeList board={board} tape={tape} onClear={() => setTape([])} onRemove={(i) => setTape(tape.filter((_, j) => j !== i))} />}
+      {view === "outline" && finder && !finder.busy && (
+        <FittingsPanel board={board} finder={finder} cutouts={cutouts} onChanged={onChanged}
+          onToggle={(id) => setFinder({ ...finder, items: (finder.items ?? []).map((f) => (f.id === id ? { ...f, pick: !f.pick } : f)) })}
+          onClose={() => setFinder(null)} />
       )}
       {view === "outline" && numbersOn && shot.fit && <PictureNumbers board={board} fit={shot.fit} width={width} widthTop={widthTop} />}
       {view === "rocker" && (
@@ -317,13 +370,60 @@ function Dots({ pts, toX, toY, color, labels, fmt }: {
   );
 }
 
+/** Under a drawing: its first sentence, and everything else one (i) away. */
 function Caption({ lines }: { lines: string[] }) {
+  const all = lines.filter(Boolean);
+  if (!all.length) return null;
   return (
-    <ul className="mt-3 space-y-1">
-      {lines.map((l, i) => (
-        <li key={i} className="text-[11px] admin-faint leading-relaxed">{l}</li>
-      ))}
-    </ul>
+    <div className="mt-2 flex items-start gap-1.5 text-[11px] admin-faint leading-relaxed">
+      <span>{all[0]}</span>
+      {all.length > 1 && (
+        <InfoTip label="How to read this">
+          <span className="block space-y-1.5">{all.slice(1).map((l, i) => <span key={i} className="block">{l}</span>)}</span>
+        </InfoTip>
+      )}
+    </div>
+  );
+}
+
+function ToolButton({ children, onClick, active, title }: { children: ReactNode; onClick: () => void; active?: boolean; title?: string }) {
+  return (
+    <button onClick={onClick} title={title} aria-pressed={active}
+      className="px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors"
+      style={active
+        ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }
+        : { border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }}>
+      {children}
+    </button>
+  );
+}
+
+/** A small dropdown for the toolbar: its settings stay one click away instead of on the bar. */
+function Menu({ label, active, children }: { label: string; active?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <button onClick={() => setOpen(!open)} aria-expanded={open}
+        className="px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors inline-flex items-center gap-1"
+        style={active
+          ? { border: "1px solid var(--admin-accent)", color: "var(--admin-accent)" }
+          : { border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }}>
+        {label}<span className="text-[9px]">▾</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-30 w-64 rounded-xl p-3 space-y-2"
+          style={{ backgroundColor: "var(--admin-surface)", border: "1px solid var(--admin-border-strong)", boxShadow: "var(--admin-shadow)" }}>
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -366,11 +466,13 @@ function usePhotoFit(board: PdBoard, photo: BoardPhoto | null, width: SeriesPoin
   return { url, mask, fit, state };
 }
 
-function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, wanted, slice, onPick }: {
+function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, wanted, slice, onPick, tapeOn, tape, setTape, fittings }: {
   board: PdBoard; width: SeriesPoints; widthTop: SeriesPoints; cutouts: PdBoardCutout[];
   stations: { min: number; max: number }; labels: boolean; shot: ReturnType<typeof usePhotoFit>; wanted: boolean;
   slice: number | null; onPick: (station: number) => void;
+  tapeOn: boolean; tape: TapeSeg[]; setTape: (t: TapeSeg[]) => void; fittings: PlanFitting[];
 }) {
+  const [drag, setDrag] = useState<TapeSeg | null>(null);
   const PAD = 34;
   const W = 900;
   const both = width.length > 0 && widthTop.length > 0;
@@ -418,15 +520,56 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, 
   const wrapAt = wideTop ? width.find((p) => p.station === wideTop.station) : null;
 
   const pick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (tapeOn) return;
     const r = e.currentTarget.getBoundingClientRect();
     const st = stations.min + (((e.clientX - r.left) / r.width) * W - PAD) / pxPerCm;
     if (st >= stations.min && st <= stations.max) onPick(Math.round(st));
   };
+  // The tape: the plan is at true scale in both axes, so a line on it IS a
+  // distance on the board. Points are in stations (cm) and cm off the centreline.
+  const at = (e: React.PointerEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * W, y = ((e.clientY - r.top) / r.height) * H;
+    return { st: stations.min + (x - PAD) / pxPerCm, off: (centre - y) / pxPerCm };
+  };
+  const straight = (seg: TapeSeg, shift: boolean): TapeSeg => {
+    if (!shift) return seg;
+    const along = Math.abs(seg.b.st - seg.a.st) >= Math.abs(seg.b.off - seg.a.off);
+    return { a: seg.a, b: along ? { st: seg.b.st, off: seg.a.off } : { st: seg.a.st, off: seg.b.off } };
+  };
+  const tapeHandlers = tapeOn ? {
+    onPointerDown: (e: React.PointerEvent<SVGSVGElement>) => {
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* not every pointer can be captured */ }
+      const p = at(e);
+      setDrag({ a: p, b: p });
+    },
+    onPointerMove: (e: React.PointerEvent<SVGSVGElement>) => { if (drag) setDrag(straight({ a: drag.a, b: at(e) }, e.shiftKey)); },
+    onPointerUp: (e: React.PointerEvent<SVGSVGElement>) => {
+      if (!drag) return;
+      const seg = straight({ a: drag.a, b: at(e) }, e.shiftKey);
+      if (Math.hypot(seg.b.st - seg.a.st, seg.b.off - seg.a.off) > 0.5) setTape([...tape, seg]);
+      setDrag(null);
+    },
+  } : {};
+  const segLine = (seg: TapeSeg, key: string, live: boolean) => {
+    const d = Math.hypot(seg.b.st - seg.a.st, seg.b.off - seg.a.off);
+    const x1 = toX(seg.a.st), y1 = centre - seg.a.off * pxPerCm, x2 = toX(seg.b.st), y2 = centre - seg.b.off * pxPerCm;
+    return (
+      <g key={key} pointerEvents="none">
+        <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#111827" strokeWidth={2} strokeDasharray={live ? "5 3" : undefined} />
+        <circle cx={x1} cy={y1} r={3.5} fill="#fbbf24" stroke="#111827" />
+        <circle cx={x2} cy={y2} r={3.5} fill="#fbbf24" stroke="#111827" />
+        <rect x={(x1 + x2) / 2 - 26} y={(y1 + y2) / 2 - 20} width={52} height={15} rx={4} fill="#111827" opacity={0.85} />
+        <text x={(x1 + x2) / 2} y={(y1 + y2) / 2 - 9} textAnchor="middle" fontSize={10} fontWeight={700} fill="#fbbf24">{round(d, 1)} cm</text>
+      </g>
+    );
+  };
 
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} {...frame} style={{ ...frame.style, cursor: "crosshair" }} onClick={pick}>
-        <title>Click anywhere to see the slice there</title>
+      <svg viewBox={`0 0 ${W} ${H}`} {...frame} style={{ ...frame.style, cursor: "crosshair", touchAction: tapeOn ? "none" : undefined }}
+        onClick={pick} {...tapeHandlers}>
+        <title>{tapeOn ? "Drag to measure; hold Shift for straight along or across" : "Click anywhere to see the slice there"}</title>
         <Grid x0={stations.min} x1={stations.max} y0={-halfMaxMm / 10} y1={halfMaxMm / 10}
           toX={toX} toY={(cm) => centre - cm * pxPerCm} step={10} major={50}
           axisLabel={`cm from the ${board.station_origin}`} />
@@ -511,6 +654,22 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, shot, 
             <text x={toX(slice) + 4} y={H - 12} fontSize={9} fill="var(--admin-accent)">slice {slice} cm</text>
           </g>
         )}
+
+        {/* Fittings the AI found in the picture: proposals, orange, until added to the Cut-outs. */}
+        {fittings.map((f) => {
+          const x1 = toX(f.stFrom), y1 = centre - f.offFrom * pxPerCm, x2 = toX(f.stTo), y2 = centre - f.offTo * pxPerCm;
+          const col = FITTING_COL[f.kind] ?? "#f97316";
+          return (
+            <g key={`fit${f.id}`} opacity={f.pick ? 1 : 0.35} pointerEvents="none">
+              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={col} strokeWidth={f.kind === "mast_track" ? 6 : 3} strokeLinecap="round" />
+              <circle cx={x1} cy={y1} r={3.5} fill="#fff" stroke={col} strokeWidth={2} />
+              <circle cx={x2} cy={y2} r={3.5} fill="#fff" stroke={col} strokeWidth={2} />
+              <text x={(x1 + x2) / 2} y={Math.min(y1, y2) - 7} textAnchor="middle" fontSize={9} fontWeight={700} fill={col}>{f.label}</text>
+            </g>
+          );
+        })}
+        {tape.map((seg, i) => segLine(seg, `t${i}`, false))}
+        {drag && segLine(drag, "live", true)}
 
         {/* Lower curve: with both series it carries the BOTTOM width labels */}
         {both && bottomHalf.map((p) => (
@@ -601,6 +760,10 @@ function pictureWidthAt(fit: PhotoFit, station: number): number | null {
  * board, only bottom"). The difference between the two is the rail.
  */
 function PictureNumbers({ board, fit, width, widthTop }: { board: PdBoard; fit: PhotoFit; width: SeriesPoints; widthTop: SeriesPoints }) {
+  const [step, setStep] = useState(10);
+  const [extra, setExtra] = useState<number[]>([]);
+  const [add, setAdd] = useState("");
+  const [copied, setCopied] = useState(false);
   const L = fit.lengthCm;
   const fromTail = (d: number) => (board.station_origin === "tail" ? d : L - d);
   const at = (st: number) => pictureWidthAt(fit, st);
@@ -608,11 +771,23 @@ function PictureNumbers({ board, fit, width, widthTop }: { board: PdBoard; fit: 
   const tail30 = at(fromTail(30)), nose30 = at(fromTail(L - 30));
   const ours = new Map(width.map((p) => [p.station, p.value / 10]));
   const oursTop = new Map(widthTop.map((p) => [p.station, p.value / 10]));
-  const stations = Array.from(new Set([...width.map((p) => p.station), ...Array.from({ length: Math.floor(L / 10) + 1 }, (_, i) => i * 10)]))
+  const grid = step > 0 ? Array.from({ length: Math.floor(L / step) + 1 }, (_, i) => i * step) : [];
+  const stations = Array.from(new Set([...width.map((p) => p.station), ...grid, ...extra]))
     .filter((st) => st >= 0 && st <= L).sort((a, b) => a - b);
+  const addStations = () => {
+    const vals = add.split(/[\s,;]+/).map((v) => Number(v.replace(",", "."))).filter((v) => Number.isFinite(v) && v >= 0 && v <= L);
+    if (vals.length) setExtra(Array.from(new Set([...extra, ...vals])));
+    setAdd("");
+  };
+  const stated = [board.length_cm ? `length ${board.length_cm} cm` : null, fit.cmPerPxAcross !== fit.cmPerPx ? "max width" : null].filter(Boolean);
   const how = fit.match
     ? `matched to our ${fit.match.against === "top" ? "top" : "bottom"} widths (within ${round(fit.match.rmsCm, 1)} cm)`
-    : `scaled by the ${fit.scaleFrom}`;
+    : fit.scaleFrom === "stated max width" ? "scaled by the stated max width" : `scaled by the stated ${stated.join(" and ")}`;
+  const copy = async () => {
+    const rows = [["cm from the " + board.station_origin, "bottom width (ours)", "full width (picture)", "rail a side"],
+      ...stations.map((st) => { const b = ours.get(st), f = at(st), r = rail(st, f, b).text; return [st, b != null ? round(b, 1) : "", f != null ? round(f, 1) : "", r]; })];
+    try { await navigator.clipboard.writeText(rows.map((r) => r.join("\t")).join("\n")); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* no clipboard */ }
+  };
   const cell = "px-2 py-1 text-right tabular-nums";
   // The rail is the full width minus the bottom, a side. Not at the very ends,
   // where the corners are rounded and the tape reads the edge itself; and a
@@ -628,7 +803,26 @@ function PictureNumbers({ board, fit, width, widthTop }: { board: PdBoard; fit: 
     <div className="mt-4 rounded-xl p-4" style={{ border: `1px solid ${PHOTO_COL}55`, backgroundColor: "var(--admin-surface)" }}>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
         <span className="text-sm font-semibold admin-heading">Numbers from the picture</span>
-        <span className="text-xs admin-faint">full width, rail to rail · picture {how} · theoretical, not measured, never stored</span>
+        <span className="text-xs admin-faint">full width, rail to rail · picture {how} · theoretical, never stored</span>
+        {fit.aspectOffPct != null && Math.abs(fit.aspectOffPct) > 1 && (
+          <span className="text-xs text-amber-600" title="The stated length and width do not give the picture's own proportions: it is probably taken at a slight angle, so across is scaled by the width and along by the length.">
+            picture {round(Math.abs(fit.aspectOffPct), 1)}% off the stated proportions
+          </span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 mb-3 text-xs admin-muted">
+        <span>Stations every</span>
+        <select className="px-2 py-1 admin-input border rounded text-xs" value={step} onChange={(e) => setStep(Number(e.target.value))}>
+          <option value={0}>ours only</option><option value={5}>5 cm</option><option value={10}>10 cm</option><option value={20}>20 cm</option>
+        </select>
+        <span className="ml-2">and at</span>
+        <input className="w-36 px-2 py-1 admin-input border rounded text-xs" placeholder="e.g. 15, 85, 204" value={add}
+          onChange={(e) => setAdd(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addStations(); }} />
+        <button onClick={addStations} className="px-2 py-1 rounded-md font-semibold" style={{ border: "1px solid var(--admin-border)" }}>Add</button>
+        {extra.length > 0 && <button onClick={() => setExtra([])} className="admin-faint underline">clear added</button>}
+        <button onClick={copy} className="ml-auto px-2 py-1 rounded-md font-semibold" style={{ border: "1px solid var(--admin-border)" }}>
+          {copied ? "Copied" : "Copy table"}
+        </button>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
         {[
@@ -660,7 +854,7 @@ function PictureNumbers({ board, fit, width, widthTop }: { board: PdBoard; fit: 
               const b = ours.get(st), t = oursTop.get(st), f = at(st);
               return (
                 <tr key={st} style={{ borderTop: "1px solid var(--admin-border)" }}>
-                  <td className="px-2 py-1 tabular-nums">{st}</td>
+                  <td className="px-2 py-1 tabular-nums">{st}{extra.includes(st) && !ours.has(st) ? <span className="admin-faint"> ·added</span> : null}</td>
                   <td className={cell}>{b != null ? round(b, 1) : <span className="admin-faint">not measured</span>}</td>
                   {widthTop.length > 0 && <td className={cell}>{t != null ? round(t, 1) : <span className="admin-faint">—</span>}</td>}
                   <td className={`${cell} italic`} style={{ color: PHOTO_COL }}>{f != null ? `≈ ${round(f, 1)}` : "—"}</td>
@@ -671,6 +865,148 @@ function PictureNumbers({ board, fit, width, widthTop }: { board: PdBoard; fit: 
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+const FITTING_COL: Record<string, string> = {
+  mast_track: "#ea580c", footstrap: "#d97706", fin_box: "#0d9488", foil_box: "#0d9488", vent: "#475569", handle: "#475569", other: "#475569",
+};
+const FITTING_KIND: Record<string, string> = {
+  mast_track: "Mast track", footstrap: "Footstrap", fin_box: "Fin box", foil_box: "Foil box", vent: "Vent", handle: "Handle", other: "Other",
+};
+
+/** What the tape measured, point to point, in the plan's own terms. */
+function TapeList({ board, tape, onClear, onRemove }: { board: PdBoard; tape: TapeSeg[]; onClear: () => void; onRemove: (i: number) => void }) {
+  const pos = (p: { st: number; off: number }) => `${round(p.st, 1)} cm from the ${board.station_origin}, ${p.off >= 0 ? "+" : ""}${round(p.off, 1)} off centre`;
+  return (
+    <div className="mt-3 rounded-xl p-3" style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-surface)" }}>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-sm font-semibold admin-heading">📏 Tape</span>
+        <span className="text-xs admin-faint">on the plan at true scale: as accurate as the picture and the readings under it</span>
+        <button onClick={onClear} className="ml-auto text-xs admin-faint underline">clear all</button>
+      </div>
+      <ol className="space-y-1">
+        {tape.map((seg, i) => {
+          const d = Math.hypot(seg.b.st - seg.a.st, seg.b.off - seg.a.off);
+          return (
+            <li key={i} className="flex flex-wrap items-baseline gap-x-3 text-xs">
+              <span className="font-bold tabular-nums admin-heading w-16">{round(d, 1)} cm</span>
+              <span className="admin-muted tabular-nums">along {round(Math.abs(seg.b.st - seg.a.st), 1)} · across {round(Math.abs(seg.b.off - seg.a.off), 1)}</span>
+              <span className="admin-faint">from {pos(seg.a)} to {pos(seg.b)}</span>
+              <button onClick={() => onRemove(i)} className="admin-faint hover:text-red-500 ml-auto" title="Remove">✕</button>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+/**
+ * The fittings the AI found in the picture, as proposals: on the plan in
+ * orange, listed here, and added to the Cut-outs tab only for the ones ticked.
+ * Mirrored footstrap pairs become one mirrored row. Every row says it came
+ * from the picture, so it is never mistaken for a tape measurement.
+ */
+function FittingsPanel({ board, finder, cutouts, onToggle, onClose, onChanged }: {
+  board: PdBoard; finder: { error?: string; items?: PlanFitting[]; view?: string }; cutouts: PdBoardCutout[];
+  onToggle: (id: string) => void; onClose: () => void; onChanged?: () => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const items = finder.items ?? [];
+  const picked = items.filter((f) => f.pick);
+
+  async function addToCutouts() {
+    setSaving(true); setMsg("");
+    const rows: Record<string, unknown>[] = [];
+    const used = new Set<string>();
+    const mid = (f: PlanFitting) => (f.offFrom + f.offTo) / 2;
+    for (const a of picked) {
+      if (used.has(a.id)) continue;
+      used.add(a.id);
+      const pair = a.kind === "footstrap" ? picked.find((b) => !used.has(b.id) && b.kind === "footstrap"
+        && Math.abs(b.stFrom - a.stFrom) < 4 && Math.abs(b.stTo - a.stTo) < 4
+        && Math.sign(mid(b)) !== Math.sign(mid(a)) && Math.abs(Math.abs(mid(b)) - Math.abs(mid(a))) < 4) : undefined;
+      if (pair) used.add(pair.id);
+      const from = Math.min(a.stFrom, a.stTo), to = Math.max(a.stFrom, a.stTo);
+      const angle = a.kind === "footstrap" && Math.abs(a.stTo - a.stFrom) > 0.5
+        ? Math.abs(Math.atan2(a.offTo - a.offFrom, a.stTo - a.stFrom) * 180 / Math.PI) : null;
+      rows.push({
+        kind: a.kind === "foil_box" ? "fin_box" : a.kind,
+        label: pair ? `${a.label.replace(/,?\s*(upper|lower|port|starboard)( side)?/i, "")} (both sides)` : a.label,
+        station_from: round(from, 1), station_to: round(to, 1),
+        offset_cm: round(pair ? (Math.abs(mid(a)) + Math.abs(mid(pair))) / 2 : mid(a), 1),
+        mirrored: !!pair, angle_deg: angle != null ? round(angle, 1) : null,
+        width_cm: null, depth_mm: null, spec: "from the picture",
+        notes: `${a.note ? a.note + ". " : ""}Read from the picture by AI (${a.confidence}); check with a tape.`,
+      });
+    }
+    const keep = cutouts.map((c) => ({
+      kind: c.kind, label: c.label, station_from: c.station_from, station_to: c.station_to, offset_cm: c.offset_cm,
+      mirrored: c.mirrored, width_cm: c.width_cm, depth_mm: c.depth_mm, angle_deg: c.angle_deg, spec: c.spec, notes: c.notes,
+    }));
+    const res = await fetch(`/api/admin/product-dev/boards/${board.id}/cutouts`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cutouts: [...keep, ...rows] }),
+    });
+    setSaving(false);
+    if (!res.ok) { setMsg((await res.json().catch(() => ({}))).error ?? "Couldn't add them."); return; }
+    setMsg(`Added ${rows.length} to the Cut-outs tab`);
+    onChanged?.();
+  }
+
+  return (
+    <div className="mt-3 rounded-xl p-3" style={{ border: "1px solid #f9731655", backgroundColor: "var(--admin-surface)" }}>
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <span className="text-sm font-semibold admin-heading">Fittings in the picture</span>
+        <span className="text-xs admin-faint">
+          {finder.view === "bottom" ? "bottom view" : finder.view === "top" ? "deck view: fin and foil boxes are on the bottom, not visible here" : ""}
+          {" · "}read by AI off a cm grid, about ±2 cm · proposals until added
+        </span>
+        <button onClick={onClose} className="ml-auto text-xs admin-faint underline">close</button>
+      </div>
+      {finder.error && <p className="text-xs text-amber-600 mb-2">{finder.error}</p>}
+      {!finder.error && items.length === 0 && <p className="text-xs admin-faint">Nothing found in this picture.</p>}
+      {items.length > 0 && (
+        <>
+          <table className="text-xs w-full mb-3">
+            <thead>
+              <tr className="admin-faint">
+                <th className="px-2 py-1 text-left font-semibold w-6"></th>
+                <th className="px-2 py-1 text-left font-semibold">what</th>
+                <th className="px-2 py-1 text-right font-semibold">from – to (cm from the {board.station_origin})</th>
+                <th className="px-2 py-1 text-right font-semibold">off centre (cm)</th>
+                <th className="px-2 py-1 text-left font-semibold">sure</th>
+                <th className="px-2 py-1 text-left font-semibold">note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((f) => (
+                <tr key={f.id} style={{ borderTop: "1px solid var(--admin-border)", opacity: f.pick ? 1 : 0.55 }}>
+                  <td className="px-2 py-1"><input type="checkbox" checked={f.pick} onChange={() => onToggle(f.id)} /></td>
+                  <td className="px-2 py-1">
+                    <span className="font-semibold" style={{ color: FITTING_COL[f.kind] }}>{FITTING_KIND[f.kind] ?? f.kind}</span>
+                    <span className="admin-muted"> · {f.label}</span>
+                  </td>
+                  <td className="px-2 py-1 text-right tabular-nums">{round(Math.min(f.stFrom, f.stTo), 1)} – {round(Math.max(f.stFrom, f.stTo), 1)}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{round(f.offFrom, 1)}{Math.abs(f.offTo - f.offFrom) > 0.5 ? ` → ${round(f.offTo, 1)}` : ""}</td>
+                  <td className="px-2 py-1">{f.confidence}</td>
+                  <td className="px-2 py-1 admin-faint">{f.note}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="flex items-center gap-3">
+            <button onClick={addToCutouts} disabled={saving || !picked.length}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg disabled:opacity-40"
+              style={{ backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }}>
+              {saving ? "Adding…" : `Add ${picked.length} to the Cut-outs`}
+            </button>
+            {msg && <span className="text-xs admin-muted">{msg}</span>}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -813,7 +1149,10 @@ function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points
  *   V line      the rail sits `v` above (V) or below (inverted) the centre.
  *               Without a V reading the rails are drawn ON the reference plane
  *               and the caption says their height is unknown.
- *   concave     a dish cut below the V line — needs V AND concave here.
+ *   concave     a dish cut into the board above the V line (double: one each
+ *               side of the keel; single: one across) — needs V AND concave.
+ *               It was once drawn below the line, as a bulge (Nico: "there
+ *               should be a double concave inside the V").
  *   deck        needs thickness here; falls to the rail thickness if that was
  *               read here too, else to the rail point.
  */
@@ -864,7 +1203,7 @@ function SectionView({ board, series, station, theory, width, widthTop, vee, con
   const pxPerMmY = pxPerMmX * exag;
 
   const railY = v ?? 0;
-  const top = Math.max(t ?? 0, railY + (rt ?? 0), Math.abs(railY), Math.abs(c ?? 0), 6);
+  const top = Math.max(t ?? 0, railY + (rt ?? 0), Math.abs(railY) + Math.abs(c ?? 0), 6);
   const H = Math.max(160, top * pxPerMmY + PAD * 2);
   const baseY = H - PAD;
   const cx = W / 2;
@@ -879,8 +1218,11 @@ function SectionView({ board, series, station, theory, width, widthTop, vee, con
     ? xs.map((x, i) => {
         const tt = Math.abs(x) / halfMm;
         const ref = v * tt;
+        // A concave is cut INTO the board: above the straight V line in this
+        // drawing (the board lies above its bottom). Double: one dish each side
+        // between the keel line and the rail; single: one dish across.
         const dish = c == null ? 0 : c * (concaveVariant === "single" ? 1 - tt * tt : Math.sin(Math.PI * tt));
-        return `${i ? "L" : "M"} ${toX(x)} ${toY(ref - dish)}`;
+        return `${i ? "L" : "M"} ${toX(x)} ${toY(ref + dish)}`;
       }).join(" ")
     : "";
 

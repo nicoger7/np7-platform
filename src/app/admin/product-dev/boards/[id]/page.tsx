@@ -143,7 +143,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
       {tab === "plan" && (
         <>
           <BoardReadout board={d} series={d.series} points={d.points} />
-          <BoardPlan board={d} series={d.series} points={d.points} cutouts={d.cutouts} onFindPicture={findPicture} />
+          <BoardPlan board={d} series={d.series} points={d.points} cutouts={d.cutouts} onFindPicture={findPicture} onChanged={load} />
         </>
       )}
       {tab === "cutouts" && <BoardCutouts board={d} cutouts={d.cutouts} onSaved={load} dirtyRef={dirtyRef} />}

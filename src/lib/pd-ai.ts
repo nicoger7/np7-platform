@@ -112,3 +112,29 @@ export async function openAiJson<T>(opts: { key: string; instructions: string; i
   const raw = openAiText(r);
   try { return JSON.parse(raw) as T; } catch { return null; }
 }
+
+/**
+ * One call with a picture, answered as JSON in the given (strict) shape. The
+ * picture goes in as a data URL. Used by the fittings finder, which draws a
+ * labelled centimetre grid onto the board so positions are READ off the grid
+ * labels rather than estimated from pixels.
+ */
+export async function openAiVisionJson<T>(opts: {
+  key: string; instructions: string; text: string; image: string; name: string; schema: Record<string, unknown>;
+}): Promise<{ data: T | null; model: string; inputTokens: number; outputTokens: number }> {
+  const model = process.env.PD_OPENAI_VISION_MODEL || PD_OPENAI_MODEL;
+  const r = await respond(opts.key, {
+    model,
+    instructions: opts.instructions,
+    input: [{ role: "user", content: [
+      { type: "input_text", text: opts.text },
+      { type: "input_image", image_url: opts.image, detail: "high" },
+    ] }],
+    text: { format: { type: "json_schema", name: opts.name, schema: opts.schema, strict: true } },
+    max_output_tokens: 6000,
+  }, 180_000);
+  let data: T | null = null;
+  try { data = JSON.parse(openAiText(r)) as T; } catch { data = null; }
+  return { data, model: r.model ?? model, inputTokens: r.usage?.input_tokens ?? 0, outputTokens: r.usage?.output_tokens ?? 0 };
+}
+

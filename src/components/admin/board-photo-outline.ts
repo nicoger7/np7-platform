@@ -34,7 +34,12 @@ export type PhotoFit = {
   cmPerPx: number;
   tailFirst: boolean;                  // the tail is at the top (vertical) or left (horizontal) of the picture
   lengthCm: number;
-  scaleFrom: "length" | "published length" | "top width" | "our widths";
+  scaleFrom: "length" | "published length" | "top width" | "our widths" | "stated max width";
+  /** cm per picture px ACROSS the board: from the stated max width when there is one
+   *  (a product shot is not always a perfect top view), else the same as along. */
+  cmPerPxAcross: number;
+  /** How far the picture's proportions are off the stated length and width, in %. */
+  aspectOffPct: number | null;
   /** cm the picture's tail end sits behind station 0 (a matched fit moves it). */
   shiftCm: number;
   /** The picture's own tip-to-tail length at this scale. */
@@ -183,7 +188,11 @@ function trace(px: Uint8ClampedArray, w: number, h: number, transparent: boolean
  * @param measuredTop  full widths ("Width (top)"), cm, station from the origin
  * @param measuredBottom bottom widths, cm, station from the origin
  */
-type FitOpts = { lengthCm: number | null; publishedLengthCm: number | null; origin: "tail" | "nose"; measuredTop: SeriesPoints; measuredBottom: SeriesPoints };
+type FitOpts = {
+  lengthCm: number | null; publishedLengthCm: number | null; origin: "tail" | "nose"; measuredTop: SeriesPoints; measuredBottom: SeriesPoints;
+  /** The board's stated overall max width (Details, or the web search): it sets the scale across. */
+  widthCm?: number | null;
+};
 
 export function fitPhoto(
   m: PhotoMask,
@@ -196,10 +205,16 @@ export function fitPhoto(
   let scaleFrom: PhotoFit["scaleFrom"] = opts.lengthCm ? "length" : "published length";
   let cmPerPx: number;
   const shift = force?.shiftCm ?? 0;
+  const widestPx = Math.max(...Array.from(m.across));
   if (force) {
     cmPerPx = force.cmPerPx;
     lengthCm = lengthCm ?? longPx * cmPerPx;
     scaleFrom = "our widths";
+  } else if (!lengthCm && opts.widthCm && widestPx > 0) {
+    // No length anywhere, but a stated max width: that sets the scale.
+    cmPerPx = opts.widthCm / widestPx;
+    lengthCm = longPx * cmPerPx;
+    scaleFrom = "stated max width";
   } else if (lengthCm) {
     cmPerPx = lengthCm / longPx;
   } else if (opts.measuredTop.length) {
@@ -212,10 +227,15 @@ export function fitPhoto(
     return null;
   }
 
+  // Across the board: the stated max width sets its own scale (not in a
+  // matched fit, which is fitted to our own widths).
+  const cmPerPxAcross = !force && opts.widthCm && widestPx > 0 ? opts.widthCm / widestPx : cmPerPx;
+  const aspectOffPct = cmPerPxAcross !== cmPerPx ? (cmPerPxAcross / cmPerPx - 1) * 100 : null;
+
   // Width at a distance from ONE end of the picture's long side.
   const widthAt = (fromStart: number) => {
     const k = Math.round(fromStart / cmPerPx);
-    return k >= 0 && k < n ? m.across[k] * cmPerPx : null;
+    return k >= 0 && k < n ? m.across[k] * cmPerPxAcross : null;
   };
   // Station on the plan → distance from the picture's start, both ways round.
   // The picture's own length (long side × scale) runs from its tail end, which
@@ -266,6 +286,7 @@ export function fitPhoto(
   }
 
   const k = cmPerPx;
+  const kA = cmPerPxAcross;
   // The board's own middle, not its box's: a picture with a shadow or a lean
   // would otherwise sit off our centreline.
   const cx = m.vertical ? m.centre : (m.x0 + m.x1) / 2, cy = m.vertical ? (m.y0 + m.y1) / 2 : m.centre;
@@ -285,7 +306,7 @@ export function fitPhoto(
       const c = sign * kp;
       const e = pad + (stationConst - min) * p;
       // Keep it a rotation, never a mirror: the across axis turns with it.
-      const b = -Math.sign(c) * kp;
+      const b = -Math.sign(c) * kA * p;
       const f = centre - b * cx;
       return `matrix(0 ${b} ${c} 0 ${e} ${f})`;
     }
@@ -295,12 +316,12 @@ export function fitPhoto(
     const stationConst = tailLeft ? base : L - base;
     const a = sign * kp;
     const e = pad + (stationConst - min) * p;
-    const d = Math.sign(a) * kp;
+    const d = Math.sign(a) * kA * p;
     const f = centre - d * cy;
     return `matrix(${a} 0 0 ${d} ${e} ${f})`;
   };
 
-  return { cmPerPx, tailFirst, lengthCm: L, scaleFrom, shiftCm: shift, photoLengthCm: photoLen, widths, matrix, compare };
+  return { cmPerPx, cmPerPxAcross, aspectOffPct, tailFirst, lengthCm: L, scaleFrom, shiftCm: shift, photoLengthCm: photoLen, widths, matrix, compare };
 }
 
 /**
