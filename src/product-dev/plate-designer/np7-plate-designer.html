@@ -197,6 +197,9 @@
   .np-export h3 { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
   .np-export p { font-size: 11px; color: var(--muted); }
   .np-foot-links { display: flex; align-items: center; gap: 14px; margin-top: 10px; padding: 0 2px; }
+  .np-rail { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line-strong); }
+  .np-rail-svg { display: block; width: 100%; height: auto; margin: 10px 0 8px; border-radius: 10px; border: 1px solid var(--line); overflow: hidden; }
+  .np-rail strong { color: var(--text); font-weight: 600; }
   .np-viewport { background: var(--viewport); }
   .np-viewhint { position: absolute; top: 12px; right: 12px; font-size: 11.5px; color: var(--muted); background: color-mix(in srgb, var(--surface) 85%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; box-shadow: var(--lift); pointer-events: none; }
   .pe-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 50; display: flex; align-items: center; justify-content: center; }
@@ -266,6 +269,13 @@
             <div data-s3dx-slider="railInset" data-label="Inset from rail (mm)" data-min="0" data-max="150" data-step="1"></div>
             <div data-s3dx-slider="depth" data-label="Recess depth (mm)" data-min="1" data-max="80" data-step="0.5"></div>
             <div id="s3dx-readout" class="np-readout"></div>
+          </div>
+          <div id="s3dx-rail" class="np-rail hidden">
+            <label class="np-checkline"><input type="checkbox" id="s3dx-rail-follow" class="np-check" checked /><span><strong>The plate follows the rail</strong></span></label>
+            <p class="np-hint mt-1">The rail is only as wide as the outline at one height. With this on, every layer of the plate is pulled in to the board's real rail at its own height, read from the file's cross-sections. “Inset from rail” keeps a gap to it.</p>
+            <div id="s3dx-rail-station" class="mt-3"></div>
+            <svg id="s3dx-rail-svg" class="np-rail-svg" viewBox="0 0 320 200" role="img" aria-label="The rail at one station"></svg>
+            <p id="s3dx-rail-read" class="np-hint"></p>
           </div>
         </section>
 
@@ -526,7 +536,7 @@ window.addEventListener('resize', () => {
 // s3dx axes:  x = along length from the tail, y = half-width, z = vertical.
 
 let s3dxData = null;
-let s3dxParams = { layerIndex: 0, tailCut: 0, forwardEdge: 50, innerEdge: 80, railInset: 0, depth: 25 };
+let s3dxParams = { layerIndex: 0, tailCut: 0, forwardEdge: 50, innerEdge: 80, railInset: 0, depth: 25, railFollow: 1, railStation: -1 };
 
 function s3dxChild(el, tag) {
   if (!el) return null;
@@ -637,6 +647,27 @@ function parseS3DX(text) {
     });
   }
 
+  // Cross-sections ("Couples"), stored at real size at their station. Between
+  // two of them Shape3D morphs one into the other and scales the result to the
+  // outline's half-width and the rockers' thickness there. Kept normalised:
+  // u = half-width share, v = height from the bottom at the stringer over the
+  // thickness there. The tail and nose tips are points, not shapes: skipped.
+  const couples = [];
+  for (let i = 0; i < 64; i++) {
+    const wrap = s3dxChild(board, 'Couples_' + i);
+    if (!wrap) break;
+    const segs = s3dxBezierSegs(s3dxChild(wrap, 'Bezier3d'));
+    if (!segs.length) continue;
+    const pts = [];
+    segs.forEach((sg, si) => { for (let k = si ? 1 : 0; k <= 32; k++) pts.push(s3dxBezPoint(sg, k / 32)); });
+    const w = Math.max(...pts.map(p => p.y));
+    const zb = pts[0].z, zd = pts[pts.length - 1].z;
+    if (!(w > 1) || !(zd - zb > 1)) continue;
+    const poly = pts.map(p => ({ u: p.y / w, v: (p.z - zb) / (zd - zb) }));
+    couples.push({ x: pts[0].x, poly, rail: s3dxRailTable(poly) });
+  }
+  couples.sort((a, b) => a.x - b.x);
+
   const boxes = [];
   const nB = s3dxNum(board, 'Nb_Boxes');
   for (let i = 0; i < nB; i++) {
@@ -657,8 +688,116 @@ function parseS3DX(text) {
     length: s3dxNum(board, 'Length'),
     width: s3dxNum(board, 'Width'),
     thickness: s3dxNum(board, 'Thickness'),
-    outline, strBot, strDeck, layers, boxes,
+    outline, strBot, strDeck, layers, boxes, couples,
   };
+}
+
+// ---- The real rail ------------------------------------------------------------
+// The outline is the board's widest line. The rail is only that wide at one
+// height: a hard edge tucks in at the bottom, and above its widest point the
+// rail pulls in towards the deck. A plate cut straight up from the outline
+// therefore sticks out of the rail everywhere else. These read the rail from
+// the file's own cross-sections so the plate can follow it, floor to bottom.
+const RAIL_NV = 200;
+
+// For one normalised section: the outermost u at each height v. Below the
+// bottom edge (where the rail turns into the bottom) the edge's u holds, so a
+// plate is never pulled in by the bottom's V or concave.
+function s3dxRailTable(poly) {
+  let apex = 0;
+  poly.forEach((p, i) => { if (p.u > poly[apex].u) apex = i; });
+  let e = apex;
+  while (e > 0 && Math.abs(poly[e].v - poly[e - 1].v) >= Math.abs(poly[e].u - poly[e - 1].u)) e--;
+  const edge = poly[e];
+  const U = new Float32Array(RAIL_NV + 1);
+  for (let k = 0; k <= RAIL_NV; k++) {
+    const v = k / RAIL_NV;
+    if (v <= edge.v) { U[k] = edge.u; continue; }
+    let best = 0;
+    for (let i = e + 1; i < poly.length; i++) {
+      const a = poly[i - 1], b = poly[i];
+      if ((a.v - v) * (b.v - v) <= 0 && a.v !== b.v) best = Math.max(best, a.u + (v - a.v) / (b.v - a.v) * (b.u - a.u));
+    }
+    U[k] = best;
+  }
+  return { U, edgeU: edge.u, edgeV: edge.v, apexU: poly[apex].u, apexV: poly[apex].v };
+}
+
+// The two sections either side of station x (cm) and how far between them.
+function s3dxCouplesAt(d, x) {
+  const cs = d && d.couples;
+  if (!cs || !cs.length) return null;
+  if (x <= cs[0].x) return [cs[0], cs[0], 0];
+  const last = cs[cs.length - 1];
+  if (x >= last.x) return [last, last, 0];
+  let i = 0;
+  while (i < cs.length - 2 && cs[i + 1].x <= x) i++;
+  return [cs[i], cs[i + 1], (x - cs[i].x) / Math.max(1e-9, cs[i + 1].x - cs[i].x)];
+}
+
+// The board's half-width (cm) at station x (cm) and height z (cm, the file's
+// own z: up from the bottom towards the deck), on the rail.
+function s3dxRailHalfWidth(d, x, z) {
+  const w = s3dxAt(d.outline, x);
+  const at = s3dxCouplesAt(d, x);
+  if (!at) return w;
+  const zb = s3dxAt(d.strBot, x, 'z'), zd = s3dxAt(d.strDeck, x, 'z');
+  const v = Math.max(0, Math.min(1, (z - zb) / Math.max(1e-6, zd - zb)));
+  const k = v * RAIL_NV, k0 = Math.floor(k), k1 = Math.min(RAIL_NV, k0 + 1), t = k - k0;
+  const uA = at[0].rail.U[k0] + t * (at[0].rail.U[k1] - at[0].rail.U[k0]);
+  const uB = at[1].rail.U[k0] + t * (at[1].rail.U[k1] - at[1].rail.U[k0]);
+  return w * (uA + at[2] * (uB - uA));
+}
+
+function s3dxResample(poly, n) {
+  const len = [0];
+  for (let i = 1; i < poly.length; i++) len.push(len[i - 1] + Math.hypot(poly[i].u - poly[i - 1].u, poly[i].v - poly[i - 1].v));
+  const total = len[len.length - 1] || 1, out = [];
+  let j = 1;
+  for (let k = 0; k < n; k++) {
+    const s = total * k / (n - 1);
+    while (j < poly.length - 1 && len[j] < s) j++;
+    const a = poly[j - 1], b = poly[j], f = (s - len[j - 1]) / Math.max(1e-12, len[j] - len[j - 1]);
+    out.push({ u: a.u + f * (b.u - a.u), v: a.v + f * (b.v - a.v) });
+  }
+  return out;
+}
+
+// The normalised section at station x: one side, bottom centre to deck centre.
+function s3dxSectionAt(d, x) {
+  const at = s3dxCouplesAt(d, x);
+  if (!at) return null;
+  let A = at[0].poly, B = at[1].poly;
+  if (A.length !== B.length) { A = s3dxResample(A, 120); B = s3dxResample(B, 120); }
+  const f = at[2];
+  return A.map((p, i) => ({ u: p.u + f * (B[i].u - p.u), v: p.v + f * (B[i].v - p.v) }));
+}
+
+// For the plate: the largest |Z| (mm) allowed at board X and world height Y.
+// Null when the plate should not follow a rail (STL boards, switched off, or a
+// Shape3D file without sections).
+function railLimiter(cutout) {
+  const d = s3dxData;
+  if (!d || !cutout || !cutout.fromS3dx || !s3dxParams.railFollow || !d.couples || !d.couples.length) return null;
+  const halfLen = d.length * 10 / 2, inset = s3dxParams.railInset || 0;
+  return (X, Y) => 10 * s3dxRailHalfWidth(d, (halfLen - X) / 10, -Y / 10) - inset;
+}
+
+// Pull every vertex of an extruded plate part in to the rail at its height.
+// Local shape coords: x along the length (mirror applied), y across from minZ,
+// z up from the plate's floor.
+function railClampGeometry(geom, limit, c) {
+  const pos = geom.attributes.position;
+  let moved = 0;
+  for (let i = 0; i < pos.count; i++) {
+    const lx = pos.getX(i), ly = pos.getY(i);
+    const X = c.minX + (c.mirrored ? c.plateW - lx : lx);
+    const Z = c.minZ + ly;
+    const L = limit(X, c.flatY + pos.getZ(i));
+    if (L > 0 && Math.abs(Z) > L) { pos.setY(i, Math.sign(Z) * L - c.minZ); moved++; }
+  }
+  if (moved) { pos.needsUpdate = true; geom.computeVertexNormals(); }
+  return moved;
 }
 
 // Rank layers so the most likely cut-out comes first:
@@ -753,6 +892,7 @@ function s3dxBuildCutouts() {
 // tool, which expects a boardGeometry, keeps working). Built from the outline
 // and rocker, trimmed at the tail cut, and flipped so the cut-outs face up.
 function s3dxBuildBoardGeometry() {
+  if (s3dxData && s3dxData.couples && s3dxData.couples.length) return s3dxBuildBoardFromSections();
   const d = s3dxData;
   const halfLen = d.length * 10 / 2;
   const NX = 140, NW = 14;
@@ -796,6 +936,110 @@ function s3dxBuildBoardGeometry() {
   geom.computeVertexNormals();
   geom.computeBoundingBox();
   return geom;
+}
+
+// The board from its real cross-sections: a ring per station, each ring the
+// section there (bottom, rail, deck) scaled to the outline and the rockers.
+function s3dxBuildBoardFromSections() {
+  const d = s3dxData;
+  const halfLen = d.length * 10 / 2;
+  const NX = 160;
+  const x0 = Math.max(0, Math.min(s3dxParams.tailCut, d.length - 1));
+  const verts = [];
+  const tri = (a, b, c) => verts.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+  const rings = [];
+  for (let i = 0; i <= NX; i++) {
+    const x = x0 + (d.length - x0) * i / NX;
+    const w = Math.max(0.05, s3dxAt(d.outline, x)) * 10;
+    const zb = s3dxAt(d.strBot, x, 'z'), zd = s3dxAt(d.strDeck, x, 'z');
+    const sec = s3dxSectionAt(d, x);
+    const X = halfLen - x * 10;
+    const at = p => -(zb + p.v * (zd - zb)) * 10;   // flipped: the bottom faces up
+    const ring = sec.map(p => [X, at(p), -p.u * w]);
+    for (let k = sec.length - 2; k >= 1; k--) ring.push([X, at(sec[k]), sec[k].u * w]);
+    rings.push(ring);
+  }
+  for (let i = 0; i < rings.length - 1; i++) {
+    const A = rings[i], B = rings[i + 1], n = A.length;
+    for (let k = 0; k < n; k++) {
+      const k2 = (k + 1) % n;
+      tri(A[k], A[k2], B[k2]);
+      tri(A[k], B[k2], B[k]);
+    }
+  }
+  [rings[0], rings[rings.length - 1]].forEach(R => {
+    const c = [R[0][0], R.reduce((s2, p) => s2 + p[1], 0) / R.length, 0];
+    for (let k = 0; k < R.length; k++) tri(c, R[k], R[(k + 1) % R.length]);
+  });
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geom.computeVertexNormals();
+  geom.computeBoundingBox();
+  return geom;
+}
+
+// A close-up of the rail at one station, for checking the fit by eye: the
+// board's real section, the recess floor, the plate edge that follows the rail
+// (blue) and the straight edge from the flat outline (red, dashed).
+function renderRailView() {
+  const svg = document.getElementById('s3dx-rail-svg'), read = document.getElementById('s3dx-rail-read');
+  const box = document.getElementById('s3dx-rail');
+  if (!svg || !read || !box) return;
+  const d = s3dxData;
+  if (!d || !d.couples || !d.couples.length) {
+    box.classList.toggle('hidden', !d);
+    svg.innerHTML = '';
+    read.textContent = 'This Shape3D file has no cross-sections, so the rail cannot be followed.';
+    return;
+  }
+  box.classList.remove('hidden');
+  const P = s3dxParams;
+  const x0 = Math.max(P.tailCut, 0.5), x1 = Math.max(x0, Math.min(P.forwardEdge, d.length));
+  const xs = P.railStation >= 0 ? Math.min(x1, Math.max(x0, P.railStation)) : Math.round((x0 + x1) / 2);
+  const w = s3dxAt(d.outline, xs) * 10;
+  const zb = s3dxAt(d.strBot, xs, 'z') * 10, zd = s3dxAt(d.strDeck, xs, 'z') * 10;
+  const floorZ = s3dxAt(d.strBot, (x0 + x1) / 2, 'z') * 10 + P.depth;
+  const railAt = z => 10 * s3dxRailHalfWidth(d, xs, z / 10);
+  const inset = P.railInset || 0;
+  const sec = s3dxSectionAt(d, xs).map(p => ({ y: p.u * w, z: zb + p.v * (zd - zb) }));
+
+  const yMin = w - 30, yMax = w + 6, zMin = zb - 4, zMax = floorZ + 8;
+  const W = 320, H = Math.max(160, Math.round(W * (zMax - zMin) / (yMax - yMin)));
+  const X = y => ((y - yMin) / (yMax - yMin) * W).toFixed(1);
+  const Y = z => ((z - zMin) / (zMax - zMin) * H).toFixed(1);
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  const board = 'M' + sec.map(p => `${X(p.y)},${Y(p.z)}`).join(' L') + ` L${X(yMin - 50)},${Y(sec[sec.length - 1].z)} L${X(yMin - 50)},${Y(sec[0].z)} Z`;
+  const top = zb, bottom = floorZ;
+  const follow = [], band = [];
+  for (let z = top; z <= bottom + 1e-6; z += 0.25) {
+    const y = Math.min(w, railAt(z)) - inset;
+    follow.push(`${X(y)},${Y(z)}`);
+  }
+  const edgeY = w - inset;
+  const plateTop = floorZ - plateA.thickness;
+  const platePoly = [];
+  for (let z = plateTop; z <= bottom + 1e-6; z += 0.25) platePoly.push(`${X(P.railFollow ? Math.min(w, railAt(z)) - inset : edgeY)},${Y(z)}`);
+  const plateShape = `M${X(yMin - 50)},${Y(plateTop)} L${platePoly.join(' L')} L${X(yMin - 50)},${Y(bottom)} Z`;
+
+  svg.innerHTML = `
+    <rect x="0" y="0" width="${W}" height="${H}" style="fill:var(--surface-2)"/>
+    <path d="${board}" style="fill:var(--surface);stroke:var(--text);stroke-width:1.4"/>
+    <rect x="0" y="${Y(top)}" width="${W}" height="${(bottom - top) / (zMax - zMin) * H}" style="fill:rgba(180,83,9,.08)"/>
+    <path d="${plateShape}" style="fill:rgba(14,165,233,.28)"/>
+    <line x1="0" x2="${W}" y1="${Y(floorZ)}" y2="${Y(floorZ)}" style="stroke:#b45309;stroke-width:1.2;stroke-dasharray:4 3"/>
+    <line x1="${X(edgeY)}" x2="${X(edgeY)}" y1="${Y(top)}" y2="${Y(bottom)}" style="stroke:#dc2626;stroke-width:1.4;stroke-dasharray:5 4"/>
+    <polyline points="${follow.join(' ')}" style="fill:none;stroke:#0284c7;stroke-width:2.2"/>
+    <text x="6" y="${Number(Y(top)) - 5}" style="font-size:10px;fill:var(--muted)">bottom</text>
+    <text x="6" y="${Number(Y(floorZ)) + 12}" style="font-size:10px;fill:#b45309">floor ${P.depth.toFixed(1)} mm</text>
+    <text x="${W - 6}" y="${H - 6}" text-anchor="end" style="font-size:10px;fill:var(--muted)">towards the deck ↓</text>`;
+
+  const atFloor = w - railAt(floorZ), atEdge = w - railAt(zb);
+  let worst = 0;
+  for (let z = top; z <= bottom; z += 0.25) worst = Math.max(worst, w - railAt(z));
+  read.innerHTML = `At <strong>${xs.toFixed(0)} cm</strong> from the tail: the rail at the floor is <strong>${atFloor.toFixed(1)} mm</strong> inside the flat outline, `
+    + `the bottom edge <strong>${atEdge.toFixed(1)} mm</strong> (most in the recess: ${worst.toFixed(1)} mm). `
+    + (P.railFollow ? 'Blue: the plate edge, following the rail. Red, dashed: the straight edge from the flat outline.' : 'Following the rail is off: the plate stands straight up at the red line.');
 }
 
 function s3dxRebuild() {
@@ -864,6 +1108,18 @@ function onS3dxLoaded(text, filename) {
 
 function renderS3dxControls() {
   const d = s3dxData;
+  const follow = document.getElementById('s3dx-rail-follow');
+  if (follow) follow.checked = !!s3dxParams.railFollow;
+  const station = document.getElementById('s3dx-rail-station');
+  if (station && d) {
+    station.innerHTML = '';
+    const max = Math.max(2, Math.round(Math.min(d.length, s3dxParams.forwardEdge + 20)));
+    const start = s3dxParams.railStation >= 0 ? s3dxParams.railStation : Math.round((Math.max(s3dxParams.tailCut, 0.5) + Math.min(s3dxParams.forwardEdge, d.length)) / 2);
+    station.appendChild(makeSlider('Look at the rail at (cm from the tail)', 0, max, 0.5, start, v => {
+      s3dxParams.railStation = v;
+      renderRailView();
+    }));
+  }
   document.querySelectorAll('[data-s3dx-slider]').forEach(el => {
     const key = el.dataset.s3dxSlider;
     let min = Number(el.dataset.min), max = Number(el.dataset.max);
@@ -2337,17 +2593,32 @@ function buildPlateGeometry(plate, cutoutKey) {
     if (mirrored) u = plateW - u;
     return { x: u, y: z - minZ };
   };
+  // Following the rail: every part of the plate is pulled in to the board's
+  // real rail at its own height (see railLimiter). Holes must clear the rail
+  // at every height the plate spans.
+  const rail = railLimiter(cutout);
+  const stackHeight = plate.thickness + plate.steps.filter(s => s.enabled).reduce((a, s) => a + (s.height || 0), 0);
+  const railClear = (h, r) => {
+    if (!rail) return true;
+    const z = (cutout.side === 'starboard') ? -h.z : h.z;
+    for (let k = 0; k <= 6; k++) if (Math.abs(z) + r + 0.5 > rail(h.x, cutout.flatY + stackHeight * k / 6)) return false;
+    return true;
+  };
   const holes = [];
-  let holesOutside = 0, holesTooClose = 0;
+  let holesOutside = 0, holesTooClose = 0, holesAtRail = 0;
   (plate.holes || []).forEach(h => {
     const r = Math.max(0.1, (h.d != null ? h.d : plate.holeDiameter) / 2);
     const pt = holeToLocal(h);
     if (!isPointInsidePolygon(pt, holePoly)) { holesOutside++; return; }
     if (distanceToPolygonEdge(pt, holePoly) <= r + 0.5) { holesTooClose++; return; }
+    if (!railClear(h, r)) { holesAtRail++; return; }
     holes.push({ pt, r, id: h.id });
   });
-  if (holesOutside) debugInfo.push(`${holesOutside} hole(s) outside the plate — not drilled`);
-  if (holesTooClose) debugInfo.push(`${holesTooClose} hole(s) too close to the edge — not drilled`);
+  if (holesOutside) debugInfo.push(`${holesOutside} hole(s) outside the plate, not drilled`);
+  if (holesTooClose) debugInfo.push(`${holesTooClose} hole(s) too close to the edge, not drilled`);
+  if (holesAtRail) debugInfo.push(`${holesAtRail} hole(s) too close to the rail, not drilled`);
+  const railCtx = { minX, minZ, plateW, mirrored, flatY: cutout.flatY };
+  const layers = depth => (rail ? Math.max(1, Math.ceil(depth / 1.5)) : 1);
 
   // Add holes to plate shape
   holes.forEach(h => {
@@ -2360,7 +2631,9 @@ function buildPlateGeometry(plate, cutoutKey) {
     depth: plate.thickness,
     bevelEnabled: false,
     curveSegments: 32,
+    steps: layers(plate.thickness),
   });
+  let railMoved = rail ? railClampGeometry(plateGeom, rail, railCtx) : 0;
 
   // Steps
   const stepGeoms = [];
@@ -2465,8 +2738,10 @@ function buildPlateGeometry(plate, cutoutKey) {
           depth: step.height,
           bevelEnabled: false,
           curveSegments: 32,
+          steps: layers(step.height),
         });
         geom.translate(0, 0, plate.thickness + stepBaseHeight);
+        if (rail) railMoved += railClampGeometry(geom, rail, railCtx);
         stepGeoms.push({ geom, stepId: step.id });
         built++;
       } catch (err) {
@@ -2485,6 +2760,8 @@ function buildPlateGeometry(plate, cutoutKey) {
     debugInfo.push(`Step ${stepIdx + 1}: ✓ ${step.mode === 'draw' ? 'drawn path' : 'simple'} (${pieceNote}, side ${cutout.side})`);
     if (step.cumulative) cumulativeHeight += step.height;
   });
+
+  if (rail) debugInfo.push(railMoved ? 'Follows the rail (Shape3D sections)' : 'Follows the rail: nothing to pull in');
 
   return {
     plateGeom,
@@ -2615,6 +2892,7 @@ function clipAgainstHalfplane(poly, nx, ny, c) {
 // ============================================================================
 function rebuildPlates() {
   syncTabBadges();
+  if (s3dxData) renderRailView();
   while (plateGroup.children.length) {
     const c = plateGroup.children[0];
     plateGroup.remove(c);
@@ -3742,6 +4020,11 @@ s3dxZone.addEventListener('drop', e => {
   e.preventDefault();
   s3dxZone.classList.remove('drag-over');
   if (e.dataTransfer.files.length) loadS3dxFile(e.dataTransfer.files[0]);
+});
+document.getElementById('s3dx-rail-follow').addEventListener('change', e => {
+  s3dxParams.railFollow = e.target.checked ? 1 : 0;
+  rebuildPlates();
+  if (currentTab === 'plate-a') renderPlateTab('a');
 });
 document.getElementById('s3dx-layer').addEventListener('change', e => {
   s3dxParams.layerIndex = Number(e.target.value);
