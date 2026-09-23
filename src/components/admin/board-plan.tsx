@@ -4,8 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { keyUrl } from "@/lib/img";
 import { PhotoLoadError, fitPhoto, matchPhoto, readPhotoMask, type PhotoFit, type PhotoMask } from "@/components/admin/board-photo-outline";
 import {
-  BOARD_METRICS, BOARD_METRIC_BY_KEY, effectiveValue, exactValue, fmtReading, methodForScale, metricUnit, round, riseMarkerStation,
-  rockerReadout, smoothPath, toMm, topPhoto, widestPoint, zeroCrossing,
+  BOARD_METRICS, BOARD_METRIC_BY_KEY, effectiveValue, exactValue, fmtReading, interpolate, methodForScale, metricUnit, round, riseMarkerStation,
+  rockerReadout, seriesPoints, smoothPath, toMm, topPhoto, widestPoint, zeroCrossing,
   type BoardPhoto, type PdBoard, type PdBoardCutout, type PdBoardPoint, type PdBoardSeries, type SeriesPoints,
 } from "@/lib/board-measurements";
 
@@ -29,7 +29,28 @@ import {
  *      The factor is a control, it is drawn in the corner, and 1:1 is always
  *      one click away — an unlabelled exaggeration is how a 3 mm V ends up
  *      looking like a wave board's.
+ *
+ *   4. A slice can be looked at ANYWHERE, and between two readings its values
+ *      are THEORETICAL: read off the same monotone curve between the two
+ *      neighbouring readings, never past the first or the last one, and always
+ *      marked (≈, dashed, "theoretical"), never stored. Nico, 2026-09-23: "keep
+ *      it separate from the real plan that we measured, or at least mark
+ *      theoretical numbers. But I would like to see measurements at whichever
+ *      slice I want."
  */
+
+/** A theoretical value between two readings, or null: at a reading (that is a
+ *  measurement), outside the readings (never extrapolated), or with fewer than
+ *  two readings (one thickness at 90 cm says nothing about 60). */
+function theoryAt(pts: SeriesPoints, station: number): { value: number; from: number; to: number } | null {
+  if (pts.length < 2 || pts.some((p) => p.station === station)) return null;
+  if (station < pts[0].station || station > pts[pts.length - 1].station) return null;
+  const v = interpolate(pts, station);
+  if (v == null) return null;
+  let i = 0;
+  while (i < pts.length - 2 && pts[i + 1].station < station) i++;
+  return { value: v, from: pts[i].station, to: pts[i + 1].station };
+}
 
 type Props = {
   board: PdBoard;
@@ -58,6 +79,7 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
   const [view, setView] = useState<View>("outline");
   const [exag, setExag] = useState(6);
   const [station, setStation] = useState<number | null>(null);
+  const [theory, setTheory] = useState(true);
   const [labels, setLabels] = useState(true);
   const [photoOn, setPhotoOn] = useState(true);
   const [matchOn, setMatchOn] = useState(false);
@@ -105,6 +127,8 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
   }, [measuredStations, coverage]);
 
   const anyData = points.some((p) => p.value != null);
+  // A click on the outline or the rocker opens the slice there.
+  const pickSlice = (st: number) => { setStation(st); setView("section"); };
 
   if (!anyData) {
     return (
@@ -144,17 +168,34 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
           </label>
         )}
 
-        {view === "section" && measuredStations.length > 0 && (
-          <label className="flex items-center gap-2 text-xs admin-muted">
-            Station
-            <select className="px-2 py-1 admin-input border rounded text-xs" value={station ?? fullestStation}
-              onChange={(e) => setStation(Number(e.target.value))}>
-              {measuredStations.map((s) => (
-                <option key={s} value={s}>{s} cm · {(coverage.get(s) ?? []).join(" ") || "—"}</option>
-              ))}
-            </select>
-            <span className="text-[10px] admin-faint">W width · V · C concave · T thickness</span>
-          </label>
+        {view === "section" && (
+          <div className="flex flex-wrap items-center gap-3 text-xs admin-muted">
+            <label className="flex items-center gap-2" title="Any station: between readings the values are theoretical and marked">
+              Slice at
+              <input type="range" min={Math.floor(stations.min)} max={Math.ceil(stations.max)} step={1}
+                value={station ?? fullestStation} onChange={(e) => setStation(Number(e.target.value))} className="w-40 accent-[var(--admin-accent)]" />
+              <input type="number" className="w-16 px-2 py-1 admin-input border rounded text-xs text-right" value={station ?? fullestStation}
+                onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStation(v); }} />
+              cm
+            </label>
+            {measuredStations.length > 0 && (
+              <label className="flex items-center gap-2">
+                Measured
+                <select className="px-2 py-1 admin-input border rounded text-xs"
+                  value={measuredStations.includes(station ?? fullestStation) ? (station ?? fullestStation) : ""}
+                  onChange={(e) => setStation(Number(e.target.value))}>
+                  {!measuredStations.includes(station ?? fullestStation) && <option value="">between readings</option>}
+                  {measuredStations.map((s) => (
+                    <option key={s} value={s}>{s} cm · {(coverage.get(s) ?? []).join(" ") || "—"}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="flex items-center gap-1.5" title="Between readings: values read off the curve between the two neighbouring readings, marked ≈">
+              <input type="checkbox" checked={theory} onChange={(e) => setTheory(e.target.checked)} />
+              Theoretical in between
+            </label>
+          </div>
         )}
 
         {view === "outline" && top && (
@@ -181,19 +222,19 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
 
       {view === "outline" && (
         <OutlineView board={board} width={width} widthTop={widthTop} cutouts={cutouts} stations={stations} labels={labels}
-          photo={photoOn ? top : null} match={matchOn} />
+          photo={photoOn ? top : null} match={matchOn} slice={station} onPick={pickSlice} />
       )}
       {view === "rocker" && (
         <RockerView board={board} rocker={rocker} rockerOff={rockerOff}
           rockerOffNote={series.find((x) => x.metric === "rocker_off")?.convention ?? null}
-          thickness={thickness} points={points} stations={stations} exag={exag} labels={labels} />
+          thickness={thickness} points={points} stations={stations} exag={exag} labels={labels} slice={station} onPick={pickSlice} />
       )}
       {view === "section" && (
-        <SliceReadout board={board} station={station ?? fullestStation} points={points} series={series} />
+        <SliceReadout board={board} station={station ?? fullestStation} points={points} series={series} theory={theory} />
       )}
       {view === "section" && (
         <SectionView board={board} series={series}
-          station={station ?? fullestStation}
+          station={station ?? fullestStation} theory={theory}
           width={width} widthTop={widthTop} vee={vee} concave={concave} thickness={thickness} railT={railT} exag={exag} />
       )}
     </div>
@@ -302,9 +343,10 @@ function usePhotoFit(board: PdBoard, photo: BoardPhoto | null, width: SeriesPoin
   return { url, mask, fit, state };
 }
 
-function OutlineView({ board, width, widthTop, cutouts, stations, labels, photo, match }: {
+function OutlineView({ board, width, widthTop, cutouts, stations, labels, photo, match, slice, onPick }: {
   board: PdBoard; width: SeriesPoints; widthTop: SeriesPoints; cutouts: PdBoardCutout[];
   stations: { min: number; max: number }; labels: boolean; photo: BoardPhoto | null; match: boolean;
+  slice: number | null; onPick: (station: number) => void;
 }) {
   const PAD = 34;
   const W = 900;
@@ -353,9 +395,16 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, photo,
   // Rail wrap where both were read at the same station, at the widest top.
   const wrapAt = wideTop ? width.find((p) => p.station === wideTop.station) : null;
 
+  const pick = (e: React.MouseEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const st = stations.min + (((e.clientX - r.left) / r.width) * W - PAD) / pxPerCm;
+    if (st >= stations.min && st <= stations.max) onPick(Math.round(st));
+  };
+
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} {...frame}>
+      <svg viewBox={`0 0 ${W} ${H}`} {...frame} style={{ ...frame.style, cursor: "crosshair" }} onClick={pick}>
+        <title>Click anywhere to see the slice there</title>
         <Grid x0={stations.min} x1={stations.max} y0={-halfMaxMm / 10} y1={halfMaxMm / 10}
           toX={toX} toY={(cm) => centre - cm * pxPerCm} step={10} major={50}
           axisLabel={`cm from the ${board.station_origin}`} />
@@ -434,6 +483,13 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, photo,
         {/* Upper curve: dots + labels (full width in cm) */}
         <Dots pts={upper} toX={toX} toY={toYhalf} color={upperCol} labels={labels} fmt={(v) => `${round(v / 5, 1)}`} />
 
+        {slice != null && slice >= stations.min && slice <= stations.max && (
+          <g>
+            <line x1={toX(slice)} x2={toX(slice)} y1={22} y2={H - 8} stroke="var(--admin-accent)" strokeWidth={1.2} strokeDasharray="4 3" />
+            <text x={toX(slice) + 4} y={H - 12} fontSize={9} fill="var(--admin-accent)">slice {slice} cm</text>
+          </g>
+        )}
+
         {/* Lower curve: with both series it carries the BOTTOM width labels */}
         {both && bottomHalf.map((p) => (
           <g key={`lb${p.station}`}>
@@ -506,10 +562,11 @@ function photoLines(shot: ReturnType<typeof usePhotoFit>, wanted: boolean): stri
 
 // ─── Rocker (side view) ──────────────────────────────────────────────────────
 
-function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points, stations, exag, labels }: {
+function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points, stations, exag, labels, slice, onPick }: {
   board: PdBoard; rocker: SeriesPoints; rockerOff: SeriesPoints; rockerOffNote: string | null;
   thickness: SeriesPoints; points: PdBoardPoint[];
   stations: { min: number; max: number }; exag: number; labels: boolean;
+  slice: number | null; onPick: (station: number) => void;
 }) {
   const PAD = 40;
   const W = 900;
@@ -539,11 +596,24 @@ function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points
     );
   }
 
+  const pick = (e: React.MouseEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const st = stations.min + (((e.clientX - r.left) / r.width) * W - PAD) / pxPerCm;
+    if (st >= stations.min && st <= stations.max) onPick(Math.round(st));
+  };
+
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} {...frame}>
+      <svg viewBox={`0 0 ${W} ${H}`} {...frame} style={{ ...frame.style, cursor: "crosshair" }} onClick={pick}>
+        <title>Click anywhere to see the slice there</title>
         <Grid x0={stations.min} x1={stations.max} y0={0} y1={maxY}
           toX={toX} toY={toY} step={10} major={50} axisLabel={`cm from the ${board.station_origin}`} />
+        {slice != null && slice >= stations.min && slice <= stations.max && (
+          <g>
+            <line x1={toX(slice)} x2={toX(slice)} y1={8} y2={H - 8} stroke="var(--admin-accent)" strokeWidth={1.2} strokeDasharray="4 3" />
+            <text x={toX(slice) + 4} y={16} fontSize={9} fill="var(--admin-accent)">slice {slice} cm</text>
+          </g>
+        )}
 
         {/* The straightedge the readings were taken off. */}
         <line x1={toX(stations.min)} x2={toX(stations.max)} y1={base} y2={base} stroke={INK} strokeWidth={1.2} opacity={0.6} />
@@ -632,25 +702,39 @@ function RockerView({ board, rocker, rockerOff, rockerOffNote, thickness, points
  *   deck        needs thickness here; falls to the rail thickness if that was
  *               read here too, else to the rail point.
  */
-function SectionView({ board, series, station, width, widthTop, vee, concave, thickness, railT, exag }: {
-  board: PdBoard; series: PdBoardSeries[]; station: number;
+function SectionView({ board, series, station, theory, width, widthTop, vee, concave, thickness, railT, exag }: {
+  board: PdBoard; series: PdBoardSeries[]; station: number; theory: boolean;
   width: SeriesPoints; widthTop: SeriesPoints; vee: SeriesPoints; concave: SeriesPoints;
   thickness: SeriesPoints; railT: SeriesPoints; exag: number;
 }) {
-  const w = exactValue(width, station);
-  const wt = exactValue(widthTop, station);
-  const v = exactValue(vee, station);
-  const c = exactValue(concave, station);
-  const t = exactValue(thickness, station);
-  const rt = exactValue(railT, station);
+  // Each value: measured here, or (with theory on) read off the curve between
+  // the two neighbouring readings and marked as such.
+  const theoretical: string[] = [];
+  const get = (pts: SeriesPoints, name: string): number | null => {
+    const m = exactValue(pts, station);
+    if (m != null) return m;
+    if (!theory) return null;
+    const th = theoryAt(pts, station);
+    if (!th) return null;
+    theoretical.push(name);
+    return th.value;
+  };
+  const w = get(width, "width");
+  const wt = get(widthTop, "top width");
+  const v = get(vee, "V");
+  const c = get(concave, "concave");
+  const t = get(thickness, "thickness");
+  const rt = get(railT, "rail");
+  const isTh = (name: string) => theoretical.includes(name);
   const concaveVariant = series.find((s) => s.metric === "concave")?.variant ?? "double";
 
   if (w == null) {
     return (
       <div className="py-12 text-center rounded-xl" style={{ border: "1px dashed var(--admin-border)" }}>
         <p className="text-sm admin-faint max-w-md mx-auto leading-relaxed">
-          No width reading at station {station}. The section needs one to know how wide to draw, and it
-          does not borrow from the neighbouring stations.
+          {theory
+            ? `No width at ${station} cm: it lies outside the width readings, and the plan does not extend a curve past its last reading.`
+            : `No width reading at station ${station}. Switch on “Theoretical in between” to see a slice between two readings.`}
         </p>
       </div>
     );
@@ -697,13 +781,17 @@ function SectionView({ board, series, station, width, widthTop, vee, concave, th
       }).join(" ")
     : "";
 
-  const have: string[] = [`bottom width ${round(w / 10, 1)} cm`];
-  if (wt != null) have.push(`top width ${round(wt / 10, 1)} cm`);
+  const have: string[] = [], theo: string[] = [];
+  const put = (name: string, text: string) => (isTh(name) ? theo : have).push(isTh(name) ? `≈ ${text}` : text);
+  put("width", `bottom width ${round(w / 10, 1)} cm`);
+  if (wt != null) put("top width", `top width ${round(wt / 10, 1)} cm`);
   const missing: string[] = [];
-  if (v != null) have.push(`V ${round(v, 2)} mm${v < 0 ? " (inverted)" : ""}`); else missing.push("V");
-  if (c != null) have.push(`${concaveVariant} concave ${round(c, 2)} mm`); else missing.push("concave");
-  if (t != null) have.push(`thickness ${round(t / 10, 1)} cm`); else missing.push("thickness");
-  if (rt != null) have.push(`rail ${round(rt, 1)} mm`); else if (t != null) missing.push("rail thickness");
+  if (v != null) put("V", `V ${round(v, 2)} mm${v < 0 ? " (inverted)" : ""}`); else missing.push("V");
+  if (c != null) put("concave", `${concaveVariant} concave ${round(c, 2)} mm`); else missing.push("concave");
+  if (t != null) put("thickness", `thickness ${round(t / 10, 1)} cm`); else missing.push("thickness");
+  if (rt != null) put("rail", `rail ${round(rt, 1)} mm`); else if (t != null) missing.push("rail thickness");
+  const bottomTh = isTh("width") || isTh("V") || isTh("concave");
+  const deckTh = isTh("thickness") || isTh("rail") || isTh("width");
 
   return (
     <div>
@@ -716,9 +804,10 @@ function SectionView({ board, series, station, width, widthTop, vee, concave, th
             fill="none" stroke={BOARD_METRIC_BY_KEY.v.color} strokeWidth={1} strokeDasharray="4 3" opacity={0.65} />
         )}
         {bottomPath && (
-          <path d={bottomPath} fill="none" stroke={c != null ? BOARD_METRIC_BY_KEY.concave.color : BOARD_METRIC_BY_KEY.v.color} strokeWidth={2.2} />
+          <path d={bottomPath} fill="none" stroke={c != null ? BOARD_METRIC_BY_KEY.concave.color : BOARD_METRIC_BY_KEY.v.color} strokeWidth={2.2}
+            strokeDasharray={bottomTh ? "6 4" : undefined} />
         )}
-        {deckPath && <path d={deckPath} fill="none" stroke={BOARD_METRIC_BY_KEY.thickness.color} strokeWidth={2} />}
+        {deckPath && <path d={deckPath} fill="none" stroke={BOARD_METRIC_BY_KEY.thickness.color} strokeWidth={2} strokeDasharray={deckTh ? "6 4" : undefined} />}
 
         {[-halfMm, halfMm].map((x) => (
           <g key={x}>
@@ -740,22 +829,25 @@ function SectionView({ board, series, station, width, widthTop, vee, concave, th
         <text x={W - PAD / 2} y={PAD / 2 + 4} textAnchor="end" fontSize={9} fill={FAINT}>
           station {station} cm · vertical ×{exag}
         </text>
-        <text x={PAD / 2} y={PAD / 2 + 4} fontSize={9} fill={FAINT}>
-          {round(w / 10, 1)} cm bottom width
+        <text x={PAD / 2} y={PAD / 2 + 4} fontSize={9} fill={isTh("width") ? "var(--admin-accent)" : FAINT}>
+          {isTh("width") ? "≈ " : ""}{round(w / 10, 1)} cm bottom width{isTh("width") ? " (theoretical)" : ""}
         </text>
-        {missing.length > 0 && (
+        {(missing.length > 0 || theoretical.length > 0) && (
           <text x={cx} y={PAD / 2 + 4} textAnchor="middle" fontSize={9} fill={FAINT}>
-            not measured here: {missing.join(", ")}
+            {theoretical.length > 0 ? `theoretical (dashed): ${theoretical.join(", ")}` : ""}
+            {theoretical.length > 0 && missing.length > 0 ? " · " : ""}
+            {missing.length > 0 ? `not known here: ${missing.join(", ")}` : ""}
           </text>
         )}
       </svg>
 
       <Caption lines={[
-        `Measured at ${station} cm: ${have.join(" · ")}.`,
+        have.length ? `Measured at ${station} cm: ${have.join(" · ")}.` : `Nothing was measured exactly at ${station} cm.`,
+        theo.length ? `Theoretical, between the neighbouring readings (dashed): ${theo.join(" · ")}. Read off the curve, never stored.` : "",
         missing.length
-          ? `Not measured at ${station} cm, so not drawn: ${missing.join(", ")}.${v == null ? " Without V the rails are placed on the reference plane; their real height is unknown." : ""}`
-          : "Every element of this section was measured at this station.",
-        "Nothing is read off a curve here. Pick a station with more readings for a fuller section.",
+          ? `Not known at ${station} cm, so not drawn: ${missing.join(", ")}.${v == null ? " Without V the rails are placed on the reference plane; their real height is unknown." : ""}`
+          : theo.length ? "" : "Every element of this section was measured at this station.",
+        theory ? "Click the outline or the rocker to slice anywhere." : "Only readings taken at this station are drawn. Switch on “Theoretical in between” to slice anywhere.",
         board.station_origin === "tail" ? "Looking forward from the tail." : "Looking aft from the nose.",
       ]} />
     </div>
@@ -773,17 +865,26 @@ function SectionView({ board, series, station, width, widthTop, vee, concave, th
  * bare number hides: a display scale ("×0.5 applied, read 2.1") and the note
  * written on the tape at that station ("Normal V from here").
  */
-function SliceReadout({ board, station, points, series }: {
-  board: PdBoard; station: number; points: PdBoardPoint[]; series: PdBoardSeries[];
+function SliceReadout({ board, station, points, series, theory }: {
+  board: PdBoard; station: number; points: PdBoardPoint[]; series: PdBoardSeries[]; theory: boolean;
 }) {
   const cells = BOARD_METRICS.map((m) => {
     const s = series.find((x) => x.metric === m.key) ?? null;
     const p = points.find((x) => x.metric === m.key && x.station === station);
     const unit = metricUnit(m.key, s);
     const onBoard = points.some((x) => x.metric === m.key && (x.value != null || x.text_value));
-    const base = { label: m.label, color: m.color, title: undefined as string | undefined };
+    const base = { label: m.label, color: m.color, title: undefined as string | undefined, theoretical: false };
 
     if (!p || (p.value == null && !p.text_value)) {
+      const th = theory && m.kind !== "choice" ? theoryAt(seriesPoints(points, m.key, s), station) : null;
+      if (th) {
+        return {
+          ...base, theoretical: true, missing: false,
+          value: `≈ ${fmtReading(m.key, round(th.value, 2), unit)}`,
+          hint: `theoretical, between ${th.from} and ${th.to} cm`,
+          title: `Not measured at ${station} cm. Read off the curve between the readings at ${th.from} and ${th.to} cm; never stored.`,
+        };
+      }
       return { ...base, value: "—", hint: onBoard ? `not measured at ${station} cm` : "not on this board", missing: true };
     }
     if (m.kind === "choice") {
@@ -818,16 +919,18 @@ function SliceReadout({ board, station, points, series }: {
     <div className="mb-4">
       <div className="text-[10px] font-bold tracking-[0.1em] admin-faint uppercase mb-1.5">
         At {station} cm from the {board.station_origin}
+        {cells.some((c) => c.theoretical) && <span className="normal-case tracking-normal font-semibold ml-2" style={{ color: "var(--admin-accent)" }}>≈ theoretical, between readings, never stored</span>}
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-9 gap-px rounded-xl overflow-hidden"
         style={{ border: "1px solid var(--admin-border)", backgroundColor: "var(--admin-border)" }}>
         {cells.map((c) => (
-          <div key={c.label} className="px-3 py-2.5" style={{ backgroundColor: "var(--admin-surface)" }}>
+          <div key={c.label} className="px-3 py-2.5" style={{ backgroundColor: "var(--admin-surface)" }} title={c.title}>
             <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-[0.08em] admin-faint uppercase">
               <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: c.color, opacity: c.missing ? 0.35 : 1 }} />
               <span className="truncate">{c.label}</span>
             </div>
-            <div className={`text-base font-bold leading-tight ${c.missing ? "admin-faint" : "admin-heading"}`}>{c.value}</div>
+            <div className={`text-base font-bold leading-tight ${c.missing ? "admin-faint" : c.theoretical ? "italic" : "admin-heading"}`}
+              style={c.theoretical ? { color: "var(--admin-accent)" } : undefined}>{c.value}</div>
             {c.hint && <div className="text-[10px] admin-faint truncate" title={c.title ?? c.hint}>{c.hint}</div>}
           </div>
         ))}
