@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { keyUrl } from "@/lib/img";
-import { fitPhoto, readPhotoMask, type PhotoFit, type PhotoMask } from "@/components/admin/board-photo-outline";
+import { PhotoLoadError, fitPhoto, matchPhoto, readPhotoMask, type PhotoFit, type PhotoMask } from "@/components/admin/board-photo-outline";
 import {
   BOARD_METRICS, BOARD_METRIC_BY_KEY, effectiveValue, exactValue, fmtReading, methodForScale, metricUnit, round, riseMarkerStation,
   rockerReadout, smoothPath, toMm, topPhoto, widestPoint, zeroCrossing,
@@ -60,6 +60,7 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
   const [station, setStation] = useState<number | null>(null);
   const [labels, setLabels] = useState(true);
   const [photoOn, setPhotoOn] = useState(true);
+  const [matchOn, setMatchOn] = useState(false);
   const top = topPhoto(board.photos);
 
   const width = useMemo(() => mmSeries(points, series, "width"), [points, series]);
@@ -162,6 +163,16 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
             Photo underneath
           </label>
         )}
+        {view === "outline" && top && photoOn && (
+          <button onClick={() => setMatchOn(!matchOn)} aria-pressed={matchOn}
+            title="Fit the picture onto our measured widths (scale, position, tail end, and the rail when they are bottom widths) instead of scaling it by the board's length alone"
+            className="px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors"
+            style={matchOn
+              ? { backgroundColor: "var(--admin-accent)", color: "var(--admin-accent-contrast)" }
+              : { border: "1px solid var(--admin-border)", color: "var(--admin-text-muted)" }}>
+            {matchOn ? "✓ Matched to our widths" : "Match to our widths"}
+          </button>
+        )}
         <label className={`flex items-center gap-1.5 text-xs admin-muted ${view === "outline" && top ? "" : "ml-auto"}`}>
           <input type="checkbox" checked={labels} onChange={(e) => setLabels(e.target.checked)} />
           Value labels
@@ -170,7 +181,7 @@ export function BoardPlan({ board, series, points, cutouts }: Props) {
 
       {view === "outline" && (
         <OutlineView board={board} width={width} widthTop={widthTop} cutouts={cutouts} stations={stations} labels={labels}
-          photo={photoOn ? top : null} />
+          photo={photoOn ? top : null} match={matchOn} />
       )}
       {view === "rocker" && (
         <RockerView board={board} rocker={rocker} rockerOff={rockerOff}
@@ -259,44 +270,46 @@ const frame = { className: "w-full rounded-xl", style: { border: "1px solid var(
 const PHOTO_COL = "#d946ef";
 
 /** Read the picture once, then fit it to the board whenever the readings change. */
-function usePhotoFit(board: PdBoard, photo: BoardPhoto | null, width: SeriesPoints, widthTop: SeriesPoints) {
+function usePhotoFit(board: PdBoard, photo: BoardPhoto | null, width: SeriesPoints, widthTop: SeriesPoints, match: boolean) {
   const url = photo ? keyUrl(photo.key) : null;
   // The result remembers which picture it belongs to, so "loading" is simply
   // "no result for this picture yet" and nothing is set synchronously.
-  const [read, setRead] = useState<{ url: string; mask: PhotoMask | null } | null>(null);
+  const [read, setRead] = useState<{ url: string; mask: PhotoMask | null; blocked?: boolean } | null>(null);
   useEffect(() => {
     if (!url) return;
     let alive = true;
     readPhotoMask(url)
       .then((m) => { if (alive) setRead({ url, mask: m }); })
-      .catch(() => { if (alive) setRead({ url, mask: null }); });
+      .catch((e) => { if (alive) setRead({ url, mask: null, blocked: e instanceof PhotoLoadError }); });
     return () => { alive = false; };
   }, [url]);
   const current = url && read?.url === url ? read : null;
   const mask = current?.mask ?? null;
-  const state: "idle" | "loading" | "failed" = !url ? "idle" : !current ? "loading" : mask ? "idle" : "failed";
+  const state: "idle" | "loading" | "failed" | "blocked" =
+    !url ? "idle" : !current ? "loading" : mask ? "idle" : current.blocked ? "blocked" : "failed";
   const fit = useMemo<PhotoFit | null>(() => {
     if (!mask) return null;
     const cm = (pts: SeriesPoints) => pts.map((p) => ({ station: p.station, value: p.value / 10 }));
-    return fitPhoto(mask, {
+    const opts = {
       lengthCm: board.length_cm ?? null,
       publishedLengthCm: board.research?.specs?.length_cm ?? null,
       origin: board.station_origin,
       measuredTop: cm(widthTop),
       measuredBottom: cm(width),
-    });
-  }, [mask, board.length_cm, board.research, board.station_origin, width, widthTop]);
+    };
+    return (match ? matchPhoto(mask, opts) : null) ?? fitPhoto(mask, opts);
+  }, [mask, match, board.length_cm, board.research, board.station_origin, width, widthTop]);
   return { url, mask, fit, state };
 }
 
-function OutlineView({ board, width, widthTop, cutouts, stations, labels, photo }: {
+function OutlineView({ board, width, widthTop, cutouts, stations, labels, photo, match }: {
   board: PdBoard; width: SeriesPoints; widthTop: SeriesPoints; cutouts: PdBoardCutout[];
-  stations: { min: number; max: number }; labels: boolean; photo: BoardPhoto | null;
+  stations: { min: number; max: number }; labels: boolean; photo: BoardPhoto | null; match: boolean;
 }) {
   const PAD = 34;
   const W = 900;
   const both = width.length > 0 && widthTop.length > 0;
-  const shot = usePhotoFit(board, photo, width, widthTop);
+  const shot = usePhotoFit(board, photo, width, widthTop, match);
   const photoHalf: SeriesPoints = shot.fit ? shot.fit.widths.map((p) => ({ station: p.station, value: (p.value * 10) / 2 })) : [];
   const allMm = [...width, ...widthTop, ...photoHalf.map((p) => ({ ...p, value: p.value * 2 }))].map((p) => p.value);
   const halfMaxMm = allMm.length ? Math.max(...allMm) / 2 : 300;
@@ -464,9 +477,20 @@ function OutlineView({ board, width, widthTop, cutouts, stations, labels, photo 
 function photoLines(shot: ReturnType<typeof usePhotoFit>, wanted: boolean): string[] {
   if (!wanted) return [];
   if (shot.state === "loading") return ["Reading the picture…"];
+  if (shot.state === "blocked") return ["The browser would not let the picture be read. Reload the page; if it stays, pick the picture again on the Photos tab."];
   if (shot.state === "failed") return ["The board's edge could not be found in the picture. A product shot on a transparent or plain background works best."];
   const f = shot.fit;
   if (!f) return shot.mask ? ["Add the board's length on Overview to lay the picture over the outline at true scale."] : [];
+  const m = f.match;
+  if (m) {
+    const lines = [
+      `Matched to our ${m.against === "top" ? "top (full)" : "bottom"} widths over ${m.n} stations: at this scale the picture is ${round(f.photoLengthCm, 1)} cm tip to tail`
+        + (m.byLengthCm ? ` (stated length ${m.byLengthCm} cm)` : "")
+        + `, ${f.shiftCm >= 0 ? "starting" : "ending"} ${round(Math.abs(f.shiftCm), 1)} cm ${f.shiftCm >= 0 ? "behind" : "past"} station 0, and fits within ${round(m.rmsCm, 1)} cm on average.`,
+    ];
+    if (m.against === "bottom") lines.push(`The rail: the picture's full outline sits ${round(m.railCm, 1)} cm a side outside our bottom widths, the rail wrap.`);
+    return lines;
+  }
   const from = f.scaleFrom === "length" ? "the board's length" : f.scaleFrom === "published length" ? "the published length" : "the widest top width";
   const lines = [`Picture scaled to ${round(f.lengthCm, 1)} cm from ${from}, tail on the left, and its edge traced in pink.`];
   const c = f.compare;

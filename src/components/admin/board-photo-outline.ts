@@ -31,7 +31,13 @@ export type PhotoFit = {
   cmPerPx: number;
   tailFirst: boolean;                  // the tail is at the top (vertical) or left (horizontal) of the picture
   lengthCm: number;
-  scaleFrom: "length" | "published length" | "top width";
+  scaleFrom: "length" | "published length" | "top width" | "our widths";
+  /** cm the picture's tail end sits behind station 0 (a matched fit moves it). */
+  shiftCm: number;
+  /** The picture's own tip-to-tail length at this scale. */
+  photoLengthCm: number;
+  /** Only for a match: the rail allowance found (cm a side, bottom widths) and how well it fits. */
+  match?: { against: "top" | "bottom"; railCm: number; rmsCm: number; n: number; byLengthCm: number | null };
   /** Full width in cm at each cm from the tail, drawn as the photo outline. */
   widths: SeriesPoints;
   /** SVG matrix placing the picture on the plan, given the plan's own scale. */
@@ -39,14 +45,21 @@ export type PhotoFit = {
   compare: { against: "top" | "bottom"; mean: number; maxAbs: number; at: number; n: number } | null;
 };
 
-/** Read the board's silhouette out of a picture. Null if no board edge is found. */
+/** Read the board's silhouette out of a picture. Null if no board edge is found;
+ *  throws PhotoLoadError when the browser would not let the pixels be read. */
+export class PhotoLoadError extends Error {}
 export async function readPhotoMask(url: string): Promise<PhotoMask | null> {
+  // The page shows this picture elsewhere as a plain <img>. The CDN answers a
+  // plain request without CORS headers, marks it immutable for a year and does
+  // not say "Vary: Origin", so the browser would hand this pixel-reading
+  // request that cached copy and refuse it. Its own address gets its own copy.
+  const src = url + (url.includes("?") ? "&" : "?") + "cors=1";
   const img = await new Promise<HTMLImageElement>((resolve, reject) => {
     const i = new Image();
     i.crossOrigin = "anonymous";
     i.onload = () => resolve(i);
-    i.onerror = () => reject(new Error("The picture did not load."));
-    i.src = url;
+    i.onerror = () => reject(new PhotoLoadError("The picture did not load."));
+    i.src = src;
   });
   const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
@@ -120,16 +133,24 @@ export async function readPhotoMask(url: string): Promise<PhotoMask | null> {
  * @param measuredTop  full widths ("Width (top)"), cm, station from the origin
  * @param measuredBottom bottom widths, cm, station from the origin
  */
+type FitOpts = { lengthCm: number | null; publishedLengthCm: number | null; origin: "tail" | "nose"; measuredTop: SeriesPoints; measuredBottom: SeriesPoints };
+
 export function fitPhoto(
   m: PhotoMask,
-  opts: { lengthCm: number | null; publishedLengthCm: number | null; origin: "tail" | "nose"; measuredTop: SeriesPoints; measuredBottom: SeriesPoints },
+  opts: FitOpts,
+  force?: { cmPerPx: number; shiftCm: number; tailFirst: boolean },
 ): PhotoFit | null {
   const longPx = m.vertical ? m.y1 - m.y0 : m.x1 - m.x0;
   const n = m.across.length;
   let lengthCm = opts.lengthCm ?? opts.publishedLengthCm ?? null;
   let scaleFrom: PhotoFit["scaleFrom"] = opts.lengthCm ? "length" : "published length";
   let cmPerPx: number;
-  if (lengthCm) {
+  const shift = force?.shiftCm ?? 0;
+  if (force) {
+    cmPerPx = force.cmPerPx;
+    lengthCm = lengthCm ?? longPx * cmPerPx;
+    scaleFrom = "our widths";
+  } else if (lengthCm) {
     cmPerPx = lengthCm / longPx;
   } else if (opts.measuredTop.length) {
     // No length anywhere: the widest full width we measured sets the scale.
@@ -147,9 +168,12 @@ export function fitPhoto(
     return k >= 0 && k < n ? m.across[k] * cmPerPx : null;
   };
   // Station on the plan → distance from the picture's start, both ways round.
+  // The picture's own length (long side × scale) runs from its tail end, which
+  // sits `shift` cm behind station 0.
+  const photoLen = longPx * cmPerPx;
   const fromStart = (station: number, tailFirst: boolean) => {
-    const fromTail = opts.origin === "tail" ? station : (lengthCm as number) - station;
-    return tailFirst ? fromTail : (lengthCm as number) - fromTail;
+    const fromTail = (opts.origin === "tail" ? station : (lengthCm as number) - station) + shift;
+    return tailFirst ? fromTail : photoLen - fromTail;
   };
 
   const against = opts.measuredTop.length ? "top" : opts.measuredBottom.length ? "bottom" : null;
@@ -166,7 +190,7 @@ export function fitPhoto(
   };
   // Product shots stand the board up nose first, so with nothing to compare
   // against, the tail is at the bottom (or the right).
-  const tailFirst = ref.length ? score(true) < score(false) : false;
+  const tailFirst = force ? force.tailFirst : ref.length ? score(true) < score(false) : false;
 
   const widths: SeriesPoints = [];
   const L = lengthCm as number;
@@ -204,7 +228,7 @@ export function fitPhoto(
       const tailAtTop = tailFirst;
       // fromTail = tailAtTop ? (y - y0)k : (y1 - y)k ; station = tailLeft ? fromTail : L - fromTail
       const sign = (tailAtTop ? 1 : -1) * (tailLeft ? 1 : -1);
-      const base = tailAtTop ? -m.y0 * k : m.y1 * k;       // fromTail = sign0*y*k + base
+      const base = (tailAtTop ? -m.y0 * k : m.y1 * k) - shift;   // the picture's tail end sits `shift` behind 0
       const stationConst = tailLeft ? base : L - base;
       const c = sign * kp;
       const e = pad + (stationConst - min) * p;
@@ -215,7 +239,7 @@ export function fitPhoto(
     }
     const tailAtLeft = tailFirst;
     const sign = (tailAtLeft ? 1 : -1) * (tailLeft ? 1 : -1);
-    const base = tailAtLeft ? -m.x0 * k : m.x1 * k;
+    const base = (tailAtLeft ? -m.x0 * k : m.x1 * k) - shift;
     const stationConst = tailLeft ? base : L - base;
     const a = sign * kp;
     const e = pad + (stationConst - min) * p;
@@ -224,5 +248,59 @@ export function fitPhoto(
     return `matrix(${a} 0 0 ${d} ${e} ${f})`;
   };
 
-  return { cmPerPx, tailFirst, lengthCm: L, scaleFrom, widths, matrix, compare };
+  return { cmPerPx, tailFirst, lengthCm: L, scaleFrom, shiftCm: shift, photoLengthCm: photoLen, widths, matrix, compare };
+}
+
+/**
+ * "Match to our widths": instead of trusting the board's length alone, find the
+ * scale, the offset along the board and which end is the tail that lay the
+ * picture's outline best over what we measured. Against bottom widths the
+ * picture is expected to be wider by the rail, so a constant rail allowance
+ * (cm a side, never negative) is solved for too and reported, not fitted away.
+ */
+export function matchPhoto(m: PhotoMask, opts: FitOpts): PhotoFit | null {
+  const against = opts.measuredTop.length >= 3 ? "top" : opts.measuredBottom.length >= 3 ? "bottom" : null;
+  if (!against) return null;
+  const pts = against === "top" ? opts.measuredTop : opts.measuredBottom;
+  const longPx = m.vertical ? m.y1 - m.y0 : m.x1 - m.x0;
+  const n = m.across.length;
+  const byLength = opts.lengthCm ?? opts.publishedLengthCm ?? null;
+  const start = byLength ? byLength / longPx : Math.max(...pts.map((p) => p.value)) / Math.max(...Array.from(m.across));
+  const END_CM = 3;
+
+  const cost = (k: number, shift: number, tailFirst: boolean) => {
+    const L = byLength ?? longPx * k;
+    const photoLen = longPx * k;
+    const d: number[] = [];
+    for (const p of pts) {
+      const fromTail = opts.origin === "tail" ? p.station : L - p.station;
+      if (fromTail < END_CM || fromTail > L - END_CM) continue;
+      const pos = (tailFirst ? fromTail + shift : photoLen - (fromTail + shift)) / k;
+      const i = Math.round(pos);
+      if (i < 0 || i >= n || m.across[i] <= 0) continue;
+      d.push(m.across[i] * k - p.value);
+    }
+    if (d.length < Math.min(5, pts.length)) return null;
+    const mean = d.reduce((a, b) => a + b, 0) / d.length;
+    const rail = against === "bottom" ? Math.max(0, mean) / 2 : 0;
+    const rms = Math.sqrt(d.reduce((a, b) => a + (b - 2 * rail) ** 2, 0) / d.length);
+    return { rms, rail, n: d.length };
+  };
+
+  let best: { k: number; shift: number; tailFirst: boolean; rms: number; rail: number; n: number } | null = null;
+  const tryAt = (k: number, shift: number, tailFirst: boolean) => {
+    const c = cost(k, shift, tailFirst);
+    if (c && (!best || c.rms < best.rms)) best = { k, shift, tailFirst, ...c };
+  };
+  for (const tailFirst of [true, false]) {
+    for (let f = 0.9; f <= 1.1001; f += 0.005) for (let sh = -8; sh <= 8.001; sh += 0.5) tryAt(start * f, sh, tailFirst);
+  }
+  if (!best) return null;
+  const coarse = best as { k: number; shift: number; tailFirst: boolean };
+  for (let f = -0.006; f <= 0.006001; f += 0.0005) for (let sh = -0.6; sh <= 0.6001; sh += 0.1) tryAt(coarse.k * (1 + f), coarse.shift + sh, coarse.tailFirst);
+  const b = best as unknown as { k: number; shift: number; tailFirst: boolean; rms: number; rail: number; n: number };
+
+  const fit = fitPhoto(m, opts, { cmPerPx: b.k, shiftCm: b.shift, tailFirst: b.tailFirst });
+  if (!fit) return null;
+  return { ...fit, match: { against, railCm: b.rail, rmsCm: b.rms, n: b.n, byLengthCm: byLength } };
 }
