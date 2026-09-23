@@ -616,6 +616,45 @@
     done(null);
   }
 
+  // Old work from before projects existed: a board file and/or the design
+  // file saved with "Download .json". Picked together, they become one project.
+  async function importFiles(files) {
+    files = Array.from(files || []);
+    if (!files.length || np7.busy) return;
+    var board = files.find(function (f) { return /\.(stl|s3dx|xml)$/i.test(f.name); });
+    var json = files.find(function (f) { return /\.json$/i.test(f.name); });
+    if (!board && !json) { window.alert('Pick a board file (.stl or .s3dx) and/or a design file (.json).'); return; }
+    await check();
+    if (isDirty() && !window.confirm('Your changes are not saved. Import anyway?')) return;
+    closeList();
+    clearBoard();
+    np7.project = null;
+    np7.savedSnap = null;
+    nameInput.value = '';
+    setUrl();
+    try {
+      if (board) {
+        setBusy('Loading ' + board.name + '…');
+        await loadBoard(board, /\.stl$/i.test(board.name) ? 'stl' : 's3dx');
+        if (/\.stl$/i.test(board.name)) detectCutouts();
+      }
+      if (json) {
+        setBusy('Loading ' + json.name + '…');
+        var design = JSON.parse(await json.text());
+        if (board && /\.stl$/i.test(board.name) && design.detection) { restoreDetection(design.detection); detectCutouts(); }
+        await applyDesign(design);
+      }
+      if (detectedCutouts.A) switchTab('plate-a');
+      done(null);
+      var base = (json || board).name.replace(/\.(json|stl|s3dx|xml)$/i, '').replace(/[_-]+/g, ' ').trim();
+      nameInput.value = base;
+      await check();
+      save(false);
+    } catch (e) {
+      done(e.message || 'Import failed.', 'err');
+    }
+  }
+
   async function removeProject(p) {
     if (!window.confirm('Delete "' + p.name + '"?\n\nIt goes to the Archive and can be restored there.')) return;
     var r = await api('DELETE', API + '/' + p.id);
@@ -648,7 +687,16 @@
   var foot = el('div', 'npp-mfoot');
   var footNote = el('span', '', 'Board files are kept private. Deleted projects go to the Archive.');
   var newBtn2 = el('button', 'np-btn np-btn-soft np-btn-sm', '+ New project');
-  foot.append(footNote, newBtn2);
+  var importBtn = el('button', 'np-btn np-btn-ghost np-btn-sm', 'Import files');
+  importBtn.title = 'Old work: pick the board file (.stl / .s3dx) and its design (.json) together, they become one project';
+  var importInput = el('input');
+  importInput.type = 'file';
+  importInput.multiple = true;
+  importInput.accept = '.json,.stl,.s3dx,.xml,application/json';
+  importInput.style.display = 'none';
+  var footBtns = el('span', 'flex items-center gap-2 shrink-0');
+  footBtns.append(importBtn, newBtn2, importInput);
+  foot.append(footNote, footBtns);
   modal.append(head, listEl, foot);
   overlay.append(modal);
   document.body.append(overlay);
@@ -725,6 +773,8 @@
   copyBtn.addEventListener('click', function () { save(true); });
   newBtn.addEventListener('click', newProject);
   newBtn2.addEventListener('click', newProject);
+  importBtn.addEventListener('click', function () { importInput.click(); });
+  importInput.addEventListener('change', function (e) { var f = e.target.files; importFiles(f); e.target.value = ''; });
   closeBtn.addEventListener('click', closeList);
   search.addEventListener('input', renderList);
   overlay.addEventListener('click', function (e) { if (e.target === overlay) closeList(); });

@@ -703,11 +703,15 @@ const RAIL_NV = 200;
 // For one normalised section: the outermost u at each height v. Below the
 // bottom edge (where the rail turns into the bottom) the edge's u holds, so a
 // plate is never pulled in by the bottom's V or concave.
-function s3dxRailTable(poly) {
+function s3dxEdgeIndex(poly) {
   let apex = 0;
   poly.forEach((p, i) => { if (p.u > poly[apex].u) apex = i; });
   let e = apex;
   while (e > 0 && Math.abs(poly[e].v - poly[e - 1].v) >= Math.abs(poly[e].u - poly[e - 1].u)) e--;
+  return { e, apex };
+}
+function s3dxRailTable(poly) {
+  const { e, apex } = s3dxEdgeIndex(poly);
   const edge = poly[e];
   const U = new Float32Array(RAIL_NV + 1);
   for (let k = 0; k <= RAIL_NV; k++) {
@@ -939,26 +943,115 @@ function s3dxBuildBoardGeometry() {
 }
 
 // The board from its real cross-sections: a ring per station, each ring the
-// section there (bottom, rail, deck) scaled to the outline and the rockers.
+// section there (bottom, rail, deck) scaled to the outline and the rockers,
+// with the cut-out cut into it: between the inner edge and the rail, down to
+// the recess floor, over the cut-out's length. So a Shape3D board shows its
+// recesses (and the plates sitting in them) the way an STL does.
+//
+// Every ring has the same number of points in the same order, notched or not:
+// bottom to the inner edge · inner wall · floor (or bottom) · outer wall ·
+// remaining bottom · rail and deck. Outside the cut-out the walls and floor
+// collapse onto the bottom. At the cut-out's ends a plain and a notched ring
+// share one station, which gives the recess its end walls.
 function s3dxBuildBoardFromSections() {
   const d = s3dxData;
+  const P = s3dxParams;
+  const layer = d.layers[P.layerIndex];
   const halfLen = d.length * 10 / 2;
-  const NX = 160;
-  const x0 = Math.max(0, Math.min(s3dxParams.tailCut, d.length - 1));
+  const NX = 180, NA = 8, NC = 18, NE = 6, NF = 56;
+  const xStart = Math.max(0, Math.min(P.tailCut, d.length - 1));
+  const cx0 = Math.max(P.tailCut, 0), cx1 = Math.min(P.forwardEdge, d.length);
+  const hasCut = cx1 - cx0 >= 0.5;
+  const zFloor = s3dxAt(d.strBot, (cx0 + cx1) / 2, 'z') * 10 + P.depth;   // mm, the tool's flat floor
+  const yIn = P.innerEdge;                                                // mm from the centreline
+
+  const lerp = (a, b, t) => a + (b - a) * t;
+  function resample(pts, n) {
+    const len = [0];
+    for (let i = 1; i < pts.length; i++) len.push(len[i - 1] + Math.hypot(pts[i].y - pts[i - 1].y, pts[i].z - pts[i - 1].z));
+    const total = len[len.length - 1] || 1, out = [];
+    let j = 1;
+    for (let k = 0; k < n; k++) {
+      const t = total * k / (n - 1);
+      while (j < pts.length - 1 && len[j] < t) j++;
+      const a = pts[j - 1], b = pts[j], f = (t - len[j - 1]) / Math.max(1e-9, len[j] - len[j - 1]);
+      out.push({ y: lerp(a.y, b.y, f), z: lerp(a.z, b.z, f) });
+    }
+    return out;
+  }
+
+  // One side of the section (y >= 0, z = the file's height in mm), notched or not.
+  function side(x, notch) {
+    const w = Math.max(0.05, s3dxAt(d.outline, x)) * 10;
+    const zb = s3dxAt(d.strBot, x, 'z') * 10, zd = s3dxAt(d.strDeck, x, 'z') * 10;
+    const norm = s3dxSectionAt(d, x);
+    const { e } = s3dxEdgeIndex(norm);
+    const sec = norm.map(p => ({ y: p.u * w, z: zb + p.v * (zd - zb) }));
+    const bottom = sec.slice(0, e + 1);
+    const yEdge = sec[e].y;
+    const zOn = y => {                                   // the bottom surface at y
+      if (y <= bottom[0].y) return bottom[0].z;
+      for (let i = 1; i < bottom.length; i++) {
+        if (bottom[i].y >= y) return lerp(bottom[i - 1].z, bottom[i].z, (y - bottom[i - 1].y) / Math.max(1e-9, bottom[i].y - bottom[i - 1].y));
+      }
+      return bottom[bottom.length - 1].z;
+    };
+    const rail = resample(sec.slice(e), NF);            // edge → deck centre
+
+    const yOut = s3dxOuterY(d, layer, x) * 10 - (P.railInset || 0);
+    const railAtFloor = 10 * s3dxRailHalfWidth(d, x, zFloor / 10);
+    const open = yOut >= Math.min(railAtFloor, yEdge) - 0.5;   // the recess runs out through the rail
+    const yA = Math.min(yIn, yEdge * 0.98);
+    const cut = notch && yIn < Math.min(yOut, railAtFloor) - 0.5 && zFloor > zOn(yIn) + 0.2;
+
+    const pts = [];
+    for (let k = 0; k < NA; k++) { const y = yA * k / (NA - 1); pts.push({ y, z: zOn(y) }); }
+    if (!cut) {
+      pts.push({ y: yA, z: zOn(yA) }, { y: yA, z: zOn(yA) });
+      for (let k = 0; k < NC; k++) { const y = lerp(yA, yEdge, k / (NC - 1)); pts.push({ y, z: zOn(y) }); }
+      for (let k = 0; k < 2 + NE; k++) pts.push({ y: yEdge, z: sec[e].z });
+      rail.forEach(p => pts.push(p));
+      return pts;
+    }
+    const yFloorEnd = open ? railAtFloor : yOut;
+    pts.push({ y: yIn, z: zOn(yIn) }, { y: yIn, z: zFloor });                        // inner wall
+    for (let k = 0; k < NC; k++) pts.push({ y: lerp(yIn, yFloorEnd, k / (NC - 1)), z: zFloor });   // floor
+    if (open) {
+      for (let k = 0; k < 2 + NE; k++) pts.push({ y: railAtFloor, z: zFloor });
+      // The rail below the floor is cut away: those points sit on the floor's end.
+      rail.forEach(p => pts.push(p.z < zFloor ? { y: railAtFloor, z: zFloor } : p));
+    } else {
+      pts.push({ y: yOut, z: zFloor }, { y: yOut, z: zOn(yOut) });                  // outer wall
+      for (let k = 0; k < NE; k++) { const y = lerp(yOut, yEdge, k / (NE - 1)); pts.push({ y, z: zOn(y) }); }
+      rail.forEach(p => pts.push(p));
+    }
+    return pts;
+  }
+
+  // Stations, with the cut-out's ends doubled (plain + notched at one x).
+  const stations = [];
+  for (let i = 0; i <= NX; i++) {
+    const x = xStart + (d.length - xStart) * i / NX;
+    stations.push({ x, notch: hasCut && x > cx0 + 1e-6 && x < cx1 - 1e-6 });
+  }
+  if (hasCut) {
+    if (cx0 > xStart + 1e-6) stations.push({ x: cx0, notch: false, o: 0 }, { x: cx0, notch: true, o: 1 });
+    else stations.push({ x: xStart, notch: true, o: 1 });
+    stations.push({ x: cx1, notch: true, o: 0 }, { x: cx1, notch: false, o: 1 });
+  }
+  stations.sort((a, b) => (a.x - b.x) || ((a.o || 0) - (b.o || 0)));
+  // A plain station at the tail end is replaced by the notched one when the cut-out starts there.
+  const list = stations.filter((st, i) => !(hasCut && cx0 <= xStart + 1e-6 && Math.abs(st.x - xStart) < 1e-6 && !st.notch && stations.some(o => o !== st && Math.abs(o.x - st.x) < 1e-6)));
+
   const verts = [];
   const tri = (a, b, c) => verts.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
-  const rings = [];
-  for (let i = 0; i <= NX; i++) {
-    const x = x0 + (d.length - x0) * i / NX;
-    const w = Math.max(0.05, s3dxAt(d.outline, x)) * 10;
-    const zb = s3dxAt(d.strBot, x, 'z'), zd = s3dxAt(d.strDeck, x, 'z');
-    const sec = s3dxSectionAt(d, x);
-    const X = halfLen - x * 10;
-    const at = p => -(zb + p.v * (zd - zb)) * 10;   // flipped: the bottom faces up
-    const ring = sec.map(p => [X, at(p), -p.u * w]);
-    for (let k = sec.length - 2; k >= 1; k--) ring.push([X, at(sec[k]), sec[k].u * w]);
-    rings.push(ring);
-  }
+  const rings = list.map(st => {
+    const X = halfLen - st.x * 10;
+    const one = side(st.x, st.notch);
+    const ring = one.map(p => [X, -p.z, -p.y]);                 // flipped: the bottom faces up; port is -Z
+    for (let k = one.length - 2; k >= 1; k--) ring.push([X, -one[k].z, one[k].y]);
+    return ring;
+  });
   for (let i = 0; i < rings.length - 1; i++) {
     const A = rings[i], B = rings[i + 1], n = A.length;
     for (let k = 0; k < n; k++) {
@@ -967,9 +1060,14 @@ function s3dxBuildBoardFromSections() {
       tri(A[k], B[k2], B[k]);
     }
   }
+  // End caps, triangulated properly: a notched section is not convex.
   [rings[0], rings[rings.length - 1]].forEach(R => {
-    const c = [R[0][0], R.reduce((s2, p) => s2 + p[1], 0) / R.length, 0];
-    for (let k = 0; k < R.length; k++) tri(c, R[k], R[(k + 1) % R.length]);
+    const pts = [];
+    R.forEach(p => { const q = pts[pts.length - 1]; if (!q || Math.hypot(q[1] - p[1], q[2] - p[2]) > 1e-3) pts.push(p); });
+    if (pts.length > 2 && Math.hypot(pts[0][1] - pts[pts.length - 1][1], pts[0][2] - pts[pts.length - 1][2]) < 1e-3) pts.pop();
+    if (pts.length < 3) return;
+    const faces = THREE.ShapeUtils.triangulateShape(pts.map(p => new THREE.Vector2(p[2], p[1])), []);
+    faces.forEach(f => tri(pts[f[0]], pts[f[1]], pts[f[2]]));
   });
   const geom = new THREE.BufferGeometry();
   geom.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
@@ -1129,7 +1227,14 @@ function renderS3dxControls() {
     el.innerHTML = '';
     el.appendChild(makeSlider(el.dataset.label, min, max, Number(el.dataset.step), s3dxParams[key], v => {
       s3dxParams[key] = v;
-      if (key === 'tailCut') s3dxRebuild(); else { s3dxBuildCutouts(); rebuildSceneHelpers(); rebuildPlates(); }
+      // The board carries the recess now, so any cut-out change rebuilds it
+      // (cheap: a few thousand triangles), after a short pause while dragging.
+      clearTimeout(window._s3dxBoardTimer);
+      if (key === 'tailCut') s3dxRebuild();
+      else {
+        s3dxBuildCutouts(); rebuildSceneHelpers(); rebuildPlates();
+        window._s3dxBoardTimer = setTimeout(s3dxRebuild, 120);
+      }
     }, 'accent-sky-500'));
   });
 }
@@ -4028,6 +4133,7 @@ document.getElementById('s3dx-rail-follow').addEventListener('change', e => {
 });
 document.getElementById('s3dx-layer').addEventListener('change', e => {
   s3dxParams.layerIndex = Number(e.target.value);
+  setTimeout(s3dxRebuild, 0);
   const L = s3dxData && s3dxData.layers[s3dxParams.layerIndex];
   if (L) {
     s3dxParams.forwardEdge = Math.min(L.xMax, s3dxData.length);

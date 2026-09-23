@@ -49,6 +49,9 @@ The file in this folder is no longer byte-for-byte the handed-over v22 (that one
 
 4. **The plate follows the rail** (Shape3D boards). The outline is the board's widest line, but the rail is only that wide at one height (the edge tucks in at the bottom, the rail pulls in above its widest point). `parseS3DX` now reads the cross-sections (`Couples_n`), `s3dxRailHalfWidth` gives the real half-width at any station and height, and `buildPlateGeometry` pulls every vertex of the plate and its steps in to the rail at its own height (`railClampGeometry`; extrusions are subdivided every 1.5 mm so the side follows the curve). On by default (`s3dxParams.railFollow`), "Inset from rail" is the gap to it, holes that would cut the rail are skipped. The 3D board is built from the real sections too, and the Shape3D card has a close-up of the rail at any station. STL boards are unchanged.
 
+5. **Shape3D boards show their recesses** (`s3dxBuildBoardFromSections`): the cut-out is cut into the 3D board (inner wall, floor, open to the rail or with an outer wall, end walls), so the plates are seen sitting in it, the way an STL shows it. Every ring keeps the same point count so the loft stays clean; the cut-out's ends are doubled stations. The board is rebuilt after cut-out slider changes.
+6. **Import** (projects layer): "Import files" in the Projects list takes a board file and an old design `.json` together and saves them as one project.
+
 After changing either file: `node scripts/plate-designer-embed.mjs`, commit the regenerated `src/lib/plate-designer-html.generated.ts` with it.
 
 So the "Data handling" section below is now only true for the tool on its own: in the admin, Save uploads the board file and the design to NP7.
