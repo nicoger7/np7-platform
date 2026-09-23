@@ -412,6 +412,8 @@ function PhotosTab({ board, onSaved, autoFind }: { board: Bundle; onSaved: () =>
   const [photos, setPhotos] = useState<BoardPhoto[]>(board.photos ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [cutting, setCutting] = useState<string | null>(null);
+  const [cutNote, setCutNote] = useState("");
 
   async function persist(next: BoardPhoto[]) {
     setPhotos(next);
@@ -441,7 +443,28 @@ function PhotosTab({ board, onSaved, autoFind }: { board: Bundle; onSaved: () =>
   }
 
   function makeTop(i: number) {
-    persist(photos.map((p, j) => ({ ...p, kind: j === i ? (p.kind === "top" ? null : "top") : null })));
+    persist(photos.map((p, j) => ({ ...p, kind: j === i ? (p.kind === "top" ? null : "top") : p.kind === "top" ? null : p.kind ?? null })));
+  }
+
+  // Deck → bottom → not said, set by a person (the AI's word can be wrong).
+  function cycleView(i: number) {
+    const next = (v: BoardPhoto["view"]) => (v === "deck" ? "bottom" : v === "bottom" ? null : "deck");
+    persist(photos.map((p, j) => (j === i ? { ...p, view: next(p.view), viewBy: "person" } : p)));
+  }
+
+  // A photo showing several boards (an upload, or kept before this existed):
+  // the same cut-apart the picture finder does on keeping.
+  async function cutApart(p: BoardPhoto) {
+    setCutting(p.key); setError(""); setCutNote("");
+    const res = await fetch(`/api/admin/product-dev/boards/${board.id}/images`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key: p.key }),
+    });
+    const j = await res.json().catch(() => ({}));
+    setCutting(null);
+    if (!res.ok) { setError(j.error ?? "Couldn't cut that picture apart."); return; }
+    setPhotos(j.photos ?? photos);
+    setCutNote(j.note ?? "");
+    onSaved();
   }
 
   return (
@@ -457,6 +480,7 @@ function PhotosTab({ board, onSaved, autoFind }: { board: Bundle; onSaved: () =>
       </div>
 
       {error && <p className="text-xs text-red-500">{error}</p>}
+      {cutNote && <p className="text-xs admin-muted">{cutNote}</p>}
 
       {!photos.length ? (
         <Empty icon="camera" tone="pink" title="No photos yet">
@@ -480,6 +504,18 @@ function PhotosTab({ board, onSaved, autoFind }: { board: Bundle; onSaved: () =>
                   <button onClick={() => makeTop(i)} className={`text-[11px] font-semibold ${p.kind === "top" ? "text-[var(--admin-accent)]" : "admin-faint hover:text-[var(--admin-accent)]"}`}>
                     {p.kind === "top" ? "Shown in lists" : "Show in lists"}
                   </button>
+                  <button onClick={() => cycleView(i)}
+                    title={p.view ? `${p.view === "deck" ? "Deck" : "Bottom"}${p.viewBy === "ai" ? ", said by the AI" : p.viewBy === "guess" ? ", a guess from the order" : ""}. Click to change.` : "Which face it shows. Click to set."}
+                    className={`text-[11px] font-semibold ${p.view ? (p.viewBy === "guess" ? "text-amber-600" : "admin-muted") : "admin-faint"} hover:text-[var(--admin-accent)]`}>
+                    {p.view === "deck" ? "Deck" : p.view === "bottom" ? "Bottom" : "Face?"}{p.viewBy === "guess" ? "?" : ""}
+                  </button>
+                  {!p.cutFrom && !photos.some((x) => x.cutFrom === p.key) && (
+                    <button onClick={() => cutApart(p)} disabled={!!cutting}
+                      title="For a picture with several boards in it, e.g. the deck and the bottom side by side: one picture per board, and the deck becomes the top view."
+                      className="text-[11px] font-semibold admin-faint hover:text-[var(--admin-accent)]">
+                      {cutting === p.key ? "Cutting…" : "Cut apart"}
+                    </button>
+                  )}
                   {p.source && (
                     <a href={p.source} target="_blank" rel="noreferrer" className="ml-auto text-[11px] admin-faint hover:text-[var(--admin-accent)] truncate">source</a>
                   )}

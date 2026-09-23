@@ -457,12 +457,15 @@ function usePhotoFit(board: PdBoard, photo: BoardPhoto | null, width: SeriesPoin
     const opts = {
       lengthCm: board.length_cm ?? null,
       publishedLengthCm: board.research?.specs?.length_cm ?? null,
+      // The stated max width sets the scale across, so a picture that is a
+      // little squashed (perspective, a brand's render) still reads true widths.
+      widthCm: board.max_width_cm ?? board.research?.specs?.width_cm ?? null,
       origin: board.station_origin,
       measuredTop: cm(widthTop),
       measuredBottom: cm(width),
     };
     return (match ? matchPhoto(mask, opts) : null) ?? fitPhoto(mask, opts);
-  }, [mask, match, board.length_cm, board.research, board.station_origin, width, widthTop]);
+  }, [mask, match, board.length_cm, board.max_width_cm, board.research, board.station_origin, width, widthTop]);
   return { url, mask, fit, state };
 }
 

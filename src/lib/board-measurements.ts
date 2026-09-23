@@ -222,6 +222,13 @@ export type BoardPhoto = {
   /** "top" = the picture the board is shown by in lists (a top view, usually
    *  the brand's own product shot). One per board. */
   kind?: "top" | null;
+  /** Which face it shows, when known: the deck (straps, mast track) or the
+   *  bottom (fin and foil boxes). The fittings finder looks at the right one. */
+  view?: "deck" | "bottom" | null;
+  /** Who said which face: the AI, a guess from the order, or a person. */
+  viewBy?: "ai" | "guess" | "person" | null;
+  /** The photo it was cut out of, when one picture showed several boards. */
+  cutFrom?: string | null;
   /** Where a picture taken from the web came from, for the record. */
   source?: string | null;
   /** Quarter turns to show it nose-right in a card, clockwise: 0 or 90. */

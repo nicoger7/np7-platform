@@ -68,6 +68,30 @@ export async function safeFetch(raw: string, opts: { maxBytes: number; timeoutMs
   throw new Error("Too many redirects.");
 }
 
+// ─── Google image links ──────────────────────────────────────────────────────
+
+const GOOGLE = /(^|\.)google\.[a-z.]+$|^share\.google$/i;
+
+/**
+ * What a Google link points at. share.google/… redirects (twice) to an imgres
+ * link, which names the picture (imgurl) and the page it is on (imgrefurl).
+ * Only Google's own hosts are followed here; everything else goes through the
+ * normal safe fetch.
+ */
+export async function resolveGoogleImageLink(raw: string): Promise<{ image: string | null; page: string | null } | null> {
+  let url: URL;
+  try { url = new URL(raw); } catch { return null; }
+  for (let hop = 0; hop < 5 && GOOGLE.test(url.hostname); hop++) {
+    const image = url.searchParams.get("imgurl"), page = url.searchParams.get("imgrefurl") ?? url.searchParams.get("url") ?? url.searchParams.get("q");
+    if (image || (page && /^https?:\/\//i.test(page))) return { image, page: page && /^https?:\/\//i.test(page) ? page : null };
+    const res = await fetch(url, { redirect: "manual", headers: { "User-Agent": UA }, signal: AbortSignal.timeout(10_000) });
+    const next = res.headers.get("location");
+    if (!next || res.status < 300 || res.status >= 400) return null;
+    url = new URL(next, url);
+  }
+  return GOOGLE.test(url.hostname) ? null : { image: null, page: url.toString() };
+}
+
 // ─── Pictures out of a product page ──────────────────────────────────────────
 
 export type ImageCandidate = {

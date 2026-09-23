@@ -12,14 +12,17 @@ type Candidate = { src: string; alt: string | null; width: number | null; score:
  * the picture the board is shown by in lists.
  *
  * Two ways in, and the second never needs a key: Find automatically (Claude's
- * web search finds the brand's product page), or paste the product page link.
- * Either way the page's pictures come back as a grid, best guess first, and a
- * person picks. Nothing is kept until they do.
+ * web search finds the brand's product page), or paste a link: the product
+ * page, the picture itself, or a Google Images link (share.google/…). Either
+ * way the pictures come back as a grid, best guess first, and a person picks.
+ * Nothing is kept until they do. A picture with the deck and the bottom side
+ * by side is cut apart on keeping, and the deck becomes the top view.
  */
 export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoard; onSaved: (photos: BoardPhoto[]) => void; autoStart?: boolean }) {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState<"" | "auto" | "link" | "save">("");
   const [msg, setMsg] = useState("");
+  const [note, setNote] = useState("");
   const [pages, setPages] = useState<{ url: string; title: string | null }[]>([]);
   const [images, setImages] = useState<Candidate[] | null>(null);
   const [picked, setPicked] = useState<Candidate | null>(null);
@@ -52,7 +55,7 @@ export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoa
 
   async function keep() {
     if (!picked) return;
-    setBusy("save"); setMsg("");
+    setBusy("save"); setMsg(""); setNote("");
     const res = await fetch(`/api/admin/product-dev/boards/${board.id}/images`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ src: picked.src, page: picked.page }),
@@ -61,6 +64,7 @@ export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoa
     setBusy("");
     if (!res.ok) { setMsg(j.error ?? "Couldn't keep that picture."); return; }
     setImages(null); setPicked(null); setMsg("Saved");
+    if (j.note) setNote(j.note);
     onSaved(j.photos ?? []);
     setTimeout(() => setMsg(""), 2000);
   }
@@ -68,7 +72,7 @@ export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoa
   return (
     <Card title="Top-view picture" icon="image" tone="pink"
       subtitle="The picture this board is shown by in lists"
-      info={<>Find automatically asks the AI (ChatGPT or Claude) to search the web for the brand&apos;s product page. Pasting the product page link always works, no key needed. The picture is kept in Product Dev with its source, for internal reference only.</>}
+      info={<>Find automatically asks the AI (ChatGPT or Claude) to search the web for the brand&apos;s product page. Pasting a link always works, no key needed: the product page, the picture itself, or a Google Images link. A picture showing the deck and the bottom side by side is cut apart when you keep it, and the AI says which one is the deck. The picture is kept in Product Dev with its source, for internal reference only.</>}
       actions={<SaveNote msg={msg === "Saved" ? msg : ""} />}>
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="w-full lg:w-56 h-28 rounded-xl shrink-0 flex items-center justify-center"
@@ -86,7 +90,7 @@ export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoa
             </a>
           </div>
           <div className="flex gap-2">
-            <input className={inputCls} value={url} placeholder="…or paste the product page link"
+            <input className={inputCls} value={url} placeholder="…or paste a link: product page, picture or Google Images"
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && url.trim()) find(false); }} />
             <button onClick={() => find(false)} disabled={!!busy || !url.trim()} className={btnSecondary} style={btnSecondaryStyle}>
@@ -94,6 +98,12 @@ export function BoardPictureFinder({ board, onSaved, autoStart }: { board: PdBoa
             </button>
           </div>
           {msg && msg !== "Saved" && <p className="text-xs text-amber-600 leading-relaxed">{msg}</p>}
+          {note && (
+            <p className="text-xs leading-relaxed admin-muted flex items-start gap-1.5">
+              <Icon name="check" className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-500" />
+              <span>{note} <button onClick={() => setNote("")} className="admin-faint hover:text-[var(--admin-accent)] underline">OK</button></span>
+            </p>
+          )}
         </div>
       </div>
 
