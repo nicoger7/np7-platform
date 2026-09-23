@@ -76,6 +76,10 @@ export function BoardCutouts({ board, cutouts, onSaved, dirtyRef }: {
           <Icon name="plus" className="w-4 h-4" strokeWidth={2.2} />Fitting
         </button>
         {help}
+        <a href="/admin/product-dev/plate-designer" className={btnSecondary} style={btnSecondaryStyle}
+          title="Design 3D-printable plates for the tail cut-outs">
+          <Icon name="puzzle" className="w-4 h-4" />Plate Designer
+        </a>
         <div className="ml-auto flex items-center gap-3">
           <SaveNote msg={msg} />
           {(dirty || saving) && (

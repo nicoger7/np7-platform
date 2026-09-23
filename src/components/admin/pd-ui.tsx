@@ -52,7 +52,7 @@ export type IconName =
   | "fin" | "board" | "foil" | "box" | "overview" | "mold" | "layers" | "steps" | "ruler" | "plan"
   | "cut" | "camera" | "note" | "folder" | "upload" | "plus" | "edit" | "archive" | "search" | "x"
   | "info" | "back" | "tag" | "fabric" | "calendar" | "flame" | "press" | "clock" | "alert" | "image"
-  | "compare" | "check" | "chevron" | "paste" | "mic";
+  | "compare" | "check" | "chevron" | "paste" | "mic" | "puzzle";
 
 export const KIND_META: Record<PdKind, { label: string; tone: Tone; icon: IconName }> = {
   fin: { label: "Fin", tone: "teal", icon: "fin" },
@@ -148,6 +148,7 @@ const PATHS: Record<IconName, string[]> = {
   check: ["M5 12.5l4.5 4.5L19 7.5"],
   paste: ["M9 4h6v3H9z", "M7 5.5H5.5V20h13V5.5H17", "M9 12h6", "M9 15.5h4"],
   mic: ["M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z", "M5.5 11a6.5 6.5 0 0 0 13 0", "M12 17.5V21"],
+  puzzle: ["M4 8h4a2 2 0 1 1 4 0h4v4a2 2 0 1 1 0 4v4H4v-4a2 2 0 1 0 0-4Z"],
 };
 
 export function Icon({ name, className = "w-4 h-4", style, strokeWidth = 1.8 }: {

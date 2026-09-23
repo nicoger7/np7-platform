@@ -213,6 +213,7 @@ const navByEnv: Record<Environment, NavGroup[]> = {
         // you're inside the library. /admin/product-dev redirects here.
         { label: "Projects", href: "/admin/product-dev/projects", icon: "flow" },
         { label: "Boards", href: "/admin/product-dev/boards", icon: "layers" },
+        { label: "Plate Designer", href: "/admin/product-dev/plate-designer", icon: "puzzle" },
         { label: "Media", href: "/admin/product-dev/library", icon: "image" },
       ],
     },

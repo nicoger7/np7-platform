@@ -1,0 +1,3714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NP7 Plate Designer — Product Development</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+  .tab-active { background-color: #2563eb; color: white; }
+  .tab-inactive { background-color: #e2e8f0; color: #475569; }
+  .upload-zone { border: 2px dashed #cbd5e1; transition: all 0.2s; }
+  .upload-zone.drag-over { border-color: #2563eb; background-color: #eff6ff; }
+  .pe-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 50; display: flex; align-items: center; justify-content: center; }
+  .pe-modal { background: #fff; border-radius: 12px; box-shadow: 0 24px 70px rgba(0,0,0,.35); width: min(1120px, 96vw); height: min(780px, 94vh); display: flex; flex-direction: column; overflow: hidden; }
+  .pe-svg { background: #f8fafc; flex: 1; touch-action: none; cursor: crosshair; user-select: none; }
+  .pe-node { cursor: grab; }
+  .pe-node:hover { stroke: #f59e0b; }
+  .pe-list-row input { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div id="app" class="w-full h-screen bg-slate-100 flex flex-col lg:flex-row">
+  <!-- Left panel -->
+  <div class="w-full lg:w-[440px] bg-white shadow-lg flex flex-col">
+    <div class="p-4 border-b border-slate-200">
+      <div class="flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22a8 8 0 0 1 8-8"/><path d="M10 14 22 2"/><path d="M14 14a8 8 0 0 1 8-8"/></svg>
+        <h1 class="text-xl font-bold text-slate-800">NP7 Plate Designer</h1>
+      </div>
+      <p class="text-xs text-slate-500 mt-1">Auto-fit plates to board cut-outs</p>
+    </div>
+
+    <div class="flex border-b border-slate-200">
+      <button id="tab-board" class="flex-1 px-3 py-2 text-xs font-semibold tab-active transition">1. Board</button>
+      <button id="tab-plate-a" class="flex-1 px-3 py-2 text-xs font-semibold tab-inactive transition">2. Plate (both sides)</button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-4">
+      <!-- BOARD TAB -->
+      <div id="board-tab-content" class="space-y-4">
+        <div>
+          <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Upload Board STL</h2>
+          <div id="upload-zone" class="upload-zone rounded-lg p-6 text-center cursor-pointer">
+            <input type="file" id="file-input" accept=".stl" class="hidden" />
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.5" class="mx-auto mb-2"><path d="M12 13v8"/><path d="M4 13.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5.5"/><path d="m8 17 4 4 4-4"/><path d="M12 2v7"/></svg>
+            <p class="text-sm text-slate-700 font-medium">Click or drop STL file</p>
+            <p class="text-xs text-slate-500 mt-1">Windsurf board model with cut-outs</p>
+          </div>
+          <div id="upload-status" class="text-xs text-slate-500 mt-2"></div>
+        </div>
+
+        <div>
+          <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Or import Shape3D (.s3dx)</h2>
+          <div id="s3dx-zone" class="upload-zone rounded-lg p-4 text-center cursor-pointer">
+            <input type="file" id="s3dx-input" accept=".s3dx,.xml" class="hidden" />
+            <p class="text-sm text-slate-700 font-medium">Click or drop .s3dx file</p>
+            <p class="text-xs text-slate-500 mt-1">Reads the cut-out outline directly — no mesh scanning</p>
+          </div>
+          <div id="s3dx-status" class="text-xs text-slate-500 mt-2"></div>
+          <div id="s3dx-controls" class="hidden mt-3 space-y-3 bg-sky-50 border border-sky-200 rounded p-3">
+            <div>
+              <label class="text-xs font-medium text-slate-700 block mb-1">Cut-out layer</label>
+              <select id="s3dx-layer" class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded bg-white"></select>
+            </div>
+            <div data-s3dx-slider="tailCut" data-label="Tail cut (cm from design tail)" data-min="0" data-max="60" data-step="0.5"></div>
+            <div data-s3dx-slider="forwardEdge" data-label="Forward edge (cm from design tail)" data-min="1" data-max="200" data-step="0.5"></div>
+            <div data-s3dx-slider="innerEdge" data-label="Inner edge from centreline (mm)" data-min="0" data-max="300" data-step="1"></div>
+            <div data-s3dx-slider="railInset" data-label="Inset from rail (mm)" data-min="0" data-max="150" data-step="1"></div>
+            <div data-s3dx-slider="depth" data-label="Recess depth (mm)" data-min="1" data-max="80" data-step="0.5"></div>
+            <div id="s3dx-readout" class="text-xs text-slate-600 font-mono bg-white rounded p-2 border border-sky-100"></div>
+          </div>
+        </div>
+
+        <div id="board-controls" class="hidden space-y-4 pt-4 border-t border-slate-200">
+          <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Board View</h2>
+
+          <div>
+            <label class="text-xs font-medium text-slate-700 block mb-1">Visibility</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="show-board-btn" class="py-1.5 text-xs rounded border bg-blue-500 text-white border-blue-500">Visible</button>
+              <button id="transparent-board-btn" class="py-1.5 text-xs rounded border bg-white border-slate-300 text-slate-600">Transparent</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-xs font-medium text-slate-700 block mb-1">Orientation (flip up/down)</label>
+            <button id="flip-board-btn" class="w-full py-1.5 text-xs rounded border bg-white border-slate-300 text-slate-600 hover:bg-slate-50">Flip board upside-down</button>
+          </div>
+
+          <div>
+            <label class="text-xs font-medium text-slate-700 block mb-1">Tail end</label>
+            <div class="grid grid-cols-2 gap-2">
+              <button class="py-1.5 text-xs rounded border bg-blue-500 text-white border-blue-500" data-tail="maxX">+X end</button>
+              <button class="py-1.5 text-xs rounded border bg-white border-slate-300 text-slate-600" data-tail="minX">-X end</button>
+            </div>
+            <p class="text-xs text-slate-400 mt-1">Red dot marks the tail. Switch if wrong.</p>
+          </div>
+
+          <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-slate-700">
+            <div id="board-info"></div>
+          </div>
+        </div>
+
+        <div id="detection-controls" class="hidden space-y-4 pt-4 border-t border-slate-200">
+          <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Cut-out Detection</h2>
+
+          <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-slate-700">
+            The program scans the tail region and finds areas where the top surface dips below the deck by at least the minimum recess depth. Nearby recessed cells are grouped into cut-outs. Edges are included automatically.
+          </div>
+
+          <div data-slider="scanLength" data-label="Scan length from tail (mm)" data-min="50" data-max="1000" data-step="5"></div>
+          <div data-slider="recessDepthMin" data-label="Min recess depth (mm)" data-min="1" data-max="30" data-step="0.5"></div>
+          <div data-slider="flatnessTolerance" data-label="Floor flatness tolerance (mm)" data-min="1" data-max="20" data-step="0.5"></div>
+          <div data-slider="edgeInset" data-label="Plate inset from cut-out edge (mm)" data-min="0" data-max="20" data-step="0.5"></div>
+          <div data-slider="smoothing" data-label="Edge smoothing (0 = exact, follows STL)" data-min="0" data-max="6" data-step="1"></div>
+
+          <button id="detect-btn" class="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 px-4 rounded transition">
+            🔍 Detect cut-outs
+          </button>
+
+          <div id="detection-result" class="text-xs"></div>
+        </div>
+      </div>
+
+      <div id="plate-a-tab-content" class="space-y-4 hidden"></div>
+    </div>
+
+    <div class="p-4 border-t border-slate-200 space-y-2">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Export — full plate (base + steps)</h3>
+        <select id="export-format" class="text-xs border border-slate-300 rounded px-1 py-1 bg-white" title="File format for all export buttons, including the per-step ones">
+          <option value="stl">STL · 3D print</option>
+          <option value="obj">OBJ · CAD</option>
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="export-a-btn" title="Needs detected cut-outs — load a board and run detection (or load a design; it detects automatically)" class="flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-2 rounded transition disabled:opacity-50" disabled>
+          ⬇ Port
+        </button>
+        <button id="export-b-btn" title="Needs detected cut-outs — load a board and run detection (or load a design; it detects automatically)" class="flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-2 rounded transition disabled:opacity-50" disabled>
+          ⬇ Starboard
+        </button>
+      </div>
+      <div class="text-xs text-slate-400">Single steps without the base: expand a step on the Plate tab → “Export this step only”.</div>
+      <div id="export-status" class="text-xs text-slate-500"></div>
+      <div class="grid grid-cols-2 gap-2">
+        <button id="save-design-btn" class="flex items-center justify-center gap-1 bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold py-2 px-2 rounded transition">
+          💾 Save design
+        </button>
+        <button id="load-design-btn" class="flex items-center justify-center gap-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold py-2 px-2 rounded transition">
+          📂 Load design
+        </button>
+        <input type="file" id="design-input" accept=".json,application/json" class="hidden" />
+      </div>
+      <div id="design-status" class="text-xs text-slate-500"></div>
+      <button id="reset-btn" class="w-full flex items-center justify-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium py-2 px-4 rounded transition">
+        ↺ Reset plate settings
+      </button>
+    </div>
+  </div>
+
+  <div id="canvas-container" class="flex-1 min-h-96 relative">
+    <div class="absolute top-2 right-2 bg-white/90 backdrop-blur rounded px-3 py-2 text-xs text-slate-600 shadow">
+      Drag to rotate · Scroll to zoom
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// STATE
+// ============================================================================
+let boardMesh = null;
+let boardGeometry = null;
+let boardBounds = null;
+let boardVisible = true;
+let boardTransparent = false;
+
+// Cut-out detection parameters
+let detection = {
+  scanLength: 400,          // How far from tail to scan for cut-outs
+  recessDepthMin: 3,        // Minimum depth below deck to count as a recess
+  flatnessTolerance: 4.0,   // How close to the region's median Y a cell must be
+  edgeInset: 2,             // Inset plate edges from cut-out edge
+  smoothing: 0,             // Number of Chaikin smoothing passes (0 = follow STL exactly)
+  tailEnd: 'maxX',
+};
+
+// Detected cut-outs (populated after detection)
+// Each cutout: { polygon: [{x, z}], flatY: number, side: 'port'|'starboard' }
+let detectedCutouts = { A: null, B: null };
+
+// Plate configurations
+function defaultPlate() {
+  return {
+    thickness: 10,
+    holeDiameter: 8,          // default diameter for newly added holes
+    holes: [],                // explicit positions, port-plate board coords
+    nextHoleId: 1,
+    mirrored: false,
+    steps: [
+      { id: 1, enabled: true, height: 5, reachRight: 80, reachDown: 60, angle: 0, cumulative: true,
+        mode: 'simple', path: null, clipToPlate: true }
+    ],
+    nextStepId: 2,
+    expandedStep: 1,
+  };
+}
+
+let plateA = defaultPlate();
+let plateB = defaultPlate();
+let currentTab = 'board';
+
+// ============================================================================
+// THREE.JS SETUP
+// ============================================================================
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf1f5f9);
+
+const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 10000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+container.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(200, 400, 200);
+scene.add(dirLight);
+const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+dirLight2.position.set(-200, -100, -200);
+scene.add(dirLight2);
+
+scene.add(new THREE.GridHelper(2000, 40, 0x94a3b8, 0xcbd5e1));
+scene.add(new THREE.AxesHelper(200));
+
+const boardGroup = new THREE.Group();
+const plateGroup = new THREE.Group();
+const helperGroup = new THREE.Group();
+scene.add(boardGroup);
+scene.add(plateGroup);
+scene.add(helperGroup);
+
+let isDragging = false, prevX = 0, prevY = 0;
+let theta = Math.PI / 4, phi = Math.PI / 3, camRadius = 1000;
+let camTarget = new THREE.Vector3(0, 0, 0);
+
+function updateCamera() {
+  camera.position.x = camTarget.x + camRadius * Math.sin(phi) * Math.cos(theta);
+  camera.position.y = camTarget.y + camRadius * Math.cos(phi);
+  camera.position.z = camTarget.z + camRadius * Math.sin(phi) * Math.sin(theta);
+  camera.lookAt(camTarget);
+}
+updateCamera();
+
+renderer.domElement.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  theta -= (e.clientX - prevX) * 0.01;
+  phi = Math.max(0.1, Math.min(Math.PI - 0.1, phi - (e.clientY - prevY) * 0.01));
+  updateCamera();
+  prevX = e.clientX; prevY = e.clientY;
+});
+window.addEventListener('mouseup', () => { isDragging = false; });
+renderer.domElement.addEventListener('wheel', e => {
+  e.preventDefault();
+  camRadius = Math.max(50, Math.min(5000, camRadius + e.deltaY * 1.0));
+  updateCamera();
+}, { passive: false });
+
+window.addEventListener('resize', () => {
+  const w = container.clientWidth, h = container.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+});
+
+(function animate() {
+  requestAnimationFrame(animate);
+  renderer.render(scene, camera);
+})();
+
+// ============================================================================
+// SHAPE3D (.s3dx) IMPORT
+// ============================================================================
+// A .s3dx file is plain XML. It stores the board parametrically: the outline
+// (Otl), the rocker curves (StrBot / StrDeck) and the recesses ("Calque" 3D
+// layers), all as cubic Bezier curves, plus hardware boxes (mast track,
+// footstrap inserts). Because the recess outline is an exact curve, we can feed
+// the cut-outs straight into the builder instead of scanning a mesh for them.
+//
+// All s3dx lengths are in CENTIMETRES; this tool works in millimetres (x10).
+// s3dx axes:  x = along length from the tail, y = half-width, z = vertical.
+
+let s3dxData = null;
+let s3dxParams = { layerIndex: 0, tailCut: 0, forwardEdge: 50, innerEdge: 80, railInset: 0, depth: 25 };
+
+function s3dxChild(el, tag) {
+  if (!el) return null;
+  for (const c of el.children) if (c.tagName === tag) return c;
+  return null;
+}
+function s3dxChildren(el, tag) {
+  const out = [];
+  if (!el) return out;
+  for (const c of el.children) if (c.tagName === tag) out.push(c);
+  return out;
+}
+function s3dxNum(el, tag, def = 0) {
+  const c = s3dxChild(el, tag);
+  if (!c) return def;
+  const v = parseFloat(c.textContent);
+  return isFinite(v) ? v : def;
+}
+function s3dxStr(el, tag, def = '') {
+  const c = s3dxChild(el, tag);
+  return c ? c.textContent.trim() : def;
+}
+function s3dxPoints(polyEl) {
+  return s3dxChildren(polyEl, 'Point3d').map(p => ({
+    x: s3dxNum(p, 'x'), y: s3dxNum(p, 'y'), z: s3dxNum(p, 'z'),
+  }));
+}
+// A Shape3d Bezier3d stores control points plus absolute tangent handles.
+// Segment i runs: CP[i] -> Tangents_2[i] -> Tangents_1[i+1] -> CP[i+1].
+function s3dxBezierSegs(bezEl) {
+  if (!bezEl) return [];
+  const cp = s3dxPoints(s3dxChild(s3dxChild(bezEl, 'Control_points'), 'Polygone3d'));
+  const t1 = s3dxPoints(s3dxChild(s3dxChild(bezEl, 'Tangents_1'), 'Polygone3d'));
+  const t2 = s3dxPoints(s3dxChild(s3dxChild(bezEl, 'Tangents_2'), 'Polygone3d'));
+  const segs = [];
+  for (let i = 0; i < cp.length - 1; i++) {
+    segs.push([cp[i], t2[i] || cp[i], t1[i + 1] || cp[i + 1], cp[i + 1]]);
+  }
+  return segs;
+}
+function s3dxBezPoint(seg, t) {
+  const [p0, p1, p2, p3] = seg, m = 1 - t;
+  const a = m * m * m, b = 3 * m * m * t, c = 3 * m * t * t, d = t * t * t;
+  return {
+    x: a * p0.x + b * p1.x + c * p2.x + d * p3.x,
+    y: a * p0.y + b * p1.y + c * p2.y + d * p3.y,
+    z: a * p0.z + b * p1.z + c * p2.z + d * p3.z,
+  };
+}
+// Sample a curve densely and sort by x so we can interpolate y/z at any x.
+function s3dxSample(segs, per = 80) {
+  const pts = [];
+  for (const s of segs) for (let i = 0; i <= per; i++) pts.push(s3dxBezPoint(s, i / per));
+  pts.sort((a, b) => a.x - b.x);
+  return pts;
+}
+function s3dxAt(samples, x, key = 'y') {
+  if (!samples || samples.length === 0) return 0;
+  if (x <= samples[0].x) return samples[0][key];
+  if (x >= samples[samples.length - 1].x) return samples[samples.length - 1][key];
+  let lo = 0, hi = samples.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (samples[mid].x <= x) lo = mid; else hi = mid;
+  }
+  const a = samples[lo], b = samples[hi];
+  const dx = b.x - a.x;
+  const t = dx > 1e-9 ? (x - a.x) / dx : 0;
+  return a[key] + t * (b[key] - a[key]);
+}
+
+function parseS3DX(text) {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('File is not valid XML');
+  const board = doc.getElementsByTagName('Board')[0];
+  if (!board) throw new Error('No <Board> element — is this a Shape3D file?');
+
+  const outline = s3dxSample(s3dxBezierSegs(s3dxChild(s3dxChild(board, 'Otl'), 'Bezier3d')));
+  if (outline.length < 2) throw new Error('No board outline (Otl) found');
+  const strBot = s3dxSample(s3dxBezierSegs(s3dxChild(s3dxChild(board, 'StrBot'), 'Bezier3d')));
+  const strDeck = s3dxSample(s3dxBezierSegs(s3dxChild(s3dxChild(board, 'StrDeck'), 'Bezier3d')));
+
+  // 3D layers — recesses. Bottom-side layers limited by the stringer are the
+  // cut-out candidates (they split into a port and a starboard region).
+  const layers = [];
+  const nL = s3dxNum(board, 'Number_of_3DLayers');
+  for (let i = 0; i < nL; i++) {
+    const cal = s3dxChild(s3dxChild(board, 'Calque_' + i), 'Calque3D');
+    if (!cal) continue;
+    const oeEl = s3dxChild(s3dxChild(cal, 'OtlExt'), 'Bezier3d');
+    let innerY = null;
+    const c0 = s3dxChild(s3dxChild(cal, 'Couples_0'), 'Bezier3d');
+    if (c0) {
+      const cps = s3dxPoints(s3dxChild(s3dxChild(c0, 'Control_points'), 'Polygone3d'));
+      if (cps.length) innerY = Math.min(...cps.map(p => p.y));
+    }
+    layers.push({
+      index: i,
+      name: s3dxStr(cal, 'Nom') || ('Layer ' + i),
+      type: s3dxNum(cal, 'TypeCalque'),
+      deckBot: s3dxNum(cal, 'DeckBot'),          // 256 = bottom, 512 = deck
+      depth: s3dxNum(cal, 'Depth'),
+      xMin: s3dxNum(cal, 'XMin'),
+      xMax: s3dxNum(cal, 'XMax'),
+      limitStringer: s3dxNum(cal, 'LimitStringer'),
+      otlExt: oeEl ? s3dxSample(s3dxBezierSegs(oeEl)) : null,
+      innerY,
+    });
+  }
+
+  const boxes = [];
+  const nB = s3dxNum(board, 'Nb_Boxes');
+  for (let i = 0; i < nB; i++) {
+    const wrap = s3dxChild(board, 'Box_' + i);
+    const bx = s3dxChild(wrap, 'Box') || wrap;
+    if (!bx) continue;
+    const pc = s3dxChild(s3dxChild(bx, 'PointCenter'), 'Point3d');
+    boxes.push({
+      name: s3dxStr(bx, 'Name'),
+      length: s3dxNum(bx, 'Length'), width: s3dxNum(bx, 'Width'), height: s3dxNum(bx, 'Height'),
+      x: pc ? s3dxNum(pc, 'x') : 0, y: pc ? s3dxNum(pc, 'y') : 0, z: pc ? s3dxNum(pc, 'z') : 0,
+      face: s3dxNum(bx, 'Face'), even: s3dxNum(bx, 'Even'),
+    });
+  }
+
+  return {
+    name: s3dxStr(board, 'Name'),
+    length: s3dxNum(board, 'Length'),
+    width: s3dxNum(board, 'Width'),
+    thickness: s3dxNum(board, 'Thickness'),
+    outline, strBot, strDeck, layers, boxes,
+  };
+}
+
+// Rank layers so the most likely cut-out comes first:
+// bottom side (DeckBot 256), limited by the stringer, real depth.
+function s3dxScoreLayer(l) {
+  let s = 0;
+  if (l.deckBot === 256) s += 100;
+  if (l.limitStringer) s += 20;
+  if (l.depth > 0.5) s += 10;
+  if (!/concave/i.test(l.name)) s += 30;
+  return s;
+}
+
+// Half-width of the board at station x (cm), limited by the layer's own outer
+// curve if it has one. Shape3D often puts that curve outside the rail, which
+// simply means "the recess runs out to the rail".
+function s3dxOuterY(d, layer, x) {
+  let y = s3dxAt(d.outline, x);
+  if (layer && layer.otlExt) y = Math.min(y, s3dxAt(layer.otlExt, x));
+  return y;
+}
+
+// Build the two cut-out polygons straight from the s3dx curves.
+// Board coords for this tool: X along length (tail at +X), Z across width.
+function s3dxBuildCutouts() {
+  const d = s3dxData;
+  const readout = document.getElementById('s3dx-readout');
+  if (!d) return false;
+  const layer = d.layers[s3dxParams.layerIndex];
+  const P = s3dxParams;
+  const halfLen = d.length * 10 / 2;
+
+  const x0 = Math.max(P.tailCut, 0);
+  const x1 = Math.min(P.forwardEdge, d.length);
+  if (x1 - x0 < 0.5) {
+    if (readout) readout.innerHTML = '<span class="text-red-600">Forward edge must be ahead of the tail cut.</span>';
+    return false;
+  }
+  const innerCm = P.innerEdge / 10;
+  const insetCm = P.railInset / 10;
+
+  const N = 160;
+  const outer = [], inner = [];
+  for (let i = 0; i <= N; i++) {
+    const x = x0 + (x1 - x0) * i / N;
+    const oy = s3dxOuterY(d, layer, x) - insetCm;
+    if (oy <= innerCm + 0.05) continue;   // region has closed up here
+    outer.push({ x, y: oy });
+    inner.push({ x, y: innerCm });
+  }
+  if (outer.length < 3) {
+    if (readout) readout.innerHTML = '<span class="text-red-600">No cut-out area with these settings — reduce the inner edge or the rail inset.</span>';
+    return false;
+  }
+
+  // Recess floor: the bottom surface at mid-region, dropped by the depth.
+  // The board is presented flipped (bottom up), so world Y = -z.
+  const xm = (x0 + x1) / 2;
+  const zBot = s3dxAt(d.strBot, xm, 'z') * 10;
+  const flatY = -(zBot + P.depth);
+
+  const build = (sign) => {
+    const pts = [];
+    outer.forEach(p => pts.push({ x: halfLen - p.x * 10, z: sign * p.y * 10 }));
+    for (let i = inner.length - 1; i >= 0; i--) pts.push({ x: halfLen - inner[i].x * 10, z: sign * inner[i].y * 10 });
+    return pts;
+  };
+  const mk = (poly, side) => {
+    const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
+    const cz = poly.reduce((s, p) => s + p.z, 0) / poly.length;
+    return { polygon: poly, originalPolygon: poly.map(p => ({ ...p })), flatY, centroidX: cx, centroidZ: cz, cellCount: poly.length, side, fromS3dx: true };
+  };
+  detectedCutouts.A = mk(build(-1), 'port');
+  detectedCutouts.B = mk(build(1), 'starboard');
+
+  detection.tailEnd = 'maxX';
+  // A design loaded from JSON re-anchors onto whatever cut-out is current.
+  reanchorLoadedPaths();
+
+  const lenCm = x1 - x0;
+  const maxW = Math.max(...outer.map((p, i) => p.y - inner[i].y));
+  if (readout) {
+    readout.innerHTML = `cut-out ${lenCm.toFixed(1)} cm long · max width ${(maxW * 10).toFixed(0)} mm<br>`
+      + `depth ${P.depth.toFixed(1)} mm · floor at Y ${flatY.toFixed(1)} mm · ${outer.length} points/edge`;
+  }
+  document.getElementById('export-a-btn').disabled = false;
+  document.getElementById('export-b-btn').disabled = false;
+  return true;
+}
+
+// A reference board surface so there is 3D context (and so the rest of the
+// tool, which expects a boardGeometry, keeps working). Built from the outline
+// and rocker, trimmed at the tail cut, and flipped so the cut-outs face up.
+function s3dxBuildBoardGeometry() {
+  const d = s3dxData;
+  const halfLen = d.length * 10 / 2;
+  const NX = 140, NW = 14;
+  const x0 = Math.max(0, Math.min(s3dxParams.tailCut, d.length - 1));
+  const verts = [];
+  const tri = (a, b, c) => verts.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+
+  const stations = [];
+  for (let i = 0; i <= NX; i++) {
+    const x = x0 + (d.length - x0) * i / NX;
+    const w = Math.max(0.05, s3dxAt(d.outline, x)) * 10;
+    const yb = -s3dxAt(d.strBot, x, 'z') * 10;    // bottom (faces up after flip)
+    const yd = -s3dxAt(d.strDeck, x, 'z') * 10;   // deck
+    stations.push({ X: halfLen - x * 10, w, yb, yd });
+  }
+  // Cross-section helper: deck height blends to the rail so the sides close.
+  const deckY = (st, t) => st.yb + (st.yd - st.yb) * Math.sqrt(Math.max(0, 1 - t * t));
+
+  for (let i = 0; i < stations.length - 1; i++) {
+    const a = stations[i], b = stations[i + 1];
+    for (let j = 0; j < NW; j++) {
+      const t0 = -1 + 2 * j / NW, t1 = -1 + 2 * (j + 1) / NW;
+      const a0 = [a.X, a.yb, t0 * a.w], a1 = [a.X, a.yb, t1 * a.w];
+      const b0 = [b.X, b.yb, t0 * b.w], b1 = [b.X, b.yb, t1 * b.w];
+      tri(a0, a1, b1); tri(a0, b1, b0);                     // bottom (up)
+      const c0 = [a.X, deckY(a, t0), t0 * a.w], c1 = [a.X, deckY(a, t1), t1 * a.w];
+      const d0 = [b.X, deckY(b, t0), t0 * b.w], d1 = [b.X, deckY(b, t1), t1 * b.w];
+      tri(c0, d1, c1); tri(c0, d0, d1);                     // deck (down)
+    }
+  }
+  // Cap the cut tail
+  const s0 = stations[0];
+  for (let j = 0; j < NW; j++) {
+    const t0 = -1 + 2 * j / NW, t1 = -1 + 2 * (j + 1) / NW;
+    tri([s0.X, s0.yb, t0 * s0.w], [s0.X, deckY(s0, t0), t0 * s0.w], [s0.X, deckY(s0, t1), t1 * s0.w]);
+    tri([s0.X, s0.yb, t0 * s0.w], [s0.X, deckY(s0, t1), t1 * s0.w], [s0.X, s0.yb, t1 * s0.w]);
+  }
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+  geom.computeVertexNormals();
+  geom.computeBoundingBox();
+  return geom;
+}
+
+function s3dxRebuild() {
+  if (!s3dxData) return;
+  const geom = s3dxBuildBoardGeometry();
+  while (boardGroup.children.length) {
+    const c = boardGroup.children[0];
+    boardGroup.remove(c);
+    if (c.geometry) c.geometry.dispose();
+    if (c.material) c.material.dispose();
+  }
+  if (boardGeometry) boardGeometry.dispose();
+  boardGeometry = geom;
+  boardBounds = geom.boundingBox.clone();
+  boardMesh = new THREE.Mesh(geom, new THREE.MeshPhongMaterial({
+    color: 0xf1f5f9, side: THREE.DoubleSide,
+    transparent: boardTransparent, opacity: boardTransparent ? 0.35 : 1.0,
+  }));
+  boardGroup.add(boardMesh);
+  s3dxBuildCutouts();
+  rebuildSceneHelpers();
+  rebuildPlates();
+  if (currentTab === 'plate-a') renderPlateTab('a');
+}
+
+function onS3dxLoaded(text, filename) {
+  let d;
+  try { d = parseS3DX(text); }
+  catch (err) {
+    document.getElementById('s3dx-status').innerHTML = `<span class="text-red-600">Could not read file: ${err.message}</span>`;
+    return;
+  }
+  s3dxData = d;
+
+  const ranked = d.layers.slice().sort((a, b) => s3dxScoreLayer(b) - s3dxScoreLayer(a));
+  const best = ranked[0];
+  s3dxParams.layerIndex = best ? d.layers.indexOf(best) : 0;
+  const L = d.layers[s3dxParams.layerIndex];
+  s3dxParams.tailCut = 0;
+  s3dxParams.forwardEdge = L ? Math.min(L.xMax, d.length) : Math.min(50, d.length);
+  s3dxParams.innerEdge = L && L.innerY != null ? Math.round(L.innerY * 10) : 80;
+  s3dxParams.railInset = 0;
+  s3dxParams.depth = L ? Math.round(L.depth * 100) / 10 : 25;
+
+  const sel = document.getElementById('s3dx-layer');
+  sel.innerHTML = d.layers.map((l, i) =>
+    `<option value="${i}" ${i === s3dxParams.layerIndex ? 'selected' : ''}>${l.name} — ${l.deckBot === 256 ? 'bottom' : 'deck'}, ${(l.depth * 10).toFixed(0)}mm, ${l.xMin.toFixed(0)}–${l.xMax.toFixed(0)}cm</option>`
+  ).join('');
+
+  const strapCount = d.boxes.filter(b => /footstrap/i.test(b.name)).length;
+  document.getElementById('s3dx-status').innerHTML =
+    `<span class="text-green-600">✓ ${filename}</span><br>`
+    + `${d.length.toFixed(1)} × ${d.width.toFixed(1)} × ${d.thickness.toFixed(1)} cm · `
+    + `${d.layers.length} layer(s) · ${d.boxes.length} boxes (${strapCount} footstrap)`;
+
+  document.getElementById('s3dx-controls').classList.remove('hidden');
+  document.getElementById('board-controls').classList.remove('hidden');
+  document.getElementById('board-info').innerHTML = `
+    <div class="flex justify-between"><span>Source:</span><strong class="truncate ml-2">${filename}</strong></div>
+    <div class="flex justify-between mt-1"><span>Length:</span><strong>${(d.length * 10).toFixed(0)} mm</strong></div>
+    <div class="flex justify-between mt-1"><span>Width:</span><strong>${(d.width * 10).toFixed(0)} mm</strong></div>
+    <div class="flex justify-between mt-1"><span>Thickness:</span><strong>${(d.thickness * 10).toFixed(0)} mm</strong></div>
+    <div class="text-xs text-slate-500 mt-2">Cut-outs read from the file — mesh detection not needed.</div>`;
+
+  renderS3dxControls();
+  camTarget.set(0, 0, 0);
+  camRadius = d.length * 10 * 0.9;
+  updateCamera();
+  s3dxRebuild();
+}
+
+function renderS3dxControls() {
+  const d = s3dxData;
+  document.querySelectorAll('[data-s3dx-slider]').forEach(el => {
+    const key = el.dataset.s3dxSlider;
+    let min = Number(el.dataset.min), max = Number(el.dataset.max);
+    if (d && (key === 'tailCut' || key === 'forwardEdge')) max = Math.round(d.length);
+    if (d && key === 'innerEdge') max = Math.round(d.width * 10 / 2);
+    if (d && key === 'railInset') max = Math.round(d.width * 10 / 4);
+    el.innerHTML = '';
+    el.appendChild(makeSlider(el.dataset.label, min, max, Number(el.dataset.step), s3dxParams[key], v => {
+      s3dxParams[key] = v;
+      if (key === 'tailCut') s3dxRebuild(); else { s3dxBuildCutouts(); rebuildSceneHelpers(); rebuildPlates(); }
+    }, 'accent-sky-500'));
+  });
+}
+
+// ============================================================================
+// STL IMPORT
+// ============================================================================
+function parseBinarySTL(buffer) {
+  const view = new DataView(buffer);
+  const triCount = view.getUint32(80, true);
+  const vertices = [];
+  const normals = [];
+  let offset = 84;
+  for (let i = 0; i < triCount; i++) {
+    const nx = view.getFloat32(offset, true); offset += 4;
+    const ny = view.getFloat32(offset, true); offset += 4;
+    const nz = view.getFloat32(offset, true); offset += 4;
+    for (let v = 0; v < 3; v++) {
+      vertices.push(view.getFloat32(offset, true)); offset += 4;
+      vertices.push(view.getFloat32(offset, true)); offset += 4;
+      vertices.push(view.getFloat32(offset, true)); offset += 4;
+      normals.push(nx, ny, nz);
+    }
+    offset += 2;
+  }
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geom.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  return geom;
+}
+
+function parseAsciiSTL(text) {
+  const vertices = [];
+  const normals = [];
+  const lines = text.split('\n');
+  let currentNormal = [0, 0, 0];
+  for (const line of lines) {
+    const t = line.trim();
+    if (t.startsWith('facet normal')) {
+      const p = t.split(/\s+/);
+      currentNormal = [parseFloat(p[2]), parseFloat(p[3]), parseFloat(p[4])];
+    } else if (t.startsWith('vertex')) {
+      const p = t.split(/\s+/);
+      vertices.push(parseFloat(p[1]), parseFloat(p[2]), parseFloat(p[3]));
+      normals.push(...currentNormal);
+    }
+  }
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geom.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  return geom;
+}
+
+function loadSTL(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const buffer = e.target.result;
+    const head = new Uint8Array(buffer, 0, Math.min(80, buffer.byteLength));
+    let headStr = '';
+    for (let i = 0; i < head.length; i++) headStr += String.fromCharCode(head[i]);
+    let geom;
+    if (headStr.trim().toLowerCase().startsWith('solid')) {
+      const view = new DataView(buffer);
+      const expectedTris = view.getUint32(80, true);
+      const expectedSize = 84 + expectedTris * 50;
+      if (expectedSize === buffer.byteLength) {
+        geom = parseBinarySTL(buffer);
+      } else {
+        geom = parseAsciiSTL(new TextDecoder().decode(buffer));
+      }
+    } else {
+      geom = parseBinarySTL(buffer);
+    }
+    onBoardLoaded(geom, file.name);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function onBoardLoaded(geom, filename) {
+  while (boardGroup.children.length) {
+    const c = boardGroup.children[0];
+    boardGroup.remove(c);
+    if (c.geometry) c.geometry.dispose();
+    if (c.material) c.material.dispose();
+  }
+
+  geom.computeBoundingBox();
+  geom.computeVertexNormals();
+
+  // Center on origin
+  const center = new THREE.Vector3();
+  geom.boundingBox.getCenter(center);
+  geom.translate(-center.x, -center.y, -center.z);
+  geom.computeBoundingBox();
+
+  // Orient so length is along X and thickness along Y
+  let size = new THREE.Vector3();
+  geom.boundingBox.getSize(size);
+  const axes = [
+    { axis: 'x', len: size.x },
+    { axis: 'y', len: size.y },
+    { axis: 'z', len: size.z },
+  ].sort((a, b) => b.len - a.len);
+  const longAxis = axes[0].axis;
+
+  if (longAxis === 'z') geom.rotateY(Math.PI / 2);
+  else if (longAxis === 'y') geom.rotateZ(-Math.PI / 2);
+  geom.computeBoundingBox();
+  geom.boundingBox.getSize(size);
+
+  if (size.y > size.z) {
+    geom.rotateX(Math.PI / 2);
+    geom.computeBoundingBox();
+    geom.boundingBox.getSize(size);
+  }
+
+  boardGeometry = geom;
+  boardBounds = geom.boundingBox.clone();
+
+  const material = new THREE.MeshPhongMaterial({
+    color: 0xf1f5f9,
+    side: THREE.DoubleSide,
+    transparent: false,
+    opacity: 1.0,
+  });
+  boardMesh = new THREE.Mesh(geom, material);
+  boardGroup.add(boardMesh);
+
+  camTarget.set(0, 0, 0);
+  camRadius = Math.max(size.x, size.y, size.z) * 1.8;
+  updateCamera();
+
+  // Sensible defaults based on board size
+  detection.scanLength = Math.min(500, size.x * 0.35);
+
+  document.getElementById('board-info').innerHTML = `
+    <div class="flex justify-between"><span>File:</span><strong class="truncate ml-2">${filename}</strong></div>
+    <div class="flex justify-between mt-1"><span>Length (X):</span><strong>${size.x.toFixed(1)} mm</strong></div>
+    <div class="flex justify-between mt-1"><span>Width (Z):</span><strong>${size.z.toFixed(1)} mm</strong></div>
+    <div class="flex justify-between mt-1"><span>Thickness (Y):</span><strong>${size.y.toFixed(1)} mm</strong></div>
+  `;
+  document.getElementById('board-controls').classList.remove('hidden');
+  document.getElementById('detection-controls').classList.remove('hidden');
+  document.getElementById('upload-status').innerHTML = `<span class="text-green-600">✓ Loaded ${filename}</span>`;
+
+  renderDetectionControls();
+  rebuildSceneHelpers();
+}
+
+// ============================================================================
+// CUT-OUT DETECTION
+// ============================================================================
+// Morphological operations on boolean 2D grids
+function dilate(grid, w, h, iters) {
+  let g = grid;
+  for (let it = 0; it < iters; it++) {
+    const next = [];
+    for (let i = 0; i < w; i++) next.push(new Array(h).fill(false));
+    for (let i = 0; i < w; i++) {
+      for (let j = 0; j < h; j++) {
+        if (g[i][j]) { next[i][j] = true; continue; }
+        // Set true if any neighbor (4-connectivity) is true
+        if (i > 0 && g[i - 1][j]) { next[i][j] = true; continue; }
+        if (i < w - 1 && g[i + 1][j]) { next[i][j] = true; continue; }
+        if (j > 0 && g[i][j - 1]) { next[i][j] = true; continue; }
+        if (j < h - 1 && g[i][j + 1]) { next[i][j] = true; continue; }
+      }
+    }
+    g = next;
+  }
+  return g;
+}
+
+function erode(grid, w, h, iters) {
+  let g = grid;
+  for (let it = 0; it < iters; it++) {
+    const next = [];
+    for (let i = 0; i < w; i++) next.push(new Array(h).fill(false));
+    for (let i = 0; i < w; i++) {
+      for (let j = 0; j < h; j++) {
+        if (!g[i][j]) continue;
+        // Keep only if all 4-connected neighbors are true
+        if (i > 0 && !g[i - 1][j]) continue;
+        if (i < w - 1 && !g[i + 1][j]) continue;
+        if (j > 0 && !g[i][j - 1]) continue;
+        if (j < h - 1 && !g[i][j + 1]) continue;
+        next[i][j] = true;
+      }
+    }
+    g = next;
+  }
+  return g;
+}
+
+function morphClose(grid, w, h, iters) {
+  // Dilate then erode - fills small holes
+  return erode(dilate(grid, w, h, iters), w, h, iters);
+}
+
+function morphOpen(grid, w, h, iters) {
+  // Erode then dilate - removes thin noise
+  return dilate(erode(grid, w, h, iters), w, h, iters);
+}
+
+// Chaikin's corner-cutting algorithm for smoothing a closed polygon.
+// Each pass replaces every vertex with two new vertices at 1/4 and 3/4
+// along the edge to the next vertex. Converges to a quadratic B-spline.
+// More passes = smoother curves but more points.
+function chaikinSmooth(polygon, passes) {
+  let pts = polygon.slice();
+  for (let p = 0; p < passes; p++) {
+    if (pts.length < 3) break;
+    const next = [];
+    for (let i = 0; i < pts.length; i++) {
+      const curr = pts[i];
+      const nxt = pts[(i + 1) % pts.length];
+      // Q point at 1/4, R point at 3/4
+      const q = { x: 0.75 * curr.x + 0.25 * nxt.x, z: 0.75 * curr.z + 0.25 * nxt.z };
+      const r = { x: 0.25 * curr.x + 0.75 * nxt.x, z: 0.25 * curr.z + 0.75 * nxt.z };
+      next.push(q, r);
+    }
+    pts = next;
+  }
+  return pts;
+}
+
+// Resample polygon to have approximately equal-length edges.
+// Helps ensure smooth curves have consistent density.
+function resamplePolygon(polygon, targetSpacing) {
+  if (polygon.length < 3) return polygon;
+  const resampled = [];
+  let accumulated = 0;
+
+  // Compute total perimeter
+  let perimeter = 0;
+  for (let i = 0; i < polygon.length; i++) {
+    const curr = polygon[i];
+    const nxt = polygon[(i + 1) % polygon.length];
+    perimeter += Math.sqrt((nxt.x - curr.x) ** 2 + (nxt.z - curr.z) ** 2);
+  }
+
+  const numPoints = Math.max(8, Math.round(perimeter / targetSpacing));
+  const step = perimeter / numPoints;
+
+  let currentPt = polygon[0];
+  resampled.push({ ...currentPt });
+  let segIdx = 0;
+  let segStart = polygon[0];
+  let segEnd = polygon[1 % polygon.length];
+  let segLen = Math.sqrt((segEnd.x - segStart.x) ** 2 + (segEnd.z - segStart.z) ** 2);
+  let distAlongSeg = 0;
+
+  for (let i = 1; i < numPoints; i++) {
+    let remaining = step;
+    while (remaining > 0) {
+      const availInSeg = segLen - distAlongSeg;
+      if (availInSeg >= remaining) {
+        distAlongSeg += remaining;
+        remaining = 0;
+      } else {
+        remaining -= availInSeg;
+        segIdx = (segIdx + 1) % polygon.length;
+        segStart = polygon[segIdx];
+        segEnd = polygon[(segIdx + 1) % polygon.length];
+        segLen = Math.sqrt((segEnd.x - segStart.x) ** 2 + (segEnd.z - segStart.z) ** 2);
+        distAlongSeg = 0;
+        if (segLen < 1e-6) continue;
+      }
+    }
+    const t = segLen > 0 ? distAlongSeg / segLen : 0;
+    resampled.push({
+      x: segStart.x + t * (segEnd.x - segStart.x),
+      z: segStart.z + t * (segEnd.z - segStart.z),
+    });
+  }
+
+  return resampled;
+}
+
+// Highlight whichever tail-end button is active.
+function syncTailButtons() {
+  document.querySelectorAll('[data-tail]').forEach(b => {
+    const isActive = b.dataset.tail === detection.tailEnd;
+    b.classList.toggle('bg-blue-500', isActive);
+    b.classList.toggle('text-white', isActive);
+    b.classList.toggle('border-blue-500', isActive);
+    b.classList.toggle('bg-white', !isActive);
+    b.classList.toggle('border-slate-300', !isActive);
+    b.classList.toggle('text-slate-600', !isActive);
+  });
+}
+
+// Entry point: the tail is simply whichever end actually has the recesses, so
+// if the selected end yields nothing we try the other one before giving up.
+function detectCutouts() {
+  if (!boardGeometry) return;
+  const resultEl = document.getElementById('detection-result');
+  const first = detection.tailEnd;
+  const other = first === 'maxX' ? 'minX' : 'maxX';
+  const label = e => (e === 'maxX' ? '+X' : '−X');
+
+  if (detectCutoutsWith(first)) return;
+
+  if (detectCutoutsWith(other)) {
+    detection.tailEnd = other;
+    syncTailButtons();
+    rebuildSceneHelpers();
+    resultEl.insertAdjacentHTML('beforeend',
+      `<div class="mt-2 text-xs bg-amber-50 border border-amber-200 rounded p-2 text-amber-800">`
+      + `Nothing found at the ${label(first)} end, but the ${label(other)} end worked — tail switched automatically.</div>`);
+    return;
+  }
+
+  detection.tailEnd = first;
+  syncTailButtons();
+  detectedCutouts = { A: null, B: null };
+  rebuildSceneHelpers();
+  resultEl.innerHTML = `<div class="bg-red-50 border border-red-200 rounded p-2 text-red-700">`
+    + `<strong>No pair of cut-outs found at either end.</strong>`
+    + `<div class="mt-1 text-slate-700">Things to try, in order:</div>`
+    + `<ul class="list-disc ml-4 mt-1 text-slate-700">`
+    + `<li>The cut-outs must face <em>up</em> — use “Flip board upside-down” if they are on the underside.</li>`
+    + `<li>Lower <em>min recess depth</em> (shallow recesses get missed).</li>`
+    + `<li>Raise <em>floor flatness tolerance</em> (curved floors get rejected).</li>`
+    + `<li>Increase <em>scan length from tail</em> if the recesses sit further forward.</li>`
+    + `</ul></div>`;
+}
+
+function detectCutoutsWith(tailEndUsed) {
+  if (!boardGeometry) return false;
+  const resultEl = document.getElementById('detection-result');
+  resultEl.innerHTML = '<span class="text-slate-500">Scanning board...</span>';
+
+  const pos = boardGeometry.attributes.position.array;
+  const bounds = boardGeometry.boundingBox;
+
+  const isTailMax = tailEndUsed === 'maxX';
+  const tailX = isTailMax ? bounds.max.x : bounds.min.x;
+  const sign = isTailMax ? -1 : 1;
+  const scanMinX = Math.min(tailX, tailX + sign * detection.scanLength);
+  const scanMaxX = Math.max(tailX, tailX + sign * detection.scanLength);
+
+  // --------------------------------------------------------------------
+  // STAGE 1: Determine deck Y-level
+  // We still use a rough grid to estimate deck height, but only for that.
+  // --------------------------------------------------------------------
+  const gridResX = 250;
+  const gridResZ = 150;
+  const cellSizeX = (scanMaxX - scanMinX) / gridResX;
+  const cellSizeZ = (bounds.max.z - bounds.min.z) / gridResZ;
+
+  const topY = [];
+  for (let i = 0; i < gridResX; i++) topY.push(new Array(gridResZ).fill(-Infinity));
+
+  const nTris = pos.length / 9;
+  for (let t = 0; t < nTris; t++) {
+    const i0 = t * 9;
+    const x1 = pos[i0], y1 = pos[i0 + 1], z1 = pos[i0 + 2];
+    const x2 = pos[i0 + 3], y2 = pos[i0 + 4], z2 = pos[i0 + 5];
+    const x3 = pos[i0 + 6], y3 = pos[i0 + 7], z3 = pos[i0 + 8];
+
+    const tMinX = Math.min(x1, x2, x3);
+    const tMaxX = Math.max(x1, x2, x3);
+    if (tMaxX < scanMinX || tMinX > scanMaxX) continue;
+
+    const extent = Math.max(tMaxX - tMinX, Math.max(z1, z2, z3) - Math.min(z1, z2, z3));
+    const samples = Math.max(3, Math.min(25, Math.ceil(extent / Math.min(cellSizeX, cellSizeZ))));
+
+    for (let u = 0; u <= samples; u++) {
+      for (let v = 0; v <= samples - u; v++) {
+        const w = samples - u - v;
+        const a = u / samples, b = v / samples, c = w / samples;
+        const x = a * x1 + b * x2 + c * x3;
+        const y = a * y1 + b * y2 + c * y3;
+        const z = a * z1 + b * z2 + c * z3;
+
+        if (x < scanMinX || x > scanMaxX) continue;
+        const ix = Math.floor((x - scanMinX) / cellSizeX);
+        const iz = Math.floor((z - bounds.min.z) / cellSizeZ);
+        if (ix < 0 || ix >= gridResX || iz < 0 || iz >= gridResZ) continue;
+        if (y > topY[ix][iz]) topY[ix][iz] = y;
+      }
+    }
+  }
+
+  const allY = [];
+  for (let i = 0; i < gridResX; i++) {
+    for (let j = 0; j < gridResZ; j++) {
+      if (topY[i][j] > -Infinity) allY.push(topY[i][j]);
+    }
+  }
+  if (allY.length === 0) {
+    return false;
+  }
+  allY.sort((a, b) => b - a);
+  const deckY = allY[Math.floor(allY.length * 0.1)];
+
+  // --------------------------------------------------------------------
+  // STAGE 2: Extract cut-out floor triangles directly from STL
+  // A triangle belongs to a cut-out if:
+  //   - Its centroid is within the scan area
+  //   - Its centroid's Y is below (deckY - minDepth) but above (deckY - MAX_RECESS)
+  //   - Its face normal points roughly upward (top surface of a horizontal floor)
+  // --------------------------------------------------------------------
+  const MAX_RECESS = 80;
+  const minY = deckY - MAX_RECESS;
+  const maxY = deckY - detection.recessDepthMin;
+
+  const floorTriangles = [];
+  for (let t = 0; t < nTris; t++) {
+    const i0 = t * 9;
+    const x1 = pos[i0], y1 = pos[i0 + 1], z1 = pos[i0 + 2];
+    const x2 = pos[i0 + 3], y2 = pos[i0 + 4], z2 = pos[i0 + 5];
+    const x3 = pos[i0 + 6], y3 = pos[i0 + 7], z3 = pos[i0 + 8];
+
+    // Centroid
+    const cx = (x1 + x2 + x3) / 3;
+    const cy = (y1 + y2 + y3) / 3;
+    const cz = (z1 + z2 + z3) / 3;
+
+    if (cx < scanMinX || cx > scanMaxX) continue;
+    if (cy < minY || cy > maxY) continue;
+
+    // Face normal: is it pointing up? Compute cross product, check Y component.
+    const ax = x2 - x1, ay = y2 - y1, az = z2 - z1;
+    const bx = x3 - x1, by = y3 - y1, bz = z3 - z1;
+    const nx = ay * bz - az * by;
+    const ny = az * bx - ax * bz;
+    const nz = ax * by - ay * bx;
+    const nLen = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    if (nLen < 1e-9) continue;
+    const upComponent = ny / nLen;
+
+    // Only upward-facing triangles (within ~60° of vertical)
+    if (upComponent < 0.5) continue;
+
+    // Additionally check that all three vertices are within a flatness band
+    const triMinY = Math.min(y1, y2, y3);
+    const triMaxY = Math.max(y1, y2, y3);
+    if (triMaxY - triMinY > detection.flatnessTolerance) continue;
+
+    floorTriangles.push({
+      v1: { x: x1, y: y1, z: z1 },
+      v2: { x: x2, y: y2, z: z2 },
+      v3: { x: x3, y: y3, z: z3 },
+      cx, cz, cy,
+    });
+  }
+
+  if (floorTriangles.length < 3) {
+    return false;
+  }
+
+  // --------------------------------------------------------------------
+  // STAGE 3: Cluster triangles into connected components (cut-outs)
+  // Two triangles are "connected" if they share an edge OR their centroids
+  // are within a small distance (to bridge STL seams).
+  // --------------------------------------------------------------------
+  // Use spatial hashing for fast neighbor lookup
+  const triGridSize = Math.max(cellSizeX, cellSizeZ) * 3;
+  const triHash = new Map();
+  floorTriangles.forEach((tri, idx) => {
+    const hi = Math.floor(tri.cx / triGridSize);
+    const hj = Math.floor(tri.cz / triGridSize);
+    const key = hi + ',' + hj;
+    if (!triHash.has(key)) triHash.set(key, []);
+    triHash.get(key).push(idx);
+  });
+
+  const clusterLabels = new Array(floorTriangles.length).fill(-1);
+  let nextCluster = 0;
+  const proximityThreshold = triGridSize * 1.2;
+
+  for (let i = 0; i < floorTriangles.length; i++) {
+    if (clusterLabels[i] !== -1) continue;
+    const stack = [i];
+    clusterLabels[i] = nextCluster;
+    while (stack.length) {
+      const ci = stack.pop();
+      const ct = floorTriangles[ci];
+      const hi = Math.floor(ct.cx / triGridSize);
+      const hj = Math.floor(ct.cz / triGridSize);
+      for (let dhi = -1; dhi <= 1; dhi++) {
+        for (let dhj = -1; dhj <= 1; dhj++) {
+          const key = (hi + dhi) + ',' + (hj + dhj);
+          const bucket = triHash.get(key);
+          if (!bucket) continue;
+          for (const nj of bucket) {
+            if (clusterLabels[nj] !== -1) continue;
+            const nt = floorTriangles[nj];
+            const dx = nt.cx - ct.cx;
+            const dz = nt.cz - ct.cz;
+            if (dx * dx + dz * dz <= proximityThreshold * proximityThreshold) {
+              clusterLabels[nj] = nextCluster;
+              stack.push(nj);
+            }
+          }
+        }
+      }
+    }
+    nextCluster++;
+  }
+
+  // Group into clusters
+  const clusters = [];
+  for (let c = 0; c < nextCluster; c++) clusters.push([]);
+  floorTriangles.forEach((tri, idx) => {
+    clusters[clusterLabels[idx]].push(tri);
+  });
+
+  // Filter: minimum cluster size
+  const validClusters = clusters.filter(c => c.length >= 20);
+  validClusters.sort((a, b) => b.length - a.length);
+
+  const topClusters = validClusters.slice(0, 2);
+
+  if (topClusters.length < 2) return false;
+
+  // --------------------------------------------------------------------
+  // STAGE 4: Extract boundary for each cluster directly from triangle edges
+  // The boundary consists of triangle edges that are NOT shared with another
+  // triangle in the same cluster. These "orphan" edges form the outer rim.
+  // --------------------------------------------------------------------
+  const cutouts = topClusters.map(clusterTris => {
+    // Build edge map: each edge as "x1,z1|x2,z2" (quantized to avoid float issues)
+    // Count how many times each edge appears. Edges appearing once = boundary.
+    const edgeMap = new Map();
+    const edgeKey = (a, b) => {
+      // Use integer quantization (0.01 mm) to handle float precision
+      const q = (v) => Math.round(v * 100);
+      const key1 = `${q(a.x)},${q(a.z)}`;
+      const key2 = `${q(b.x)},${q(b.z)}`;
+      // Order so the key is canonical regardless of direction
+      return key1 < key2 ? key1 + '|' + key2 : key2 + '|' + key1;
+    };
+
+    const edges = []; // { a, b, key }
+    clusterTris.forEach(tri => {
+      edges.push({ a: tri.v1, b: tri.v2, key: edgeKey(tri.v1, tri.v2) });
+      edges.push({ a: tri.v2, b: tri.v3, key: edgeKey(tri.v2, tri.v3) });
+      edges.push({ a: tri.v3, b: tri.v1, key: edgeKey(tri.v3, tri.v1) });
+    });
+
+    edges.forEach(e => {
+      edgeMap.set(e.key, (edgeMap.get(e.key) || 0) + 1);
+    });
+
+    // Collect boundary edges (count == 1)
+    const boundaryEdges = edges.filter(e => edgeMap.get(e.key) === 1);
+
+    if (boundaryEdges.length < 3) return null;
+
+    // Order the boundary edges into a continuous polygon
+    // Build adjacency: point → list of connected points
+    const pointKey = (p) => `${Math.round(p.x * 100)},${Math.round(p.z * 100)}`;
+    const adj = new Map();
+    boundaryEdges.forEach(e => {
+      const ka = pointKey(e.a);
+      const kb = pointKey(e.b);
+      if (!adj.has(ka)) adj.set(ka, []);
+      if (!adj.has(kb)) adj.set(kb, []);
+      adj.get(ka).push({ pt: e.b, key: kb });
+      adj.get(kb).push({ pt: e.a, key: ka });
+    });
+
+    // Walk the edges starting from any point, always going to an unvisited neighbor
+    const visited = new Set();
+    const startKey = adj.keys().next().value;
+    const startPt = boundaryEdges.find(e => pointKey(e.a) === startKey)?.a ||
+                    boundaryEdges.find(e => pointKey(e.b) === startKey)?.b;
+    if (!startPt) return null;
+
+    const orderedPts = [startPt];
+    visited.add(startKey);
+    let currentKey = startKey;
+
+    while (true) {
+      const neighbors = adj.get(currentKey) || [];
+      let nextNeighbor = null;
+      for (const n of neighbors) {
+        if (!visited.has(n.key)) {
+          nextNeighbor = n;
+          break;
+        }
+      }
+      if (!nextNeighbor) break;
+      orderedPts.push(nextNeighbor.pt);
+      visited.add(nextNeighbor.key);
+      currentKey = nextNeighbor.key;
+    }
+
+    if (orderedPts.length < 3) return null;
+
+    // Convert to 2D polygon (x, z) - these ARE the true STL vertices
+    const polygon = orderedPts.map(p => ({ x: p.x, z: p.z }));
+
+    // Compute average Y for this cluster
+    const avgY = clusterTris.reduce((s, t) => s + t.cy, 0) / clusterTris.length;
+
+    // Optionally apply light smoothing (Chaikin) - preserves shape but smooths tiny zigzags
+    // Since we're now using actual STL vertices, the polygon is already clean.
+    // A single Chaikin pass will round any remaining sharp corners from mesh tessellation.
+    let smoothed = polygon;
+    if (detection.smoothing > 0) {
+      // Resample first if the polygon has too many points (to avoid over-smoothing detail)
+      const estimatedPerimeter = computePerimeter(polygon);
+      const targetSpacing = Math.max(1, estimatedPerimeter / Math.max(40, polygon.length * 0.3));
+      const resampled = resamplePolygon(polygon, targetSpacing);
+      smoothed = chaikinSmooth(resampled, detection.smoothing);
+    }
+
+    // Centroid
+    const cx = smoothed.reduce((s, p) => s + p.x, 0) / smoothed.length;
+    const cz = smoothed.reduce((s, p) => s + p.z, 0) / smoothed.length;
+
+    // Apply inset
+    const inset = detection.edgeInset;
+    const insetPolygon = smoothed.map(p => {
+      const dx = cx - p.x, dz = cz - p.z;
+      const len = Math.sqrt(dx * dx + dz * dz);
+      if (len < 0.1) return { x: p.x, z: p.z };
+      return { x: p.x + (dx / len) * inset, z: p.z + (dz / len) * inset };
+    });
+
+    return {
+      polygon: insetPolygon,
+      originalPolygon: smoothed,
+      flatY: avgY,
+      centroidX: cx,
+      centroidZ: cz,
+      cellCount: clusterTris.length,
+    };
+  }).filter(c => c !== null);
+
+  if (cutouts.length < 2) return false;
+
+  // Detection succeeded — commit this tail end.
+  detection.tailEnd = tailEndUsed;
+  syncTailButtons();
+
+  // Assign port / starboard by Z centroid
+  cutouts.sort((a, b) => a.centroidZ - b.centroidZ);
+  detectedCutouts.A = { ...cutouts[0], side: 'port' };
+  detectedCutouts.B = { ...cutouts[1], side: 'starboard' };
+
+  // If a saved design was loaded, shift its drawn paths onto this cut-out.
+  reanchorLoadedPaths();
+
+  const depthA = deckY - detectedCutouts.A.flatY;
+  const depthB = deckY - detectedCutouts.B.flatY;
+
+  resultEl.innerHTML = `
+    <div class="bg-green-50 border border-green-200 rounded p-2 mt-2">
+      <div class="text-green-700 font-semibold">✓ Detected 2 cut-outs (STL edge-based)</div>
+      <div class="mt-1 text-slate-700">
+        <div>Plate A (port): ${detectedCutouts.A.cellCount} triangles, depth ${depthA.toFixed(1)} mm</div>
+        <div>Plate B (starboard): ${detectedCutouts.B.cellCount} triangles, depth ${depthB.toFixed(1)} mm</div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('export-a-btn').disabled = false;
+  document.getElementById('export-b-btn').disabled = false;
+
+  rebuildSceneHelpers();
+  rebuildPlates();
+  return true;
+}
+
+function computePerimeter(poly) {
+  let p = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    p += Math.sqrt((b.x - a.x) ** 2 + (b.z - a.z) ** 2);
+  }
+  return p;
+}
+
+// Boundary tracing for a set of cells - returns an ordered list of boundary points
+function traceRegionBoundary(cells, cellSet, gridResX, gridResZ) {
+  // Use the cells' outer edges. Each cell has 4 edges; include edges that don't border another cell.
+  // Then we walk around the boundary edges in order.
+
+  // Build a list of boundary edges as {from: [i,j], to: [i,j]} with cell-corner coordinates
+  const edges = [];
+  for (const { i, j } of cells) {
+    // Cell corners (in cell coordinates, extending +1):
+    // bottom-left: (i, j), bottom-right: (i+1, j), top-right: (i+1, j+1), top-left: (i, j+1)
+    const bl = { i: i, j: j };
+    const br = { i: i + 1, j: j };
+    const tr = { i: i + 1, j: j + 1 };
+    const tl = { i: i, j: j + 1 };
+
+    // Left edge (between (i-1, j) and (i, j))
+    if (!cellSet.has((i - 1) + ',' + j)) edges.push({ from: bl, to: tl });
+    // Right edge
+    if (!cellSet.has((i + 1) + ',' + j)) edges.push({ from: tr, to: br });
+    // Bottom edge
+    if (!cellSet.has(i + ',' + (j - 1))) edges.push({ from: br, to: bl });
+    // Top edge
+    if (!cellSet.has(i + ',' + (j + 1))) edges.push({ from: tl, to: tr });
+  }
+
+  if (edges.length === 0) return [];
+
+  // Walk the edges in order
+  // Build an adjacency map: from-key → to
+  const adj = new Map();
+  for (const e of edges) {
+    const key = e.from.i + ',' + e.from.j;
+    if (!adj.has(key)) adj.set(key, []);
+    adj.get(key).push(e.to);
+  }
+
+  // Start from any edge
+  const startKey = edges[0].from.i + ',' + edges[0].from.j;
+  const [startI, startJ] = startKey.split(',').map(Number);
+  const path = [{ i: startI, j: startJ }];
+  let current = { ...edges[0].to };
+  let safety = edges.length * 2;
+
+  while (safety-- > 0) {
+    path.push({ ...current });
+    const key = current.i + ',' + current.j;
+    if (key === startKey) break;
+    const next = adj.get(key);
+    if (!next || next.length === 0) break;
+    current = next.shift();
+  }
+
+  // Simplify path - collapse collinear points
+  const simplified = [];
+  for (let k = 0; k < path.length; k++) {
+    const prev = simplified[simplified.length - 1];
+    const curr = path[k];
+    const next = path[(k + 1) % path.length];
+    if (!prev) { simplified.push(curr); continue; }
+    // Check collinearity
+    const dx1 = curr.i - prev.i, dy1 = curr.j - prev.j;
+    const dx2 = next.i - curr.i, dy2 = next.j - curr.j;
+    const cross = dx1 * dy2 - dy1 * dx2;
+    if (Math.abs(cross) > 1e-9) {
+      simplified.push(curr);
+    }
+    // else: collinear, skip curr
+  }
+
+  // Remove last if duplicate of first
+  if (simplified.length > 1) {
+    const f = simplified[0], l = simplified[simplified.length - 1];
+    if (f.i === l.i && f.j === l.j) simplified.pop();
+  }
+
+  return simplified;
+}
+
+// ============================================================================
+// SCENE HELPERS
+// ============================================================================
+function rebuildSceneHelpers() {
+  while (helperGroup.children.length) {
+    const c = helperGroup.children[0];
+    helperGroup.remove(c);
+    if (c.geometry) c.geometry.dispose();
+    if (c.material) c.material.dispose();
+  }
+  if (!boardGeometry) return;
+
+  const bounds = boardGeometry.boundingBox;
+  const isTailMax = detection.tailEnd === 'maxX';
+  const tailX = isTailMax ? bounds.max.x : bounds.min.x;
+
+  // Red sphere at tail
+  const tailGeom = new THREE.SphereGeometry(8, 16, 16);
+  const tailMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
+  const tail = new THREE.Mesh(tailGeom, tailMat);
+  tail.position.set(tailX, bounds.max.y + 20, 0);
+  helperGroup.add(tail);
+
+  // Scan region indicator (wireframe box) — only meaningful for STL detection
+  if (!s3dxData) {
+  const sign = isTailMax ? -1 : 1;
+  const scanStartX = tailX;
+  const scanEndX = tailX + sign * detection.scanLength;
+  const boxCenterX = (scanStartX + scanEndX) / 2;
+  const boxGeom = new THREE.BoxGeometry(
+    Math.abs(scanEndX - scanStartX),
+    bounds.max.y - bounds.min.y + 40,
+    bounds.max.z - bounds.min.z
+  );
+  const edges = new THREE.EdgesGeometry(boxGeom);
+  const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.5 }));
+  line.position.set(boxCenterX, (bounds.max.y + bounds.min.y) / 2, (bounds.max.z + bounds.min.z) / 2);
+  helperGroup.add(line);
+  }
+
+  // Detected cut-out outlines (if any)
+  ['A', 'B'].forEach(key => {
+    const co = detectedCutouts[key];
+    if (!co) return;
+
+    // Draw the original (pre-inset) boundary as green
+    drawPolygonLine(co.originalPolygon, co.flatY + 0.5, 0x10b981);
+    // Draw inset (actual plate outline) as bolder blue
+    drawPolygonLine(co.polygon, co.flatY + 1.0, key === 'A' ? 0x0ea5e9 : 0x059669, 2);
+  });
+}
+
+function drawPolygonLine(polygon, yLevel, color, lineWidth = 1) {
+  if (polygon.length < 2) return;
+  const pts = [];
+  polygon.forEach(p => pts.push(new THREE.Vector3(p.x, yLevel, p.z)));
+  pts.push(new THREE.Vector3(polygon[0].x, yLevel, polygon[0].z)); // close
+  const geom = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color, linewidth: lineWidth });
+  const line = new THREE.Line(geom, mat);
+  helperGroup.add(line);
+}
+
+// ============================================================================
+// PLATE GEOMETRY FROM DETECTED CUT-OUT
+// ============================================================================
+// The cut-out polygon is in board coordinates (X, Z) at height flatY.
+// We build the plate shape in LOCAL coordinates where:
+//   - local X = along board length (aligned with board X)
+//   - local Y = across width (aligned with board Z, potentially flipped for mirror)
+//   - local Z = thickness (upward)
+// The step parameters (reachRight, reachDown etc.) use the plate's LOCAL BOUNDING BOX.
+
+// ----------------------------------------------------------------------------
+// Helpers for DRAWN step paths (top-view path editor)
+// ----------------------------------------------------------------------------
+// Remove consecutive duplicate / near-duplicate points from a polygon.
+function dedupePolygon(poly, eps = 1e-3) {
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i];
+    const q = out[out.length - 1];
+    if (!q || Math.abs(p.x - q.x) > eps || Math.abs(p.y - q.y) > eps) out.push({ x: p.x, y: p.y });
+  }
+  // also drop last if equal to first
+  if (out.length > 1) {
+    const a = out[0], b = out[out.length - 1];
+    if (Math.abs(a.x - b.x) <= eps && Math.abs(a.y - b.y) <= eps) out.pop();
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Bezier path model (pen-tool style, as in Illustrator)
+// ---------------------------------------------------------------------------
+// Every node is an anchor with two absolute control handles:
+//   hIn  - shapes the segment arriving from the previous anchor
+//   hOut - shapes the segment leaving toward the next anchor
+// A handle sitting on its anchor gives a straight segment, so a plain polygon
+// is just a path whose handles are all retracted. `smooth` keeps the two
+// handles collinear when one is dragged.
+function pathNode(x, z) {
+  return { x, z, hIn: { x, z }, hOut: { x, z }, smooth: false };
+}
+
+// Accepts legacy nodes (plain corners, or the old fillet radius `r`) and gives
+// every node real handles. Legacy rounded corners become smooth nodes whose
+// handle length approximates the old arc.
+function normalizePathNodes(path) {
+  if (!path || !Array.isArray(path.nodes)) return path;
+  const nodes = path.nodes;
+  const n = nodes.length;
+  nodes.forEach(nd => {
+    if (typeof nd.x !== 'number') nd.x = 0;
+    if (typeof nd.z !== 'number') nd.z = 0;
+    if (!nd.hIn || typeof nd.hIn.x !== 'number') nd.hIn = { x: nd.x, z: nd.z };
+    if (!nd.hOut || typeof nd.hOut.x !== 'number') nd.hOut = { x: nd.x, z: nd.z };
+    if (typeof nd.smooth !== 'boolean') nd.smooth = false;
+  });
+  if (n >= 3) {
+    nodes.forEach((nd, i) => {
+      const legacyR = nd.r;
+      if (legacyR && legacyR > 0.01 && nd.hIn.x === nd.x && nd.hIn.z === nd.z) {
+        makeNodeSmooth(nodes, i, Math.min(0.5, legacyR / 100));
+      }
+      delete nd.r;
+    });
+  }
+  return path;
+}
+
+// Give a node collinear handles derived from its neighbours (Catmull-Rom style).
+function makeNodeSmooth(nodes, i, tension = 0.33) {
+  const n = nodes.length;
+  if (n < 3) return;
+  const p = nodes[i], prev = nodes[(i - 1 + n) % n], next = nodes[(i + 1) % n];
+  let dx = next.x - prev.x, dz = next.z - prev.z;
+  const len = Math.hypot(dx, dz);
+  if (len < 1e-6) return;
+  dx /= len; dz /= len;
+  const dPrev = Math.hypot(p.x - prev.x, p.z - prev.z);
+  const dNext = Math.hypot(next.x - p.x, next.z - p.z);
+  p.hIn = { x: p.x - dx * dPrev * tension, z: p.z - dz * dPrev * tension };
+  p.hOut = { x: p.x + dx * dNext * tension, z: p.z + dz * dNext * tension };
+  p.smooth = true;
+}
+
+// Retract both handles: a hard corner.
+function makeNodeCorner(node) {
+  node.hIn = { x: node.x, z: node.z };
+  node.hOut = { x: node.x, z: node.z };
+  node.smooth = false;
+}
+
+function cubicAt(p0, p1, p2, p3, t) {
+  const m = 1 - t, a = m * m * m, b = 3 * m * m * t, c = 3 * m * t * t, d = t * t * t;
+  return { x: a * p0.x + b * p1.x + c * p2.x + d * p3.x, z: a * p0.z + b * p1.z + c * p2.z + d * p3.z };
+}
+
+// Flatten the path into a board-coordinate polyline for building/clipping.
+function flattenPath(path) {
+  const nodes = (path && path.nodes) || [];
+  const n = nodes.length;
+  if (n < 2) return nodes.map(p => ({ x: p.x, z: p.z }));
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const a = nodes[i], b = nodes[(i + 1) % n];
+    const p0 = { x: a.x, z: a.z };
+    const p3 = { x: b.x, z: b.z };
+    const p1 = a.hOut ? { x: a.hOut.x, z: a.hOut.z } : p0;
+    const p2 = b.hIn ? { x: b.hIn.x, z: b.hIn.z } : p3;
+    const straight = Math.hypot(p1.x - p0.x, p1.z - p0.z) < 0.01
+                  && Math.hypot(p2.x - p3.x, p2.z - p3.z) < 0.01;
+    if (straight) { out.push(p0); continue; }
+    // Segment count from the control polygon length: ~1 point per 2 mm.
+    const approx = Math.hypot(p1.x - p0.x, p1.z - p0.z)
+                 + Math.hypot(p2.x - p1.x, p2.z - p1.z)
+                 + Math.hypot(p3.x - p2.x, p3.z - p2.z);
+    const segs = Math.max(6, Math.min(64, Math.ceil(approx / 2)));
+    for (let s = 0; s < segs; s++) out.push(cubicAt(p0, p1, p2, p3, s / segs));
+  }
+  return out;
+}
+
+// Clip an arbitrary (possibly concave) subject polygon against a CONVEX polygon
+// (Sutherland-Hodgman). Convex polygon must be CCW. Returns clipped polygon.
+function clipByConvex(subject, convex) {
+  let output = subject.slice();
+  for (let i = 0; i < convex.length && output.length; i++) {
+    const a = convex[i], b = convex[(i + 1) % convex.length];
+    const ex = b.x - a.x, ey = b.y - a.y;
+    const f = (p) => ex * (p.y - a.y) - ey * (p.x - a.x); // > 0 == left (inside for CCW)
+    const input = output;
+    output = [];
+    for (let j = 0; j < input.length; j++) {
+      const curr = input[j], next = input[(j + 1) % input.length];
+      const fc = f(curr), fn = f(next);
+      if (fc >= -1e-9) output.push(curr);
+      if ((fc >= -1e-9) !== (fn >= -1e-9)) {
+        const t = fc / (fc - fn);
+        output.push({ x: curr.x + t * (next.x - curr.x), y: curr.y + t * (next.y - curr.y) });
+      }
+    }
+  }
+  return output;
+}
+
+// Ear-clipping triangulation of a simple polygon. Returns array of CCW triangles.
+function earClipTriangulate(poly) {
+  const pts = poly.slice();
+  if (polygonSignedArea(pts) < 0) pts.reverse();
+  const n = pts.length;
+  if (n < 3) return [];
+  const idx = [...Array(n).keys()];
+  const tris = [];
+  const area2 = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const inTri = (p, a, b, c) => {
+    const d1 = area2(p, a, b), d2 = area2(p, b, c), d3 = area2(p, c, a);
+    const neg = d1 < 0 || d2 < 0 || d3 < 0;
+    const pos = d1 > 0 || d2 > 0 || d3 > 0;
+    return !(neg && pos);
+  };
+  let guard = 0;
+  while (idx.length > 3 && guard++ < 20000) {
+    let ear = false;
+    for (let k = 0; k < idx.length; k++) {
+      const i0 = idx[(k - 1 + idx.length) % idx.length];
+      const i1 = idx[k];
+      const i2 = idx[(k + 1) % idx.length];
+      const a = pts[i0], b = pts[i1], c = pts[i2];
+      if (area2(a, b, c) <= 1e-9) continue; // reflex / degenerate
+      let bad = false;
+      for (let m = 0; m < idx.length; m++) {
+        const im = idx[m];
+        if (im === i0 || im === i1 || im === i2) continue;
+        if (inTri(pts[im], a, b, c)) { bad = true; break; }
+      }
+      if (bad) continue;
+      tris.push([a, b, c]);
+      idx.splice(k, 1);
+      ear = true;
+      break;
+    }
+    if (!ear) break;
+  }
+  if (idx.length === 3) tris.push([pts[idx[0]], pts[idx[1]], pts[idx[2]]]);
+  return tris;
+}
+
+// Clip a subject polygon against a precomputed set of (convex CCW) triangles.
+// Returns an array of polygon pieces. Fast: this is the per-edit hot path.
+function intersectWithTris(subject, tris) {
+  const pieces = [];
+  for (const tri of tris) {
+    const piece = clipByConvex(subject, tri);
+    // Keep EVERY fragment, including slivers. The fragments tile the region, and
+    // mergeAdjacentPieces relies on that tiling being complete: discarding a
+    // sliver here leaves its neighbours' shared edges with nothing to cancel
+    // against, which shatters the merged result into dozens of rings.
+    // Negligible rings are dropped after merging instead.
+    if (piece.length >= 3) pieces.push(piece);
+  }
+  return pieces;
+}
+
+// Drop points that sit on the straight line between their neighbours.
+function simplifyCollinear(poly, eps = 1e-4) {
+  if (poly.length < 4) return poly;
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[(i - 1 + poly.length) % poly.length];
+    const c = poly[i];
+    const n = poly[(i + 1) % poly.length];
+    const cross = (c.x - p.x) * (n.y - p.y) - (c.y - p.y) * (n.x - p.x);
+    if (Math.abs(cross) > eps) out.push(c);
+  }
+  return out.length >= 3 ? out : poly;
+}
+
+// Clipping against a triangulation returns one fragment PER TRIANGLE, so a
+// single step footprint comes back shattered into dozens of abutting pieces.
+// Extruding those separately produces internal walls, visible seams, and — because
+// the triangulation of the port and starboard outlines differs — a different
+// fragment count on each side. Merging fixes all three.
+//
+// The fragments tile the region exactly, so every interior edge appears twice in
+// opposite directions. Cancelling those leaves only the true outer boundary,
+// which we then walk into rings. (Same trick the STL cut-out tracer uses.)
+function mergeAdjacentPieces(pieces) {
+  if (!pieces || pieces.length <= 1) return pieces || [];
+  const Q = 1000;                                   // quantise to 0.001 mm
+  const k = p => `${Math.round(p.x * Q)},${Math.round(p.y * Q)}`;
+
+  // Orient the fragments as a GROUP, never individually. Mirroring the plate
+  // reverses the subject's winding, so every fragment on that side comes out
+  // clockwise; flipping each one by its own signed area then sends
+  // near-degenerate slivers the wrong way, and their shared edges stop
+  // cancelling. One decision for the whole set keeps the tiling consistent.
+  let total = 0;
+  for (const piece of pieces) total += polygonSignedArea(piece);
+  const flip = total < 0;
+
+  const edges = new Map();
+  for (const piece of pieces) {
+    const poly = flip ? piece.slice().reverse() : piece;
+    for (let i = 0; i < poly.length; i++) {
+      const a = poly[i], b = poly[(i + 1) % poly.length];
+      const ka = k(a), kb = k(b);
+      if (ka === kb) continue;
+      const rev = kb + '|' + ka;
+      if (edges.has(rev)) edges.delete(rev);        // shared interior edge
+      else edges.set(ka + '|' + kb, { a, b, ka, kb });
+    }
+  }
+  if (edges.size === 0) return pieces;
+
+  const outgoing = new Map();
+  for (const e of edges.values()) {
+    if (!outgoing.has(e.ka)) outgoing.set(e.ka, []);
+    outgoing.get(e.ka).push(e);
+  }
+  const used = new Set();
+  const rings = [];
+  for (const start of edges.values()) {
+    if (used.has(start.ka + '|' + start.kb)) continue;
+    const ring = [];
+    let cur = start, guard = 0;
+    while (cur && guard++ < 200000) {
+      const ck = cur.ka + '|' + cur.kb;
+      if (used.has(ck)) break;
+      used.add(ck);
+      ring.push({ x: cur.a.x, y: cur.a.y });
+      const nexts = outgoing.get(cur.kb);
+      if (!nexts) break;
+      // At a junction several boundary edges meet. Picking one arbitrarily
+      // closes the ring early and splits one region into several. Instead take
+      // the first edge clockwise from the direction we came in, which is the
+      // standard planar face traversal and keeps the interior on one side.
+      const back = Math.atan2(cur.a.y - cur.b.y, cur.a.x - cur.b.x);
+      let nxt = null, bestDelta = Infinity;
+      for (const e of nexts) {
+        if (used.has(e.ka + '|' + e.kb)) continue;
+        let dA = back - Math.atan2(e.b.y - e.a.y, e.b.x - e.a.x);
+        dA = ((dA % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+        if (dA < 1e-9) dA += 2 * Math.PI;           // never immediately double back
+        if (dA < bestDelta) { bestDelta = dA; nxt = e; }
+      }
+      if (!nxt) break;
+      cur = nxt;
+    }
+    if (ring.length >= 3) rings.push(simplifyCollinear(ring));
+  }
+  // Keep only rings with real area; fall back to the raw fragments if the walk failed.
+  // Now that the region is whole again, drop rings too small to matter (they are
+  // clipping noise, well under a printed layer) and any negative-area rings.
+  const good = rings.filter(r => r.length >= 3 && polygonSignedArea(r) > 1.0);
+  return good.length ? good : pieces.filter(p => Math.abs(polygonSignedArea(p)) > 0.05);
+}
+
+// ---------------------------------------------------------------------------
+// True polygon intersection (Greiner–Hormann)
+// ---------------------------------------------------------------------------
+// The triangulate-clip-remerge route proved fragile: ear-clipping a ~570 point
+// outline fans >100 triangles from a single vertex, and re-merging fragments
+// around such a hub is numerically unstable — the starboard plate shattered
+// into dozens of pieces while port merged fine. Greiner–Hormann clips the two
+// polygons against each other directly and emits clean result rings, so there
+// is nothing to re-merge. Handles concave polygons and disjoint results.
+function ghIntersectCore(subjectIn, clipIn) {
+  const dedupe = (poly) => {
+    const out = [];
+    for (const p of poly) {
+      const q = out[out.length - 1];
+      if (!q || Math.abs(p.x - q.x) > 1e-9 || Math.abs(p.y - q.y) > 1e-9) out.push({ x: p.x, y: p.y });
+    }
+    while (out.length > 1 && Math.abs(out[0].x - out[out.length - 1].x) < 1e-9 && Math.abs(out[0].y - out[out.length - 1].y) < 1e-9) out.pop();
+    return out;
+  };
+  const S = ensureCCW(dedupe(subjectIn));
+  const C = ensureCCW(dedupe(clipIn));
+  if (S.length < 3 || C.length < 3) return [];
+
+  // Per-edge intersection lists.
+  const sIx = S.map(() => []), cIx = C.map(() => []);
+  let found = 0;
+  for (let i = 0; i < S.length; i++) {
+    const a = S[i], b = S[(i + 1) % S.length];
+    const d1x = b.x - a.x, d1y = b.y - a.y;
+    for (let j = 0; j < C.length; j++) {
+      const c = C[j], d = C[(j + 1) % C.length];
+      const d2x = d.x - c.x, d2y = d.y - c.y;
+      const denom = d1x * d2y - d1y * d2x;
+      if (Math.abs(denom) < 1e-12) continue;
+      const t = ((c.x - a.x) * d2y - (c.y - a.y) * d2x) / denom;
+      const u = ((c.x - a.x) * d1y - (c.y - a.y) * d1x) / denom;
+      // Strictly interior crossings only; touches are resolved by the caller's
+      // micro-perturbation retry.
+      if (t <= 1e-9 || t >= 1 - 1e-9 || u <= 1e-9 || u >= 1 - 1e-9) continue;
+      const px = a.x + t * d1x, py = a.y + t * d1y;
+      const ns = { x: px, y: py, alpha: t, intersect: true };
+      const nc = { x: px, y: py, alpha: u, intersect: true };
+      ns.neighbor = nc; nc.neighbor = ns;
+      sIx[i].push(ns); cIx[j].push(nc);
+      found++;
+    }
+  }
+
+  // No crossings: containment or disjoint.
+  if (found === 0) {
+    if (isPointInsidePolygon(S[0], C)) return [S.map(p => ({ x: p.x, y: p.y }))];
+    if (isPointInsidePolygon(C[0], S)) return [C.map(p => ({ x: p.x, y: p.y }))];
+    return [];
+  }
+
+  // Build circular doubly linked lists with intersections spliced in order.
+  const buildList = (pts, ixLists) => {
+    const nodes = [];
+    for (let i = 0; i < pts.length; i++) {
+      nodes.push({ x: pts[i].x, y: pts[i].y, intersect: false });
+      ixLists[i].sort((p, q) => p.alpha - q.alpha);
+      for (const n of ixLists[i]) nodes.push(n);
+    }
+    for (let i = 0; i < nodes.length; i++) {
+      nodes[i].next = nodes[(i + 1) % nodes.length];
+      nodes[i].prev = nodes[(i - 1 + nodes.length) % nodes.length];
+    }
+    return nodes;
+  };
+  const sNodes = buildList(S, sIx);
+  const cNodes = buildList(C, cIx);
+
+  // Entry/exit flags, each classified independently from a midpoint test —
+  // more robust than strict alternation when geometry is nearly degenerate.
+  for (const n of sNodes) {
+    if (!n.intersect) continue;
+    const m = { x: (n.x + n.next.x) / 2, y: (n.y + n.next.y) / 2 };
+    n.entry = isPointInsidePolygon(m, C);
+  }
+  for (const n of cNodes) {
+    if (!n.intersect) continue;
+    const m = { x: (n.x + n.next.x) / 2, y: (n.y + n.next.y) / 2 };
+    n.entry = isPointInsidePolygon(m, S);
+  }
+
+  // Trace result rings.
+  const rings = [];
+  const unvisited = sNodes.filter(n => n.intersect);
+  for (const start of unvisited) {
+    if (start.visited) continue;
+    const ring = [];
+    let cur = start;
+    let guard = (sNodes.length + cNodes.length) * 4;
+    do {
+      cur.visited = true;
+      if (cur.neighbor) cur.neighbor.visited = true;
+      if (cur.entry) {
+        do { cur = cur.next; ring.push({ x: cur.x, y: cur.y }); if (cur.intersect) break; } while (guard-- > 0);
+      } else {
+        do { cur = cur.prev; ring.push({ x: cur.x, y: cur.y }); if (cur.intersect) break; } while (guard-- > 0);
+      }
+      cur.visited = true;
+      if (cur.neighbor) cur.neighbor.visited = true;
+      cur = cur.neighbor;
+    } while (cur !== start && cur.neighbor !== start && guard-- > 0);
+    if (ring.length >= 3) rings.push(simplifyCollinear(ring));
+  }
+  return rings.filter(r => r.length >= 3 && Math.abs(polygonSignedArea(r)) > 1.0).map(r => ensureCCW(r));
+}
+
+// Sanity check a clip result by parity-sampling: a grid point should be inside
+// the result exactly when it is inside BOTH inputs. Catches gross failures
+// (missing regions, duplicated overlapping rings) without trusting the
+// algorithm that produced the rings.
+function ghValidate(rings, subject, clip) {
+  if (!rings) return false;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  clip.forEach(p => { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); });
+  let sx0 = Infinity, sx1 = -Infinity, sy0 = Infinity, sy1 = -Infinity;
+  subject.forEach(p => { sx0 = Math.min(sx0, p.x); sx1 = Math.max(sx1, p.x); sy0 = Math.min(sy0, p.y); sy1 = Math.max(sy1, p.y); });
+  x0 = Math.max(x0, sx0); x1 = Math.min(x1, sx1);
+  y0 = Math.max(y0, sy0); y1 = Math.min(y1, sy1);
+  if (x1 <= x0 || y1 <= y0) return rings.length === 0;
+  const N = 14;
+  let mismatch = 0, total = 0;
+  for (let i = 1; i < N; i++) {
+    for (let j = 1; j < N; j++) {
+      const p = { x: x0 + (x1 - x0) * i / N, y: y0 + (y1 - y0) * j / N };
+      const expected = isPointInsidePolygon(p, subject) && isPointInsidePolygon(p, clip);
+      let got = false;
+      for (const r of rings) if (isPointInsidePolygon(p, r)) got = !got; // odd-even
+      if (expected !== got) mismatch++;
+      total++;
+    }
+  }
+  return mismatch / total <= 0.05;
+}
+
+// Robust wrapper: try exact input, then two sub-micron perturbations of the
+// subject (which dissolve vertex-on-edge degeneracies, e.g. a path seeded from
+// the outline itself). 0.001 mm is far below print resolution.
+function ghClip(subject, clip) {
+  const offsets = [[0, 0], [7e-4, 1.3e-3], [-1.1e-3, 9e-4]];
+  for (const [dx, dy] of offsets) {
+    const s = (dx || dy) ? subject.map(p => ({ x: p.x + dx, y: p.y + dy })) : subject;
+    try {
+      const rings = ghIntersectCore(s, clip);
+      if (ghValidate(rings, s, clip)) return rings;
+    } catch (err) { /* fall through to next offset */ }
+  }
+  return null;
+}
+
+// Clip a drawn step footprint to the plate outline. Greiner–Hormann first;
+// if its self-check fails, fall back to the triangulated clip + merge.
+function clipDrawnToPlate(drawnLocal, cutout, polyCCW, mirrored) {
+  const gh = ghClip(drawnLocal, polyCCW);
+  if (gh) return gh;
+  return mergeAdjacentPieces(intersectWithTris(drawnLocal, getPlateTriangles(cutout, polyCCW, mirrored)));
+}
+
+// Intersection of an arbitrary subject polygon with an arbitrary clip polygon.
+function intersectPolygons(subject, clipPoly) {
+  const gh = ghClip(subject, clipPoly);
+  if (gh) return gh;
+  return mergeAdjacentPieces(intersectWithTris(subject, earClipTriangulate(clipPoly)));
+}
+
+// Triangulate a plate's clip polygon ONCE and cache it on the cut-out object.
+// The cut-out outline does not change while a path is being edited, so this
+// keeps the triangulation out of the drag hot path.
+//
+// The outline is used EXACTLY, not simplified. Simplifying it was wrong twice
+// over: Douglas-Peucker depends on where the vertex list starts, so the port and
+// starboard outlines — perfect mirrors, but traced from different start points —
+// simplified differently and produced visibly different plates; and it moved the
+// clip boundary by up to the tolerance, so drawn steps could overhang or undercut
+// the real plate edge. Ear-clipping 568 points takes ~13 ms and is cached, so
+// there was nothing to gain. Only absurdly dense outlines get thinned, and then
+// only by 0.05 mm.
+function getPlateTriangles(cutout, polyCCW, mirrored) {
+  if (cutout._triCache && cutout._triCache.mirrored === mirrored) return cutout._triCache.tris;
+  let clip = polyCCW;
+  if (clip.length > 1200) clip = simplifyClosed(clip, 0.05);
+  const tris = earClipTriangulate(clip);
+  cutout._triCache = { mirrored, tris };
+  return tris;
+}
+
+// Build the local-coordinate context for a plate from its detected cut-out.
+// Mirrors the math inside buildPlateGeometry so the editor / seeding can reuse it.
+function plateLocalContext(plate, cutout) {
+  const polyXZ = cutout.polygon;
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  polyXZ.forEach(p => {
+    if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+    if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z;
+  });
+  const plateW = maxX - minX, plateH = maxZ - minZ;
+  const mirrored = plate.mirrored;
+  const transformPoint = (pt) => ({ x: mirrored ? plateW - (pt.x - minX) : (pt.x - minX), y: pt.z - minZ });
+  const transformedPoly = polyXZ.map(transformPoint);
+  let polyMinX = Infinity, polyMaxX = -Infinity, polyMinY = Infinity, polyMaxY = -Infinity;
+  transformedPoly.forEach(p => {
+    if (p.x < polyMinX) polyMinX = p.x; if (p.x > polyMaxX) polyMaxX = p.x;
+    if (p.y < polyMinY) polyMinY = p.y; if (p.y > polyMaxY) polyMaxY = p.y;
+  });
+  return {
+    minX, maxX, minZ, maxZ, plateW, plateH, mirrored,
+    transformedPoly, polyCCW: ensureCCW(transformedPoly),
+    polyMinX, polyMaxX, polyMinY, polyMaxY,
+    polyW: polyMaxX - polyMinX, polyH: polyMaxY - polyMinY,
+    side: cutout.side,
+  };
+}
+
+// Convert a local (transformed) point back into board (x, z) coordinates.
+function localToBoard(lx, ly, ctx) {
+  const u = ctx.mirrored ? ctx.plateW - lx : lx;
+  let z = ly + ctx.minZ;
+  if (ctx.side === 'starboard') z = -z;
+  return { x: u + ctx.minX, z };
+}
+
+// Compute the simple (reach/angle) step footprint as a local polygon, given ctx.
+function computeSimpleStepLocalPoly(step, ctx) {
+  const t = step.angle / 90;
+  const R = Math.max(1, Math.min(step.reachRight, ctx.polyW));
+  const D = Math.max(1, Math.min(step.reachDown, ctx.polyH));
+  const isTailAtMaxX = detection.tailEnd === 'maxX';
+  const targetBoardX = isTailAtMaxX ? ctx.minX : ctx.maxX;
+  const targetLocalU = targetBoardX - ctx.minX;
+  const targetLocalX = ctx.mirrored ? (ctx.plateW - targetLocalU) : targetLocalU;
+  const targetLocalY = 0 - ctx.minZ;
+  const corners = [
+    { x: ctx.polyMinX, y: ctx.polyMinY }, { x: ctx.polyMaxX, y: ctx.polyMinY },
+    { x: ctx.polyMinX, y: ctx.polyMaxY }, { x: ctx.polyMaxX, y: ctx.polyMaxY },
+  ];
+  let best = corners[0], bestDist = Infinity;
+  corners.forEach(c => {
+    const dx = c.x - targetLocalX, dy = c.y - targetLocalY, d = dx * dx + dy * dy;
+    if (d < bestDist) { bestDist = d; best = c; }
+  });
+  const anchorX = best.x, anchorY = best.y;
+  const signX = anchorX === ctx.polyMaxX ? -1 : 1;
+  const signY = anchorY === ctx.polyMaxY ? -1 : 1;
+  let clipped = ctx.polyCCW.slice();
+  clipped = signX < 0 ? clipAgainstHalfplane(clipped, -1, 0, -(anchorX - R)) : clipAgainstHalfplane(clipped, 1, 0, anchorX + R);
+  clipped = signY < 0 ? clipAgainstHalfplane(clipped, 0, -1, -(anchorY - D)) : clipAgainstHalfplane(clipped, 0, 1, anchorY + D);
+  if (t > 0) {
+    const p1x = anchorX + signX * R, p1y = anchorY + signY * D * (1 - t);
+    const p2x = anchorX + signX * R * (1 - t), p2y = anchorY + signY * D;
+    const dx = p2x - p1x, dy = p2y - p1y;
+    let nx = dy, ny = -dx;
+    if ((anchorX - p1x) * nx + (anchorY - p1y) * ny > 0) { nx = -nx; ny = -ny; }
+    clipped = clipAgainstHalfplane(clipped, nx, ny, nx * p1x + ny * p1y);
+  }
+  return clipped.length >= 3 ? clipped : null;
+}
+
+// Douglas-Peucker simplification of a closed polygon (reduces seed node count).
+function simplifyClosed(poly, eps) {
+  if (poly.length <= 4) return poly.slice();
+  const d2 = (p, a, b) => {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const px = a.x + t * dx, py = a.y + t * dy;
+    return (p.x - px) ** 2 + (p.y - py) ** 2;
+  };
+  const dp = (pts) => {
+    if (pts.length < 3) return pts;
+    let maxD = -1, idx = -1;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const dd = d2(pts[i], pts[0], pts[pts.length - 1]);
+      if (dd > maxD) { maxD = dd; idx = i; }
+    }
+    if (maxD > eps * eps) {
+      const left = dp(pts.slice(0, idx + 1));
+      const right = dp(pts.slice(idx));
+      return left.slice(0, -1).concat(right);
+    }
+    return [pts[0], pts[pts.length - 1]];
+  };
+  const open = poly.concat([poly[0]]);
+  const simp = dp(open);
+  simp.pop();
+  return simp.length >= 3 ? simp : poly.slice();
+}
+
+// Produce an initial drawable path (board coords) seeded from a step's current
+// simple footprint, or a sensible default rectangle if none.
+function seedPathFromStep(plate, step) {
+  const cutout = detectedCutouts.A;
+  if (!cutout) return { nodes: [], closed: true };
+  const ctx = plateLocalContext(plate, cutout);
+  let local = computeSimpleStepLocalPoly(step, ctx);
+  if (!local || local.length < 3) {
+    local = [
+      { x: ctx.polyMinX, y: ctx.polyMinY },
+      { x: ctx.polyMinX + ctx.polyW * 0.6, y: ctx.polyMinY },
+      { x: ctx.polyMinX + ctx.polyW * 0.6, y: ctx.polyMinY + ctx.polyH * 0.6 },
+      { x: ctx.polyMinX, y: ctx.polyMinY + ctx.polyH * 0.6 },
+    ];
+  }
+  local = simplifyClosed(local, 1.5);
+  const board = local.map(p => localToBoard(p.x, p.y, ctx));
+  return { nodes: board.map(p => pathNode(Math.round(p.x * 10) / 10, Math.round(p.z * 10) / 10)), closed: true };
+}
+
+function buildPlateGeometry(plate, cutoutKey) {
+  const cutout = detectedCutouts[cutoutKey];
+  if (!cutout) return null;
+
+  // Transform polygon into local (u, v) coordinates.
+  // We normalize so that the min corner of the bounding box is at (0, 0).
+  const polyXZ = cutout.polygon;
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  polyXZ.forEach(p => {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.z < minZ) minZ = p.z;
+    if (p.z > maxZ) maxZ = p.z;
+  });
+  const plateW = maxX - minX;
+  const plateH = maxZ - minZ;
+
+  // Build the plate's 2D shape polygon in local (u, v)
+  const localPoly = polyXZ.map(p => ({ u: p.x - minX, v: p.z - minZ }));
+
+  // Apply mirror (flip u-axis)
+  const mirrored = plate.mirrored;
+  const transformPoint = (pt) => {
+    let u = pt.u;
+    if (mirrored) u = plateW - u;
+    return { x: u, y: pt.v };
+  };
+
+  const shape = new THREE.Shape();
+  if (localPoly.length === 0) return null;
+  const first = transformPoint(localPoly[0]);
+  shape.moveTo(first.x, first.y);
+  for (let i = 1; i < localPoly.length; i++) {
+    const p = transformPoint(localPoly[i]);
+    shape.lineTo(p.x, p.y);
+  }
+  shape.closePath();
+
+  const debugInfo = [];
+
+  // Screw holes are placed EXPLICITLY, in board coordinates, exactly like the
+  // drawn step paths: stored for the port plate and mirrored across the
+  // centreline for starboard. No grid, so a hole always lands where you put it.
+  const holePoly = localPoly.map(transformPoint);
+  const holeToLocal = (h) => {
+    const z = (cutout.side === 'starboard') ? -h.z : h.z;
+    let u = h.x - minX;
+    if (mirrored) u = plateW - u;
+    return { x: u, y: z - minZ };
+  };
+  const holes = [];
+  let holesOutside = 0, holesTooClose = 0;
+  (plate.holes || []).forEach(h => {
+    const r = Math.max(0.1, (h.d != null ? h.d : plate.holeDiameter) / 2);
+    const pt = holeToLocal(h);
+    if (!isPointInsidePolygon(pt, holePoly)) { holesOutside++; return; }
+    if (distanceToPolygonEdge(pt, holePoly) <= r + 0.5) { holesTooClose++; return; }
+    holes.push({ pt, r, id: h.id });
+  });
+  if (holesOutside) debugInfo.push(`${holesOutside} hole(s) outside the plate — not drilled`);
+  if (holesTooClose) debugInfo.push(`${holesTooClose} hole(s) too close to the edge — not drilled`);
+
+  // Add holes to plate shape
+  holes.forEach(h => {
+    const hole = new THREE.Path();
+    hole.absarc(h.pt.x, h.pt.y, h.r, 0, Math.PI * 2, true);
+    shape.holes.push(hole);
+  });
+
+  const plateGeom = new THREE.ExtrudeGeometry(shape, {
+    depth: plate.thickness,
+    bevelEnabled: false,
+    curveSegments: 32,
+  });
+
+  // Steps
+  const stepGeoms = [];
+  let cumulativeHeight = 0;
+  const transformedPoly = holePoly;
+
+  // Find bounds of transformed polygon (the actual plate extent in local coords)
+  let polyMinX = Infinity, polyMaxX = -Infinity, polyMinY = Infinity, polyMaxY = -Infinity;
+  transformedPoly.forEach(p => {
+    if (p.x < polyMinX) polyMinX = p.x;
+    if (p.x > polyMaxX) polyMaxX = p.x;
+    if (p.y < polyMinY) polyMinY = p.y;
+    if (p.y > polyMaxY) polyMaxY = p.y;
+  });
+  const polyW = polyMaxX - polyMinX;
+  const polyH = polyMaxY - polyMinY;
+
+  // Ensure the plate polygon has CCW orientation for clipping
+  const polyCCW = ensureCCW(transformedPoly);
+
+  plate.steps.forEach((step, stepIdx) => {
+    if (!step.enabled) {
+      debugInfo.push(`Step ${stepIdx + 1}: disabled`);
+      return;
+    }
+    if (step.height === 0) {
+      debugInfo.push(`Step ${stepIdx + 1}: height is 0`);
+      return;
+    }
+
+    // Determine the step footprint polygon(s) in local (transformed) coords.
+    let pieces = [];
+
+    if (step.mode === 'draw') {
+      // ---- DRAWN PATH MODE -------------------------------------------------
+      const path = step.path;
+      if (!path || !path.nodes || path.nodes.length < 3) {
+        debugInfo.push(`Step ${stepIdx + 1}: draw mode, path has < 3 points`);
+        if (step.cumulative) cumulativeHeight += step.height;
+        return;
+      }
+      // Path is stored in PORT (plate A) board coords. Mirror Z for starboard.
+      const toLocal = (p) => {
+        let z = (cutout.side === 'starboard') ? -p.z : p.z;
+        let u = p.x - minX;
+        if (mirrored) u = plateW - u;
+        return { x: u, y: z - minZ };
+      };
+      const drawnLocal = dedupePolygon(flattenPath(path).map(toLocal));
+      if (drawnLocal.length < 3) {
+        debugInfo.push(`Step ${stepIdx + 1}: path collapsed`);
+        if (step.cumulative) cumulativeHeight += step.height;
+        return;
+      }
+      if (step.clipToPlate !== false) {
+        pieces = clipDrawnToPlate(drawnLocal, cutout, polyCCW, mirrored);
+        if (pieces.length === 0) {
+          debugInfo.push(`Step ${stepIdx + 1}: path lies outside the plate outline`);
+          if (step.cumulative) cumulativeHeight += step.height;
+          return;
+        }
+      } else {
+        pieces = [drawnLocal];
+      }
+    } else {
+      // ---- SIMPLE (reach/angle) MODE --------------------------------------
+      const ctx = {
+        minX, maxX, minZ, plateW, mirrored,
+        polyCCW, polyW, polyH, polyMinX, polyMaxX, polyMinY, polyMaxY,
+      };
+      const clipped = computeSimpleStepLocalPoly(step, ctx);
+      if (!clipped || clipped.length < 3) {
+        debugInfo.push(`Step ${stepIdx + 1}: clipped to < 3 points`);
+        if (step.cumulative) cumulativeHeight += step.height;
+        return;
+      }
+      pieces = [clipped];
+    }
+
+    // Extrude each footprint piece, punching any screw holes that fall inside.
+    const stepBaseHeight = step.cumulative ? cumulativeHeight : 0;
+    let built = 0;
+    pieces.forEach(piece => {
+      const stepShape = new THREE.Shape();
+      stepShape.moveTo(piece[0].x, piece[0].y);
+      for (let i = 1; i < piece.length; i++) stepShape.lineTo(piece[i].x, piece[i].y);
+      stepShape.closePath();
+
+      holes.forEach(h => {
+        if (isPointInsidePolygon(h.pt, piece)) {
+          const minD = distanceToPolygonEdge(h.pt, piece);
+          if (minD > h.r + 0.5) {
+            const hole = new THREE.Path();
+            hole.absarc(h.pt.x, h.pt.y, h.r, 0, Math.PI * 2, true);
+            stepShape.holes.push(hole);
+          }
+        }
+      });
+
+      try {
+        const geom = new THREE.ExtrudeGeometry(stepShape, {
+          depth: step.height,
+          bevelEnabled: false,
+          curveSegments: 32,
+        });
+        geom.translate(0, 0, plate.thickness + stepBaseHeight);
+        stepGeoms.push({ geom, stepId: step.id });
+        built++;
+      } catch (err) {
+        debugInfo.push(`Step ${stepIdx + 1}: ERROR ${err.message}`);
+      }
+    });
+
+    let pieceNote = `${built} piece${built === 1 ? '' : 's'}`;
+    if (built > 1) {
+      // List piece areas so an accidental sliver (path nicked the plate edge)
+      // is visible at a glance instead of silently printing as a thin spike.
+      const areas = pieces.map(p => Math.abs(polygonSignedArea(p)) / 100);
+      pieceNote += `: ${areas.map(a => a.toFixed(a < 1 ? 2 : 0) + ' cm²').join(' + ')}`;
+      if (areas.some(a => a < 2)) pieceNote += ' — small sliver, check the path near the plate edge';
+    }
+    debugInfo.push(`Step ${stepIdx + 1}: ✓ ${step.mode === 'draw' ? 'drawn path' : 'simple'} (${pieceNote}, side ${cutout.side})`);
+    if (step.cumulative) cumulativeHeight += step.height;
+  });
+
+  return {
+    plateGeom,
+    stepGeoms,
+    plateW, plateH,
+    minX, minZ,
+    mirrored,
+    flatY: cutout.flatY,
+    side: cutout.side,
+    debugInfo,
+    polyW, polyH,
+    holeCount: holes.length,
+    holeIds: holes.map(h => h.id),
+  };
+}
+
+function isPointInsidePolygon(pt, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y;
+    const xj = poly[j].x, yj = poly[j].y;
+    const intersect = ((yi > pt.y) !== (yj > pt.y)) && (pt.x < ((xj - xi) * (pt.y - yi)) / (yj - yi + 1e-12) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function distanceToPolygonEdge(pt, poly) {
+  let minDist = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].x, yi = poly[i].y, xj = poly[j].x, yj = poly[j].y;
+    const dx = xj - xi, dy = yj - yi;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 > 0 ? ((pt.x - xi) * dx + (pt.y - yi) * dy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const px = xi + t * dx, py = yi + t * dy;
+    const d = Math.sqrt((pt.x - px) ** 2 + (pt.y - py) ** 2);
+    if (d < minDist) minDist = d;
+  }
+  return minDist;
+}
+
+function clipPolygonAgainstPolygon(subject, clip) {
+  let output = subject.slice();
+  for (let i = 0; i < clip.length; i++) {
+    const a = clip[i];
+    const b = clip[(i + 1) % clip.length];
+    const edgeDx = b.x - a.x;
+    const edgeDy = b.y - a.y;
+    const input = output;
+    output = [];
+    for (let j = 0; j < input.length; j++) {
+      const curr = input[j];
+      const next = input[(j + 1) % input.length];
+      const currInside = (curr.x - a.x) * edgeDy - (curr.y - a.y) * edgeDx <= 0;
+      const nextInside = (next.x - a.x) * edgeDy - (next.y - a.y) * edgeDx <= 0;
+      if (currInside) output.push(curr);
+      if (currInside !== nextInside) {
+        const denom = (next.x - curr.x) * edgeDy - (next.y - curr.y) * edgeDx;
+        if (Math.abs(denom) > 1e-12) {
+          const t = ((a.x - curr.x) * edgeDy - (a.y - curr.y) * edgeDx) / denom;
+          output.push({
+            x: curr.x + t * (next.x - curr.x),
+            y: curr.y + t * (next.y - curr.y),
+          });
+        }
+      }
+    }
+    if (output.length === 0) break;
+  }
+  return output;
+}
+
+// Compute signed area of polygon. Positive = CCW, negative = CW.
+function polygonSignedArea(poly) {
+  let a = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p1 = poly[i];
+    const p2 = poly[(i + 1) % poly.length];
+    a += (p2.x - p1.x) * (p2.y + p1.y);
+  }
+  return -a / 2;
+}
+
+// Ensure polygon is in CCW (counter-clockwise) orientation.
+// In our coord system with Y pointing "down" visually, the sign convention
+// is standard mathematical: CCW = positive signed area.
+function ensureCCW(poly) {
+  if (polygonSignedArea(poly) < 0) {
+    return poly.slice().reverse();
+  }
+  return poly.slice();
+}
+
+// Clip a polygon against a half-plane defined by { nx, ny, c }:
+// keep points where nx*x + ny*y <= c.
+// This is the core Sutherland-Hodgman step, applied to a single half-plane.
+// Works correctly regardless of polygon convexity.
+function clipAgainstHalfplane(poly, nx, ny, c) {
+  if (poly.length === 0) return [];
+  const output = [];
+  const isInside = (p) => nx * p.x + ny * p.y <= c + 1e-9;
+  for (let i = 0; i < poly.length; i++) {
+    const curr = poly[i];
+    const next = poly[(i + 1) % poly.length];
+    const currIn = isInside(curr);
+    const nextIn = isInside(next);
+    if (currIn) output.push(curr);
+    if (currIn !== nextIn) {
+      // Find intersection along edge (curr → next)
+      const dx = next.x - curr.x;
+      const dy = next.y - curr.y;
+      const denom = nx * dx + ny * dy;
+      if (Math.abs(denom) > 1e-12) {
+        const t = (c - (nx * curr.x + ny * curr.y)) / denom;
+        output.push({
+          x: curr.x + t * dx,
+          y: curr.y + t * dy,
+        });
+      }
+    }
+  }
+  return output;
+}
+
+// ============================================================================
+// REBUILD PLATES IN SCENE
+// ============================================================================
+function rebuildPlates() {
+  while (plateGroup.children.length) {
+    const c = plateGroup.children[0];
+    plateGroup.remove(c);
+    if (c.geometry) c.geometry.dispose();
+    if (c.material) c.material.dispose();
+  }
+  if (!boardGeometry) return;
+  if (!detectedCutouts.A || !detectedCutouts.B) return;
+
+  // Sync Plate B to use the same settings as Plate A.
+  // Both plates get the same shape and step configuration — Plate B is simply
+  // placed on the opposite cut-out, without any mirroring of the shape itself.
+  plateB = {
+    thickness: plateA.thickness,
+    holeDiameter: plateA.holeDiameter,
+    holes: (plateA.holes || []).map(h => ({ ...h })),
+    nextHoleId: plateA.nextHoleId,
+    mirrored: plateA.mirrored,  // same mirror state (neither mirrored by default)
+    steps: plateA.steps.map(s => ({ ...s })),
+    nextStepId: plateA.nextStepId,
+    expandedStep: plateA.expandedStep,
+  };
+
+  ['A', 'B'].forEach(key => {
+    const plate = key === 'A' ? plateA : plateB;
+    const data = buildPlateGeometry(plate, key);
+    if (!data) return;
+
+    const isPort = data.side === 'port';
+    const group = new THREE.Group();
+
+    const baseColor = isPort ? 0x0ea5e9 : 0x10b981;
+    const baseMat = new THREE.MeshPhongMaterial({ color: baseColor, side: THREE.DoubleSide });
+    group.add(new THREE.Mesh(data.plateGeom, baseMat));
+
+    data.stepGeoms.forEach(({ geom }, i) => {
+      const t = data.stepGeoms.length > 1 ? i / (data.stepGeoms.length - 1) : 0.5;
+      const stepColor = new THREE.Color().lerpColors(
+        new THREE.Color(isPort ? 0x7dd3fc : 0x6ee7b7),
+        new THREE.Color(isPort ? 0x0369a1 : 0x047857),
+        t
+      );
+      const stepMat = new THREE.MeshPhongMaterial({ color: stepColor, side: THREE.DoubleSide });
+      group.add(new THREE.Mesh(geom, stepMat));
+    });
+
+    // Place the plate: local shape is in (X, Y) plane (0..plateW × 0..plateH),
+    // extruded along local +Z. We want local +Z → world +Y (up).
+    group.rotateX(Math.PI / 2);
+    // After rotateX(PI/2): local +Y → world -Z, local +Z → world +Y
+    // We want local Y (which currently became world -Z) to align with the Z-direction of the cut-out.
+    // Our cut-out polygon was in board (X, Z); we normalized so cut-out X range is minX..maxX and Z range is minZ..maxZ.
+    // Local u corresponds to world X (with minX offset), local v corresponds to world Z (with minZ offset).
+    // With rotation, local v became world -Z. So we need to flip Z to get local v → world +Z.
+    group.scale.z = -1;
+
+    // Position: local (0, 0, 0) should map to world (minX, flatY, minZ).
+    // X: local +X → world +X, so group.position.x = minX
+    // Z: local +Y → world -Z (after flip: world +Z), so group.position.z = minZ
+    // Y: local +Z → world +Y, so plate bottom at local z=0 maps to world Y=flatY
+    group.position.x = data.minX;
+    group.position.z = data.minZ;
+    group.position.y = data.flatY;
+
+    plateGroup.add(group);
+  });
+}
+
+// ============================================================================
+// STL EXPORT
+// ============================================================================
+function exportPlateSTL(plate, cutoutKey, filename) {
+  const data = buildPlateGeometry(plate, cutoutKey);
+  if (!data) return;
+  exportGeomsAsSTL([data.plateGeom, ...data.stepGeoms.map(s => s.geom)], filename);
+}
+
+// Export ONE step as its own solid, without the base plate underneath —
+// for printing a step directly as the plate. The solid is re-based so its
+// bottom sits at Y=0 regardless of where the step stacked in the assembly.
+function exportStepSTL(plate, cutoutKey, stepId, filename) {
+  const data = buildPlateGeometry(plate, cutoutKey);
+  if (!data) return;
+  const geoms = data.stepGeoms.filter(s => s.stepId === stepId).map(s => s.geom);
+  if (geoms.length === 0) return;
+  exportGeomsAsSTL(geoms, filename);
+}
+
+function exportGeomsAsSTL(allGeoms, filename) {
+  // Geometry is in local coords: X along board length, Y across width,
+  // Z = thickness (extruded up). Export flat: X unchanged, Y = thickness up,
+  // Z = across width — matching the 3D viewer orientation.
+  const transformVertex = (x, y, z) => {
+    return [x, z, y];
+  };
+
+  const allTriangles = [];
+
+  allGeoms.forEach(geom => {
+    const g = geom.index ? geom.toNonIndexed() : geom.clone();
+    const pos = g.attributes.position.array;
+    for (let i = 0; i < pos.length; i += 9) {
+      const v1 = transformVertex(pos[i], pos[i + 1], pos[i + 2]);
+      const v2 = transformVertex(pos[i + 3], pos[i + 4], pos[i + 5]);
+      const v3 = transformVertex(pos[i + 6], pos[i + 7], pos[i + 8]);
+      allTriangles.push([...v1, ...v2, ...v3]);
+    }
+  });
+
+  if (allTriangles.length === 0) return;
+
+  // Swapping Y and Z reverses triangle winding. Restore by swapping v2 and v3.
+  for (const tri of allTriangles) {
+    const tx = tri[3], ty = tri[4], tz = tri[5];
+    tri[3] = tri[6]; tri[4] = tri[7]; tri[5] = tri[8];
+    tri[6] = tx; tri[7] = ty; tri[8] = tz;
+  }
+
+  // Compute bounding box and center the plate at origin with bottom at Y=0
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const tri of allTriangles) {
+    for (let k = 0; k < 9; k += 3) {
+      if (tri[k] < minX) minX = tri[k];
+      if (tri[k] > maxX) maxX = tri[k];
+      if (tri[k + 1] < minY) minY = tri[k + 1];
+      if (tri[k + 1] > maxY) maxY = tri[k + 1];
+      if (tri[k + 2] < minZ) minZ = tri[k + 2];
+      if (tri[k + 2] > maxZ) maxZ = tri[k + 2];
+    }
+  }
+  const centerX = (minX + maxX) / 2;
+  const centerZ = (minZ + maxZ) / 2;
+  for (const tri of allTriangles) {
+    for (let k = 0; k < 9; k += 3) {
+      tri[k] -= centerX;
+      tri[k + 1] -= minY;
+      tri[k + 2] -= centerZ;
+    }
+  }
+
+  const triCount = allTriangles.length;
+  const fmtSel = document.getElementById('export-format');
+  const fmt = fmtSel ? fmtSel.value : 'stl';
+  const baseName = filename.replace(/\.stl$/i, '');
+  let blob, outName;
+
+  if (fmt === 'obj') {
+    // OBJ (text): deduplicated vertices, units are mm.
+    const vmap = new Map();
+    const verts = [], faces = [];
+    const vid = (x, y, z) => {
+      const k = `${Math.round(x * 1000)},${Math.round(y * 1000)},${Math.round(z * 1000)}`;
+      let id = vmap.get(k);
+      if (!id) {
+        verts.push(`v ${x.toFixed(3)} ${y.toFixed(3)} ${z.toFixed(3)}`);
+        id = verts.length;
+        vmap.set(k, id);
+      }
+      return id;
+    };
+    for (const t of allTriangles) {
+      faces.push(`f ${vid(t[0], t[1], t[2])} ${vid(t[3], t[4], t[5])} ${vid(t[6], t[7], t[8])}`);
+    }
+    const text = `# Board Plate Builder export — units: mm\n${verts.join('\n')}\n${faces.join('\n')}\n`;
+    blob = new Blob([text], { type: 'text/plain' });
+    outName = baseName + '.obj';
+  } else {
+    // Binary STL (units mm — what slicers expect).
+    const buffer = new ArrayBuffer(84 + triCount * 50);
+    const view = new DataView(buffer);
+    let offset = 80;
+    view.setUint32(offset, triCount, true);
+    offset += 4;
+    for (const tri of allTriangles) {
+      const [x1, y1, z1, x2, y2, z2, x3, y3, z3] = tri;
+      const ax = x2 - x1, ay = y2 - y1, az = z2 - z1;
+      const bx = x3 - x1, by = y3 - y1, bz = z3 - z1;
+      let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
+      const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+      nx /= len; ny /= len; nz /= len;
+      view.setFloat32(offset, nx, true); offset += 4;
+      view.setFloat32(offset, ny, true); offset += 4;
+      view.setFloat32(offset, nz, true); offset += 4;
+      view.setFloat32(offset, x1, true); offset += 4;
+      view.setFloat32(offset, y1, true); offset += 4;
+      view.setFloat32(offset, z1, true); offset += 4;
+      view.setFloat32(offset, x2, true); offset += 4;
+      view.setFloat32(offset, y2, true); offset += 4;
+      view.setFloat32(offset, z2, true); offset += 4;
+      view.setFloat32(offset, x3, true); offset += 4;
+      view.setFloat32(offset, y3, true); offset += 4;
+      view.setFloat32(offset, z3, true); offset += 4;
+      view.setUint16(offset, 0, true); offset += 2;
+    }
+    blob = new Blob([buffer], { type: 'application/octet-stream' });
+    outName = baseName + '.stl';
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = outName;
+  a.click();
+  URL.revokeObjectURL(url);
+  const statusEl = document.getElementById('export-status');
+  if (statusEl) statusEl.innerHTML = `<span class="text-green-600">✓ saved ${outName} (${triCount} triangles, mm)</span>`;
+}
+
+// ============================================================================
+// UI
+// ============================================================================
+function makeSlider(label, min, max, step, value, onChange, accentClass = 'accent-blue-500') {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+    <div class="flex justify-between items-center mb-1">
+      <label class="text-xs font-medium text-slate-700">${label}</label>
+      <input type="number" value="${value}" min="${min}" max="${max}" step="${step}" class="w-20 px-2 py-0.5 text-xs border border-slate-300 rounded text-right" data-num />
+    </div>
+    <input type="range" min="${min}" max="${max}" step="${step}" value="${Math.min(value, max)}" class="w-full ${accentClass}" data-range />
+  `;
+  const num = wrap.querySelector('[data-num]');
+  const range = wrap.querySelector('[data-range]');
+  num.addEventListener('input', e => { onChange(Number(e.target.value)); range.value = Math.min(Number(e.target.value), max); });
+  range.addEventListener('input', e => { onChange(Number(e.target.value)); num.value = e.target.value; });
+  return wrap;
+}
+
+function renderDetectionControls() {
+  const section = document.getElementById('detection-controls');
+  section.querySelectorAll('[data-slider]').forEach(el => {
+    const key = el.dataset.slider;
+    const label = el.dataset.label;
+    const min = Number(el.dataset.min);
+    const max = Number(el.dataset.max);
+    const step = Number(el.dataset.step);
+    el.innerHTML = '';
+    el.appendChild(makeSlider(label, min, max, step, detection[key], v => {
+      detection[key] = v;
+      rebuildSceneHelpers();
+    }, 'accent-amber-500'));
+  });
+}
+
+function renderPlateTab(plateId) {
+  const plate = plateId === 'a' ? plateA : plateB;
+  const cutoutKey = plateId.toUpperCase();
+  const cutout = detectedCutouts[cutoutKey];
+  const container = document.getElementById(`plate-${plateId}-tab-content`);
+  container.innerHTML = '';
+
+  if (!boardGeometry) {
+    container.innerHTML = '<div class="text-sm text-slate-500 italic">Upload a board model first.</div>';
+    return;
+  }
+  if (!cutout) {
+    container.innerHTML = '<div class="text-sm text-slate-500 italic">Run cut-out detection on the Board tab first.</div>';
+    return;
+  }
+
+  const sideLabel = 'Plate settings (applied to both sides)';
+  const bgClass = 'bg-sky-50 border-sky-200';
+
+  container.innerHTML = `
+    <div class="${bgClass} border rounded p-3 text-xs text-slate-700">
+      <strong>${sideLabel}</strong><br>
+      Port (blue) and starboard (green) plates are mirror images — adjust one and both update.
+    </div>
+  `;
+
+  const plateSection = document.createElement('div');
+  plateSection.className = 'pt-3 border-t border-slate-200 space-y-3';
+  plateSection.innerHTML = '<h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Plate</h3>';
+  plateSection.appendChild(makeSlider('Thickness (mm)', 2, 50, 0.5, plate.thickness, v => { plate.thickness = v; rebuildPlates(); }, 'accent-amber-500'));
+  container.appendChild(plateSection);
+
+  // --- Screw holes: explicit positions, no grid -----------------------------
+  const built = buildPlateGeometry(plate, cutoutKey);
+  const drilled = built ? built.holeCount : 0;
+  const holeSection = document.createElement('div');
+  holeSection.className = 'pt-3 border-t border-slate-200 space-y-2';
+  holeSection.innerHTML = `
+    <div class="flex items-center justify-between">
+      <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Screw holes (${drilled}/${plate.holes.length})</h3>
+      <button class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded font-medium" data-add-hole>+ Add hole</button>
+    </div>
+    <div class="text-xs text-slate-500">Positions are exact, in board mm. X = along length (0 = tail), Z = across width from the centreline.</div>
+    <div data-hole-list class="space-y-1"></div>`;
+  holeSection.appendChild(makeSlider('Default diameter for new holes (mm)', 2, 30, 0.5, plate.holeDiameter, v => { plate.holeDiameter = v; }, 'accent-amber-500'));
+
+  const holeList = holeSection.querySelector('[data-hole-list]');
+  const tailX = cutout ? Math.max(...cutout.polygon.map(p => p.x)) : 0;
+  if (plate.holes.length === 0) {
+    holeList.innerHTML = '<div class="text-xs text-slate-400 italic py-1">No holes yet — press “Add hole”.</div>';
+  } else {
+    holeList.innerHTML = `<div class="flex items-center gap-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+        <span class="w-4"></span><span class="w-16 text-right">X len</span><span class="w-16 text-right">Z width</span><span class="w-14 text-right">Ø</span><span class="w-5"></span></div>`;
+    plate.holes.forEach((h, i) => {
+      const okList = built ? built.holeIds : [];
+      const isOk = okList.indexOf(h.id) >= 0;
+      const row = document.createElement('div');
+      row.className = 'flex items-center gap-1';
+      row.innerHTML = `
+        <span class="text-xs w-4 text-right ${isOk ? 'text-slate-400' : 'text-red-500'}" title="${isOk ? 'drilled' : 'outside the plate — not drilled'}">${isOk ? (i + 1) : '!'}</span>
+        <input data-f="x" type="number" step="1" value="${Math.round(h.x * 10) / 10}" class="w-16 px-1 py-0.5 text-xs border ${isOk ? 'border-slate-300' : 'border-red-300 bg-red-50'} rounded text-right" />
+        <input data-f="z" type="number" step="1" value="${Math.round(h.z * 10) / 10}" class="w-16 px-1 py-0.5 text-xs border ${isOk ? 'border-slate-300' : 'border-red-300 bg-red-50'} rounded text-right" />
+        <input data-f="d" type="number" step="0.5" min="1" value="${h.d != null ? h.d : plate.holeDiameter}" class="w-14 px-1 py-0.5 text-xs border border-slate-300 rounded text-right" />
+        <button data-del-hole class="text-slate-400 hover:text-red-600 text-xs px-1" title="delete">✕</button>`;
+      row.querySelectorAll('input').forEach(inp => {
+        inp.addEventListener('input', e => {
+          const v = Number(e.target.value);
+          if (!isFinite(v)) return;
+          h[inp.dataset.f] = v;
+          rebuildPlates();
+          clearTimeout(window._holeRefresh);
+          window._holeRefresh = setTimeout(() => renderPlateTab(plateId), 400);
+        });
+      });
+      row.querySelector('[data-del-hole]').addEventListener('click', () => {
+        plate.holes = plate.holes.filter(x => x.id !== h.id);
+        rebuildPlates(); renderPlateTab(plateId);
+      });
+      holeList.appendChild(row);
+    });
+  }
+  holeSection.querySelector('[data-add-hole]').addEventListener('click', () => {
+    // Drop the new hole at the centre of the cut-out so it is visible immediately.
+    const cx = cutout ? cutout.centroidX : 0;
+    const cz = cutout ? Math.abs(cutout.centroidZ) : 0;
+    plate.holes.push({ id: plate.nextHoleId++, x: Math.round(cx), z: -Math.abs(Math.round(cz)), d: plate.holeDiameter });
+    rebuildPlates(); renderPlateTab(plateId);
+  });
+  container.appendChild(holeSection);
+
+  // Compute the plate's local bounding box dimensions from the detected cut-out
+  // This is used to constrain step sliders so they can't exceed the plate size
+  let plateW = 100, plateH = 100;
+  {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    cutout.polygon.forEach(p => {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.z < minZ) minZ = p.z;
+      if (p.z > maxZ) maxZ = p.z;
+    });
+    plateW = Math.max(10, maxX - minX);
+    plateH = Math.max(10, maxZ - minZ);
+  }
+
+  const stepsSection = document.createElement('div');
+  stepsSection.className = 'pt-3 border-t border-slate-200';
+  stepsSection.innerHTML = `
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Steps (${plate.steps.length})</h3>
+      <button class="flex items-center gap-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded font-medium" data-add-step>+ Add</button>
+    </div>
+    <div class="text-xs text-slate-500 mb-2">Plate size: ${plateW.toFixed(0)} × ${plateH.toFixed(0)} mm</div>
+    <div class="space-y-2" data-steps-list></div>
+  `;
+  stepsSection.querySelector('[data-add-step]').addEventListener('click', () => {
+    const last = plate.steps[plate.steps.length - 1];
+    const defaultReachRight = last ? Math.max(20, last.reachRight - 20) : Math.round(plateW * 0.6);
+    const defaultReachDown = last ? Math.max(20, last.reachDown - 15) : Math.round(plateH * 0.6);
+    plate.steps.push({
+      id: plate.nextStepId++,
+      enabled: true, height: 5,
+      reachRight: Math.min(defaultReachRight, plateW),
+      reachDown: Math.min(defaultReachDown, plateH),
+      angle: last ? last.angle : 0,
+      cumulative: true,
+      mode: last ? last.mode : 'simple',
+      path: null,
+      clipToPlate: true,
+    });
+    plate.expandedStep = plate.steps[plate.steps.length - 1].id;
+    rebuildPlates();
+    renderPlateTab(plateId);
+  });
+  container.appendChild(stepsSection);
+
+  const stepsList = stepsSection.querySelector('[data-steps-list]');
+
+  // Debug info panel - shows what's happening with each step
+  const debugData = buildPlateGeometry(plate, cutoutKey);
+  if (debugData && debugData.debugInfo && debugData.debugInfo.length > 0) {
+    const debugDiv = document.createElement('div');
+    debugDiv.className = 'bg-slate-50 border border-slate-200 rounded p-2 text-xs text-slate-600 mb-2 font-mono';
+    debugDiv.innerHTML = '<strong class="text-slate-700">Build status:</strong><br>' +
+      debugData.debugInfo.map(s => `<div>${s}</div>`).join('');
+    stepsList.appendChild(debugDiv);
+  }
+
+  plate.steps.forEach((step, idx) => {
+    const isExp = plate.expandedStep === step.id;
+    const stepDiv = document.createElement('div');
+    stepDiv.className = 'border rounded-lg overflow-hidden ' + (isExp ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-white');
+
+    const header = document.createElement('div');
+    header.className = 'flex items-center gap-2 p-2';
+    header.innerHTML = `
+      <input type="checkbox" ${step.enabled ? 'checked' : ''} class="w-4 h-4 accent-blue-500" data-enable />
+      <button class="flex-1 flex items-center gap-2 text-left" data-toggle>
+        <span class="text-sm font-semibold text-slate-700">Step ${idx + 1}</span>
+        <span class="text-xs text-slate-500">${step.mode === 'draw' ? `✎ path (${step.path && step.path.nodes ? step.path.nodes.length : 0} pts)` : `→${step.reachRight} ↓${step.reachDown} · ${step.angle}°`} · ${step.height}mm</span>
+      </button>
+      <div class="flex flex-col leading-none">
+        <button class="text-slate-400 hover:text-blue-600 text-[10px] px-1 ${idx === 0 ? 'opacity-30 pointer-events-none' : ''}" data-up title="Move up">▲</button>
+        <button class="text-slate-400 hover:text-blue-600 text-[10px] px-1 ${idx === plate.steps.length - 1 ? 'opacity-30 pointer-events-none' : ''}" data-down title="Move down">▼</button>
+      </div>
+      <button class="p-1 text-slate-400 hover:text-red-600" data-del>✕</button>
+    `;
+    const moveStep = (from, to) => {
+      if (to < 0 || to >= plate.steps.length) return;
+      const [s] = plate.steps.splice(from, 1);
+      plate.steps.splice(to, 0, s);
+      rebuildPlates();
+      renderPlateTab(plateId);
+    };
+    header.querySelector('[data-up]').addEventListener('click', (e) => { e.stopPropagation(); moveStep(idx, idx - 1); });
+    header.querySelector('[data-down]').addEventListener('click', (e) => { e.stopPropagation(); moveStep(idx, idx + 1); });
+    header.querySelector('[data-enable]').addEventListener('change', e => { step.enabled = e.target.checked; rebuildPlates(); renderPlateTab(plateId); });
+    header.querySelector('[data-toggle]').addEventListener('click', () => {
+      plate.expandedStep = isExp ? null : step.id;
+      renderPlateTab(plateId);
+    });
+    header.querySelector('[data-del]').addEventListener('click', () => {
+      plate.steps = plate.steps.filter(s => s.id !== step.id);
+      rebuildPlates();
+      renderPlateTab(plateId);
+    });
+    stepDiv.appendChild(header);
+
+    if (isExp) {
+      const body = document.createElement('div');
+      body.className = 'p-3 pt-0 space-y-3 border-t border-amber-200';
+
+      // --- Mode toggle: Simple (sliders) vs Draw path ----------------------
+      const modeWrap = document.createElement('div');
+      modeWrap.className = 'pt-2';
+      modeWrap.innerHTML = `
+        <label class="text-xs font-medium text-slate-700 block mb-1">Shape mode</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button data-mode="simple" class="py-1.5 text-xs rounded border ${step.mode !== 'draw' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white border-slate-300 text-slate-600'}">Simple</button>
+          <button data-mode="draw" class="py-1.5 text-xs rounded border ${step.mode === 'draw' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white border-slate-300 text-slate-600'}">Draw path</button>
+        </div>`;
+      modeWrap.querySelectorAll('[data-mode]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const newMode = btn.dataset.mode;
+          if (newMode === 'draw' && (!step.path || !step.path.nodes || step.path.nodes.length < 3)) {
+            step.path = seedPathFromStep(plate, step);
+          }
+          step.mode = newMode;
+          rebuildPlates();
+          renderPlateTab(plateId);
+        });
+      });
+      body.appendChild(modeWrap);
+
+      if (step.mode === 'draw') {
+        const nPts = step.path && step.path.nodes ? step.path.nodes.length : 0;
+        const drawWrap = document.createElement('div');
+        drawWrap.className = 'space-y-2 pt-1';
+        drawWrap.innerHTML = `
+          <button data-edit-path class="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 px-4 rounded transition">✎ Edit path (top view)</button>
+          <div class="text-xs text-slate-500">${nPts} point${nPts === 1 ? '' : 's'} · drawn on the port cut-out, mirrored to starboard</div>`;
+        drawWrap.querySelector('[data-edit-path]').addEventListener('click', () => openPathEditor(plateId, step.id));
+        body.appendChild(drawWrap);
+
+        const clipWrap = document.createElement('label');
+        clipWrap.className = 'flex items-center gap-2 cursor-pointer';
+        clipWrap.innerHTML = `<input type="checkbox" ${step.clipToPlate !== false ? 'checked' : ''} class="w-4 h-4 accent-amber-500" />
+          <span class="text-xs text-slate-600">Clip path to plate outline</span>`;
+        clipWrap.querySelector('input').addEventListener('change', e => { step.clipToPlate = e.target.checked; rebuildPlates(); });
+        body.appendChild(clipWrap);
+      } else {
+        const stepReachRight = Math.min(step.reachRight, plateW);
+        const stepReachDown = Math.min(step.reachDown, plateH);
+        body.appendChild(makeSlider(`→ Reach along length (mm) · max ${plateW.toFixed(0)}`, 1, Math.ceil(plateW), 1, stepReachRight, v => { step.reachRight = Math.min(v, plateW); rebuildPlates(); }, 'accent-amber-500'));
+        body.appendChild(makeSlider(`↓ Reach across width (mm) · max ${plateH.toFixed(0)}`, 1, Math.ceil(plateH), 1, stepReachDown, v => { step.reachDown = Math.min(v, plateH); rebuildPlates(); }, 'accent-amber-500'));
+        body.appendChild(makeSlider('Diagonal cut (°)', 0, 90, 1, step.angle, v => { step.angle = v; rebuildPlates(); }, 'accent-amber-500'));
+      }
+
+      body.appendChild(makeSlider('Height (mm)', 0, 15, 0.5, step.height, v => { step.height = v; rebuildPlates(); }, 'accent-amber-500'));
+
+      const cumWrap = document.createElement('label');
+      cumWrap.className = 'flex items-center gap-2 cursor-pointer pt-1';
+      cumWrap.innerHTML = `<input type="checkbox" ${step.cumulative ? 'checked' : ''} class="w-4 h-4 accent-amber-500" />
+        <span class="text-xs text-slate-600">Stack on top of previous step</span>`;
+      cumWrap.querySelector('input').addEventListener('change', e => { step.cumulative = e.target.checked; rebuildPlates(); });
+      body.appendChild(cumWrap);
+
+      // Export just this step as a solid (no base plate) — e.g. when the
+      // step itself IS the part being printed.
+      const expWrap = document.createElement('div');
+      expWrap.className = 'pt-2 border-t border-amber-200';
+      expWrap.innerHTML = `
+        <label class="text-xs font-medium text-slate-700 block mb-1">Export this step only (no base plate)</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button data-exp-step-port class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1.5 rounded font-medium">⬇ Port</button>
+          <button data-exp-step-stbd class="text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2 py-1.5 rounded font-medium">⬇ Starboard</button>
+        </div>`;
+      expWrap.querySelector('[data-exp-step-port]').addEventListener('click', () => {
+        rebuildPlates();
+        exportStepSTL(plateA, 'A', step.id, `step${idx + 1}_only_port.stl`);
+      });
+      expWrap.querySelector('[data-exp-step-stbd]').addEventListener('click', () => {
+        rebuildPlates();   // ensures plateB is synced to the latest settings
+        exportStepSTL(plateB, 'B', step.id, `step${idx + 1}_only_starboard.stl`);
+      });
+      body.appendChild(expWrap);
+
+      stepDiv.appendChild(body);
+    }
+    stepsList.appendChild(stepDiv);
+  });
+}
+
+// ============================================================================
+// TOP-VIEW PATH EDITOR (accurate per-step path drawer)
+// ============================================================================
+let peState = null;
+
+function openPathEditor(plateId, stepId) {
+  const plate = plateId === 'a' ? plateA : plateB;
+  const step = plate.steps.find(s => s.id === stepId);
+  const cutout = detectedCutouts.A;
+  if (!step || !cutout) return;
+  if (!step.path || !step.path.nodes || step.path.nodes.length < 3) {
+    step.path = seedPathFromStep(plate, step);
+  }
+  normalizePathNodes(step.path);
+  plate.steps.forEach(s => normalizePathNodes(s.path));
+
+  // ---- build modal DOM ------------------------------------------------------
+  const overlay = document.createElement('div');
+  overlay.className = 'pe-overlay';
+  overlay.innerHTML = `
+    <div class="pe-modal">
+      <div class="flex items-center gap-3 px-4 py-2 border-b border-slate-200 flex-wrap">
+        <strong class="text-sm text-slate-800">Edit step path — top view</strong>
+        <div class="flex items-center gap-1 text-xs text-slate-600">
+          <label>Grid</label>
+          <input type="number" data-pe-grid value="5" min="0.5" step="0.5" class="w-16 px-1 py-0.5 border border-slate-300 rounded text-right" /> mm
+        </div>
+        <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" data-pe-snap checked class="w-4 h-4 accent-amber-500" /> Snap</label>
+        <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" data-pe-labels checked class="w-4 h-4 accent-amber-500" /> Edge labels</label>
+        <div class="flex items-center gap-1 text-xs text-slate-600 border-l border-slate-200 pl-3">
+          <label class="text-slate-500">Anchor</label>
+          <button data-pe-smooth class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-800 px-2 py-1 rounded" title="Make the selected anchor smooth (curved)">Smooth</button>
+          <button data-pe-corner class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded" title="Make the selected anchor a hard corner">Corner</button>
+          <button data-pe-smooth-all class="text-xs bg-amber-50 hover:bg-amber-100 text-amber-700 px-2 py-1 rounded" title="Smooth every anchor">All</button>
+          <button data-pe-corner-all class="text-xs bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1 rounded" title="Straighten every segment">None</button>
+        </div>
+        <label class="flex items-center gap-1 text-xs text-slate-600"><input type="checkbox" data-pe-ghosts checked class="w-4 h-4 accent-slate-400" /> Other steps</label>
+        <button data-pe-seed class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded">Seed from simple</button>
+        <div class="flex items-center gap-1 ml-auto">
+          <button data-pe-zoomout class="text-sm w-7 h-7 bg-slate-100 hover:bg-slate-200 rounded">−</button>
+          <button data-pe-zoomin class="text-sm w-7 h-7 bg-slate-100 hover:bg-slate-200 rounded">+</button>
+          <button data-pe-fit class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded">Fit</button>
+          <button data-pe-done class="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-1 rounded">Done</button>
+        </div>
+      </div>
+      <div class="flex flex-1 min-h-0">
+        <svg class="pe-svg" data-pe-svg></svg>
+        <div class="w-72 border-l border-slate-200 flex flex-col min-h-0">
+          <div class="px-3 py-2 text-xs text-slate-500 border-b border-slate-100">
+            <strong>Pen path:</strong> double-click empty space to add an anchor · drag to move · right-click to delete.<br>
+            Click an anchor to select it, then drag its blue square handles to bend the curve. Double-click an anchor to switch smooth ⇄ corner. Hold <kbd>Alt</kbd> while dragging a handle to break the pair.
+          </div>
+          <div class="flex-1 overflow-y-auto p-2" data-pe-list></div>
+          <div class="px-3 py-2 border-t border-slate-200 text-xs text-slate-600 font-mono" data-pe-readout></div>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const svg = overlay.querySelector('[data-pe-svg]');
+  peState = {
+    plateId, stepId, overlay, svg,
+    zoom: 1, panX: 0, panY: 0, baseScale: 1, viewMinX: 0, viewMinZ: 0,
+    gridSize: 5, snap: true, showLabels: true, showGhosts: true,
+    dragIndex: null, selectedIndex: null, panning: false,
+    dragHole: null, selectedHole: null, dragHandle: null,
+    startSX: 0, startSY: 0, startPanX: 0, startPanY: 0,
+  };
+
+  // --- coordinate mapping ----------------------------------------------------
+  const scale = () => peState.baseScale * peState.zoom;
+  const toScreen = (x, z) => ({ sx: (x - peState.viewMinX) * scale() + peState.panX, sy: (z - peState.viewMinZ) * scale() + peState.panY });
+  const toBoard = (sx, sy) => ({ x: (sx - peState.panX) / scale() + peState.viewMinX, z: (sy - peState.panY) / scale() + peState.viewMinZ });
+  const snapVal = (v) => peState.snap ? Math.round(v / peState.gridSize) * peState.gridSize : Math.round(v * 100) / 100;
+
+  function contentBounds() {
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    const acc = (x, z) => { if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z; };
+    cutout.originalPolygon.forEach(p => acc(p.x, p.z));
+    (step.path.nodes || []).forEach(p => acc(p.x, p.z));
+    acc(0, 0); // include centerline
+    const padX = (x1 - x0) * 0.08 + 5, padZ = (z1 - z0) * 0.08 + 5;
+    return { x0: x0 - padX, z0: z0 - padZ, x1: x1 + padX, z1: z1 + padZ };
+  }
+
+  function fit() {
+    const W = svg.clientWidth, H = svg.clientHeight;
+    if (!W || !H) return;
+    const b = contentBounds();
+    const bw = Math.max(1, b.x1 - b.x0), bh = Math.max(1, b.z1 - b.z0);
+    peState.baseScale = Math.min(W / bw, H / bh);
+    peState.zoom = 1;
+    peState.viewMinX = b.x0; peState.viewMinZ = b.z0;
+    const cw = bw * peState.baseScale, ch = bh * peState.baseScale;
+    peState.panX = (W - cw) / 2;
+    peState.panY = (H - ch) / 2;
+  }
+
+  // --- rendering -------------------------------------------------------------
+  function esc(n) { return n.toFixed(1); }
+
+  function renderSVG() {
+    const W = svg.clientWidth, H = svg.clientHeight;
+    const sc = scale();
+    const nodes = step.path.nodes;
+    const parts = [];
+    parts.push(`<rect data-pe-bg x="0" y="0" width="${W}" height="${H}" fill="#f8fafc" />`);
+
+    // grid
+    const tl = toBoard(0, 0), br = toBoard(W, H);
+    const gx0 = Math.min(tl.x, br.x), gx1 = Math.max(tl.x, br.x);
+    const gz0 = Math.min(tl.z, br.z), gz1 = Math.max(tl.z, br.z);
+    const gs = peState.gridSize;
+    if (sc * gs >= 5) {
+      let gi = Math.ceil(gx0 / gs) * gs, count = 0;
+      for (; gi <= gx1 && count < 400; gi += gs, count++) {
+        const s = toScreen(gi, 0).sx;
+        parts.push(`<line x1="${s}" y1="0" x2="${s}" y2="${H}" stroke="#e2e8f0" stroke-width="1" />`);
+      }
+      let gj = Math.ceil(gz0 / gs) * gs; count = 0;
+      for (; gj <= gz1 && count < 400; gj += gs, count++) {
+        const s = toScreen(0, gj).sy;
+        parts.push(`<line x1="0" y1="${s}" x2="${W}" y2="${s}" stroke="#e2e8f0" stroke-width="1" />`);
+      }
+    }
+
+    // centerline (board z = 0)
+    const cl = toScreen(0, 0).sy;
+    parts.push(`<line x1="0" y1="${cl}" x2="${W}" y2="${cl}" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="6 4" />`);
+    parts.push(`<text x="6" y="${cl - 4}" font-size="11" fill="#64748b">centerline (z=0)</text>`);
+
+    // tail / nose markers
+    const isTailMax = detection.tailEnd === 'maxX';
+    const tailScreenX = toScreen(isTailMax ? gx1 : gx0, 0).sx;
+    const noseScreenX = toScreen(isTailMax ? gx0 : gx1, 0).sx;
+    parts.push(`<text x="${Math.max(4, Math.min(W - 40, tailScreenX + (isTailMax ? -44 : 6)))}" y="16" font-size="11" font-weight="bold" fill="#ef4444">TAIL</text>`);
+    parts.push(`<text x="${Math.max(4, Math.min(W - 40, noseScreenX + (isTailMax ? 6 : -44)))}" y="16" font-size="11" font-weight="bold" fill="#0ea5e9">NOSE</text>`);
+
+    // plate outlines
+    const polyToScreen = (poly) => poly.map(p => { const s = toScreen(p.x, p.z); return `${s.sx},${s.sy}`; }).join(' ');
+    parts.push(`<polygon points="${polyToScreen(cutout.originalPolygon)}" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 3" />`);
+    parts.push(`<polygon points="${polyToScreen(cutout.polygon)}" fill="#dbeafe" fill-opacity="0.5" stroke="#3b82f6" stroke-width="1.5" />`);
+
+    // Other steps, drawn faintly underneath so lines can be matched up.
+    if (peState.showGhosts) {
+      plate.steps.forEach((os, oi) => {
+        if (os.id === step.id) return;
+        let gpoly = null;
+        if (os.mode === 'draw' && os.path && os.path.nodes && os.path.nodes.length >= 3) {
+          gpoly = flattenPath(os.path);
+        } else if (os.mode !== 'draw') {
+          // Simple steps: show their footprint by converting back to board coords.
+          const ctx = plateLocalContext(plate, cutout);
+          const lp = computeSimpleStepLocalPoly(os, ctx);
+          if (lp && lp.length >= 3) gpoly = lp.map(p => localToBoard(p.x, p.y, ctx));
+        }
+        if (!gpoly || gpoly.length < 3) return;
+        parts.push(`<polygon points="${polyToScreen(gpoly)}" fill="#94a3b8" fill-opacity="0.10" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="7 5" />`);
+        const gx = gpoly.reduce((s, p) => s + p.x, 0) / gpoly.length;
+        const gz = gpoly.reduce((s, p) => s + p.z, 0) / gpoly.length;
+        const gs = toScreen(gx, gz);
+        parts.push(`<text x="${gs.sx}" y="${gs.sy}" font-size="11" fill="#94a3b8" text-anchor="middle">step ${oi + 1}</text>`);
+      });
+    }
+
+    // Screw holes (shared by the whole plate) — draggable here too.
+    (plate.holes || []).forEach((h, hi) => {
+      const s = toScreen(h.x, h.z);
+      const rr = ((h.d != null ? h.d : plate.holeDiameter) / 2) * sc;
+      const selH = peState.selectedHole === hi;
+      parts.push(`<circle class="pe-node" data-hole="${hi}" cx="${s.sx}" cy="${s.sy}" r="${Math.max(3, rr)}" fill="${selH ? '#ef4444' : '#fff'}" fill-opacity="${selH ? 0.5 : 0.85}" stroke="#ef4444" stroke-width="2" />`);
+      parts.push(`<line x1="${s.sx - rr - 3}" y1="${s.sy}" x2="${s.sx + rr + 3}" y2="${s.sy}" stroke="#ef4444" stroke-width="1" />`);
+      parts.push(`<line x1="${s.sx}" y1="${s.sy - rr - 3}" x2="${s.sx}" y2="${s.sy + rr + 3}" stroke="#ef4444" stroke-width="1" />`);
+    });
+
+    // step path (flattened, what gets built)
+    const flat = flattenPath(step.path);
+    parts.push(`<polygon points="${polyToScreen(flat)}" fill="#f59e0b" fill-opacity="0.28" stroke="#d97706" stroke-width="2" />`);
+
+    // edge labels (length + bearing) between successive NODES
+    if (peState.showLabels) {
+      const n = nodes.length;
+      for (let i = 0; i < n; i++) {
+        const a = nodes[i], b = nodes[(i + 1) % n];
+        const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2;
+        const len = Math.hypot(b.x - a.x, b.z - a.z);
+        let ang = Math.atan2(b.z - a.z, b.x - a.x) * 180 / Math.PI;
+        const s = toScreen(mx, mz);
+        parts.push(`<rect x="${s.sx - 26}" y="${s.sy - 9}" width="52" height="14" rx="3" fill="#fff" fill-opacity="0.82" />`);
+        parts.push(`<text x="${s.sx}" y="${s.sy + 1}" font-size="10" fill="#334155" text-anchor="middle">${esc(len)}mm</text>`);
+      }
+    }
+
+    // Bezier control handles for the selected anchor (Illustrator-style).
+    const selI = peState.selectedIndex;
+    if (selI != null && nodes[selI]) {
+      const nd = nodes[selI];
+      const a = toScreen(nd.x, nd.z);
+      [['hIn', nd.hIn], ['hOut', nd.hOut]].forEach(([which, h]) => {
+        if (!h) return;
+        const hs = toScreen(h.x, h.z);
+        const retracted = Math.hypot(h.x - nd.x, h.z - nd.z) < 0.01;
+        if (retracted) {
+          // Nothing to drag yet — show a stub the user can pull out.
+          const dir = which === 'hOut' ? 1 : -1;
+          const stub = { sx: a.sx + dir * 26, sy: a.sy };
+          parts.push(`<line x1="${a.sx}" y1="${a.sy}" x2="${stub.sx}" y2="${stub.sy}" stroke="#c7d2fe" stroke-width="1.5" stroke-dasharray="3 3" />`);
+          parts.push(`<rect class="pe-node" data-handle="${selI}:${which}" x="${stub.sx - 4}" y="${stub.sy - 4}" width="8" height="8" rx="1" fill="#fff" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="2 2" />`);
+        } else {
+          parts.push(`<line x1="${a.sx}" y1="${a.sy}" x2="${hs.sx}" y2="${hs.sy}" stroke="#6366f1" stroke-width="1.5" />`);
+          parts.push(`<rect class="pe-node" data-handle="${selI}:${which}" x="${hs.sx - 5}" y="${hs.sy - 5}" width="10" height="10" rx="1" fill="#6366f1" stroke="#4338ca" stroke-width="1.5" />`);
+        }
+      });
+    }
+
+    // anchor points — square = corner, round = smooth
+    nodes.forEach((nd, i) => {
+      const s = toScreen(nd.x, nd.z);
+      const sel = peState.selectedIndex === i;
+      if (nd.smooth) {
+        parts.push(`<circle class="pe-node" data-node="${i}" cx="${s.sx}" cy="${s.sy}" r="6" fill="${sel ? '#f59e0b' : '#fff'}" stroke="#d97706" stroke-width="2" />`);
+      } else {
+        parts.push(`<rect class="pe-node" data-node="${i}" x="${s.sx - 5.5}" y="${s.sy - 5.5}" width="11" height="11" fill="${sel ? '#f59e0b' : '#fff'}" stroke="#d97706" stroke-width="2" />`);
+      }
+    });
+
+    svg.innerHTML = parts.join('');
+
+    // hole handles
+    svg.querySelectorAll('[data-hole]').forEach(el => {
+      const i = Number(el.dataset.hole);
+      el.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        peState.dragHole = i; peState.selectedHole = i; peState.selectedIndex = null;
+        renderSVG();
+      });
+    });
+
+    // handle drag
+    svg.querySelectorAll('[data-handle]').forEach(el => {
+      const [si, which] = el.dataset.handle.split(':');
+      el.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        peState.dragHandle = { i: Number(si), which };
+        renderSVG();
+      });
+    });
+
+    // attach node listeners
+    svg.querySelectorAll('[data-node]').forEach(el => {
+      if (el.dataset.handle) return;
+      const i = Number(el.dataset.node);
+      el.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        peState.dragIndex = i;
+        peState.selectedIndex = i;
+        peState.selectedHole = null;
+        renderSVG();
+      });
+      // double-click an anchor to toggle smooth / corner
+      el.addEventListener('dblclick', (e) => {
+        e.stopPropagation(); e.preventDefault();
+        const nd = step.path.nodes[i];
+        if (nd.smooth) makeNodeCorner(nd); else makeNodeSmooth(step.path.nodes, i);
+        peState.selectedIndex = i;
+        rebuildPlates();
+        renderAll();
+      });
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        if (step.path.nodes.length > 3) {
+          step.path.nodes.splice(i, 1);
+          peState.selectedIndex = null;
+          rebuildPlates();
+          renderSVG(); renderList(); renderReadout();
+        }
+      });
+    });
+  }
+
+  function renderList() {
+    const list = overlay.querySelector('[data-pe-list]');
+    const nodes = step.path.nodes;
+    const rows = nodes.map((nd, i) => `
+      <div class="pe-list-row flex items-center gap-1 mb-1" data-row="${i}">
+        <span class="text-xs text-slate-400 w-4 text-right">${i + 1}</span>
+        <input data-f="x" type="number" step="0.5" value="${nd.x}" class="w-14 px-1 py-0.5 text-xs border border-slate-300 rounded text-right" title="X (length, mm)" />
+        <input data-f="z" type="number" step="0.5" value="${nd.z}" class="w-14 px-1 py-0.5 text-xs border border-slate-300 rounded text-right" title="Z (width, mm)" />
+        <button data-type class="w-12 px-1 py-0.5 text-[10px] rounded border ${nd.smooth ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-slate-50 border-slate-300 text-slate-600'}" title="Toggle smooth / corner">${nd.smooth ? 'smooth' : 'corner'}</button>
+        <button data-del class="text-slate-400 hover:text-red-600 text-xs px-1" title="delete point">✕</button>
+      </div>`).join('');
+    list.innerHTML = `
+      <div class="flex items-center gap-1 mb-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+        <span class="w-4"></span><span class="w-14 text-right">X len</span><span class="w-14 text-right">Z wid</span><span class="w-12 text-center">type</span><span class="w-5"></span>
+      </div>${rows}`;
+    list.querySelectorAll('[data-row]').forEach(row => {
+      const i = Number(row.dataset.row);
+      row.querySelectorAll('input').forEach(inp => {
+        inp.addEventListener('input', e => {
+          const f = inp.dataset.f;
+          const v = Number(e.target.value);
+          if (!isFinite(v)) return;                    // ignore part-typed values like "16e"
+          const nd = step.path.nodes[i];
+          const d = v - nd[f];
+          nd[f] = v;
+          if (nd.hIn) nd.hIn[f] += d;                  // handles follow the anchor
+          if (nd.hOut) nd.hOut[f] += d;
+          renderSVG(); renderReadout();
+          scheduleCommit();
+        });
+      });
+      row.querySelector('[data-type]').addEventListener('click', () => {
+        const nd = step.path.nodes[i];
+        if (nd.smooth) makeNodeCorner(nd); else makeNodeSmooth(step.path.nodes, i);
+        peState.selectedIndex = i;
+        rebuildPlates();
+        renderSVG(); renderList(); renderReadout();
+      });
+      row.querySelector('[data-del]').addEventListener('click', () => {
+        if (step.path.nodes.length > 3) {
+          step.path.nodes.splice(i, 1);
+          rebuildPlates();
+          renderSVG(); renderList(); renderReadout();
+        }
+      });
+    });
+  }
+
+  function renderReadout() {
+    const el = overlay.querySelector('[data-pe-readout]');
+    const flat = flattenPath(step.path);
+    let perim = 0, area = 0;
+    for (let i = 0; i < flat.length; i++) {
+      const a = flat[i], b = flat[(i + 1) % flat.length];
+      perim += Math.hypot(b.x - a.x, b.z - a.z);
+      area += (a.x * b.z - b.x * a.z);
+    }
+    area = Math.abs(area) / 2;
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    step.path.nodes.forEach(p => { if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.z < z0) z0 = p.z; if (p.z > z1) z1 = p.z; });
+    el.innerHTML = `pts ${step.path.nodes.length} · bbox ${(x1 - x0).toFixed(1)}×${(z1 - z0).toFixed(1)}mm<br>perim ${perim.toFixed(1)}mm · area ${area.toFixed(0)}mm²`;
+  }
+
+  function renderAll() { renderSVG(); renderList(); renderReadout(); }
+
+  // Rebuilding the full 3D geometry is relatively expensive, so we never do it
+  // on every mouse-move. The 2D editor updates live; the 3D commits on release
+  // and is rAF-coalesced for numeric edits.
+  let commitScheduled = false;
+  function scheduleCommit() {
+    if (commitScheduled) return;
+    commitScheduled = true;
+    requestAnimationFrame(() => { commitScheduled = false; rebuildPlates(); });
+  }
+
+  // --- interactions ----------------------------------------------------------
+  svg.addEventListener('pointerdown', (e) => {
+    // background pan (only if not on a node — nodes stopPropagation)
+    peState.panning = true;
+    peState.startSX = e.clientX; peState.startSY = e.clientY;
+    peState.startPanX = peState.panX; peState.startPanY = peState.panY;
+  });
+
+  svg.addEventListener('dblclick', (e) => {
+    const rect = svg.getBoundingClientRect();
+    const b = toBoard(e.clientX - rect.left, e.clientY - rect.top);
+    const np = pathNode(snapVal(b.x), snapVal(b.z));
+    const nodes = step.path.nodes;
+    // insert on nearest edge if close, else append
+    let bestI = -1, bestD = Infinity;
+    for (let i = 0; i < nodes.length; i++) {
+      const a = nodes[i], c = nodes[(i + 1) % nodes.length];
+      const dx = c.x - a.x, dz = c.z - a.z;
+      const len2 = dx * dx + dz * dz;
+      let t = len2 > 0 ? ((b.x - a.x) * dx + (b.z - a.z) * dz) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      const px = a.x + t * dx, pz = a.z + t * dz;
+      const d = Math.hypot(b.x - px, b.z - pz);
+      if (d < bestD) { bestD = d; bestI = i; }
+    }
+    const thresh = 12 / scale();
+    if (bestI >= 0 && bestD < thresh) nodes.splice(bestI + 1, 0, np);
+    else nodes.push(np);
+    peState.selectedIndex = bestI >= 0 && bestD < thresh ? bestI + 1 : nodes.length - 1;
+    rebuildPlates();
+    renderAll();
+  });
+
+  const onMove = (e) => {
+    if (peState.dragHandle) {
+      const rect = svg.getBoundingClientRect();
+      const b = toBoard(e.clientX - rect.left, e.clientY - rect.top);
+      const { i, which } = peState.dragHandle;
+      const nd = step.path.nodes[i];
+      if (nd) {
+        nd[which] = { x: snapVal(b.x), z: snapVal(b.z) };
+        // A smooth anchor keeps its two handles collinear. Hold Alt to break
+        // the pairing and move this handle on its own (as in Illustrator).
+        if (nd.smooth && !e.altKey) {
+          const other = which === 'hOut' ? 'hIn' : 'hOut';
+          const dx = nd[which].x - nd.x, dz = nd[which].z - nd.z;
+          const L = Math.hypot(dx, dz);
+          if (L > 1e-6) {
+            let otherLen = Math.hypot(nd[other].x - nd.x, nd[other].z - nd.z);
+            if (otherLen < 0.5) otherLen = L;          // was retracted: mirror it
+            nd[other] = { x: nd.x - (dx / L) * otherLen, z: nd.z - (dz / L) * otherLen };
+          }
+        } else if (nd.smooth && e.altKey) {
+          nd.smooth = false;                            // Alt-drag converts to a corner
+        }
+      }
+      renderSVG(); renderReadout();
+      return;
+    }
+    if (peState.dragHole != null) {
+      const rect = svg.getBoundingClientRect();
+      const b = toBoard(e.clientX - rect.left, e.clientY - rect.top);
+      const h = plate.holes[peState.dragHole];
+      if (h) { h.x = snapVal(b.x); h.z = snapVal(b.z); }
+      renderSVG();
+    } else if (peState.dragIndex != null) {
+      const rect = svg.getBoundingClientRect();
+      const b = toBoard(e.clientX - rect.left, e.clientY - rect.top);
+      const nd = step.path.nodes[peState.dragIndex];
+      const nx = snapVal(b.x), nz = snapVal(b.z);
+      const dx = nx - nd.x, dz = nz - nd.z;
+      nd.x = nx; nd.z = nz;
+      // handles travel with their anchor
+      if (nd.hIn) { nd.hIn.x += dx; nd.hIn.z += dz; }
+      if (nd.hOut) { nd.hOut.x += dx; nd.hOut.z += dz; }
+      // live 2D feedback only — the 3D commits on pointer-up (avoids freezing)
+      renderSVG(); renderReadout();
+      const row = overlay.querySelector(`[data-row="${peState.dragIndex}"]`);
+      if (row) { row.querySelector('[data-f="x"]').value = nd.x; row.querySelector('[data-f="z"]').value = nd.z; }
+    } else if (peState.panning) {
+      peState.panX = peState.startPanX + (e.clientX - peState.startSX);
+      peState.panY = peState.startPanY + (e.clientY - peState.startSY);
+      renderSVG();
+    }
+  };
+  const onUp = () => {
+    const wasDragging = peState && (peState.dragIndex != null || peState.dragHole != null || peState.dragHandle);
+    if (peState) { peState.dragIndex = null; peState.dragHole = null; peState.dragHandle = null; peState.panning = false; }
+    if (wasDragging) { rebuildPlates(); renderList(); }
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+
+  svg.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const rect = svg.getBoundingClientRect();
+    const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+    const before = toBoard(cx, cy);
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    peState.zoom = Math.max(0.05, Math.min(40, peState.zoom * factor));
+    // keep cursor board point fixed
+    const sc = scale();
+    peState.panX = cx - (before.x - peState.viewMinX) * sc;
+    peState.panY = cy - (before.z - peState.viewMinZ) * sc;
+    renderSVG();
+  }, { passive: false });
+
+  const onKey = (e) => {
+    if (e.key === 'Escape') close();
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && peState.selectedIndex != null && step.path.nodes.length > 3) {
+      step.path.nodes.splice(peState.selectedIndex, 1);
+      peState.selectedIndex = null;
+      rebuildPlates(); renderAll();
+    }
+  };
+  document.addEventListener('keydown', onKey);
+
+  // --- toolbar ---------------------------------------------------------------
+  overlay.querySelector('[data-pe-grid]').addEventListener('input', e => { peState.gridSize = Math.max(0.1, Number(e.target.value) || 5); renderSVG(); });
+  overlay.querySelector('[data-pe-snap]').addEventListener('change', e => { peState.snap = e.target.checked; });
+  overlay.querySelector('[data-pe-labels]').addEventListener('change', e => { peState.showLabels = e.target.checked; renderSVG(); });
+  // --- anchor type (smooth / corner) ---
+  const applyAnchor = (mode) => {
+    const nodes = step.path.nodes;
+    if (mode === 'smooth-all') nodes.forEach((_, i) => makeNodeSmooth(nodes, i));
+    else if (mode === 'corner-all') nodes.forEach(nd => makeNodeCorner(nd));
+    else {
+      if (peState.selectedIndex == null) {
+        overlay.querySelector('[data-pe-readout]').innerHTML = '<span style="color:#b45309">Click an anchor point first.</span>';
+        return;
+      }
+      if (mode === 'smooth') makeNodeSmooth(nodes, peState.selectedIndex);
+      else makeNodeCorner(nodes[peState.selectedIndex]);
+    }
+    rebuildPlates();
+    renderAll();
+  };
+  overlay.querySelector('[data-pe-smooth]').addEventListener('click', () => applyAnchor('smooth'));
+  overlay.querySelector('[data-pe-corner]').addEventListener('click', () => applyAnchor('corner'));
+  overlay.querySelector('[data-pe-smooth-all]').addEventListener('click', () => applyAnchor('smooth-all'));
+  overlay.querySelector('[data-pe-corner-all]').addEventListener('click', () => applyAnchor('corner-all'));
+  overlay.querySelector('[data-pe-ghosts]').addEventListener('change', e => { peState.showGhosts = e.target.checked; renderSVG(); });
+
+  overlay.querySelector('[data-pe-seed]').addEventListener('click', () => { step.path = seedPathFromStep(plate, step); peState.selectedIndex = null; rebuildPlates(); fit(); renderAll(); });
+  overlay.querySelector('[data-pe-fit]').addEventListener('click', () => { fit(); renderSVG(); });
+  overlay.querySelector('[data-pe-zoomin]').addEventListener('click', () => { peState.zoom = Math.min(40, peState.zoom * 1.25); renderSVG(); });
+  overlay.querySelector('[data-pe-zoomout]').addEventListener('click', () => { peState.zoom = Math.max(0.05, peState.zoom / 1.25); renderSVG(); });
+  overlay.querySelector('[data-pe-done]').addEventListener('click', () => close());
+  overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
+
+  function close() {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    document.removeEventListener('keydown', onKey);
+    overlay.remove();
+    peState = null;
+    rebuildPlates();
+    renderPlateTab(plateId);
+  }
+
+  // initial layout (wait until the svg has a measured size)
+  const initLayout = () => {
+    if (!svg.clientWidth || !svg.clientHeight) { requestAnimationFrame(initLayout); return; }
+    fit(); renderAll();
+  };
+  requestAnimationFrame(initLayout);
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  ['board', 'plate-a'].forEach(t => {
+    const tabBtn = document.getElementById('tab-' + t);
+    const content = document.getElementById(t + '-tab-content');
+    if (t === tab) {
+      tabBtn.classList.add('tab-active'); tabBtn.classList.remove('tab-inactive');
+      content.classList.remove('hidden');
+    } else {
+      tabBtn.classList.remove('tab-active'); tabBtn.classList.add('tab-inactive');
+      content.classList.add('hidden');
+    }
+  });
+  if (tab === 'plate-a') renderPlateTab('a');
+}
+
+document.getElementById('tab-board').addEventListener('click', () => switchTab('board'));
+document.getElementById('tab-plate-a').addEventListener('click', () => switchTab('plate-a'));
+
+const uploadZone = document.getElementById('upload-zone');
+const fileInput = document.getElementById('file-input');
+uploadZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => { if (e.target.files.length) loadSTL(e.target.files[0]); });
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) loadSTL(e.dataTransfer.files[0]);
+});
+
+document.getElementById('show-board-btn').addEventListener('click', function() {
+  boardVisible = !boardVisible;
+  boardGroup.visible = boardVisible;
+  this.textContent = boardVisible ? 'Visible' : 'Hidden';
+  this.classList.toggle('bg-blue-500', boardVisible);
+  this.classList.toggle('text-white', boardVisible);
+  this.classList.toggle('border-blue-500', boardVisible);
+  this.classList.toggle('bg-white', !boardVisible);
+  this.classList.toggle('border-slate-300', !boardVisible);
+  this.classList.toggle('text-slate-600', !boardVisible);
+});
+
+document.getElementById('transparent-board-btn').addEventListener('click', function() {
+  boardTransparent = !boardTransparent;
+  if (boardMesh) {
+    boardMesh.material.transparent = boardTransparent;
+    boardMesh.material.opacity = boardTransparent ? 0.35 : 1.0;
+    boardMesh.material.needsUpdate = true;
+  }
+  this.classList.toggle('bg-blue-500', boardTransparent);
+  this.classList.toggle('text-white', boardTransparent);
+  this.classList.toggle('border-blue-500', boardTransparent);
+  this.classList.toggle('bg-white', !boardTransparent);
+  this.classList.toggle('border-slate-300', !boardTransparent);
+  this.classList.toggle('text-slate-600', !boardTransparent);
+});
+
+document.getElementById('flip-board-btn').addEventListener('click', () => {
+  if (s3dxData) {
+    document.getElementById('s3dx-status').insertAdjacentHTML('beforeend',
+      '<br><span class="text-amber-600">Imported s3dx boards are already oriented with the cut-outs facing up.</span>');
+    return;
+  }
+  if (boardGeometry) {
+    boardGeometry.rotateX(Math.PI);
+    boardGeometry.computeBoundingBox();
+    boardBounds = boardGeometry.boundingBox.clone();
+    detectedCutouts = { A: null, B: null };
+    document.getElementById('export-a-btn').disabled = true;
+    document.getElementById('export-b-btn').disabled = true;
+    document.getElementById('detection-result').innerHTML = '';
+    rebuildSceneHelpers();
+    rebuildPlates();
+  }
+});
+
+document.querySelectorAll('[data-tail]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    detection.tailEnd = btn.dataset.tail;
+    syncTailButtons();
+    rebuildSceneHelpers();
+  });
+});
+
+document.getElementById('detect-btn').addEventListener('click', detectCutouts);
+
+// --- Shape3D .s3dx import ---------------------------------------------------
+const s3dxZone = document.getElementById('s3dx-zone');
+const s3dxInput = document.getElementById('s3dx-input');
+function loadS3dxFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => onS3dxLoaded(e.target.result, file.name);
+  reader.readAsText(file, 'iso-8859-1');
+}
+s3dxZone.addEventListener('click', () => s3dxInput.click());
+s3dxInput.addEventListener('change', e => { if (e.target.files.length) loadS3dxFile(e.target.files[0]); e.target.value = ''; });
+s3dxZone.addEventListener('dragover', e => { e.preventDefault(); s3dxZone.classList.add('drag-over'); });
+s3dxZone.addEventListener('dragleave', () => s3dxZone.classList.remove('drag-over'));
+s3dxZone.addEventListener('drop', e => {
+  e.preventDefault();
+  s3dxZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) loadS3dxFile(e.dataTransfer.files[0]);
+});
+document.getElementById('s3dx-layer').addEventListener('change', e => {
+  s3dxParams.layerIndex = Number(e.target.value);
+  const L = s3dxData && s3dxData.layers[s3dxParams.layerIndex];
+  if (L) {
+    s3dxParams.forwardEdge = Math.min(L.xMax, s3dxData.length);
+    s3dxParams.innerEdge = L.innerY != null ? Math.round(L.innerY * 10) : s3dxParams.innerEdge;
+    s3dxParams.depth = Math.round(L.depth * 100) / 10;
+    renderS3dxControls();
+  }
+  s3dxBuildCutouts(); rebuildSceneHelpers(); rebuildPlates();
+});
+
+document.getElementById('export-a-btn').addEventListener('click', () => {
+  exportPlateSTL(plateA, 'A', 'plate_port.stl');
+});
+document.getElementById('export-b-btn').addEventListener('click', () => {
+  exportPlateSTL(plateB, 'B', 'plate_starboard.stl');
+});
+
+document.getElementById('reset-btn').addEventListener('click', () => {
+  plateA = defaultPlate();
+  plateB = defaultPlate();
+  rebuildPlates();
+  if (currentTab === 'plate-a') renderPlateTab('a');
+});
+
+// ============================================================================
+// SAVE / LOAD PLATE DESIGN  (re-usable across different boards)
+// ============================================================================
+// A design captures the plate settings, all steps and drawn paths, plus the
+// reference cut-out position. Drawn paths are stored in board coordinates; when
+// the design is loaded onto a different board, the paths are translated so they
+// land on the newly detected cut-out (re-anchored by the cut-out's min corner).
+let loadedCutoutRef = null;
+
+function cutoutMinCorner(cutout) {
+  let minX = Infinity, minZ = Infinity;
+  cutout.polygon.forEach(p => { if (p.x < minX) minX = p.x; if (p.z < minZ) minZ = p.z; });
+  return { minX, minZ };
+}
+
+function reanchorLoadedPaths() {
+  if (!loadedCutoutRef || !detectedCutouts.A) return;
+  const cur = cutoutMinCorner(detectedCutouts.A);
+  const dx = cur.minX - loadedCutoutRef.minX;
+  const dz = cur.minZ - loadedCutoutRef.minZ;
+  if (Math.abs(dx) > 1e-6 || Math.abs(dz) > 1e-6) {
+    plateA.steps.forEach(s => {
+      if (s.path && s.path.nodes) s.path.nodes.forEach(n => {
+        n.x += dx; n.z += dz;
+        if (n.hIn) { n.hIn.x += dx; n.hIn.z += dz; }
+        if (n.hOut) { n.hOut.x += dx; n.hOut.z += dz; }
+      });
+    });
+    (plateA.holes || []).forEach(h => { h.x += dx; h.z += dz; });
+  }
+  loadedCutoutRef = cur;
+}
+
+function saveDesign() {
+  const design = {
+    type: 'board-plate-design', version: 1,
+    savedAt: new Date().toISOString(),
+    detection: {
+      recessDepthMin: detection.recessDepthMin, flatnessTolerance: detection.flatnessTolerance,
+      edgeInset: detection.edgeInset, smoothing: detection.smoothing,
+      scanLength: detection.scanLength, tailEnd: detection.tailEnd,
+    },
+    cutoutRef: detectedCutouts.A ? cutoutMinCorner(detectedCutouts.A) : null,
+    plate: {
+      thickness: plateA.thickness, holeDiameter: plateA.holeDiameter,
+      holes: (plateA.holes || []).map(h => ({ id: h.id, x: h.x, z: h.z, d: h.d })),
+      nextHoleId: plateA.nextHoleId,
+      mirrored: plateA.mirrored, nextStepId: plateA.nextStepId,
+      steps: plateA.steps.map(s => ({
+        id: s.id, enabled: s.enabled, height: s.height,
+        reachRight: s.reachRight, reachDown: s.reachDown, angle: s.angle,
+        cumulative: s.cumulative, mode: s.mode || 'simple', clipToPlate: s.clipToPlate !== false,
+        path: s.path && s.path.nodes ? { closed: true, nodes: s.path.nodes.map(n => ({
+          x: n.x, z: n.z, smooth: !!n.smooth,
+          hIn: n.hIn ? { x: n.hIn.x, z: n.hIn.z } : { x: n.x, z: n.z },
+          hOut: n.hOut ? { x: n.hOut.x, z: n.hOut.z } : { x: n.x, z: n.z },
+        })) } : null,
+      })),
+    },
+  };
+  const blob = new Blob([JSON.stringify(design, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'plate_design.json'; a.click();
+  URL.revokeObjectURL(url);
+  document.getElementById('design-status').innerHTML = '<span class="text-green-600">✓ Design saved to plate_design.json</span>';
+}
+
+function loadDesign(file) {
+  const statusEl = document.getElementById('design-status');
+  const reader = new FileReader();
+  reader.onload = e => {
+    let design;
+    try { design = JSON.parse(e.target.result); }
+    catch (err) { statusEl.innerHTML = '<span class="text-red-600">Could not read file (invalid JSON).</span>'; return; }
+    if (!design || design.type !== 'board-plate-design' || !design.plate) {
+      statusEl.innerHTML = '<span class="text-red-600">Not a plate design file.</span>';
+      return;
+    }
+    const p = design.plate;
+    const steps = (p.steps || []).map(s => ({
+      id: s.id, enabled: s.enabled !== false, height: s.height != null ? s.height : 5,
+      reachRight: s.reachRight != null ? s.reachRight : 80,
+      reachDown: s.reachDown != null ? s.reachDown : 60,
+      angle: s.angle != null ? s.angle : 0,
+      cumulative: s.cumulative !== false, mode: s.mode || 'simple', clipToPlate: s.clipToPlate !== false,
+      path: s.path && s.path.nodes ? normalizePathNodes({ closed: true, nodes: s.path.nodes.map(n => ({
+        x: n.x, z: n.z, r: n.r, smooth: n.smooth,
+        hIn: n.hIn ? { x: n.hIn.x, z: n.hIn.z } : null,
+        hOut: n.hOut ? { x: n.hOut.x, z: n.hOut.z } : null,
+      })) }) : null,
+    }));
+    if (steps.length === 0) { statusEl.innerHTML = '<span class="text-red-600">Design has no steps.</span>'; return; }
+    let maxId = 0;
+    steps.forEach((s, i) => { if (typeof s.id !== 'number') s.id = i + 1; maxId = Math.max(maxId, s.id); });
+    // Holes: explicit list. Designs saved before explicit holes existed only
+    // carry the old grid settings, which cannot be translated reliably onto a
+    // curved plate — those load with no holes rather than wrong ones.
+    let holes = Array.isArray(p.holes) ? p.holes.map(h => ({ id: h.id, x: h.x, z: h.z, d: h.d })) : [];
+    let maxHoleId = 0;
+    holes.forEach((h, i) => { if (typeof h.id !== 'number') h.id = i + 1; maxHoleId = Math.max(maxHoleId, h.id); });
+    const legacyHoles = !Array.isArray(p.holes) && (p.holesX || p.holesY);
+
+    plateA = {
+      thickness: p.thickness != null ? p.thickness : 10,
+      holeDiameter: p.holeDiameter != null ? p.holeDiameter : 8,
+      holes, nextHoleId: (p.nextHoleId && p.nextHoleId > maxHoleId) ? p.nextHoleId : maxHoleId + 1,
+      mirrored: !!p.mirrored, steps,
+      nextStepId: (p.nextStepId && p.nextStepId > maxId) ? p.nextStepId : maxId + 1,
+      expandedStep: steps[0].id,
+    };
+    // Re-anchor drawn paths onto the current cut-out (now, or when detected).
+    loadedCutoutRef = design.cutoutRef || null;
+    reanchorLoadedPaths();
+
+    // If a board is loaded but detection has not run yet, run it now — otherwise
+    // the plates stay invisible and the export buttons stay disabled, which
+    // looks like exporting is not allowed at all.
+    if (!detectedCutouts.A && boardGeometry) detectCutouts();
+
+    rebuildPlates();
+    if (currentTab === 'plate-a') renderPlateTab('a');
+    const hasDraw = steps.some(s => s.mode === 'draw');
+    let note = '';
+    if (!detectedCutouts.A) note = ' — load a board (STL or s3dx) to place the plates and enable export';
+    else if (hasDraw && design.cutoutRef) note = ' (paths re-anchored to current cut-out)';
+    statusEl.innerHTML = `<span class="text-green-600">✓ Loaded ${steps.length} step(s), ${holes.length} hole(s)${note}</span>`
+      + (legacyHoles ? `<br><span class="text-amber-600">This design used the old hole grid — add holes by position.</span>` : '');
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById('save-design-btn').addEventListener('click', saveDesign);
+const designInput = document.getElementById('design-input');
+document.getElementById('load-design-btn').addEventListener('click', () => designInput.click());
+designInput.addEventListener('change', e => { if (e.target.files.length) loadDesign(e.target.files[0]); e.target.value = ''; });
+
+switchTab('board');
+</script>
+</body>
+</html>
