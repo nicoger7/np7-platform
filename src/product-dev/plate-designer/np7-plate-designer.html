@@ -3,15 +3,202 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>NP7 Plate Designer — Product Development</title>
+<title>NP7 Plate Designer · Product Development</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
-  body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
-  .tab-active { background-color: #2563eb; color: white; }
-  .tab-inactive { background-color: #e2e8f0; color: #475569; }
-  .upload-zone { border: 2px dashed #cbd5e1; transition: all 0.2s; }
-  .upload-zone.drag-over { border-color: #2563eb; background-color: #eff6ff; }
+  /* ---- NP7 look (2026-09-23): the Product Development admin's tokens and
+     parts, so the tool reads like the rest of the admin. Colour carries one
+     meaning per hue: board file sky, Shape3D indigo, cut-out search amber,
+     plate violet, screw holes pink, steps teal, export green; port and
+     starboard keep the 3D view's own blue and green. Light by default; the
+     NP7 layer sets data-theme="dark" when the admin is dark. ---- */
+  @font-face { font-family: 'Poppins'; font-style: normal; font-weight: 400; font-display: swap; src: url(https://media.np-seven.com/fonts/poppins-regular.ttf) format('truetype'); }
+  @font-face { font-family: 'Poppins'; font-style: normal; font-weight: 500 600; font-display: swap; src: url(https://media.np-seven.com/fonts/poppins-semibold.ttf) format('truetype'); }
+  @font-face { font-family: 'Poppins'; font-style: normal; font-weight: 700 800; font-display: swap; src: url(https://media.np-seven.com/fonts/poppins-bold.ttf) format('truetype'); }
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #f8fafc; --hover: #f2f4f7;
+    --line: rgba(15,23,42,.09); --line-strong: rgba(15,23,42,.16);
+    --text: #0f172a; --muted: rgba(15,23,42,.58); --faint: rgba(15,23,42,.38);
+    --accent: #8b5cf6; --accent-weak: rgba(139,92,246,.14);
+    --input-bg: #ffffff; --input-line: rgba(15,23,42,.14);
+    --shadow: 0 10px 30px rgba(15,23,42,.08); --lift: 0 1px 2px rgba(15,23,42,.08);
+    --viewport: #f1f5f9; --port: #0ea5e9; --stbd: #10b981; --bad: #dc2626;
+    --tone: var(--accent); --tone-bg: var(--accent-weak); --tone-line: rgba(139,92,246,.3);
+    color-scheme: light;
+  }
+  html[data-theme="dark"] {
+    --bg: #0a0b0d; --surface: #14161b; --surface-2: #101217; --hover: #1b1e25;
+    --line: rgba(255,255,255,.08); --line-strong: rgba(255,255,255,.14);
+    --text: #f3f4f6; --muted: rgba(255,255,255,.58); --faint: rgba(255,255,255,.36);
+    --accent-weak: rgba(139,92,246,.2);
+    --input-bg: #0d0f13; --input-line: rgba(255,255,255,.12);
+    --shadow: 0 10px 30px rgba(0,0,0,.45); --lift: 0 1px 2px rgba(0,0,0,.4);
+    --viewport: #111318; --bad: #f87171;
+    color-scheme: dark;
+  }
+  .t-slate { --tone-l: #475569; --tone-d: #cbd5e1; }
+  .t-sky { --tone-l: #0369a1; --tone-d: #7dd3fc; }
+  .t-indigo { --tone-l: #4338ca; --tone-d: #a5b4fc; }
+  .t-amber { --tone-l: #b45309; --tone-d: #fcd34d; }
+  .t-violet { --tone-l: #6d28d9; --tone-d: #c4b5fd; }
+  .t-pink { --tone-l: #be185d; --tone-d: #f9a8d4; }
+  .t-teal { --tone-l: #0f766e; --tone-d: #5eead4; }
+  .t-green { --tone-l: #15803d; --tone-d: #86efac; }
+  .t-red { --tone-l: #b91c1c; --tone-d: #fca5a5; }
+  :is(.t-slate, .t-sky, .t-indigo, .t-amber, .t-violet, .t-pink, .t-teal, .t-green, .t-red) {
+    --tone: var(--tone-l);
+    --tone-bg: color-mix(in srgb, var(--tone-l) 10%, transparent);
+    --tone-line: color-mix(in srgb, var(--tone-l) 30%, transparent);
+  }
+  html[data-theme="dark"] :is(.t-slate, .t-sky, .t-indigo, .t-amber, .t-violet, .t-pink, .t-teal, .t-green, .t-red) {
+    --tone: var(--tone-d);
+    --tone-bg: color-mix(in srgb, var(--tone-d) 15%, transparent);
+    --tone-line: color-mix(in srgb, var(--tone-d) 32%, transparent);
+  }
+
+  html, body, #app { background: var(--bg); }
+  body { margin: 0; font-family: 'Poppins', system-ui, -apple-system, sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
+  .np-panel { background: var(--surface); border-right: 1px solid var(--line); min-height: 0; }
+  @media (max-width: 1023px) { .np-panel { border-right: 0; border-bottom: 1px solid var(--line); } }
+  .np-ico { width: 18px; height: 18px; flex-shrink: 0; }
+  .np-tile { width: 32px; height: 32px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--tone-bg); color: var(--tone); }
+  .np-tile-sm { width: 26px; height: 26px; border-radius: 8px; }
+  .np-tile-sm .np-ico { width: 15px; height: 15px; }
+  .np-tile-lg { width: 44px; height: 44px; border-radius: 14px; }
+  .np-tile-lg .np-ico { width: 22px; height: 22px; }
+
+  .np-head { display: flex; align-items: center; gap: 12px; padding: 16px 16px 10px; }
+  .np-title { font-size: 17px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; color: var(--text); }
+  .np-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  html.np-embedded .np-head { display: none; }
+
+  .np-tabs { display: flex; gap: 4px; margin: 6px 16px 12px; padding: 4px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+  .np-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 7px 10px; border-radius: 9px; font-size: 13px; font-weight: 600; background: transparent; color: var(--muted); transition: background .15s, color .15s, box-shadow .15s; }
+  .np-tab:hover { color: var(--text); }
+  .np-tab.tab-active { background: var(--surface); color: var(--text); box-shadow: var(--lift), inset 0 0 0 1px var(--tone-line); }
+  .np-tab.tab-inactive { background: transparent; }
+  .np-tab-num { width: 20px; height: 20px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--tone-bg); color: var(--tone); }
+  .np-tab.tab-active .np-tab-num, .np-tab-num.is-done { background: var(--tone); color: var(--surface); }
+  .np-tab-note { font-size: 11px; font-weight: 500; color: var(--faint); }
+
+  .np-scroll { padding: 2px 16px 16px; scrollbar-width: thin; }
+  .np-stack > * + * { margin-top: 12px; }
+  .np-card { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 14px; }
+  .np-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .np-card-head h2 { font-size: 14px; font-weight: 600; line-height: 1.25; color: var(--text); letter-spacing: -.005em; }
+  .np-card-head p { font-size: 11.5px; color: var(--muted); line-height: 1.35; margin-top: 1px; }
+  .np-card-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .np-hint { font-size: 11.5px; color: var(--muted); line-height: 1.45; }
+  .np-fields > * + * { margin-top: 12px; }
+  .np-label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .np-input { border: 1px solid var(--input-line); background: var(--input-bg); color: var(--text); border-radius: 9px; padding: 7px 10px; font-size: 12.5px; transition: border-color .15s, box-shadow .15s; }
+  .np-input-sm { padding: 4px 8px; font-size: 11.5px; border-radius: 8px; }
+  .np-input:focus, .np-num:focus { outline: none; border-color: var(--tone); box-shadow: 0 0 0 3px var(--tone-bg); }
+  .np-slider-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
+  .np-num { width: 76px; padding: 3px 8px; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; border: 1px solid var(--input-line); background: var(--input-bg); color: var(--text); border-radius: 8px; transition: border-color .15s, box-shadow .15s; }
+  .np-num.is-bad { border-color: color-mix(in srgb, var(--bad) 55%, transparent); background: color-mix(in srgb, var(--bad) 8%, var(--input-bg)); }
+  .np-range { width: 100%; accent-color: var(--tone); cursor: pointer; }
+  .np-check { width: 16px; height: 16px; accent-color: var(--tone); cursor: pointer; flex-shrink: 0; }
+  .np-checkline { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); cursor: pointer; }
+
+  .np-drop { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: 14px 8px 12px; border-radius: 12px; border: 1.5px dashed var(--tone-line); background: var(--tone-bg); cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+  .np-drop:hover, .np-drop.drag-over { border-style: solid; border-color: var(--tone); box-shadow: 0 0 0 3px var(--tone-bg); }
+  .np-drop .np-ico { width: 22px; height: 22px; color: var(--tone); margin-bottom: 4px; }
+  .np-drop strong { font-size: 13px; font-weight: 600; color: var(--tone); }
+  .np-drop span { font-size: 11px; color: var(--muted); line-height: 1.3; }
+  .np-status { font-size: 12px; margin-top: 8px; line-height: 1.45; color: var(--muted); overflow-wrap: anywhere; }
+  .np-status:empty { display: none; }
+
+  .np-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .np-facts:empty { display: none; }
+  .np-file { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; }
+  .np-file strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .np-fact { border: 1px solid var(--line); border-radius: 10px; padding: 6px 9px; background: var(--surface-2); min-width: 0; }
+  .np-fact dt { font-size: 10.5px; color: var(--faint); font-weight: 500; }
+  .np-fact dd { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); white-space: nowrap; }
+  .np-facts-note { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); }
+  .np-rows > * + * { margin-top: 10px; }
+  .np-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .np-seg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+  .np-seg-btn { padding: 4px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; color: var(--muted); transition: background .15s, color .15s, box-shadow .15s; }
+  .np-seg-btn:hover { color: var(--text); }
+  .np-seg-btn.is-on { background: var(--surface); color: var(--tone); box-shadow: var(--lift), inset 0 0 0 1px var(--tone-line); }
+  .np-toggle { padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); color: var(--muted); background: var(--surface); transition: background .15s, color .15s, border-color .15s; }
+  .np-toggle.is-on { background: var(--tone-bg); color: var(--tone); border-color: var(--tone-line); }
+
+  .np-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border-radius: 10px; font-size: 13px; font-weight: 600; white-space: nowrap; transition: filter .15s, background .15s, border-color .15s, opacity .15s; }
+  .np-btn .np-ico { width: 16px; height: 16px; }
+  .np-btn:disabled { opacity: .4; cursor: default; }
+  .np-btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 8px; }
+  .np-btn-sm .np-ico { width: 14px; height: 14px; }
+  .np-btn-solid { background: var(--tone); color: #fff; }
+  html[data-theme="dark"] .np-btn-solid { color: #0a0b0d; }
+  .np-btn-soft { background: var(--tone-bg); color: var(--tone); }
+  .np-btn-soft:hover:not(:disabled) { background: color-mix(in srgb, var(--tone) 18%, transparent); }
+  .np-btn-ghost { border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+  .np-btn-ghost:hover:not(:disabled) { background: var(--hover); }
+  .np-btn-port { background: var(--port); color: #fff; }
+  .np-btn-stbd { background: var(--stbd); color: #fff; }
+  .np-btn-solid:hover:not(:disabled), .np-btn-port:hover:not(:disabled), .np-btn-stbd:hover:not(:disabled) { filter: brightness(1.08); }
+  .np-btn-port-soft { background: color-mix(in srgb, var(--port) 14%, transparent); color: #0369a1; }
+  .np-btn-stbd-soft { background: color-mix(in srgb, var(--stbd) 14%, transparent); color: #047857; }
+  html[data-theme="dark"] .np-btn-port-soft { color: #7dd3fc; }
+  html[data-theme="dark"] .np-btn-stbd-soft { color: #6ee7b7; }
+  .np-icon-btn { width: 24px; height: 24px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: var(--faint); flex-shrink: 0; transition: color .15s, background .15s; }
+  .np-icon-btn:hover { color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
+  .np-link { font-size: 12px; font-weight: 500; color: var(--muted); padding: 2px 0; transition: color .15s; }
+  .np-link:hover { color: var(--accent); }
+  .np-chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 0 8px; font-size: 11px; font-weight: 600; line-height: 20px; background: var(--tone-bg); color: var(--tone); white-space: nowrap; }
+
+  .np-readout { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.5; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+  .np-readout:empty { display: none; }
+  .np-note { margin-top: 10px; border-radius: 10px; padding: 8px 10px; font-size: 12px; line-height: 1.45; background: var(--tone-bg); border: 1px solid var(--tone-line); color: var(--text); }
+  .np-note strong { color: var(--tone); font-weight: 600; }
+  .np-note ul { list-style: disc; margin: 4px 0 0 16px; }
+
+  .np-sides { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12px; }
+  .np-side { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+  .np-side i { width: 10px; height: 10px; border-radius: 3px; }
+  .np-side.port i { background: var(--port); }
+  .np-side.stbd i { background: var(--stbd); }
+  .np-sides-note { color: var(--muted); }
+  .np-holes { margin: 10px 0 12px; }
+  .np-holes-head, .np-hole-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) minmax(0, 1fr) 62px 24px; gap: 6px; align-items: center; }
+  .np-holes-head { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); margin-bottom: 2px; }
+  .np-holes-head span { text-align: right; }
+  .np-hole-row { margin-top: 4px; }
+  .np-hole-row .np-num { width: 100%; }
+  .np-hole-n { font-size: 11px; font-weight: 700; color: var(--faint); text-align: right; }
+  .np-hole-n.is-bad { color: var(--bad); }
+  .np-steps > * + * { margin-top: 8px; }
+  .np-step { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); transition: border-color .15s, box-shadow .15s; }
+  .np-step.is-open { border-color: var(--tone-line); box-shadow: 0 0 0 3px var(--tone-bg); }
+  .np-step.is-off .np-step-title { opacity: .5; }
+  .np-step-head { display: flex; align-items: center; gap: 8px; padding: 8px 6px 8px 10px; }
+  .np-step-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; text-align: left; }
+  .np-step-n { width: 20px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; background: var(--tone-bg); color: var(--tone); flex-shrink: 0; }
+  .np-step.is-open .np-step-n { background: var(--tone); color: var(--surface); }
+  .np-step-name { font-size: 13px; font-weight: 600; color: var(--text); flex-shrink: 0; }
+  .np-step-sum { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .np-step-move { display: flex; flex-direction: column; line-height: 1; }
+  .np-step-move button { font-size: 9px; padding: 1px 4px; color: var(--faint); }
+  .np-step-move button:hover { color: var(--tone); }
+  .np-step-move .is-off { opacity: .25; pointer-events: none; }
+  .np-step-body { padding: 0 12px 12px; border-top: 1px solid var(--line); }
+  .np-step-body > * { margin-top: 12px; }
+  .np-step-export { padding-top: 10px; border-top: 1px dashed var(--line-strong); }
+  .np-empty { text-align: center; padding: 32px 18px; border: 1px dashed var(--line-strong); border-radius: 16px; display: flex; flex-direction: column; align-items: center; }
+  .np-empty-title { font-size: 14px; font-weight: 600; margin-top: 10px; color: var(--text); }
+  .np-empty-text { font-size: 12px; color: var(--muted); margin-top: 3px; max-width: 280px; line-height: 1.45; }
+
+  .np-foot { border-top: 1px solid var(--line); padding: 12px 16px; background: var(--surface); }
+  .np-export { border-radius: 14px; padding: 12px; background: var(--tone-bg); border: 1px solid var(--tone-line); }
+  .np-export h3 { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.2; }
+  .np-export p { font-size: 11px; color: var(--muted); }
+  .np-foot-links { display: flex; align-items: center; gap: 14px; margin-top: 10px; padding: 0 2px; }
+  .np-viewport { background: var(--viewport); }
+  .np-viewhint { position: absolute; top: 12px; right: 12px; font-size: 11.5px; color: var(--muted); background: color-mix(in srgb, var(--surface) 85%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; box-shadow: var(--lift); pointer-events: none; }
   .pe-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 50; display: flex; align-items: center; justify-content: center; }
   .pe-modal { background: #fff; border-radius: 12px; box-shadow: 0 24px 70px rgba(0,0,0,.35); width: min(1120px, 96vw); height: min(780px, 94vh); display: flex; flex-direction: column; overflow: hidden; }
   .pe-svg { background: #f8fafc; flex: 1; touch-action: none; cursor: crosshair; user-select: none; }
@@ -21,154 +208,197 @@
 </style>
 </head>
 <body>
-<div id="app" class="w-full h-screen bg-slate-100 flex flex-col lg:flex-row">
+<div id="app" class="w-full h-screen flex flex-col lg:flex-row">
   <!-- Left panel -->
-  <div class="w-full lg:w-[440px] bg-white shadow-lg flex flex-col">
-    <div class="p-4 border-b border-slate-200">
-      <div class="flex items-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 22a8 8 0 0 1 8-8"/><path d="M10 14 22 2"/><path d="M14 14a8 8 0 0 1 8-8"/></svg>
-        <h1 class="text-xl font-bold text-slate-800">NP7 Plate Designer</h1>
+  <aside id="np-panel" class="np-panel w-full lg:w-[440px] flex flex-col">
+    <div id="np-head" class="np-head t-violet">
+      <span class="np-tile"><svg class="np-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h4a2 2 0 1 1 4 0h4v4a2 2 0 1 1 0 4v4H4v-4a2 2 0 1 0 0-4Z"/></svg></span>
+      <div class="min-w-0">
+        <h1 class="np-title">Plate Designer</h1>
+        <p class="np-sub">Plates for the tail cut-outs, fitted to the board</p>
       </div>
-      <p class="text-xs text-slate-500 mt-1">Auto-fit plates to board cut-outs</p>
     </div>
 
-    <div class="flex border-b border-slate-200">
-      <button id="tab-board" class="flex-1 px-3 py-2 text-xs font-semibold tab-active transition">1. Board</button>
-      <button id="tab-plate-a" class="flex-1 px-3 py-2 text-xs font-semibold tab-inactive transition">2. Plate (both sides)</button>
+    <div class="np-tabs" role="tablist">
+      <button id="tab-board" role="tab" class="np-tab t-sky tab-active"><span id="tab-board-num" class="np-tab-num">1</span>Board</button>
+      <button id="tab-plate-a" role="tab" class="np-tab t-violet tab-inactive"><span id="tab-plate-num" class="np-tab-num">2</span>Plate<span class="np-tab-note">both sides</span></button>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-4">
+    <div class="np-scroll flex-1 overflow-y-auto">
       <!-- BOARD TAB -->
-      <div id="board-tab-content" class="space-y-4">
-        <div>
-          <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Upload Board STL</h2>
-          <div id="upload-zone" class="upload-zone rounded-lg p-6 text-center cursor-pointer">
-            <input type="file" id="file-input" accept=".stl" class="hidden" />
-            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.5" class="mx-auto mb-2"><path d="M12 13v8"/><path d="M4 13.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5.5"/><path d="m8 17 4 4 4-4"/><path d="M12 2v7"/></svg>
-            <p class="text-sm text-slate-700 font-medium">Click or drop STL file</p>
-            <p class="text-xs text-slate-500 mt-1">Windsurf board model with cut-outs</p>
+      <div id="board-tab-content" class="np-stack">
+        <section class="np-card t-sky">
+          <div class="np-card-head">
+            <span class="np-tile"><svg class="np-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12c0-2.6 4.4-4.6 10.2-4.6 5 0 8.8 2 8.8 4.6s-3.8 4.6-8.8 4.6C6.9 16.6 2.5 14.6 2.5 12Z"/><path d="M6.5 12h11"/></svg></span>
+            <div class="min-w-0"><h2>Board file</h2><p>Drop the file on a tile, or click it</p></div>
           </div>
-          <div id="upload-status" class="text-xs text-slate-500 mt-2"></div>
-        </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div id="upload-zone" class="upload-zone np-drop t-sky" title="The board as a 3D mesh (STL) with its cut-outs; the tool scans it for them">
+              <input type="file" id="file-input" accept=".stl" class="hidden" />
+              <svg class="np-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V4"/><path d="M7 8.5 12 4l5 4.5"/><path d="M4 20h16"/></svg>
+              <strong>STL</strong>
+              <span>3D mesh, finds the cut-outs</span>
+            </div>
+            <div id="s3dx-zone" class="upload-zone np-drop t-indigo" title="The Shape3D design file; the cut-out outline is read straight from it, no mesh scanning">
+              <input type="file" id="s3dx-input" accept=".s3dx,.xml" class="hidden" />
+              <svg class="np-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15.5V4"/><path d="M7 8.5 12 4l5 4.5"/><path d="M4 20h16"/></svg>
+              <strong>Shape3D</strong>
+              <span>.s3dx, reads the outline</span>
+            </div>
+          </div>
+          <div id="upload-status" class="np-status"></div>
+          <div id="s3dx-status" class="np-status"></div>
+        </section>
 
-        <div>
-          <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Or import Shape3D (.s3dx)</h2>
-          <div id="s3dx-zone" class="upload-zone rounded-lg p-4 text-center cursor-pointer">
-            <input type="file" id="s3dx-input" accept=".s3dx,.xml" class="hidden" />
-            <p class="text-sm text-slate-700 font-medium">Click or drop .s3dx file</p>
-            <p class="text-xs text-slate-500 mt-1">Reads the cut-out outline directly — no mesh scanning</p>
+        <section id="s3dx-controls" class="hidden np-card t-indigo">
+          <div class="np-card-head">
+            <span class="np-tile"><svg class="np-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3"/><path d="M10.5 8h3"/><path d="M17 8h3"/><path d="M4 16h3"/><path d="M10.5 16h3"/><path d="M17 16h3"/><path d="M4 8v8"/><path d="M20 8v8"/></svg></span>
+            <div class="min-w-0"><h2>Shape3D cut-out</h2><p>Which layer, and where the cut-out runs</p></div>
           </div>
-          <div id="s3dx-status" class="text-xs text-slate-500 mt-2"></div>
-          <div id="s3dx-controls" class="hidden mt-3 space-y-3 bg-sky-50 border border-sky-200 rounded p-3">
+          <div class="np-fields">
             <div>
-              <label class="text-xs font-medium text-slate-700 block mb-1">Cut-out layer</label>
-              <select id="s3dx-layer" class="w-full px-2 py-1.5 text-xs border border-slate-300 rounded bg-white"></select>
+              <label class="np-label mb-1" for="s3dx-layer">Cut-out layer</label>
+              <select id="s3dx-layer" class="np-input w-full"></select>
             </div>
             <div data-s3dx-slider="tailCut" data-label="Tail cut (cm from design tail)" data-min="0" data-max="60" data-step="0.5"></div>
             <div data-s3dx-slider="forwardEdge" data-label="Forward edge (cm from design tail)" data-min="1" data-max="200" data-step="0.5"></div>
             <div data-s3dx-slider="innerEdge" data-label="Inner edge from centreline (mm)" data-min="0" data-max="300" data-step="1"></div>
             <div data-s3dx-slider="railInset" data-label="Inset from rail (mm)" data-min="0" data-max="150" data-step="1"></div>
             <div data-s3dx-slider="depth" data-label="Recess depth (mm)" data-min="1" data-max="80" data-step="0.5"></div>
-            <div id="s3dx-readout" class="text-xs text-slate-600 font-mono bg-white rounded p-2 border border-sky-100"></div>
+            <div id="s3dx-readout" class="np-readout"></div>
           </div>
-        </div>
+        </section>
 
-        <div id="board-controls" class="hidden space-y-4 pt-4 border-t border-slate-200">
-          <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Board View</h2>
-
-          <div>
-            <label class="text-xs font-medium text-slate-700 block mb-1">Visibility</label>
-            <div class="grid grid-cols-2 gap-2">
-              <button id="show-board-btn" class="py-1.5 text-xs rounded border bg-blue-500 text-white border-blue-500">Visible</button>
-              <button id="transparent-board-btn" class="py-1.5 text-xs rounded border bg-white border-slate-300 text-slate-600">Transparent</button>
+        <section id="board-controls" class="hidden np-card t-slate">
+          <div class="np-card-head">
+            <span class="np-tile"><svg class="np-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z"/><path d="M12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"/></svg></span>
+            <div class="min-w-0"><h2>Board</h2><p>Its size, and how it sits in the view</p></div>
+          </div>
+          <div id="board-info" class="np-facts"></div>
+          <div class="np-rows">
+            <div class="np-row">
+              <span class="np-label">Show</span>
+              <div class="flex gap-1.5">
+                <button id="show-board-btn" class="np-toggle is-on">Visible</button>
+                <button id="transparent-board-btn" class="np-toggle">Transparent</button>
+              </div>
+            </div>
+            <div class="np-row">
+              <span class="np-label" title="The red dot marks the tail. Switch if it sits on the nose.">Tail end</span>
+              <div class="np-seg">
+                <button class="np-seg-btn is-on" data-tail="maxX">+X end</button>
+                <button class="np-seg-btn" data-tail="minX">−X end</button>
+              </div>
+            </div>
+            <div class="np-row">
+              <span class="np-label">Cut-outs facing down?</span>
+              <button id="flip-board-btn" class="np-btn np-btn-ghost np-btn-sm">↕ Flip the board</button>
             </div>
           </div>
+        </section>
 
-          <div>
-            <label class="text-xs font-medium text-slate-700 block mb-1">Orientation (flip up/down)</label>
-            <button id="flip-board-btn" class="w-full py-1.5 text-xs rounded border bg-white border-slate-300 text-slate-600 hover:bg-slate-50">Flip board upside-down</button>
+        <section id="detection-controls" class="hidden np-card t-amber">
+          <div class="np-card-head">
+            <span class="np-tile"><svg class="np-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z"/><path d="M20 20l-4-4"/></svg></span>
+            <div class="min-w-0"><h2>Find the cut-outs</h2><p>Scans the tail for the two recesses</p></div>
           </div>
-
-          <div>
-            <label class="text-xs font-medium text-slate-700 block mb-1">Tail end</label>
-            <div class="grid grid-cols-2 gap-2">
-              <button class="py-1.5 text-xs rounded border bg-blue-500 text-white border-blue-500" data-tail="maxX">+X end</button>
-              <button class="py-1.5 text-xs rounded border bg-white border-slate-300 text-slate-600" data-tail="minX">-X end</button>
-            </div>
-            <p class="text-xs text-slate-400 mt-1">Red dot marks the tail. Switch if wrong.</p>
+          <p class="np-hint mb-3">Every spot that dips below the deck by the minimum recess depth counts; neighbouring spots join into one cut-out per side, edges included.</p>
+          <div class="np-fields">
+            <div data-slider="scanLength" data-label="Scan length from tail (mm)" data-min="50" data-max="1000" data-step="5"></div>
+            <div data-slider="recessDepthMin" data-label="Min recess depth (mm)" data-min="1" data-max="30" data-step="0.5"></div>
+            <div data-slider="flatnessTolerance" data-label="Floor flatness tolerance (mm)" data-min="1" data-max="20" data-step="0.5"></div>
+            <div data-slider="edgeInset" data-label="Plate inset from cut-out edge (mm)" data-min="0" data-max="20" data-step="0.5"></div>
+            <div data-slider="smoothing" data-label="Edge smoothing (0 = exact, follows the STL)" data-min="0" data-max="6" data-step="1"></div>
           </div>
-
-          <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-slate-700">
-            <div id="board-info"></div>
-          </div>
-        </div>
-
-        <div id="detection-controls" class="hidden space-y-4 pt-4 border-t border-slate-200">
-          <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Cut-out Detection</h2>
-
-          <div class="bg-amber-50 border border-amber-200 rounded p-3 text-xs text-slate-700">
-            The program scans the tail region and finds areas where the top surface dips below the deck by at least the minimum recess depth. Nearby recessed cells are grouped into cut-outs. Edges are included automatically.
-          </div>
-
-          <div data-slider="scanLength" data-label="Scan length from tail (mm)" data-min="50" data-max="1000" data-step="5"></div>
-          <div data-slider="recessDepthMin" data-label="Min recess depth (mm)" data-min="1" data-max="30" data-step="0.5"></div>
-          <div data-slider="flatnessTolerance" data-label="Floor flatness tolerance (mm)" data-min="1" data-max="20" data-step="0.5"></div>
-          <div data-slider="edgeInset" data-label="Plate inset from cut-out edge (mm)" data-min="0" data-max="20" data-step="0.5"></div>
-          <div data-slider="smoothing" data-label="Edge smoothing (0 = exact, follows STL)" data-min="0" data-max="6" data-step="1"></div>
-
-          <button id="detect-btn" class="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 px-4 rounded transition">
-            🔍 Detect cut-outs
+          <button id="detect-btn" class="np-btn np-btn-solid w-full mt-4">
+            <svg class="np-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z"/><path d="M20 20l-4-4"/></svg>
+            Detect cut-outs
           </button>
-
           <div id="detection-result" class="text-xs"></div>
+        </section>
+      </div>
+
+      <div id="plate-a-tab-content" class="np-stack hidden"></div>
+    </div>
+
+    <div class="np-foot">
+      <div class="np-export t-green" title="Single steps without the base: open a step on the Plate tab, then Export this step only.">
+        <div class="flex items-center gap-2.5 mb-2.5">
+          <span class="np-tile np-tile-sm"><svg class="np-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11.5"/><path d="M7 11l5 4.5 5-4.5"/><path d="M4 20h16"/></svg></span>
+          <div class="min-w-0 flex-1"><h3>Export</h3><p>The full plate, base and steps</p></div>
+          <select id="export-format" class="np-input np-input-sm" title="File format for every export button, the single-step ones too">
+            <option value="stl">STL · 3D print</option>
+            <option value="obj">OBJ · CAD</option>
+          </select>
         </div>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="export-a-btn" title="Needs the cut-outs: load a board and detect them (a loaded design detects by itself)" class="np-btn np-btn-port" disabled>⬇ Port</button>
+          <button id="export-b-btn" title="Needs the cut-outs: load a board and detect them (a loaded design detects by itself)" class="np-btn np-btn-stbd" disabled>⬇ Starboard</button>
+        </div>
+        <div id="export-status" class="np-status"></div>
       </div>
-
-      <div id="plate-a-tab-content" class="space-y-4 hidden"></div>
-    </div>
-
-    <div class="p-4 border-t border-slate-200 space-y-2">
-      <div class="flex items-center justify-between">
-        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Export — full plate (base + steps)</h3>
-        <select id="export-format" class="text-xs border border-slate-300 rounded px-1 py-1 bg-white" title="File format for all export buttons, including the per-step ones">
-          <option value="stl">STL · 3D print</option>
-          <option value="obj">OBJ · CAD</option>
-        </select>
-      </div>
-      <div class="grid grid-cols-2 gap-2">
-        <button id="export-a-btn" title="Needs detected cut-outs — load a board and run detection (or load a design; it detects automatically)" class="flex items-center justify-center gap-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 px-2 rounded transition disabled:opacity-50" disabled>
-          ⬇ Port
-        </button>
-        <button id="export-b-btn" title="Needs detected cut-outs — load a board and run detection (or load a design; it detects automatically)" class="flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-2 rounded transition disabled:opacity-50" disabled>
-          ⬇ Starboard
-        </button>
-      </div>
-      <div class="text-xs text-slate-400">Single steps without the base: expand a step on the Plate tab → “Export this step only”.</div>
-      <div id="export-status" class="text-xs text-slate-500"></div>
-      <div class="grid grid-cols-2 gap-2">
-        <button id="save-design-btn" class="flex items-center justify-center gap-1 bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold py-2 px-2 rounded transition">
-          💾 Save design
-        </button>
-        <button id="load-design-btn" class="flex items-center justify-center gap-1 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold py-2 px-2 rounded transition">
-          📂 Load design
-        </button>
+      <div class="np-foot-links">
+        <button id="save-design-btn" class="np-link" title="The plate as a file, to share outside NP7">⬇ Download .json</button>
+        <button id="load-design-btn" class="np-link" title="Put a plate design file onto the current board">Load .json</button>
         <input type="file" id="design-input" accept=".json,application/json" class="hidden" />
+        <span class="flex-1"></span>
+        <button id="reset-btn" class="np-link" title="Back to one default step, no holes">↺ Reset plate</button>
       </div>
-      <div id="design-status" class="text-xs text-slate-500"></div>
-      <button id="reset-btn" class="w-full flex items-center justify-center gap-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-medium py-2 px-4 rounded transition">
-        ↺ Reset plate settings
-      </button>
+      <div id="design-status" class="np-status"></div>
     </div>
-  </div>
+  </aside>
 
-  <div id="canvas-container" class="flex-1 min-h-96 relative">
-    <div class="absolute top-2 right-2 bg-white/90 backdrop-blur rounded px-3 py-2 text-xs text-slate-600 shadow">
-      Drag to rotate · Scroll to zoom
-    </div>
+  <div id="canvas-container" class="np-viewport flex-1 min-h-96 relative">
+    <div class="np-viewhint">Drag to rotate · Scroll to zoom</div>
   </div>
 </div>
 
 <script>
+// ============================================================================
+// NP7 LOOK: small builders for the panel (icons, card headers, facts)
+// ============================================================================
+const NP_PATHS = {
+  board: ['M2.5 12c0-2.6 4.4-4.6 10.2-4.6 5 0 8.8 2 8.8 4.6s-3.8 4.6-8.8 4.6C6.9 16.6 2.5 14.6 2.5 12Z', 'M6.5 12h11'],
+  layers: ['M12 3 3 7.5l9 4.5 9-4.5L12 3Z', 'M3 12l9 4.5 9-4.5', 'M3 16.5 12 21l9-4.5'],
+  steps: ['M9.5 6H20', 'M9.5 12H20', 'M9.5 18H20', 'M4.5 5v2', 'M4 11h1.5l-1.5 2h1.5', 'M4 17h1.5v2H4'],
+  hole: ['M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'],
+  search: ['M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Z', 'M20 20l-4-4'],
+  plus: ['M12 5v14', 'M5 12h14'],
+  pen: ['M4 20h4L19 9l-4-4L4 16z', 'M13.5 6.5l4 4'],
+};
+function npIcon(name, cls = '') {
+  return `<svg class="np-ico ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">`
+    + NP_PATHS[name].map(d => `<path d="${d}"/>`).join('') + '</svg>';
+}
+function npCardHead(title, sub, icon, actions = '') {
+  return `<div class="np-card-head"><span class="np-tile">${npIcon(icon)}</span>`
+    + `<div class="min-w-0 flex-1"><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ''}</div>`
+    + (actions ? `<div class="np-card-actions">${actions}</div>` : '') + '</div>';
+}
+function npEmpty(tone, icon, title, text, action) {
+  return `<div class="np-empty ${tone}"><span class="np-tile np-tile-lg">${npIcon(icon)}</span>`
+    + `<p class="np-empty-title">${title}</p><p class="np-empty-text">${text}</p>`
+    + (action ? `<button class="np-btn np-btn-soft np-btn-sm mt-3" data-go-board>${action}</button>` : '') + '</div>';
+}
+// File names and Shape3D layer names end up in the panel; they are text.
+function escHtml(v) {
+  return String(v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function boardFacts(filename, source, lengthMm, widthMm, thickMm, note = '') {
+  return `<div class="np-file"><span class="np-chip">${source}</span><strong title="${escHtml(filename)}">${escHtml(filename)}</strong></div>`
+    + `<div class="np-fact"><dt>Length</dt><dd>${lengthMm.toFixed(0)} mm</dd></div>`
+    + `<div class="np-fact"><dt>Width</dt><dd>${widthMm.toFixed(0)} mm</dd></div>`
+    + `<div class="np-fact"><dt>Thickness</dt><dd>${thickMm.toFixed(0)} mm</dd></div>`
+    + (note ? `<div class="np-facts-note">${note}</div>` : '');
+}
+// The tab numbers turn into ticks as the work gets done.
+function syncTabBadges() {
+  const b = document.getElementById('tab-board-num'), p = document.getElementById('tab-plate-num');
+  const found = !!(detectedCutouts && detectedCutouts.A);
+  if (b) { b.textContent = found ? '✓' : '1'; b.classList.toggle('is-done', found); }
+  if (p) { p.classList.toggle('is-done', found); p.title = found ? 'Ready: the cut-outs are found' : 'Needs a board and its cut-outs'; }
+}
+
 // ============================================================================
 // STATE
 // ============================================================================
@@ -612,23 +842,18 @@ function onS3dxLoaded(text, filename) {
 
   const sel = document.getElementById('s3dx-layer');
   sel.innerHTML = d.layers.map((l, i) =>
-    `<option value="${i}" ${i === s3dxParams.layerIndex ? 'selected' : ''}>${l.name} — ${l.deckBot === 256 ? 'bottom' : 'deck'}, ${(l.depth * 10).toFixed(0)}mm, ${l.xMin.toFixed(0)}–${l.xMax.toFixed(0)}cm</option>`
+    `<option value="${i}" ${i === s3dxParams.layerIndex ? 'selected' : ''}>${escHtml(l.name)} · ${l.deckBot === 256 ? 'bottom' : 'deck'}, ${(l.depth * 10).toFixed(0)}mm, ${l.xMin.toFixed(0)}–${l.xMax.toFixed(0)}cm</option>`
   ).join('');
 
   const strapCount = d.boxes.filter(b => /footstrap/i.test(b.name)).length;
   document.getElementById('s3dx-status').innerHTML =
-    `<span class="text-green-600">✓ ${filename}</span><br>`
-    + `${d.length.toFixed(1)} × ${d.width.toFixed(1)} × ${d.thickness.toFixed(1)} cm · `
+    `<span class="text-green-600">✓ ${escHtml(filename)}</span><br>`
     + `${d.layers.length} layer(s) · ${d.boxes.length} boxes (${strapCount} footstrap)`;
 
   document.getElementById('s3dx-controls').classList.remove('hidden');
   document.getElementById('board-controls').classList.remove('hidden');
-  document.getElementById('board-info').innerHTML = `
-    <div class="flex justify-between"><span>Source:</span><strong class="truncate ml-2">${filename}</strong></div>
-    <div class="flex justify-between mt-1"><span>Length:</span><strong>${(d.length * 10).toFixed(0)} mm</strong></div>
-    <div class="flex justify-between mt-1"><span>Width:</span><strong>${(d.width * 10).toFixed(0)} mm</strong></div>
-    <div class="flex justify-between mt-1"><span>Thickness:</span><strong>${(d.thickness * 10).toFixed(0)} mm</strong></div>
-    <div class="text-xs text-slate-500 mt-2">Cut-outs read from the file — mesh detection not needed.</div>`;
+  document.getElementById('board-info').innerHTML = boardFacts(filename, 'Shape3D', d.length * 10, d.width * 10, d.thickness * 10,
+    'Cut-outs are read from the file, no mesh scan needed.');
 
   renderS3dxControls();
   camTarget.set(0, 0, 0);
@@ -784,15 +1009,10 @@ function onBoardLoaded(geom, filename) {
   // Sensible defaults based on board size
   detection.scanLength = Math.min(500, size.x * 0.35);
 
-  document.getElementById('board-info').innerHTML = `
-    <div class="flex justify-between"><span>File:</span><strong class="truncate ml-2">${filename}</strong></div>
-    <div class="flex justify-between mt-1"><span>Length (X):</span><strong>${size.x.toFixed(1)} mm</strong></div>
-    <div class="flex justify-between mt-1"><span>Width (Z):</span><strong>${size.z.toFixed(1)} mm</strong></div>
-    <div class="flex justify-between mt-1"><span>Thickness (Y):</span><strong>${size.y.toFixed(1)} mm</strong></div>
-  `;
+  document.getElementById('board-info').innerHTML = boardFacts(filename, 'STL', size.x, size.z, size.y);
   document.getElementById('board-controls').classList.remove('hidden');
   document.getElementById('detection-controls').classList.remove('hidden');
-  document.getElementById('upload-status').innerHTML = `<span class="text-green-600">✓ Loaded ${filename}</span>`;
+  document.getElementById('upload-status').innerHTML = `<span class="text-green-600">✓ Loaded ${escHtml(filename)}</span>`;
 
   renderDetectionControls();
   rebuildSceneHelpers();
@@ -931,13 +1151,7 @@ function resamplePolygon(polygon, targetSpacing) {
 // Highlight whichever tail-end button is active.
 function syncTailButtons() {
   document.querySelectorAll('[data-tail]').forEach(b => {
-    const isActive = b.dataset.tail === detection.tailEnd;
-    b.classList.toggle('bg-blue-500', isActive);
-    b.classList.toggle('text-white', isActive);
-    b.classList.toggle('border-blue-500', isActive);
-    b.classList.toggle('bg-white', !isActive);
-    b.classList.toggle('border-slate-300', !isActive);
-    b.classList.toggle('text-slate-600', !isActive);
+    b.classList.toggle('is-on', b.dataset.tail === detection.tailEnd);
   });
 }
 
@@ -957,8 +1171,8 @@ function detectCutouts() {
     syncTailButtons();
     rebuildSceneHelpers();
     resultEl.insertAdjacentHTML('beforeend',
-      `<div class="mt-2 text-xs bg-amber-50 border border-amber-200 rounded p-2 text-amber-800">`
-      + `Nothing found at the ${label(first)} end, but the ${label(other)} end worked — tail switched automatically.</div>`);
+      `<div class="np-note t-amber">`
+      + `Nothing at the ${label(first)} end, but the ${label(other)} end worked: <strong>tail switched</strong>.</div>`);
     return;
   }
 
@@ -966,11 +1180,11 @@ function detectCutouts() {
   syncTailButtons();
   detectedCutouts = { A: null, B: null };
   rebuildSceneHelpers();
-  resultEl.innerHTML = `<div class="bg-red-50 border border-red-200 rounded p-2 text-red-700">`
-    + `<strong>No pair of cut-outs found at either end.</strong>`
-    + `<div class="mt-1 text-slate-700">Things to try, in order:</div>`
-    + `<ul class="list-disc ml-4 mt-1 text-slate-700">`
-    + `<li>The cut-outs must face <em>up</em> — use “Flip board upside-down” if they are on the underside.</li>`
+  resultEl.innerHTML = `<div class="np-note t-red">`
+    + `<strong>No pair of cut-outs at either end.</strong>`
+    + `<div class="mt-1">Things to try, in order:</div>`
+    + `<ul>`
+    + `<li>The cut-outs must face <em>up</em>: use “Flip the board” if they are on the underside.</li>`
     + `<li>Lower <em>min recess depth</em> (shallow recesses get missed).</li>`
     + `<li>Raise <em>floor flatness tolerance</em> (curved floors get rejected).</li>`
     + `<li>Increase <em>scan length from tail</em> if the recesses sit further forward.</li>`
@@ -980,7 +1194,7 @@ function detectCutouts() {
 function detectCutoutsWith(tailEndUsed) {
   if (!boardGeometry) return false;
   const resultEl = document.getElementById('detection-result');
-  resultEl.innerHTML = '<span class="text-slate-500">Scanning board...</span>';
+  resultEl.innerHTML = '<div class="np-status">Scanning the board…</div>';
 
   const pos = boardGeometry.attributes.position.array;
   const bounds = boardGeometry.boundingBox;
@@ -1301,12 +1515,10 @@ function detectCutoutsWith(tailEndUsed) {
   const depthB = deckY - detectedCutouts.B.flatY;
 
   resultEl.innerHTML = `
-    <div class="bg-green-50 border border-green-200 rounded p-2 mt-2">
-      <div class="text-green-700 font-semibold">✓ Detected 2 cut-outs (STL edge-based)</div>
-      <div class="mt-1 text-slate-700">
-        <div>Plate A (port): ${detectedCutouts.A.cellCount} triangles, depth ${depthA.toFixed(1)} mm</div>
-        <div>Plate B (starboard): ${detectedCutouts.B.cellCount} triangles, depth ${depthB.toFixed(1)} mm</div>
-      </div>
+    <div class="np-note t-green">
+      <strong>✓ Found both cut-outs</strong>
+      <div class="mt-1">Port: depth ${depthA.toFixed(1)} mm · ${detectedCutouts.A.cellCount} triangles</div>
+      <div>Starboard: depth ${depthB.toFixed(1)} mm · ${detectedCutouts.B.cellCount} triangles</div>
     </div>
   `;
 
@@ -2402,6 +2614,7 @@ function clipAgainstHalfplane(poly, nx, ny, c) {
 // REBUILD PLATES IN SCENE
 // ============================================================================
 function rebuildPlates() {
+  syncTabBadges();
   while (plateGroup.children.length) {
     const c = plateGroup.children[0];
     plateGroup.remove(c);
@@ -2614,13 +2827,16 @@ function exportGeomsAsSTL(allGeoms, filename) {
 // UI
 // ============================================================================
 function makeSlider(label, min, max, step, value, onChange, accentClass = 'accent-blue-500') {
+  // The slider takes the colour of the card it sits in (accentClass is kept
+  // for the callers, the card's tone decides now).
   const wrap = document.createElement('div');
+  wrap.className = 'np-slider';
   wrap.innerHTML = `
-    <div class="flex justify-between items-center mb-1">
-      <label class="text-xs font-medium text-slate-700">${label}</label>
-      <input type="number" value="${value}" min="${min}" max="${max}" step="${step}" class="w-20 px-2 py-0.5 text-xs border border-slate-300 rounded text-right" data-num />
+    <div class="np-slider-top">
+      <label class="np-label">${label}</label>
+      <input type="number" value="${value}" min="${min}" max="${max}" step="${step}" class="np-num" data-num />
     </div>
-    <input type="range" min="${min}" max="${max}" step="${step}" value="${Math.min(value, max)}" class="w-full ${accentClass}" data-range />
+    <input type="range" min="${min}" max="${max}" step="${step}" value="${Math.min(value, max)}" class="np-range" data-range />
   `;
   const num = wrap.querySelector('[data-num]');
   const range = wrap.querySelector('[data-range]');
@@ -2652,63 +2868,58 @@ function renderPlateTab(plateId) {
   const container = document.getElementById(`plate-${plateId}-tab-content`);
   container.innerHTML = '';
 
-  if (!boardGeometry) {
-    container.innerHTML = '<div class="text-sm text-slate-500 italic">Upload a board model first.</div>';
+  if (!boardGeometry || !cutout) {
+    container.innerHTML = !boardGeometry
+      ? npEmpty('t-sky', 'board', 'Load a board first', 'Drop an STL or Shape3D file on the Board tab. The plate is built on its cut-outs.', 'Go to Board')
+      : npEmpty('t-amber', 'search', 'Find the cut-outs first', 'Press “Detect cut-outs” on the Board tab.', 'Go to Board');
+    const go = container.querySelector('[data-go-board]');
+    if (go) go.addEventListener('click', () => switchTab('board'));
     return;
   }
-  if (!cutout) {
-    container.innerHTML = '<div class="text-sm text-slate-500 italic">Run cut-out detection on the Board tab first.</div>';
-    return;
-  }
-
-  const sideLabel = 'Plate settings (applied to both sides)';
-  const bgClass = 'bg-sky-50 border-sky-200';
 
   container.innerHTML = `
-    <div class="${bgClass} border rounded p-3 text-xs text-slate-700">
-      <strong>${sideLabel}</strong><br>
-      Port (blue) and starboard (green) plates are mirror images — adjust one and both update.
+    <div class="np-sides">
+      <span class="np-side port"><i></i>Port</span>
+      <span class="np-side stbd"><i></i>Starboard</span>
+      <span class="np-sides-note">Mirror images: change one, both follow.</span>
     </div>
   `;
 
-  const plateSection = document.createElement('div');
-  plateSection.className = 'pt-3 border-t border-slate-200 space-y-3';
-  plateSection.innerHTML = '<h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Plate</h3>';
+  const plateSection = document.createElement('section');
+  plateSection.className = 'np-card t-violet';
+  plateSection.innerHTML = npCardHead('Plate', 'The base the steps sit on', 'layers');
   plateSection.appendChild(makeSlider('Thickness (mm)', 2, 50, 0.5, plate.thickness, v => { plate.thickness = v; rebuildPlates(); }, 'accent-amber-500'));
   container.appendChild(plateSection);
 
   // --- Screw holes: explicit positions, no grid -----------------------------
   const built = buildPlateGeometry(plate, cutoutKey);
   const drilled = built ? built.holeCount : 0;
-  const holeSection = document.createElement('div');
-  holeSection.className = 'pt-3 border-t border-slate-200 space-y-2';
-  holeSection.innerHTML = `
-    <div class="flex items-center justify-between">
-      <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Screw holes (${drilled}/${plate.holes.length})</h3>
-      <button class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded font-medium" data-add-hole>+ Add hole</button>
-    </div>
-    <div class="text-xs text-slate-500">Positions are exact, in board mm. X = along length (0 = tail), Z = across width from the centreline.</div>
-    <div data-hole-list class="space-y-1"></div>`;
+  const holeSection = document.createElement('section');
+  holeSection.className = 'np-card t-pink';
+  holeSection.innerHTML = npCardHead('Screw holes', 'Exact, in board mm, mirrored', 'hole',
+      `<span class="np-chip" title="drilled / placed">${drilled}/${plate.holes.length}</span>`
+      + `<button class="np-btn np-btn-soft np-btn-sm" data-add-hole>${npIcon('plus')}Add hole</button>`) + `
+    <p class="np-hint">X runs along the length (0 = tail), Z across the width from the centreline.</p>
+    <div data-hole-list class="np-holes"></div>`;
   holeSection.appendChild(makeSlider('Default diameter for new holes (mm)', 2, 30, 0.5, plate.holeDiameter, v => { plate.holeDiameter = v; }, 'accent-amber-500'));
 
   const holeList = holeSection.querySelector('[data-hole-list]');
   const tailX = cutout ? Math.max(...cutout.polygon.map(p => p.x)) : 0;
   if (plate.holes.length === 0) {
-    holeList.innerHTML = '<div class="text-xs text-slate-400 italic py-1">No holes yet — press “Add hole”.</div>';
+    holeList.innerHTML = '<p class="np-hint">No holes yet. Press “Add hole”.</p>';
   } else {
-    holeList.innerHTML = `<div class="flex items-center gap-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
-        <span class="w-4"></span><span class="w-16 text-right">X len</span><span class="w-16 text-right">Z width</span><span class="w-14 text-right">Ø</span><span class="w-5"></span></div>`;
+    holeList.innerHTML = `<div class="np-holes-head"><span></span><span>X len</span><span>Z width</span><span>Ø</span><span></span></div>`;
     plate.holes.forEach((h, i) => {
       const okList = built ? built.holeIds : [];
       const isOk = okList.indexOf(h.id) >= 0;
       const row = document.createElement('div');
-      row.className = 'flex items-center gap-1';
+      row.className = 'np-hole-row';
       row.innerHTML = `
-        <span class="text-xs w-4 text-right ${isOk ? 'text-slate-400' : 'text-red-500'}" title="${isOk ? 'drilled' : 'outside the plate — not drilled'}">${isOk ? (i + 1) : '!'}</span>
-        <input data-f="x" type="number" step="1" value="${Math.round(h.x * 10) / 10}" class="w-16 px-1 py-0.5 text-xs border ${isOk ? 'border-slate-300' : 'border-red-300 bg-red-50'} rounded text-right" />
-        <input data-f="z" type="number" step="1" value="${Math.round(h.z * 10) / 10}" class="w-16 px-1 py-0.5 text-xs border ${isOk ? 'border-slate-300' : 'border-red-300 bg-red-50'} rounded text-right" />
-        <input data-f="d" type="number" step="0.5" min="1" value="${h.d != null ? h.d : plate.holeDiameter}" class="w-14 px-1 py-0.5 text-xs border border-slate-300 rounded text-right" />
-        <button data-del-hole class="text-slate-400 hover:text-red-600 text-xs px-1" title="delete">✕</button>`;
+        <span class="np-hole-n ${isOk ? '' : 'is-bad'}" title="${isOk ? 'drilled' : 'outside the plate, not drilled'}">${isOk ? (i + 1) : '!'}</span>
+        <input data-f="x" type="number" step="1" value="${Math.round(h.x * 10) / 10}" class="np-num ${isOk ? '' : 'is-bad'}" title="X, along the length (mm)" />
+        <input data-f="z" type="number" step="1" value="${Math.round(h.z * 10) / 10}" class="np-num ${isOk ? '' : 'is-bad'}" title="Z, across the width (mm)" />
+        <input data-f="d" type="number" step="0.5" min="1" value="${h.d != null ? h.d : plate.holeDiameter}" class="np-num" title="Diameter (mm)" />
+        <button data-del-hole class="np-icon-btn" title="Delete hole">✕</button>`;
       row.querySelectorAll('input').forEach(inp => {
         inp.addEventListener('input', e => {
           const v = Number(e.target.value);
@@ -2750,15 +2961,12 @@ function renderPlateTab(plateId) {
     plateH = Math.max(10, maxZ - minZ);
   }
 
-  const stepsSection = document.createElement('div');
-  stepsSection.className = 'pt-3 border-t border-slate-200';
-  stepsSection.innerHTML = `
-    <div class="flex items-center justify-between mb-3">
-      <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wide">Steps (${plate.steps.length})</h3>
-      <button class="flex items-center gap-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded font-medium" data-add-step>+ Add</button>
-    </div>
-    <div class="text-xs text-slate-500 mb-2">Plate size: ${plateW.toFixed(0)} × ${plateH.toFixed(0)} mm</div>
-    <div class="space-y-2" data-steps-list></div>
+  const stepsSection = document.createElement('section');
+  stepsSection.className = 'np-card t-teal';
+  stepsSection.innerHTML = npCardHead('Steps', `Stacked on the plate · plate ${plateW.toFixed(0)} × ${plateH.toFixed(0)} mm`, 'steps',
+      `<span class="np-chip">${plate.steps.length}</span>`
+      + `<button class="np-btn np-btn-soft np-btn-sm" data-add-step>${npIcon('plus')}Add step</button>`) + `
+    <div class="np-steps" data-steps-list></div>
   `;
   stepsSection.querySelector('[data-add-step]').addEventListener('click', () => {
     const last = plate.steps[plate.steps.length - 1];
@@ -2787,8 +2995,8 @@ function renderPlateTab(plateId) {
   const debugData = buildPlateGeometry(plate, cutoutKey);
   if (debugData && debugData.debugInfo && debugData.debugInfo.length > 0) {
     const debugDiv = document.createElement('div');
-    debugDiv.className = 'bg-slate-50 border border-slate-200 rounded p-2 text-xs text-slate-600 mb-2 font-mono';
-    debugDiv.innerHTML = '<strong class="text-slate-700">Build status:</strong><br>' +
+    debugDiv.className = 'np-readout';
+    debugDiv.innerHTML = '<strong>Build status</strong><br>' +
       debugData.debugInfo.map(s => `<div>${s}</div>`).join('');
     stepsList.appendChild(debugDiv);
   }
@@ -2796,21 +3004,21 @@ function renderPlateTab(plateId) {
   plate.steps.forEach((step, idx) => {
     const isExp = plate.expandedStep === step.id;
     const stepDiv = document.createElement('div');
-    stepDiv.className = 'border rounded-lg overflow-hidden ' + (isExp ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-white');
-
+    stepDiv.className = 'np-step' + (isExp ? ' is-open' : '') + (step.enabled ? '' : ' is-off');
     const header = document.createElement('div');
-    header.className = 'flex items-center gap-2 p-2';
+    header.className = 'np-step-head';
     header.innerHTML = `
-      <input type="checkbox" ${step.enabled ? 'checked' : ''} class="w-4 h-4 accent-blue-500" data-enable />
-      <button class="flex-1 flex items-center gap-2 text-left" data-toggle>
-        <span class="text-sm font-semibold text-slate-700">Step ${idx + 1}</span>
-        <span class="text-xs text-slate-500">${step.mode === 'draw' ? `✎ path (${step.path && step.path.nodes ? step.path.nodes.length : 0} pts)` : `→${step.reachRight} ↓${step.reachDown} · ${step.angle}°`} · ${step.height}mm</span>
+      <input type="checkbox" ${step.enabled ? 'checked' : ''} class="np-check" data-enable title="Use this step" />
+      <button class="np-step-title" data-toggle title="${isExp ? 'Close' : 'Open'} step ${idx + 1}">
+        <span class="np-step-n">${idx + 1}</span>
+        <span class="np-step-name">Step ${idx + 1}</span>
+        <span class="np-step-sum">${step.mode === 'draw' ? `✎ path, ${step.path && step.path.nodes ? step.path.nodes.length : 0} pts` : `→${step.reachRight} ↓${step.reachDown} · ${step.angle}°`} · ${step.height} mm</span>
       </button>
-      <div class="flex flex-col leading-none">
-        <button class="text-slate-400 hover:text-blue-600 text-[10px] px-1 ${idx === 0 ? 'opacity-30 pointer-events-none' : ''}" data-up title="Move up">▲</button>
-        <button class="text-slate-400 hover:text-blue-600 text-[10px] px-1 ${idx === plate.steps.length - 1 ? 'opacity-30 pointer-events-none' : ''}" data-down title="Move down">▼</button>
+      <div class="np-step-move">
+        <button class="${idx === 0 ? 'is-off' : ''}" data-up title="Move up">▲</button>
+        <button class="${idx === plate.steps.length - 1 ? 'is-off' : ''}" data-down title="Move down">▼</button>
       </div>
-      <button class="p-1 text-slate-400 hover:text-red-600" data-del>✕</button>
+      <button class="np-icon-btn" data-del title="Delete step">✕</button>
     `;
     const moveStep = (from, to) => {
       if (to < 0 || to >= plate.steps.length) return;
@@ -2835,16 +3043,16 @@ function renderPlateTab(plateId) {
 
     if (isExp) {
       const body = document.createElement('div');
-      body.className = 'p-3 pt-0 space-y-3 border-t border-amber-200';
+      body.className = 'np-step-body';
 
       // --- Mode toggle: Simple (sliders) vs Draw path ----------------------
       const modeWrap = document.createElement('div');
-      modeWrap.className = 'pt-2';
+      modeWrap.className = 'np-row';
       modeWrap.innerHTML = `
-        <label class="text-xs font-medium text-slate-700 block mb-1">Shape mode</label>
-        <div class="grid grid-cols-2 gap-2">
-          <button data-mode="simple" class="py-1.5 text-xs rounded border ${step.mode !== 'draw' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white border-slate-300 text-slate-600'}">Simple</button>
-          <button data-mode="draw" class="py-1.5 text-xs rounded border ${step.mode === 'draw' ? 'bg-blue-500 text-white border-blue-500' : 'bg-white border-slate-300 text-slate-600'}">Draw path</button>
+        <span class="np-label">Shape</span>
+        <div class="np-seg">
+          <button data-mode="simple" class="np-seg-btn ${step.mode !== 'draw' ? 'is-on' : ''}">Simple</button>
+          <button data-mode="draw" class="np-seg-btn ${step.mode === 'draw' ? 'is-on' : ''}">Draw path</button>
         </div>`;
       modeWrap.querySelectorAll('[data-mode]').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -2862,17 +3070,17 @@ function renderPlateTab(plateId) {
       if (step.mode === 'draw') {
         const nPts = step.path && step.path.nodes ? step.path.nodes.length : 0;
         const drawWrap = document.createElement('div');
-        drawWrap.className = 'space-y-2 pt-1';
+        drawWrap.className = 'space-y-1.5';
         drawWrap.innerHTML = `
-          <button data-edit-path class="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 px-4 rounded transition">✎ Edit path (top view)</button>
-          <div class="text-xs text-slate-500">${nPts} point${nPts === 1 ? '' : 's'} · drawn on the port cut-out, mirrored to starboard</div>`;
+          <button data-edit-path class="np-btn np-btn-solid w-full">${npIcon('pen')}Edit path (top view)</button>
+          <p class="np-hint">${nPts} point${nPts === 1 ? '' : 's'} · drawn on the port cut-out, mirrored to starboard</p>`;
         drawWrap.querySelector('[data-edit-path]').addEventListener('click', () => openPathEditor(plateId, step.id));
         body.appendChild(drawWrap);
 
         const clipWrap = document.createElement('label');
-        clipWrap.className = 'flex items-center gap-2 cursor-pointer';
-        clipWrap.innerHTML = `<input type="checkbox" ${step.clipToPlate !== false ? 'checked' : ''} class="w-4 h-4 accent-amber-500" />
-          <span class="text-xs text-slate-600">Clip path to plate outline</span>`;
+        clipWrap.className = 'np-checkline';
+        clipWrap.innerHTML = `<input type="checkbox" ${step.clipToPlate !== false ? 'checked' : ''} class="np-check" />
+          <span>Clip the path to the plate outline</span>`;
         clipWrap.querySelector('input').addEventListener('change', e => { step.clipToPlate = e.target.checked; rebuildPlates(); });
         body.appendChild(clipWrap);
       } else {
@@ -2886,21 +3094,21 @@ function renderPlateTab(plateId) {
       body.appendChild(makeSlider('Height (mm)', 0, 15, 0.5, step.height, v => { step.height = v; rebuildPlates(); }, 'accent-amber-500'));
 
       const cumWrap = document.createElement('label');
-      cumWrap.className = 'flex items-center gap-2 cursor-pointer pt-1';
-      cumWrap.innerHTML = `<input type="checkbox" ${step.cumulative ? 'checked' : ''} class="w-4 h-4 accent-amber-500" />
-        <span class="text-xs text-slate-600">Stack on top of previous step</span>`;
+      cumWrap.className = 'np-checkline';
+      cumWrap.innerHTML = `<input type="checkbox" ${step.cumulative ? 'checked' : ''} class="np-check" />
+        <span>Stack on top of the previous step</span>`;
       cumWrap.querySelector('input').addEventListener('change', e => { step.cumulative = e.target.checked; rebuildPlates(); });
       body.appendChild(cumWrap);
 
       // Export just this step as a solid (no base plate) — e.g. when the
       // step itself IS the part being printed.
       const expWrap = document.createElement('div');
-      expWrap.className = 'pt-2 border-t border-amber-200';
+      expWrap.className = 'np-step-export';
       expWrap.innerHTML = `
-        <label class="text-xs font-medium text-slate-700 block mb-1">Export this step only (no base plate)</label>
+        <span class="np-label mb-1.5">Export this step only (no base plate)</span>
         <div class="grid grid-cols-2 gap-2">
-          <button data-exp-step-port class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1.5 rounded font-medium">⬇ Port</button>
-          <button data-exp-step-stbd class="text-xs bg-emerald-100 hover:bg-emerald-200 text-emerald-700 px-2 py-1.5 rounded font-medium">⬇ Starboard</button>
+          <button data-exp-step-port class="np-btn np-btn-sm np-btn-port-soft">⬇ Port</button>
+          <button data-exp-step-stbd class="np-btn np-btn-sm np-btn-stbd-soft">⬇ Starboard</button>
         </div>`;
       expWrap.querySelector('[data-exp-step-port]').addEventListener('click', () => {
         rebuildPlates();
@@ -3476,12 +3684,7 @@ document.getElementById('show-board-btn').addEventListener('click', function() {
   boardVisible = !boardVisible;
   boardGroup.visible = boardVisible;
   this.textContent = boardVisible ? 'Visible' : 'Hidden';
-  this.classList.toggle('bg-blue-500', boardVisible);
-  this.classList.toggle('text-white', boardVisible);
-  this.classList.toggle('border-blue-500', boardVisible);
-  this.classList.toggle('bg-white', !boardVisible);
-  this.classList.toggle('border-slate-300', !boardVisible);
-  this.classList.toggle('text-slate-600', !boardVisible);
+  this.classList.toggle('is-on', boardVisible);
 });
 
 document.getElementById('transparent-board-btn').addEventListener('click', function() {
@@ -3491,12 +3694,7 @@ document.getElementById('transparent-board-btn').addEventListener('click', funct
     boardMesh.material.opacity = boardTransparent ? 0.35 : 1.0;
     boardMesh.material.needsUpdate = true;
   }
-  this.classList.toggle('bg-blue-500', boardTransparent);
-  this.classList.toggle('text-white', boardTransparent);
-  this.classList.toggle('border-blue-500', boardTransparent);
-  this.classList.toggle('bg-white', !boardTransparent);
-  this.classList.toggle('border-slate-300', !boardTransparent);
-  this.classList.toggle('text-slate-600', !boardTransparent);
+  this.classList.toggle('is-on', boardTransparent);
 });
 
 document.getElementById('flip-board-btn').addEventListener('click', () => {

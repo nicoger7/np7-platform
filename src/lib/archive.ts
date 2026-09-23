@@ -28,6 +28,11 @@ export type ArchiveEntity = {
    * with no `section` stay visible to everyone, exactly as before.
    */
   section?: string;
+  /**
+   * A private storage file each row points to (by path). Purging the row also
+   * removes the file, unless another row, archived or not, still points to it.
+   */
+  file?: { bucket: string; pathCol: string };
 };
 
 export const ARCHIVE_ENTITIES: ArchiveEntity[] = [
@@ -56,6 +61,7 @@ export const ARCHIVE_ENTITIES: ArchiveEntity[] = [
   { key: "pd_processes", table: "pd_processes", label: "Process", plural: "Processes", titleCol: "name", subtitleCols: ["method"], section: "pd_knowledge" },
   { key: "pd_sources", table: "pd_sources", label: "R&D source", plural: "R&D sources", titleCol: "title", subtitleCols: ["kind", "author_name"], section: "pd_knowledge" },
   { key: "pd_boards", table: "pd_boards", label: "Board", plural: "Boards", titleCol: "name", subtitleCols: ["brand", "category"], href: (id) => `/admin/product-dev/boards/${id}`, section: "pd_boards" },
+  { key: "pd_plate_designs", table: "pd_plate_designs", label: "Plate design", plural: "Plate designs", titleCol: "name", subtitleCols: ["board_file_name"], href: (id) => `/admin/product-dev/plate-designer?project=${id}`, section: "pd_knowledge", file: { bucket: "documents", pathCol: "board_file_path" } },
 ];
 
 export const ARCHIVE_BY_KEY: Record<string, ArchiveEntity> = Object.fromEntries(ARCHIVE_ENTITIES.map((e) => [e.key, e]));

@@ -39,6 +39,18 @@ If CSP or offline reliability matters, vendor both: download the two files, plac
 
 `script-src 'self' 'unsafe-inline' cdn.tailwindcss.com cdnjs.cloudflare.com; worker-src blob:` — the app uses inline script (single-file design), Blob URLs for file downloads, and no fetch/XHR at all.
 
+## NP7 changes on top of v22 (in the platform, 2026-09-23)
+
+The file in this folder is no longer byte-for-byte the handed-over v22 (that one had SHA-256 `d998e982…20502`). What changed, so a v23 can be merged:
+
+1. **The look.** The panel uses the Product Development admin's design: Poppins (from media.np-seven.com), the admin's light/dark tokens, one colour per section (board file sky, Shape3D indigo, cut-out search amber, plate violet, screw holes pink, steps teal, export green; port and starboard keep the 3D view's blue and green). The CSS is the `NP7 look` block in `<head>`, the panel markup was rewritten with every id and `data-*` hook kept, and `renderPlateTab`, `makeSlider`, the board facts and the detection messages build `np-*` markup. The toggles set `is-on` instead of six Tailwind classes. Nothing about the geometry changed.
+2. **Escaping.** File names and Shape3D layer names are escaped before they go into the panel (`escHtml`), because a project's board file can come from a colleague.
+3. **Projects.** Not in this file: `np7-projects.js` is added just before `</body>` when the admin serves the page (`src/lib/plate-designer-page.ts`). It saves and opens projects through `/api/admin/product-dev/plate-designs` (table `pd_plate_designs`, migration 258), keeps the board file in the private `documents` bucket (named by its SHA-256), follows the admin's theme and tells the admin page which project is open. It works only through the tool's own functions (`saveDesign`, `loadDesign`, `loadSTL`, `loadS3dxFile`, ...); `src/__tests__/plate-designer-embed.test.ts` fails if a new version drops one of them.
+
+After changing either file: `node scripts/plate-designer-embed.mjs`, commit the regenerated `src/lib/plate-designer-html.generated.ts` with it.
+
+So the "Data handling" section below is now only true for the tool on its own: in the admin, Save uploads the board file and the design to NP7.
+
 ## Data handling
 
 Everything is client-side. Board files (STL/s3dx) are read in the browser and never uploaded; designs are saved by downloading a JSON file; exports are generated in the browser as Blob downloads. No cookies, no localStorage, no analytics, no requests to any server. Nothing to declare for privacy review beyond "local file processing".
