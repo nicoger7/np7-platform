@@ -60,11 +60,14 @@ export type CutResult = {
   reason?: string;
 };
 
-type Found = { y0: number; y1: number; centre: (y: number) => number; half: Float32Array; aspect: number };
+/** lopsided: of the rows where both sides were seen, the share where they
+ *  disagree about the centreline. A real board is symmetric; a piece of one,
+ *  or two glued together, is not. */
+type Found = { y0: number; y1: number; centre: (y: number) => number; half: Float32Array; aspect: number; lopsided: number };
 
 const WORK = 1200;   // px, the long side the boards are found at
 
-export async function cutOutBoards(input: Buffer): Promise<CutResult> {
+export async function cutOutBoards(input: Buffer, opts: { k?: number } = {}): Promise<CutResult> {
   // Oriented like a browser shows it (EXIF), with an alpha channel either way.
   const { data: full, info } = await sharp(input, { failOn: "none" }).rotate().ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const W0 = info.width, H0 = info.height;
@@ -82,14 +85,21 @@ export async function cutOutBoards(input: Buffer): Promise<CutResult> {
     fg = new Uint8Array(w * h);
     for (let j = 0; j < w * h; j++) fg[j] = data[j * 4 + 3] > 110 ? 1 : 0;
   } else {
-    fg = floodForeground(data, w, h);
+    // Hairline cracks (JPEG noise inside a white stripe that happens to match
+    // the background) would split a board in two: closed before reading.
+    fg = closeMask(floodForeground(data, w, h), w, h, 2);
   }
   keepBoards(fg, w, h);
 
-  // Read standing and lying; the reading whose shapes are long and narrow wins.
+  // Read standing and lying. A reading counts only if EVERY board in it is
+  // board-shaped (long, narrow, symmetric); with both, the one whose boards
+  // are the narrower. (The median of two used to pick the larger one, so a
+  // lying reading with one thin sliver beat two real standing boards: FMX 124.)
   const tfg = transpose(fg, w, h);
-  const upright = findBoards(fg, w, h), turned = findBoards(tfg, h, w);
-  const lying = medianOf(turned.map((b) => b.aspect)) > medianOf(upright.map((b) => b.aspect));
+  const upright = findBoards(fg, w, h, opts.k), turned = findBoards(tfg, h, w, opts.k);
+  const sound = (bs: Found[]) => bs.length > 0 && bs.every((b) => b.aspect >= 1.6 && b.aspect <= 9 && b.lopsided <= 0.3);
+  const least = (bs: Found[]) => Math.min(...bs.map((b) => b.aspect));
+  const lying = sound(turned) && (!sound(upright) || least(turned) > least(upright));
   const found = lying ? turned : upright;
   const M = lying ? tfg : fg, mw = lying ? h : w;
   const layout = lying ? "lying" : "standing";
@@ -101,6 +111,7 @@ export async function cutOutBoards(input: Buffer): Promise<CutResult> {
     const coverage = coverageOf(b, M, mw);
     if (b.aspect < 1.6 || b.aspect > 9) return { boards: [], layout, transparent, reason: `Board ${k + 1} does not have a board's shape (length ${b.aspect.toFixed(1)}× its width).` };
     if (coverage < 0.85) return { boards: [], layout, transparent, reason: `Board ${k + 1} could not be told apart from the background cleanly.` };
+    if (b.lopsided > 0.3) return { boards: [], layout, transparent, reason: `Board ${k + 1} came out lopsided: the picture could not be cut apart cleanly.` };
 
     // The silhouette's extent, in the working frame (along = rows, across = columns).
     let a0 = Infinity, a1 = -Infinity;
@@ -160,9 +171,18 @@ function floodForeground(data: Buffer, w: number, h: number): Uint8Array {
     return dr * dr + dg * dg + db * db;
   };
   const NEAR = 60 * 60, STEP = 10 * 10;
+  // Nothing brighter than the background is background. Product shots sit on
+  // light grey, and a board's white parts (FMX's nose stripes and white tail,
+  // at 247-255 on a 242 background) are only a few steps lighter: without this
+  // the background flowed into them and cut the deck in pieces (24.09.2026,
+  // live: "it didnt do a good cut out of the deck"). On a pure white
+  // background the cap is simply never reached.
+  const lum = (j: number) => (data[j * 4] + data[j * 4 + 1] + data[j * 4 + 2]) / 3;
+  const edgeLum = edge.map((c) => (c[0] + c[1] + c[2]) / 3).sort((a, b) => a - b);
+  const CAP = edgeLum[Math.floor(edgeLum.length * 0.98)] + 4;
   const seen = new Uint8Array(w * h), q = new Int32Array(w * h);
   let qh = 0, qt = 0;
-  const seed = (j: number) => { if (!seen[j] && d2(j, med[0], med[1], med[2]) < NEAR) { seen[j] = 1; q[qt++] = j; } };
+  const seed = (j: number) => { if (!seen[j] && lum(j) <= CAP && d2(j, med[0], med[1], med[2]) < NEAR) { seen[j] = 1; q[qt++] = j; } };
   for (let x = 0; x < w; x++) { seed(x); seed((h - 1) * w + x); }
   for (let y = 0; y < h; y++) { seed(y * w); seed(y * w + w - 1); }
   while (qh < qt) {
@@ -170,7 +190,7 @@ function floodForeground(data: Buffer, w: number, h: number): Uint8Array {
     const r = data[j * 4], g = data[j * 4 + 1], bl = data[j * 4 + 2];
     const step = (n: number) => {
       if (seen[n]) return;
-      if (d2(n, r, g, bl) < STEP && d2(n, med[0], med[1], med[2]) < NEAR) { seen[n] = 1; q[qt++] = n; }
+      if (lum(n) <= CAP && d2(n, r, g, bl) < STEP && d2(n, med[0], med[1], med[2]) < NEAR) { seen[n] = 1; q[qt++] = n; }
     };
     if (x + 1 < w) step(j + 1);
     if (x > 0) step(j - 1);
@@ -180,6 +200,28 @@ function floodForeground(data: Buffer, w: number, h: number): Uint8Array {
   const fg = new Uint8Array(w * h);
   for (let j = 0; j < w * h; j++) fg[j] = seen[j] ? 0 : 1;
   return fg;
+}
+
+/** Morphological closing with a (2r+1)² square: gaps up to 2r px wide fill in,
+ *  outlines stay where they are. Separable running max, then running min. */
+function closeMask(m: Uint8Array, w: number, h: number, r: number): Uint8Array {
+  const pass = (src: Uint8Array, horizontal: boolean, grow: boolean): Uint8Array => {
+    const out = new Uint8Array(w * h);
+    const n = horizontal ? w : h, lines = horizontal ? h : w;
+    for (let l = 0; l < lines; l++) {
+      for (let i = 0; i < n; i++) {
+        let v = grow ? 0 : 1;
+        for (let d = -r; d <= r; d++) {
+          const k = i + d;
+          const s = k < 0 || k >= n ? 0 : src[horizontal ? l * w + k : k * w + l];
+          if (grow ? s : !s) { v = grow ? 1 : 0; break; }
+        }
+        out[horizontal ? l * w + i : i * w + l] = v;
+      }
+    }
+    return out;
+  };
+  return pass(pass(pass(pass(m, true, true), false, true), true, false), false, false);
 }
 
 /** Keep only big, not-flat shapes: boards, not shadows or specks. */
@@ -234,7 +276,7 @@ function fitLine(pts: [number, number][]): ((y: number) => number) | null {
 }
 
 /** Boards standing side by side: each one's outline from its own sides. */
-function findBoards(fg: Uint8Array, w: number, h: number): Found[] {
+function findBoards(fg: Uint8Array, w: number, h: number, forceK?: number): Found[] {
   const rows: [number, number][][] = [];
   for (let y = 0; y < h; y++) {
     const runs: [number, number][] = [];
@@ -252,6 +294,9 @@ function findBoards(fg: Uint8Array, w: number, h: number): Found[] {
   rows.forEach((r) => { if (r.length) counts.set(r.length, (counts.get(r.length) ?? 0) + 1); });
   let K = 1;
   for (const [k, n] of counts) if (k > K && k <= 4 && n > withRuns * 0.12) K = k;
+  // Told how many boards there are (the AI counted them): trust that, as long
+  // as enough rows show them standing apart to find each one's centreline.
+  if (forceK && forceK >= 1 && forceK <= 4) K = forceK;
 
   // Pass 1: centrelines from the rows where every board stands apart.
   const mids: [number, number][][] = Array.from({ length: K }, () => []);
@@ -279,6 +324,7 @@ function findBoards(fg: Uint8Array, w: number, h: number): Found[] {
 
   const out: Found[] = [];
   for (let k = 0; k < K; k++) {
+    let both = 0, off = 0;
     let y0 = -1, y1 = -1;
     for (let y = 0; y < h; y++) if (!Number.isNaN(L[k][y]) || !Number.isNaN(R[k][y])) { if (y0 < 0) y0 = y; y1 = y; }
     if (y0 < 0 || y1 - y0 < 20) continue;
@@ -288,6 +334,7 @@ function findBoards(fg: Uint8Array, w: number, h: number): Found[] {
       const l = Number.isNaN(L[k][y]) ? null : c - L[k][y];
       const r = Number.isNaN(R[k][y]) ? null : R[k][y] - c;
       // Both sides seen: the middle of them, unless one is bitten into.
+      if (l != null && r != null) { both++; if (Math.abs(l - r) > Math.max(3, 0.08 * (l + r) / 2)) off++; }
       const v = l != null && r != null ? (Math.abs(l - r) <= 3 ? (l + r) / 2 : Math.max(l, r)) : (l ?? r);
       if (v != null) raw[y] = Math.max(0, v);
     }
@@ -303,7 +350,7 @@ function findBoards(fg: Uint8Array, w: number, h: number): Found[] {
     let widest = 0;
     for (let y = y0; y <= y1; y++) widest = Math.max(widest, half[y]);
     if (widest < 2) continue;
-    out.push({ y0, y1, centre: centre[k], half, aspect: (y1 - y0 + 1) / (2 * widest + 1) });
+    out.push({ y0, y1, centre: centre[k], half, aspect: (y1 - y0 + 1) / (2 * widest + 1), lopsided: both >= 20 ? off / both : 0 });
   }
   return out;
 }
@@ -376,8 +423,9 @@ export type BoardView = {
 const VIEWS_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["boards"],
+  required: ["boards_in_picture", "boards"],
   properties: {
+    boards_in_picture: { type: "integer", description: "How many boards the picture shows, whole or partly." },
     boards: {
       type: "array",
       items: {
@@ -399,7 +447,7 @@ const VIEWS_SCHEMA = {
  * not answer: two boards are taken as deck then bottom (how brands lay them
  * out), marked as a guess, with the reason.
  */
-export async function identifyBoards(picture: Buffer, count: number, layout: "standing" | "lying", boardName: string): Promise<{ views: BoardView[]; by: "ai" | "guess"; model?: string; why?: "no-key" | "failed" }> {
+export async function identifyBoards(picture: Buffer, count: number, layout: "standing" | "lying", boardName: string): Promise<{ views: BoardView[]; by: "ai" | "guess"; model?: string; why?: "no-key" | "failed"; seen?: number }> {
   const guess = (): BoardView[] => Array.from({ length: count }, (_, i) => ({
     view: count === 2 ? (i === 0 ? "deck" : "bottom") : i === 0 ? "deck" : "unclear",
     this_board: "unclear",
@@ -418,15 +466,16 @@ The picture shows ${count} boards ${layout === "standing" ? "side by side" : "on
 - bottom: the underside. Fin box or foil boxes near the tail, no pad, usually one smooth finish, sometimes vents or channels.
 Brands often show the same board twice, deck and bottom, next to each other.
 Also say whether each board is the one named below. Printed sizes or model names can tell; if nothing tells them apart, answer unclear.
+Also count the boards you see in the picture (boards_in_picture); the cut-out found ${count}, and your count is used to check it.
 Give exactly ${count} entries, ${order}.`;
   const text = `The board: ${boardName}.`;
   try {
-    let views: BoardView[] | null = null, model: string | undefined;
+    let views: BoardView[] | null = null, model: string | undefined, seen: number | undefined;
     if (ai.provider === "openai") {
-      const r = await openAiVisionJson<{ boards: BoardView[] }>({
+      const r = await openAiVisionJson<{ boards: BoardView[]; boards_in_picture: number }>({
         key: ai.key, instructions, text, image: `data:image/jpeg;base64,${jpg.toString("base64")}`, name: "board_faces", schema: VIEWS_SCHEMA,
       });
-      views = r.data?.boards ?? null; model = r.model;
+      views = r.data?.boards ?? null; model = r.model; seen = r.data?.boards_in_picture;
     } else {
       const client = pdClaude();
       if (client) {
@@ -442,11 +491,16 @@ Give exactly ${count} entries, ${order}.`;
           ] }],
         });
         const call = msg.content.find((c) => c.type === "tool_use");
-        if (call && call.type === "tool_use") views = (call.input as { boards?: BoardView[] }).boards ?? null;
+        if (call && call.type === "tool_use") {
+          const got = call.input as { boards?: BoardView[]; boards_in_picture?: number };
+          views = got.boards ?? null; seen = got.boards_in_picture;
+        }
         model = msg.model;
       }
     }
-    if (views && views.length === count) return { views, by: "ai", model };
+    if (views && views.length === count) return { views, by: "ai", model, seen };
+    // It counted differently: say so, so the picture can be cut again with its count.
+    if (typeof seen === "number" && seen !== count) return { views: guess(), by: "guess", why: "failed", model, seen };
   } catch {
     // The picture still gets cut out; the faces are then a guess.
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { clearWinner, researchPages } from "@/lib/board-pictures";
-import type { BoardResearch } from "@/lib/board-measurements";
+import { clearWinner, photosAfterKeep, researchPages } from "@/lib/board-pictures";
+import type { BoardPhoto, BoardResearch } from "@/lib/board-measurements";
 import type { ImageCandidate } from "@/lib/pd-web";
 
 /**
@@ -101,5 +101,40 @@ describe("the pages Research found", () => {
 
   it("nothing without a research run", () => {
     expect(researchPages(null)).toEqual([]);
+  });
+});
+
+describe("the photo list after keeping a picture", () => {
+  const dir = "product-dev/boards/b1/web/";
+  const set = (stamp: string, top = false): BoardPhoto[] => [
+    { key: `${dir}${stamp}-fmx-138.jpg`, kind: null },
+    { key: `${dir}${stamp}-fmx-138-deck.webp`, kind: top ? "top" : null, view: "deck", cutFrom: `${dir}${stamp}-fmx-138.jpg` },
+    { key: `${dir}${stamp}-fmx-138-bottom.webp`, kind: null, view: "bottom", cutFrom: `${dir}${stamp}-fmx-138.jpg` },
+  ];
+  const upload: BoardPhoto = { key: "product-dev/boards/b1/sheet.jpg", caption: "tape sheet" };
+  const three = [upload, ...set("aa"), ...set("bb"), ...set("cc", true)];
+
+  it("the same picture kept again replaces all its earlier copies and their cut-outs", () => {
+    const fresh = set("dd", true);
+    const out = photosAfterKeep(three, fresh, { fileName: "fmx-138.jpg" });
+    expect(out.map((p) => p.key)).toEqual([upload.key, ...fresh.map((p) => p.key)]);
+    expect(out.filter((p) => p.kind === "top")).toHaveLength(1);
+  });
+
+  it("cut again: one clean set is left, uploads untouched", () => {
+    const own = three[1];                                  // the "aa" original
+    const again: BoardPhoto[] = [
+      { key: `${dir}ee-fmx-138-deck.webp`, kind: "top", view: "deck", cutFrom: own.key },
+      { key: `${dir}ee-fmx-138-bottom.webp`, kind: null, view: "bottom", cutFrom: own.key },
+    ];
+    const out = photosAfterKeep(three, again, { own });
+    expect(out.map((p) => p.key)).toEqual([upload.key, own.key, ...again.map((p) => p.key)]);
+  });
+
+  it("another picture is only added, and takes over as the top view", () => {
+    const other: BoardPhoto = { key: `${dir}ff-jp-85.webp`, kind: "top" };
+    const out = photosAfterKeep(three, [other], { fileName: "jp-85.webp" });
+    expect(out).toHaveLength(three.length + 1);
+    expect(out.filter((p) => p.kind === "top").map((p) => p.key)).toEqual([other.key]);
   });
 });

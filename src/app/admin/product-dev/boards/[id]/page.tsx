@@ -540,13 +540,18 @@ function PhotosTab({ board, onSaved, autoFind, found }: { board: Bundle; onSaved
                     className={`text-[11px] font-semibold ${p.view ? (p.viewBy === "guess" ? "text-amber-600" : "admin-muted") : "admin-faint"} hover:text-[var(--admin-accent)]`}>
                     {p.view === "deck" ? "Deck" : p.view === "bottom" ? "Bottom" : "Face?"}{p.viewBy === "guess" ? "?" : ""}
                   </button>
-                  {!p.cutFrom && !photos.some((x) => x.cutFrom === p.key) && (
-                    <button onClick={() => cutApart(p)} disabled={!!cutting}
-                      title="For a picture with several boards in it, e.g. the deck and the bottom side by side: one picture per board, and the deck becomes the top view."
-                      className="text-[11px] font-semibold admin-faint hover:text-[var(--admin-accent)]">
-                      {cutting === p.key ? "Cutting…" : "Cut apart"}
-                    </button>
-                  )}
+                  {!p.cutFrom && (() => {
+                    const again = photos.some((x) => x.cutFrom === p.key);
+                    return (
+                      <button onClick={() => cutApart(p)} disabled={!!cutting}
+                        title={again
+                          ? "Cut this picture apart again: its earlier cut-outs are replaced by the new ones, and the deck becomes the top view."
+                          : "For a picture with several boards in it, e.g. the deck and the bottom side by side: one picture per board, and the deck becomes the top view."}
+                        className="text-[11px] font-semibold admin-faint hover:text-[var(--admin-accent)]">
+                        {cutting === p.key ? "Cutting…" : again ? "Cut again" : "Cut apart"}
+                      </button>
+                    );
+                  })()}
                   {p.source && (
                     <a href={p.source} target="_blank" rel="noreferrer" className="ml-auto text-[11px] admin-faint hover:text-[var(--admin-accent)] truncate">source</a>
                   )}

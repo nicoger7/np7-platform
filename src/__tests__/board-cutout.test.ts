@@ -122,6 +122,34 @@ describe("board cut-out", () => {
     expect(r.boards[0].box.x).toBeLessThan(r.boards[1].box.x);
   });
 
+  it("keeps a board's white parts: a stripe to the nose tip and a white tail (FMX at 700 px)", async () => {
+    // Flat light grey like FMX's shots (242), the deck with a white centre
+    // stripe that runs out at the nose and a white tail. The background used
+    // to flood into both and cut the deck into three "boards".
+    const w = 800, h = 1100, top = 90, cx0 = 235, cx1 = 540;
+    const data = Buffer.alloc(w * h * 3, 242);
+    const paint = (x: number, y: number, c: number[]) => { const i = (y * w + x) * 3; data[i] = c[0]; data[i + 1] = c[1]; data[i + 2] = c[2]; };
+    [cx0, cx1].forEach((cx, k) => {
+      for (let y = top; y < top + LEN; y++) {
+        const t = 1 - (y - top + 0.5) / LEN, hw = halfAt(t);
+        for (let x = Math.ceil(cx - hw); x <= Math.floor(cx + hw); x++) {
+          const white = k === 0 && ((t > 0.7 && Math.abs(x - cx) < 14) || t < 0.12);
+          paint(x, y, white ? [252, 252, 252] : k === 0 ? [200, 30, 30] : [225, 25, 20]);
+        }
+      }
+    });
+    // Soft edges and JPEG, like a real product shot: that is what let the
+    // background creep into the white a few levels at a time.
+    const jpg = await sharp(data, { raw: { width: w, height: h, channels: 3 } }).blur(1.6).jpeg({ quality: 78 }).toBuffer();
+    const r = await cutOutBoards(jpg);
+    expect(r.reason).toBeUndefined();
+    expect(r.boards).toHaveLength(2);
+    for (const b of r.boards) {
+      expect(b.aspect).toBeGreaterThan(2.55);
+      expect(b.aspect).toBeLessThan(2.75);
+    }
+  });
+
   it("reads boards lying one above the other", async () => {
     const p = picture({ centres: [235, 560], top: 90 });
     const turned = await sharp(await png(p)).rotate(90).png().toBuffer();

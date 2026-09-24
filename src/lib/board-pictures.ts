@@ -246,6 +246,26 @@ async function storePicture(svc: SupabaseClient<any, any, any>, file: File, key:
 }
 
 /**
+ * The board's photo list after a keep. The same web picture kept again
+ * replaces its earlier copies and their cut-outs (FMX got three identical sets
+ * when the cut went wrong and "Use this picture" was pressed again); cutting a
+ * photo again replaces its own earlier cut-outs and clears identical copies of
+ * it, so one click leaves one clean set. One top picture per board: a new one
+ * takes over. Other photos are never touched.
+ */
+export function photosAfterKeep(fresh: BoardPhoto[], added: BoardPhoto[], kept: { fileName: string } | { own: BoardPhoto }): BoardPhoto[] {
+  const webName = (key: string) => (key.includes("/web/") ? key.split("/").pop()!.replace(/^[a-z0-9]+-/, "") : null);
+  const own = "own" in kept ? kept.own : null;
+  const name = own ? webName(own.key) : (kept as { fileName: string }).fileName;
+  const replaced = new Set<string>(
+    name ? fresh.filter((p) => !p.cutFrom && p.key !== own?.key && webName(p.key) === name).map((p) => p.key) : [],
+  );
+  const gone = (p: BoardPhoto) => replaced.has(p.key) || (!!p.cutFrom && (replaced.has(p.cutFrom) || (own != null && p.cutFrom === own.key)));
+  const hasTop = added.some((p) => p.kind === "top");
+  return [...fresh.filter((p) => !gone(p)).map((p) => (hasTop && p.kind === "top" ? { ...p, kind: null } : p)), ...added];
+}
+
+/**
  * Keep a picture on the board: from the web ({ src, page }) or one it already
  * has ({ own }, "Cut apart"). A picture of several boards is cut apart and the
  * deck becomes the top view; the original is kept as a plain photo.
@@ -283,12 +303,21 @@ export async function keepPicture(board: PictureBoard, input: { src: string; pag
   // Several boards in one picture: one cut-out each, and which is the deck.
   let cut: Awaited<ReturnType<typeof cutOutBoards>> | null = null;
   try { cut = await cutOutBoards(buf); } catch { cut = null; }
-  const several = (cut?.boards.length ?? 0) >= 2 ? cut! : null;
+  let several = (cut?.boards.length ?? 0) >= 2 ? cut! : null;
+  let faces = several ? await identifyBoards(buf, several.boards.length, several.layout, boardSearchQuery(board)) : null;
+  // The AI counted the boards too. When it sees a different number, cut again
+  // with its count; if that does not come out clean either, nothing is cut
+  // and the picture is kept whole (a person can still cut it apart).
+  if (several && faces && typeof faces.seen === "number" && faces.seen !== several.boards.length) {
+    const again = faces.seen >= 2 ? await cutOutBoards(buf, { k: faces.seen }).catch(() => null) : null;
+    several = again && again.boards.length === faces.seen ? again : null;
+    faces = several ? await identifyBoards(buf, several.boards.length, several.layout, boardSearchQuery(board)) : null;
+    if (several && faces && typeof faces.seen === "number" && faces.seen !== several.boards.length) { several = null; faces = null; }
+  }
   let note = "";
   const added: BoardPhoto[] = [];
   try {
-    if (several) {
-      const faces = await identifyBoards(buf, several.boards.length, several.layout, boardSearchQuery(board));
+    if (several && faces) {
       let keep = several.boards.map((b, i) => ({ b, v: faces.views[i] as BoardView }));
       if (keep.some((k) => k.v.this_board !== "no")) keep = keep.filter((k) => k.v.this_board !== "no");
       const topAt = Math.max(0, keep.findIndex((k) => k.v.view === "deck"));
@@ -337,8 +366,7 @@ export async function keepPicture(board: PictureBoard, input: { src: string; pag
   // Re-read the list right before writing: another save may have landed while
   // this one was downloading. One top picture per board: a new one takes over.
   const fresh = (await loadPictureBoard(id))?.photos ?? board.photos ?? [];
-  const hasTop = added.some((p) => p.kind === "top");
-  const photos = [...fresh.map((p) => (hasTop && p.kind === "top" ? { ...p, kind: null } : p)), ...added];
+  const photos = photosAfterKeep(fresh, added, own ? { own } : { fileName: file.name });
   const { error } = await pdDb().from("pd_boards").update({ photos, updated_at: new Date().toISOString() }).eq("id", id);
   if (error) throw new PictureError(error.message, 500);
   return { photos, note };
