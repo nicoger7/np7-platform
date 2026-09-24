@@ -82,6 +82,26 @@ export function isPersonalPath(path: string): boolean {
   return ALWAYS_AVAILABLE.some((p) => underPrefix(p, path));
 }
 
+/**
+ * Personal, but each of these tools lives in an environment: the hours log and
+ * the to-dos are Experience work, the Academy sits in Experience and Knowledge.
+ * A member whose roles hold none of those environments (Product Development
+ * only, say) does not get them. Nico, 24.09.2026, giving Enrico Product Dev
+ * access: "if he really only gets product development environment he
+ * shouldn't see any of that, because it sits in other environments."
+ * Owner/manager tiers keep them; the login page and the shell's activity ping
+ * stay open to everyone.
+ */
+const PERSONAL_HOMES: { prefixes: string[]; worlds: WorldId[] }[] = [
+  { prefixes: ["/admin/hours-log", "/api/admin/hours-log", "/admin/todos", "/api/admin/todos"], worlds: ["experience"] },
+  { prefixes: ["/admin/learning", "/api/admin/learning/read", "/api/admin/learning/progress"], worlds: ["experience", "knowledge"] },
+];
+function personalReach(eff: EffectiveAccess, path: string): boolean {
+  if (eff.kind === "tier") return true;
+  const home = PERSONAL_HOMES.find((h) => h.prefixes.some((p) => underPrefix(p, path)));
+  return !home || home.worlds.some((w) => eff.access.worlds.includes(w));
+}
+
 /** Whether a member at `level` may access `path` (an /admin or /api/admin path). */
 export function canAccess(level: AccessLevel, path: string): boolean {
   if (isPersonalPath(path)) return true;
@@ -145,7 +165,7 @@ export const SECTIONS: Section[] = [
   { key: "packages", label: "Packages", world: "experience", group: "Operations", paths: ["/admin/packages", "/api/admin/packages"] },
   { key: "components", label: "Components", world: "experience", group: "Operations", paths: ["/admin/components", "/api/admin/components"] },
   // Experience · Website
-  { key: "file_storage", label: "File storage", world: "experience", group: "Website", shared: true, paths: ["/admin/images", "/api/admin/images", "/api/admin/memories", "/api/admin/videos", "/api/admin/media"] },
+  { key: "file_storage", label: "File storage", world: "experience", group: "Website", shared: true, paths: ["/admin/images", "/api/admin/images", "/api/admin/memories", "/api/admin/videos", "/api/admin/media", "/api/admin/storage-usage"] },
   { key: "event_content", label: "Event content", world: "experience", group: "Website", paths: ["/admin/content", "/api/admin/content", "/api/admin/content-templates", "/api/admin/content-custom", "/api/admin/events", "/api/admin/event-dates", "/api/admin/youtube"] },
   { key: "members", label: "Member management", world: "experience", group: "Website", paths: ["/admin/members", "/api/admin/members"] },
   { key: "magazine", label: "Magazine", world: "experience", group: "Website", paths: ["/admin/blog", "/api/admin/blog"] },
@@ -483,7 +503,7 @@ function worldOfPath(path: string): WorldId | null {
 }
 
 export function effectiveCanAccess(eff: EffectiveAccess, path: string): boolean {
-  if (isPersonalPath(path)) return true; // hours log etc. — always available to any member
+  if (isPersonalPath(path)) return personalReach(eff, path); // hours log etc.: any member of the environment they live in
   if (eff.kind === "tier") return canAccess(eff.level, path);
   const sec = sectionForPath(path);
   if (!sec) return true;
@@ -506,7 +526,7 @@ export function effectiveCanAccess(eff: EffectiveAccess, path: string): boolean 
  * classified is a route nobody has decided is safe to write.
  */
 export function effectiveCanWrite(eff: EffectiveAccess, path: string): boolean {
-  if (isPersonalPath(path)) return true;
+  if (isPersonalPath(path)) return personalReach(eff, path);
   if (eff.kind === "tier") return canAccess(eff.level, path);
   const sec = sectionForPath(path);
   if (!sec) return false;

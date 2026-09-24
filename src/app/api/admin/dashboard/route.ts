@@ -54,6 +54,12 @@ export async function GET(request: NextRequest) {
     }
     return productDevDashboard(db);
   }
+  // Everything below is the Experience dashboard (bookings, guests, editions,
+  // to-dos): only for members of that environment. A Product Dev-only member
+  // (Enrico, 24.09.2026) must not get it by asking without ?world=.
+  if (access && !effectiveCanEnterWorld(access, "experience")) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
 
   const head = (table: string, build?: (q: any) => any) => {
     let q = db.from(table).select("id", { count: "exact", head: true });
