@@ -255,10 +255,15 @@ function BoardCard({ b, scale, onArchive }: { b: BoardRow; scale: { len: number;
   // A chosen picture wins; otherwise the outline drawn from the widths.
   const top = topPhoto(b.photos);
   const hasOutline = (b.outline?.w.length ?? 0) >= 2 || (b.outline?.wt.length ?? 0) >= 2;
-  const widest = Math.max(0, ...(b.outline?.wt.length ? b.outline.wt : b.outline?.w ?? []).map(([, w]) => w));
+  // How wide a board is = its overall width: the stated one first, then a
+  // measured top (rail to rail) width. The bottom width is narrower by the
+  // rails, so it is only shown as what it is (Nico, 24.09.2026: the FMX card
+  // said 82, the bottom's widest, "but it's a 85").
+  const wideTop = Math.max(0, ...(b.outline?.wt ?? []).map(([, w]) => w));
+  const wideBottom = Math.max(0, ...(b.outline?.w ?? []).map(([, w]) => w));
   const facts = [
     b.length_cm ? `${b.length_cm} cm long` : null,
-    widest ? `${widest} cm wide` : b.max_width_cm ? `${b.max_width_cm} cm wide` : null,
+    b.max_width_cm ? `${b.max_width_cm} cm wide` : wideTop ? `${wideTop} cm wide` : wideBottom ? `${wideBottom} cm bottom width` : null,
     b.volume_l ? `${b.volume_l} l` : null,
   ].filter(Boolean);
   return (
