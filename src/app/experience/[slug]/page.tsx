@@ -113,7 +113,12 @@ function fmtRange(start?: string | null, end?: string | null) {
   const s = new Date(start);
   const e = end ? new Date(end) : null;
   const day = (d: Date) => d.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
-  return e ? `${day(s)} – ${day(e)} ${(e ?? s).getFullYear()}` : `${day(s)} ${s.getFullYear()}`;
+  // A span over two seasons must name both years. With only the end year,
+  // Bonaire's "30 Nov 2026 – 18 Dec 2027" read "30 November – 18 December
+  // 2027", so every 2026 week looked like it was a year away. fmtShort below
+  // already handled this; this one never got the same rule.
+  if (e && s.getFullYear() !== e.getFullYear()) return `${day(s)} ${s.getFullYear()} – ${day(e)} ${e.getFullYear()}`;
+  return e ? `${day(s)} – ${day(e)} ${e.getFullYear()}` : `${day(s)} ${s.getFullYear()}`;
 }
 /**
  * Short date range. The year is usually noise — every week on the page belongs
