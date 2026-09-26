@@ -200,11 +200,25 @@ type Detail = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const { data } = await supabase
-    .from("exp_experiences").select("title, description, location")
+  // `as any`: public_by_link (migration 155) is not in the generated types yet.
+  // The Experience layout casts for the same reason.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabase as any)
+    .from("exp_experiences").select("title, description, location, public_by_link")
     .eq("slug", slug).eq("status", "published").maybeSingle();
   if (!data) return { title: { absolute: "Experience not found — NP7" } };
-  return { title: { absolute: `${data.title} — NP7 Experience` }, description: data.description || `NP7 Experience in ${data.location}` };
+  // A trip opened by direct link while the Experience world is still hidden is
+  // reachable on purpose — for an ad, a newsletter, a DM — but it has not been
+  // launched. Without this it would drift into organic search on its own and
+  // announce itself, which is the one thing the link-only state is avoiding.
+  // Search indexing is the only thing switched off: ads still serve, because a
+  // landing page never needs to be indexed to be advertised.
+  const linkOnlyWhileHidden = !flags.showExperience && data.public_by_link === true;
+  return {
+    title: { absolute: `${data.title} — NP7 Experience` },
+    description: data.description || `NP7 Experience in ${data.location}`,
+    ...(linkOnlyWhileHidden ? { robots: { index: false, follow: false } } : {}),
+  };
 }
 
 export default async function ExperienceDetailPage({ params, searchParams }: Props) {
