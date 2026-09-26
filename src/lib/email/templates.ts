@@ -308,6 +308,24 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
      This one is written TO NP7, not to a guest. It is deliberately plain: a
      staff alert is read in three seconds on a phone, so the facts come first
      and there is nothing to scroll past before the link into the admin. */
+  team_addon_requested: (v, opts) => ({
+    subject: `Add-on request · ${v.guestName ?? "a guest"} · ${v.addonLabel ?? "an add-on"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `${v.guestName ?? "A guest"} asked for ${v.addonLabel ?? "an add-on"}. It is waiting for a yes or a no.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "A guest"))}</strong> asked for something on their trip, and it is waiting for someone to confirm or decline it.`) +
+        checklist([
+          v.addonLabel ? `Asked for: ${v.addonLabel}${v.addonPrice ? ` · ${v.addonPrice}` : ""}` : "",
+          v.experienceTitle ? `Trip: ${v.experienceTitle}${v.editionLabel ? ` · ${v.editionLabel}` : ""}` : "",
+          v.dates ? `Dates: ${v.dates}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+        ].filter(Boolean).join("\n")) +
+        (v.adminLink ? emailButton("Confirm or decline", String(v.adminLink)) : "") +
+        p(`You are getting this because you are on the team list for add-on requests. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
   team_booking_created: (v, opts) => ({
     subject: `New booking · ${v.guestName ?? "someone"} · ${v.experienceTitle ?? "NP7"}${v.editionLabel ? ` (${esc(String(v.editionLabel))})` : ""}`,
     html: emailLayout({

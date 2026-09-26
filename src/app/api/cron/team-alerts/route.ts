@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { cronAuthorized } from "@/lib/cron-auth";
-import { sweepNewBookings } from "@/lib/email/team-alerts";
+import { sweepNewBookings, sweepAddonRequests } from "@/lib/email/team-alerts";
 
 /**
  * Tell NP7 about the bookings that came in.
@@ -21,6 +21,10 @@ export async function GET(req: NextRequest) {
   // A six-hour window, not fifteen minutes: a run that fails or is skipped must
   // not lose the bookings it would have covered. The dedupe key stops the
   // overlap turning into repeats.
-  const res = await sweepNewBookings({ since: new Date(Date.now() - 6 * 3600 * 1000).toISOString() });
-  return NextResponse.json({ ok: true, ...res });
+  const since = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+  const [bookings, addons] = await Promise.all([
+    sweepNewBookings({ since }),
+    sweepAddonRequests({ since }),
+  ]);
+  return NextResponse.json({ ok: true, bookings, addons });
 }

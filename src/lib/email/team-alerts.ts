@@ -42,6 +42,12 @@ export const TEAM_EVENTS = [
     blurb: "One mail per booking, the moment the sweep next runs. Who booked, which week, which package, and what it is worth.",
     templateKey: "team_booking_created",
   },
+  {
+    key: "addon_requested",
+    title: "A guest asks for an add-on",
+    blurb: "A guest asked for something from their trip page (an extra night, a lesson, a transfer) and it is waiting for someone to confirm or decline it.",
+    templateKey: "team_addon_requested",
+  },
 ] as const;
 
 export type TeamEventKey = (typeof TEAM_EVENTS)[number]["key"];
@@ -128,6 +134,72 @@ export async function sweepNewBookings(opts?: { since?: string; limit?: number }
         manual: true,
         bookingId: b.id,
         dedupeKey: `team:booking_created:${b.id}:${r.email.toLowerCase()}`,
+      }).catch((e) => ({ status: "error" as const, error: e instanceof Error ? e.message : String(e) }));
+      if (res.status === "sent") announced++;
+      else if (res.status !== "skipped") skipped.push(`${r.email}: ${res.error ?? "failed"}`);
+    }
+  }
+  return { looked: rows.length, announced, recipients: to.length, skipped };
+}
+
+/**
+ * Announce every add-on a guest has asked for that is still waiting.
+ *
+ * A guest can request an extra night, a lesson, a transfer from their trip
+ * page. The row lands as `requested` and sat there until somebody happened to
+ * open that booking — there was no signal at all that a guest had asked for
+ * something (Nico, 26 Sep 2026: "did you build out the team-mails for bookings
+ * or requested add-ons?").
+ *
+ * Only requests still WAITING. One confirmed or declined inside the quarter hour
+ * before the sweep has already been dealt with, and a mail saying "Paul asked
+ * for a night" about a night somebody already said yes to is noise. Only the
+ * guest's own requests (source = member): an add-on the team put on a booking
+ * themselves is not news to the team.
+ */
+export async function sweepAddonRequests(opts?: { since?: string; limit?: number }): Promise<SweepResult> {
+  const to = await recipientsFor("addon_requested");
+  if (!to.length) return { looked: 0, announced: 0, recipients: 0, skipped: ["nobody is subscribed"] };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const since = opts?.since ?? new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+  const { data, error } = await db
+    .from("exp_booking_addons")
+    .select("id,booking_id,label,price,quantity,status,source,requested_at,exp_bookings(id,contacts(name,email),exp_experiences(title,currency),exp_editions(label,date_start,date_end))")
+    .eq("source", "member").eq("status", "requested")
+    .gte("requested_at", since)
+    .order("requested_at", { ascending: true })
+    .limit(opts?.limit ?? 50);
+  if (error) return { looked: 0, announced: 0, recipients: to.length, skipped: [String(error.message ?? error)] };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = (data ?? []) as any[];
+  const origin = publicOrigin();
+  let announced = 0;
+  const skipped: string[] = [];
+
+  for (const a of rows) {
+    const b = a.exp_bookings ?? {};
+    const qty = Number(a.quantity) > 1 ? Number(a.quantity) : null;
+    const vars = {
+      guestName: String(b.contacts?.name ?? "").trim() || b.contacts?.email || "A guest",
+      guestEmail: b.contacts?.email ?? "",
+      addonLabel: `${qty ? `${qty} × ` : ""}${a.label ?? "an add-on"}`,
+      addonPrice: money(a.price, b.exp_experiences?.currency) ?? "",
+      experienceTitle: b.exp_experiences?.title ?? "their trip",
+      editionLabel: b.exp_editions?.label ?? "",
+      dates: fmtRange(b.exp_editions?.date_start, b.exp_editions?.date_end) ?? "",
+      adminLink: `${origin}/admin/bookings/${a.booking_id}`,
+    };
+    for (const r of to) {
+      const res = await sendEmail({
+        to: r.email,
+        templateKey: "team_addon_requested",
+        vars,
+        manual: true,
+        bookingId: a.booking_id,
+        dedupeKey: `team:addon_requested:${a.id}:${r.email.toLowerCase()}`,
       }).catch((e) => ({ status: "error" as const, error: e instanceof Error ? e.message : String(e) }));
       if (res.status === "sent") announced++;
       else if (res.status !== "skipped") skipped.push(`${r.email}: ${res.error ?? "failed"}`);

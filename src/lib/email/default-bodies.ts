@@ -51,6 +51,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   guide_ready: "Your training guide · {{experienceTitle}} 🤙",
   skills_verified: "Your coach signed off new skills 🤙",
   team_booking_created: "New booking · {{guestName}} · {{experienceTitle}}",
+  team_addon_requested: "Add-on request · {{guestName}} · {{addonLabel}}",
   password_reset: "Reset your NP7 password",
 };
 
@@ -385,6 +386,12 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("Each one comes with what to do, how it should feel, and the mistakes to watch for, plus the tip your coach gave you in person.") +
     BTN("Open my training guide", "guideUrl") +
     P("It lives in your trip account, so it's there whenever you need it: before the next session, or the next trip." + SIGN),
+
+  team_addon_requested:
+    P("<strong>{{guestName}}</strong> asked for something on their trip, and it is waiting for someone to confirm or decline it.") +
+    P("Asked for: <strong>{{addonLabel}}</strong>{{?addonPrice}} · {{addonPrice}}{{/addonPrice}}{{?experienceTitle}}<br>Trip: {{experienceTitle}}{{/experienceTitle}}{{?editionLabel}} · {{editionLabel}}{{/editionLabel}}{{?dates}}<br>Dates: {{dates}}{{/dates}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
+    BTN("Confirm or decline", "adminLink") +
+    P("You are getting this because you are on the team list for add-on requests. Change who gets it in Admin → Emails → Team."),
 
   team_booking_created:
     P("<strong>{{guestName}}</strong> just booked.") +
