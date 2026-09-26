@@ -176,6 +176,41 @@ const note = (text?: string) =>
 <td style="padding:14px 16px;background:#fffaf0;border-left:4px solid #f0a500;border-radius:4px;font-size:15px;line-height:1.6;color:#5a4a32;white-space:pre-line;">${esc(text.trim())}</td>
 </tr></table>`
     : "";
+/**
+ * A packing list, read the way the team writes it.
+ *
+ * A line that starts with an emoji is a GROUP ("🌊 For the water", "☀️ For the
+ * Bonaire sun") and everything under it is a plain bullet. It went through
+ * checklist() before, which put a green tick on every line, the group names
+ * included, so the Bonaire list read as twenty-four identical ✓ lines with its
+ * own headings buried in them (Nico, 26 Sep 2026: "I would like that not all
+ * the things are with ✅"). A tick means "done"; a packing list is things still
+ * to do, so there are none.
+ *
+ * A list written without any emoji lines is simply bullets, no groups needed.
+ */
+const GROUP_LINE = /^\p{Extended_Pictographic}/u;
+const packingList = (text?: string) => {
+  const lines = (text || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  if (!lines.length) return "";
+  const bullet = (t: string) =>
+    `<li style="margin:0 0 6px;padding-left:18px;position:relative;line-height:1.5;"><span style="position:absolute;left:2px;top:0;color:#0aa3c7;font-weight:700;">&bull;</span>${esc(t)}</li>`;
+  let out = "";
+  let open = false;
+  const close = () => { if (open) { out += "</ul>"; open = false; } };
+  for (const line of lines) {
+    if (GROUP_LINE.test(line)) {
+      close();
+      out += `<p style="margin:${out ? "16px" : "0"} 0 6px;font-size:15px;font-weight:700;color:#00374a;">${esc(line)}</p>`;
+    } else {
+      if (!open) { out += `<ul style="margin:0 0 4px;padding-left:0;list-style:none;">`; open = true; }
+      out += bullet(line);
+    }
+  }
+  close();
+  return `<div style="margin:0 0 14px;">${out}</div>`;
+};
+
 /** A newline-separated list rendered as a tidy checklist (if set). */
 const checklist = (text?: string) => {
   const items = (text || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
@@ -834,7 +869,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
         greet(v) +
         p(`Not long now until <strong>${esc(v.experienceTitle || "")}${v.dates ? " (" + esc(v.dates) + ")" : ""}</strong>! Time to start getting ready.`) +
         note(v.preTripNote) +
-        (v.packingList ? rule() + heading("What to bring") + checklist(v.packingList) : "") +
+        (v.packingList ? rule() + heading("What to bring") + packingList(v.packingList) : "") +
         p(`Your arrival info and group chat are in your trip account too:`) +
         (v.bookingLink ? emailButton("Open my trip details", v.bookingLink) : "") +
         p(`Can't wait to ride with you.<br>Nico & the NP7 team`),
