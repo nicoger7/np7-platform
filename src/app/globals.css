@@ -408,7 +408,13 @@ input[type="number"] {
   22%, 78% { transform: perspective(1400px) rotateY(0deg) scale(1); opacity: 1; }
   to { transform: perspective(1400px) rotateY(-34deg) scale(.86); opacity: .3; }
 }
-@media (prefers-reduced-motion: no-preference) {
+/* NOT ON A PHONE. The fold needs room on both sides of a card: it is flat only
+   while the card sits in the middle of the row. On a phone a card is most of the
+   row wide, so the first one starts already "leaving" at the left edge and can
+   never be scrolled to the middle — it sat there half-turned and faded, and so
+   did the last one on the way out (Nico, 26 Sep 2026: "the reviews stick or
+   show in the wrong place. on mobile"). A phone gets flat cards that scroll. */
+@media (prefers-reduced-motion: no-preference) and (min-width: 768px) {
   @supports (animation-timeline: view(inline)) {
     .np7-review-card {
       animation: np7-review-fold linear both;
