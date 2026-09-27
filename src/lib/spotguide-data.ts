@@ -329,7 +329,7 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
 
   const [{ data: dratings }, { data: trips }] = await Promise.all([
     sb.from("destination_ratings").select("ratings").eq("destination_id", d.id),
-    sb.from("exp_experiences").select("id, title, slug, hero_image, tagline, status").eq("destination_id", d.id).eq("status", "published"),
+    sb.from("exp_experiences").select("id, title, slug, hero_image, tagline, status, website_visible").eq("destination_id", d.id).eq("status", "published"),
   ]);
 
   const publicSpots = await shapeSpots(spots, ownPendingIds, teamPendingIds);
@@ -378,11 +378,30 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
     np7: np7Overall(d.np7_ratings, DESTINATION_CRITERIA_KEYS),
     member: summariseRatings(dratings ?? [], DESTINATION_CRITERIA_KEYS),
     spots: publicSpots,
-    trips: (trips ?? []).map((t: Record<string, unknown>) => ({
+    trips: listedTrips(trips),
+  };
+}
+
+/**
+ * The trip cards a destination page shows: its published trips, minus any the
+ * team has switched off the website.
+ *
+ * Published alone is not enough. A trip can be published and still switched
+ * off the website (exp_experiences.website_visible = false, migration 059), and
+ * then its own page 404s for everyone but the team. The Mauritius & Madagascar
+ * trip is one: the destination it hangs off would otherwise show it as a card
+ * the day SHOW_EXPERIENCE goes on, naming a hidden trip and leading to a 404
+ * (site audit, 27 Sep 2026). Filtered here in JS, not with .neq("website_visible", false),
+ * because .neq in PostgREST also drops rows where the column is NULL, and
+ * NULL means "never touched", which is visible.
+ */
+export function listedTrips(rows: Record<string, unknown>[] | null | undefined): SpotguideTrip[] {
+  return (rows ?? [])
+    .filter((t) => t.website_visible !== false)
+    .map((t) => ({
       id: t.id as string, title: t.title as string, slug: t.slug as string,
       hero_image: (t.hero_image as string) ?? null, tagline: (t.tagline as string) ?? null,
-    })),
-  };
+    }));
 }
 
 export type SpotMapPoint = {

@@ -3,7 +3,10 @@ import Link from "next/link";
 import { getLegalEntity, addressLine } from "@/lib/legal";
 import { LegalShell } from "@/components/shared/legal-shell";
 
-export const metadata: Metadata = { title: "Widerrufsbelehrung · NP7", robots: { index: true } };
+// Bare title: the root layout's template adds " · NP7" itself. Spelling it here
+// as well read "Widerrufsbelehrung · NP7 · NP7" in the tab and in Google
+// (site audit, 27 Sep 2026).
+export const metadata: Metadata = { title: "Widerrufsbelehrung", robots: { index: true } };
 export const revalidate = 86400;
 
 /**
