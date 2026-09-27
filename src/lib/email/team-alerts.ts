@@ -241,7 +241,7 @@ export function isBookingNews(b: {
   // Whole words (review, 28 Sep 2026): a bare /test booking/ also matched
   // "latest booking" and "contest booking", so a real booking whose note said
   // "moved from his latest booking" was silently never announced.
-  if ([name, notes, String(b.contacts?.name ?? "")].some((t) => /\btest booking\b/i.test(t))) return false;
+  if ([name, notes, String(b.contacts?.name ?? "")].some((t) => /\btest bookings?\b/i.test(t))) return false;
   return true;
 }
 

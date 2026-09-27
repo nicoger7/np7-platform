@@ -83,6 +83,7 @@ describe("booking_created: which rows are a new booking", () => {
     expect(isBookingNews({ status: "lead", name: "Contest booking prize" })).toBe(true);
     expect(isBookingNews({ status: "lead", contacts: { name: "Greatest Booking" } })).toBe(true);
     expect(isBookingNews({ status: "lead", notes: "TEST booking, ignore" })).toBe(false);
+    expect(isBookingNews({ status: "lead", notes: "Test bookings, please ignore" })).toBe(false);
   });
 
   const booking = (over: Row): Row => ({
@@ -442,7 +443,9 @@ describe("cancellation_requested", () => {
       expect(html).toContain("a deposit is refundable while its refund window is open");
       expect(html).toContain("The down-payment is the cancellation fee from the moment it lands");
       expect(html).toContain("once the full balance is paid, that is the fee");
-      expect(html).toContain("(§ 651e) is usually cheaper for them: they pay only the real extra costs");
+      expect(html).toContain("(§ 651e) is usually cheaper for them: only the real extra costs");
+      // The Terms' own conditions, not a looser paraphrase (review, 28 Sep 2026).
+      expect(html).toContain("Unavoidable, extraordinary circumstances at or near the destination that significantly affect the trip");
       expect(html).toContain("(§ 651h(3)) mean a full refund");
     }
     expect(DEFAULT_BODIES.team_cancellation_requested).toContain(TEAM_CANCELLATION_REMINDER);

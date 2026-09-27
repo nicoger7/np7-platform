@@ -80,8 +80,10 @@ export function defaultCancellationPolicy(terms: CancelTerms): string {
 export const TEAM_CANCELLATION_REMINDER =
   "Before you answer: a deposit is refundable while its refund window is open. " +
   "The down-payment is the cancellation fee from the moment it lands, and once the full balance is paid, that is the fee. " +
-  "Passing the place to someone else (§ 651e) is usually cheaper for them: they pay only the real extra costs. " +
-  "Extraordinary circumstances at the destination (§ 651h(3)) mean a full refund.";
+  "Passing the place to someone who meets the trip's requirements (§ 651e) is usually cheaper for them: " +
+  "only the real extra costs, and both stay jointly liable for the price. " +
+  "Unavoidable, extraordinary circumstances at or near the destination that significantly affect the trip " +
+  "or getting there (§ 651h(3)) mean a full refund. Same wording as our Terms.";
 
 /**
  * The short reassurance under a "secure your spot" button.
