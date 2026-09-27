@@ -15,9 +15,14 @@ export default async function VoucherPrintPage({ params }: { params: Promise<{ i
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = createAdminClient() as any;
+  /* The buyer rides along so the card can say who it is from (review, 27 Sep
+     2026: VoucherPrint took fromName, this page never passed it). The FK hint
+     is required: gift_vouchers has two FKs to contacts (buyer and recipient),
+     and a short contacts(...) embed answers 300 Multiple Choices, which here
+     would read as "no voucher" and bounce the member back to the list. */
   const { data: v } = await db
     .from("gift_vouchers")
-    .select("*, exp_experiences(title)")
+    .select("*, exp_experiences(title), buyer:contacts!buyer_contact_id(name)")
     .eq("id", id)
     .maybeSingle();
 
@@ -41,6 +46,7 @@ export default async function VoucherPrintPage({ params }: { params: Promise<{ i
       amount={v.status === "active" ? voucherValueLeft(v) : v.amount}
       currency={v.currency ?? "EUR"}
       recipientName={v.recipient_name}
+      fromName={v.buyer?.name ?? null}
       message={v.message}
       redeemBy={v.redeem_by}
     />

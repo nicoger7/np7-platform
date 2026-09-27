@@ -2,16 +2,19 @@
  * The admin side of gift vouchers (27 Sep 2026).
  *
  *  · the "Use by" date typed in New voucher was thrown away: the route always
- *    wrote 1 year (or 2) from today. A typed date now wins.
+ *    wrote the default from today. A typed date now wins.
+ *  · the default is 2 years for every voucher (Nico: "maybe 2 for now"). It was
+ *    1 year, with 2 only for an any-trip voucher over €5,000.
  *  · activation put the voucher in nobody's account, so a recipient who signed
  *    in found nothing until they had already used it. It now links the one
- *    contact that owns the recipient's address, and nobody when that is unclear.
+ *    contact that owns the recipient's address, and nobody when that is unclear,
+ *    and nobody while Nico is still to call them with the news.
  *  · a partly used voucher keeps its amount: part of it is already a payment.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { FakeSupabase, type Row } from "./stubs/fake-supabase";
-import { defaultRedeemBy, parseRedeemBy, soleContactId } from "@/lib/vouchers";
+import { VOUCHER_VALID_MONTHS, parseRedeemBy, redeemByFrom, soleContactId } from "@/lib/vouchers";
 
 const state = vi.hoisted(() => ({ db: null as unknown as FakeSupabase, issued: [] as string[] }));
 
@@ -52,10 +55,20 @@ describe("the use-by date", () => {
     expect(parseRedeemBy("2026-01-01", "2026-09-27").ok).toBe(false);
   });
 
-  it("defaults to 12 months, 24 for an any-trip voucher over €5,000 (the rule is unchanged)", () => {
-    expect(defaultRedeemBy(500, null, "2026-09-27T10:00:00Z")).toBe("2027-09-27");
-    expect(defaultRedeemBy(6000, "ex1", "2026-09-27T10:00:00Z")).toBe("2027-09-27");
-    expect(defaultRedeemBy(6000, null, "2026-09-27T10:00:00Z")).toBe("2028-09-27");
+  it("defaults to 2 years for every voucher, whatever its amount or trip", () => {
+    expect(VOUCHER_VALID_MONTHS).toBe(24);
+    expect(redeemByFrom("2026-09-27T10:00:00Z")).toBe("2028-09-27");
+  });
+
+  it("activation writes 2 years for a small trip voucher and a big any-trip one alike", async () => {
+    const today = new Date().toISOString();
+    const expected = redeemByFrom(today);
+    for (const [id, amount, experience_id] of [["small", 400, "ex1"], ["big", 6000, null]] as const) {
+      state.db.rows("gift_vouchers").push({ id, code: `NP7-${id}`, status: "pending", amount, experience_id, paid_at: null, redeem_by: null, recipient_contact_id: null });
+      await PATCH(req({ action: "activate" }), ctx(id));
+    }
+    expect(state.db.rows("gift_vouchers").map((v) => v.redeem_by)).toEqual([expected, expected]);
+    expect(Number(expected.slice(0, 4)) - Number(today.slice(0, 4))).toBe(2);
   });
 
   it("New voucher honours the date the team typed", async () => {
@@ -66,7 +79,7 @@ describe("the use-by date", () => {
 
   it("New voucher without a date still gets the default", async () => {
     await POST(req({ amount: 300, activate: true, redeem_by: null }));
-    const expected = defaultRedeemBy(300, null, new Date().toISOString());
+    const expected = redeemByFrom(new Date().toISOString());
     expect(state.db.rows("gift_vouchers")[0].redeem_by).toBe(expected);
   });
 
@@ -107,6 +120,13 @@ describe("activation puts the voucher in the recipient's account", () => {
     state.db.rows("gift_vouchers").push(pending({ recipient_email: "shared@example.com" }));
     await PATCH(req({ action: "activate" }), ctx("v1"));
     expect(state.db.rows("gift_vouchers")[0].recipient_contact_id).toBeNull();
+  });
+
+  it("does not link it while Nico is still to call them: the call is the news", async () => {
+    state.db.rows("gift_vouchers").push(pending({ recipient_email: "anna@example.com", nico_call: true }));
+    const res = await PATCH(req({ action: "activate" }), ctx("v1"));
+    expect(res.status).toBe(200);
+    expect(state.db.rows("gift_vouchers")[0]).toMatchObject({ status: "active", recipient_contact_id: null });
   });
 
   it("New voucher, activated straight away, links it too", async () => {

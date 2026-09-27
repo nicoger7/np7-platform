@@ -15,11 +15,18 @@ export const metadata = { title: "Log in · NP7" };
  * "your password is wrong". Now it says what happened and opens on "email me a
  * link".
  */
-export default async function AccountLoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
+export default async function AccountLoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string; mode?: string }> }) {
   // Optional round-trip target (e.g. an open survey link) — internal paths only.
-  const { next, error } = await searchParams;
+  const { next, error, mode } = await searchParams;
   const safeNext = typeof next === "string" && /^\/(?!\/)/.test(next) ? next : undefined;
   const expired = error === "expired";
+  /* ?mode=register opens on "create account" (review, 27 Sep 2026). The gift
+     page tells a logged-out visitor "Create your free account to see the
+     trips" and sent them here, where the form opened on a password login
+     titled "Log in to manage your trips & gear". AuthForm already had the
+     register mode; nothing asked for it. An expired link still wins: that
+     visitor has an account and needs a fresh link, not a second account. */
+  const register = mode === "register" && !expired;
   return (
     <main className="min-h-[100svh] bg-[#00374a] flex items-center justify-center px-6 py-16">
       <div className="w-full max-w-[400px]">
@@ -27,7 +34,7 @@ export default async function AccountLoginPage({ searchParams }: { searchParams:
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={NP7_LOGO} alt="NP7" className="h-8 w-auto invert mx-auto mb-4" />
           <h1 className="text-2xl font-black text-white tracking-[-0.02em]">My NP7</h1>
-          <p className="text-[14px] text-white/55 mt-1">Log in to manage your trips &amp; gear</p>
+          <p className="text-[14px] text-white/55 mt-1">{register ? "Create your free NP7 account" : <>Log in to manage your trips &amp; gear</>}</p>
         </div>
 
         {expired && (
@@ -42,7 +49,7 @@ export default async function AccountLoginPage({ searchParams }: { searchParams:
         )}
 
         <div className="bg-white rounded-2xl p-7">
-          <AuthForm next={safeNext} initialMode={expired ? "magic" : "login"} source="login_page" />
+          <AuthForm next={safeNext} initialMode={expired ? "magic" : register ? "register" : "login"} source="login_page" />
         </div>
 
         <p className="text-center text-[12px] text-white/40 mt-6">

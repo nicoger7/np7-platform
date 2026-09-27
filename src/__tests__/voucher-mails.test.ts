@@ -91,6 +91,14 @@ describe("order mails", () => {
     expect(buyer.manual).toBeUndefined();
     expect(buyer.dedupeKey).toBe("voucher_ordered:v9");
     expect(buyer.vars).toMatchObject({ amount: "€600", iban: "DE00 1234", bic: "QNTODEB2", accountHolder: "NP7 GmbH", reference: "NP7-CCCC-DDDD", experienceTitle: "any NP7 trip" });
+    expect(buyer.vars.noBankDetails).toBeUndefined();
+  });
+
+  it("flags a missing IBAN so an edited body can ask the buyer to reply", async () => {
+    await sendVoucherOrdered({ ...order, bank: null });
+    const buyer = state.sent.find((s) => s.templateKey === "voucher_ordered")!;
+    expect(buyer.vars.iban).toBeUndefined();
+    expect(buyer.vars.noBankDetails).toBe("yes");
   });
 
   it("tell every subscribed team address, internal and deduped per address", async () => {
@@ -148,6 +156,59 @@ describe("the voucher templates", () => {
     const { subject, html } = renderTemplate("voucher_ordered", vars);
     expect(subject).toBe("Your NP7 gift voucher order · €600");
     for (const bit of ["DE00 1234", "QNTODEB2", "NP7 GmbH", "NP7-AAAA-BBBB"]) expect(html).toContain(bit);
+  });
+
+  describe("the order mail without an IBAN (review, 27 Sep 2026)", () => {
+    const noBank = { ...vars, iban: undefined, bic: undefined, accountHolder: undefined, bankName: undefined, noBankDetails: "yes" };
+    const REPLY = "Reply to this email and we'll send you the bank details.";
+
+    it("the coded mail asks for a reply instead of promising a separate email", () => {
+      const html = decode(renderTemplate("voucher_ordered", noBank).html);
+      expect(html).toContain(REPLY);
+      expect(html).not.toMatch(/separate email/);
+      expect(html).not.toMatch(/with these details/);
+    });
+
+    it("the editable default drops the whole bank block and asks for a reply", () => {
+      const html = decode(renderTemplate("voucher_ordered", noBank, { body: DEFAULT_BODIES.voucher_ordered }).html);
+      expect(html).toContain(REPLY);
+      expect(html).not.toMatch(/with these details/);
+      expect(html).not.toMatch(/IBAN|Amount:|\{\{|\}\}/);
+    });
+
+    it("the editable default with an IBAN prints the bank block and no reply line", () => {
+      const html = decode(renderTemplate("voucher_ordered", vars, { body: DEFAULT_BODIES.voucher_ordered }).html);
+      for (const bit of [
+        "with these details",
+        "<strong>Amount:</strong> €600",
+        "<strong>IBAN:</strong> DE00 1234",
+        "<strong>BIC:</strong> QNTODEB2",
+        "<strong>Account holder:</strong> NP7 GmbH",
+        "<strong>Reference:</strong> NP7-AAAA-BBBB",
+      ]) {
+        expect(html).toContain(bit);
+      }
+      expect(html).not.toContain(REPLY);
+      expect(html).not.toMatch(/\{\{|\}\}/);
+    });
+  });
+
+  it("the buyer mail's Nico line reads cleanly with no recipient name, coded or editable", () => {
+    const v = { ...vars, recipientName: undefined, nicoCall: "yes" };
+    const coded = renderTemplate("voucher_purchased", v).html;
+    const edited = renderTemplate("voucher_purchased", v, { body: DEFAULT_BODIES.voucher_purchased }).html;
+    for (const html of [coded, edited]) {
+      const text = decode(html);
+      expect(text).toMatch(/Nico will call/);
+      expect(text).not.toMatch(/Nico will call\s{2,}/);
+      expect(text).not.toMatch(/call {2}/);
+    }
+  });
+
+  it("the voucher automations are labelled without long dashes", () => {
+    const lines = read("src/lib/email/automations.ts").split("\n").filter((l) => /key: "voucher_/.test(l));
+    expect(lines.length).toBeGreaterThanOrEqual(4);
+    for (const l of lines) expect(l).not.toMatch(LONG_DASH);
   });
 
   it("the reminder explains use the one shared way", () => {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
-import { defaultRedeemBy, generateVoucherCode, lookupSoleContactId, parseRedeemBy } from "@/lib/vouchers";
+import { generateVoucherCode, lookupSoleContactId, parseRedeemBy, redeemByFrom } from "@/lib/vouchers";
 import { requireAdminGate } from "@/lib/admin-auth";
 // Admin routes are gated by middleware; no per-route auth check needed.
 
@@ -76,14 +76,14 @@ export async function POST(request: NextRequest) {
 
   /*
    * The "Use by" date the team typed. The form always sent it and this route
-   * always threw it away, writing 1 year (or 2) from today whatever the field
+   * always threw it away, writing the default from today whatever the field
    * said (Nico, 27 Sep 2026). Now a typed date wins. Empty still means the
-   * default rule, and a pending voucher keeps the typed date so its later
-   * activation does not overwrite it.
+   * default (2 years for every voucher, VOUCHER_VALID_MONTHS), and a pending
+   * voucher keeps the typed date so its later activation does not overwrite it.
    */
   const typed = parseRedeemBy(body.redeem_by, now);
   if (!typed.ok) return NextResponse.json({ error: typed.error }, { status: 400 });
-  const redeemBy = typed.value ?? (activate ? defaultRedeemBy(amount, body.experience_id || null, now) : null);
+  const redeemBy = typed.value ?? (activate ? redeemByFrom(now) : null);
 
   // An active voucher for someone who already has an account belongs in that
   // account, so they see it under Gift vouchers without being sent the code.

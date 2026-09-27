@@ -102,7 +102,10 @@ export default function VouchersPage() {
       const to: MailAudience[] = [
         { kind: "person", name: v?.buyer?.name ?? null, email: v?.buyer?.email ?? null },
       ];
-      if (v?.recipient_email || v?.recipient?.email) {
+      // With Nico's call booked the recipient gets no mail (notify.ts), so the
+      // dialog must not list them as a recipient, and says why (review,
+      // 27 Sep 2026).
+      if ((v?.recipient_email || v?.recipient?.email) && !v?.nico_call) {
         to.push({ kind: "person", name: v?.recipient_name ?? v?.recipient?.name ?? null, email: v?.recipient_email ?? v?.recipient?.email ?? null });
       }
       const go = await askMail({
@@ -112,7 +115,9 @@ export default function VouchersPage() {
           : "The voucher confirmation",
         to,
         attachment: "the printable voucher PDF",
-        also: "Confirms the bank transfer landed and starts the validity clock.",
+        also: v?.nico_call
+          ? "Confirms the bank transfer landed and starts the 2-year validity clock. Nico calls the recipient, so they get no email."
+          : "Confirms the bank transfer landed and starts the 2-year validity clock.",
         confirmLabel: "Activate and send",
       });
       if (!go) return;
@@ -401,7 +406,7 @@ export default function VouchersPage() {
                 <label className="block text-[11px] font-bold uppercase tracking-wide admin-faint mb-1">Use by</label>
                 <input type="date" className={`${inputClass} w-full`} value={form.redeem_by}
                   onChange={(e) => setForm({ ...form, redeem_by: e.target.value })} />
-                {!form.id && <p className="text-[11px] admin-faint mt-1">Empty = 1 year from activation (2 for value vouchers over €5k).</p>}
+                {!form.id && <p className="text-[11px] admin-faint mt-1">Empty = 2 years from activation.</p>}
               </div>
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wide admin-faint mb-1">Internal notes</label>
