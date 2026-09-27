@@ -94,4 +94,26 @@ describe("gift voucher copy", () => {
     expect(select).not.toMatch(/[\s,(]contacts\(/);
     expect(src).toContain("fromName={v.buyer?.name ?? null}");
   });
+
+  it("with no bank details and no mail, asks the buyer to write instead of promising an email", () => {
+    // Review, 28 Sep 2026: "We'll email you our bank details." after a mail
+    // that failed promised something nothing sends.
+    const form = read("src/components/experience/gift-buy-form.tsx");
+    expect(form).not.toContain("We'll email you our bank details.");
+    expect(form).toContain("with reference {done.code} and we&apos;ll send you our bank details.");
+    expect(form).toContain('href="mailto:experience@np-seven.com"');
+  });
+
+  it("the level hint comes from the week's own levels, not a fixed pair", () => {
+    const form = read("src/components/experience/gift-buy-form.tsx");
+    expect(form).not.toContain("Beginner and Advanced ride in separate coaching groups.");
+    expect(form).toContain("giftLevelHint(week.levels)");
+  });
+
+  it("the admin activate dialog does not promise a flat 2 years", () => {
+    // The activate route keeps a use-by date typed on a pending voucher.
+    const page = read("src/app/admin/vouchers/page.tsx");
+    expect(page).not.toContain("starts the 2-year validity clock");
+    expect(page).toContain("starts the validity clock (2 years unless a use-by date is set)");
+  });
 });

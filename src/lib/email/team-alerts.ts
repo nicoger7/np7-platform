@@ -4,6 +4,7 @@ import { sendEmail } from "@/lib/email/send";
 import { publicOrigin } from "@/lib/public-origin";
 import { isWeekInterest } from "@/lib/week-interest";
 import { getCoveredBookings } from "@/lib/group-booking";
+import { isAttending, isLostStatus } from "@/lib/types";
 import type { EmailVars } from "@/lib/email/templates";
 import type { Division } from "@/lib/email/layout";
 
@@ -237,8 +238,48 @@ export function isBookingNews(b: {
   const name = String(b.name ?? "");
   const notes = String(b.notes ?? "");
   if (/^\s*\[ARCHIVE\]/i.test(name) || notes.includes("[ARCHIVE]")) return false;
-  if ([name, notes, String(b.contacts?.name ?? "")].some((t) => /test booking/i.test(t))) return false;
+  // Whole words (review, 28 Sep 2026): a bare /test booking/ also matched
+  // "latest booking" and "contest booking", so a real booking whose note said
+  // "moved from his latest booking" was silently never announced.
+  if ([name, notes, String(b.contacts?.name ?? "")].some((t) => /\btest booking\b/i.test(t))) return false;
   return true;
+}
+
+/**
+ * Has this booking been secured with money, as far as a friend reward cares?
+ * A deposit or a down-payment received, the balance paid, or a status that
+ * only comes after one of those (confirmed, paid; legacy spellings through
+ * isAttending).
+ */
+export function isInviteBookingSecured(b: {
+  status?: string | null;
+  deposit_received?: boolean | null;
+  downpayment_received?: boolean | null;
+  final_payment_received?: boolean | null;
+}): boolean {
+  if (isLostStatus(b.status)) return false;
+  return !!b.deposit_received || !!b.downpayment_received || !!b.final_payment_received || isAttending(b.status);
+}
+
+/**
+ * The invite line in the booking mail.
+ *
+ * It used to say "a friend reward is now due" on every booking with an
+ * invite_id (review, 28 Sep 2026). The register route attaches the invite to a
+ * free lead sign-up and to a plain info request too, so the team was told to
+ * issue two vouchers for someone who had paid nothing or only asked a
+ * question. The reward is owed once the friend's booking is secured, so the
+ * line says that, and says "not yet" until it is.
+ */
+export function inviteRewardLine(
+  inviter: string | null,
+  b: Parameters<typeof isInviteBookingSecured>[0] & { notes?: string | null },
+): string {
+  const whose = inviter ? `${inviter}'s` : "a friend's";
+  if (isInviteBookingSecured(b)) return `Came through ${whose} invite, so a friend reward is now due.`;
+  // The register route writes "friend invite (info request)" for intent "info".
+  if (/info request/i.test(String(b.notes ?? ""))) return `Asked for info through ${whose} invite. No reward yet.`;
+  return `Came through ${whose} invite. The friend reward becomes due once they pay.`;
 }
 
 /** The register routes write "BOT-CHECK FLAGGED" into the notes when Vercel
@@ -273,9 +314,7 @@ async function bookingExtras(db: any, b: any, currency: string): Promise<Record<
         const { data: c } = await db.from("contacts").select("name,email").eq("id", inv.inviter_contact_id).maybeSingle();
         inviter = String(c?.name ?? "").trim() || c?.email || null;
       }
-      out.inviteLine = inviter
-        ? `Came through ${inviter}'s invite, so a friend reward is now due.`
-        : "Came through a friend's invite, so a friend reward is now due.";
+      out.inviteLine = inviteRewardLine(inviter, b);
     } catch { /* leave the line out */ }
   }
 
@@ -307,7 +346,7 @@ export async function sweepNewBookings(opts?: { since?: string; limit?: number }
   const since = opts?.since ?? new Date(Date.now() - 6 * 3600 * 1000).toISOString();
   const { data, error } = await db
     .from("exp_bookings")
-    .select("id,created_at,status,name,agreed_price,covered_by_booking_id,package_id,invite_id,notes,contacts(name,email),exp_experiences(title,currency),exp_editions(label,date_start,date_end),exp_packages(name)")
+    .select("id,created_at,status,name,agreed_price,covered_by_booking_id,package_id,invite_id,notes,deposit_received,downpayment_received,final_payment_received,contacts(name,email),exp_experiences(title,currency),exp_editions(label,date_start,date_end),exp_packages(name)")
     .gte("created_at", since)
     .order("created_at", { ascending: true })
     .limit(opts?.limit ?? 50);

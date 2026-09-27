@@ -78,6 +78,9 @@ export type GiftEditionRow = {
   date_start?: string | null;
   date_end?: string | null;
   archived_at?: string | null;
+  /** exp_editions.public_from (migration 170): the day the week opens to
+   *  everyone. Before it, only Crew/Legend members and the team see it. */
+  public_from?: string | null;
 };
 export type GiftPackageRow = {
   id: string;
@@ -92,6 +95,19 @@ export type GiftPackageRow = {
   archived_at?: string | null;
 };
 export type GiftHotelRow = { id: string; name: string | null };
+
+/**
+ * Is this week still in its early-access window? A published week with a
+ * `public_from` after today is the Crew/Legend perk "book before everyone
+ * else" (migration 170): the trip page and the experience cards hide it from
+ * everyone else until that day. The gift chooser showed its dates and prices
+ * to anyone, and /api/voucher sold a voucher priced from it (review,
+ * 28 Sep 2026). Both ask this, so the gift side opens a week on the same day
+ * the booking side does. Compared as yyyy-mm-dd strings, like the trip page.
+ */
+export function isEarlyAccessWeek(publicFrom: string | null | undefined, today: string): boolean {
+  return !!publicFrom && String(publicFrom).slice(0, 10) > today;
+}
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -177,6 +193,19 @@ const levelRank = (l: string) => {
   return i === -1 ? LEVEL_ORDER.length : i;
 };
 
+/**
+ * The hint under "Which level?": the groups this week really sells, in the
+ * week's own order. It was hardcoded "Beginner and Advanced", which names the
+ * wrong groups on a week that sells Mixed plus one other level (review,
+ * 28 Sep 2026). "Beginner and Advanced", "Beginner, Advanced and Mixed".
+ */
+export function giftLevelHint(levels: readonly string[]): string {
+  const names = levels.map(giftLevelLabel).filter(Boolean);
+  if (names.length < 2) return "";
+  const list = names.length === 2 ? names.join(" and ") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  return `${list} ride in separate coaching groups.`;
+}
+
 /** Does this week need the level step? Only when it sells two or more levels. */
 export function giftWeekNeedsLevel(week: Pick<GiftWeek, "levels">): boolean {
   return week.levels.length >= 2;
@@ -208,9 +237,10 @@ export function giftFromPrice(pkgs: GiftPackage[]): number | null {
  * used. A trip with no live week at all has nothing to point a buyer at yet
  * and waits until one is published.
  *
- * Weeks: live (published, not archived, not over) and not an event, soonest
- * first. A week is offered only when it has a package on sale; the trip stays
- * giftable by value either way.
+ * Weeks: live (published, not archived, not over, open to everyone: no
+ * `public_from` still ahead) and not an event, soonest first. A week is
+ * offered only when it has a package on sale; the trip stays giftable by
+ * value either way.
  *
  * Packages: exactly what the booking flow sells. Active, on the website, not
  * archived, priced, on one of those weeks. A package with no week is sold on
@@ -234,6 +264,8 @@ export function buildGiftCatalog(input: {
     if (e.status !== "published" || e.archived_at || e.kind === "event") continue;
     const end = e.date_end || e.date_start;
     if (end && String(end).slice(0, 10) < today) continue;
+    // Not public yet: an early-access week is the loyalty perk, not a gift.
+    if (isEarlyAccessWeek(e.public_from, today)) continue;
     liveWeeksByExp.set(e.experience_id, [...(liveWeeksByExp.get(e.experience_id) ?? []), e]);
   }
 

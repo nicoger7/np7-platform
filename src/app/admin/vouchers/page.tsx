@@ -115,9 +115,11 @@ export default function VouchersPage() {
           : "The voucher confirmation",
         to,
         attachment: "the printable voucher PDF",
+        // Not "the 2-year clock" flat: the activate route keeps a use-by date
+        // the team already typed on the pending voucher (review, 28 Sep 2026).
         also: v?.nico_call
-          ? "Confirms the bank transfer landed and starts the 2-year validity clock. Nico calls the recipient, so they get no email."
-          : "Confirms the bank transfer landed and starts the 2-year validity clock.",
+          ? "Confirms the bank transfer landed and starts the validity clock (2 years unless a use-by date is set). Nico calls the recipient, so they get no email."
+          : "Confirms the bank transfer landed and starts the validity clock (2 years unless a use-by date is set).",
         confirmLabel: "Activate and send",
       });
       if (!go) return;

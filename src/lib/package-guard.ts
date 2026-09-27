@@ -90,6 +90,7 @@ export type InviterBookingRow = {
   id?: string | null;
   status?: string | null;
   package_id?: string | null;
+  edition_id?: string | null;
   archived_at?: string | null;
 };
 
@@ -110,10 +111,17 @@ const DEAD_INVITE = new Set(["cancelled", "expired"]);
  * So the booking has to exist, be the one the
  * invite names, not be cancelled ("lost", or a legacy "cancelled" row, both
  * through isLostStatus), not be archived, and still sit on the very package
- * the invite carries.
+ * the invite carries, on the very week the invite names.
  *
- * Every missing piece reads as "no". A booking read without its status or its
- * package is a caller's mistake, and the rule does not guess.
+ * The week (review, 28 Sep 2026): a private package with no week of its own
+ * (the Turkish Locals rate is shared across weeks) stayed on the inviter's
+ * booking when the team moved them to another week, so the invite kept
+ * opening it for the original week, where the inviter no longer rides. When
+ * the invite names a week, the inviter's booking has to be on it.
+ *
+ * Every missing piece reads as "no". A booking read without its status, its
+ * package or (for an invite with a week) its week is a caller's mistake, and
+ * the rule does not guess.
  */
 export function inviterStillHolds(
   invite: InviteUnlockRow | null | undefined,
@@ -123,6 +131,7 @@ export function inviterStillHolds(
   if (!booking || booking.id !== invite.inviter_booking_id) return false;
   if (booking.archived_at) return false;
   if (typeof booking.status !== "string" || isLostStatus(booking.status)) return false;
+  if (invite.edition_id && booking.edition_id !== invite.edition_id) return false;
   return booking.package_id === invite.package_id;
 }
 
@@ -157,7 +166,8 @@ export function inviteUnlocks(
  * private price to whoever asks.
  *
  * Two reads: the invite by its token, then the inviter's booking it points at.
- * The booking read selects id, status and package_id, and deliberately NOT
+ * The booking read selects id, status, package_id and edition_id (the week,
+ * see inviterStillHolds), and deliberately NOT
  * archived_at. exp_bookings has no archived_at column (migration 039 adds it
  * to nine tables and not this one, see lib/existing-booking.ts), and asking
  * for it would make PostgREST refuse the whole read, which here would mean
@@ -185,7 +195,7 @@ export async function invitePackageUnlock(
     if (!invite.package_id || !invite.inviter_booking_id) return new Set();
     const { data: booking, error: bookingError } = await db
       .from("exp_bookings")
-      .select("id, status, package_id")
+      .select("id, status, package_id, edition_id")
       .eq("id", invite.inviter_booking_id)
       .maybeSingle();
     if (bookingError) return new Set();

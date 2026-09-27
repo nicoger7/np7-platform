@@ -16,11 +16,14 @@
  * Fixtures mirror the live rows read on 27 Sep 2026 (read-only).
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   GIFT_ANY_TRIP,
   buildGiftCatalog,
   giftChoice,
   giftFromPrice,
+  giftLevelHint,
   giftPackageName,
   giftPackageTitle,
   giftPackagesFor,
@@ -28,6 +31,7 @@ import {
   giftValueLine,
   giftWeekLabel,
   giftWeekNeedsLevel,
+  isEarlyAccessWeek,
   type GiftChoiceState,
   type GiftEditionRow,
   type GiftExpRow,
@@ -139,6 +143,37 @@ describe("step 2: weeks", () => {
   it("writes an edition label without long dashes", () => {
     const [t] = catalog([exp("bon", "Bonaire")], [ed("w", "bon", { label: "OBX Wind – 10–16 October" })], [pkg("p", "bon", "w", "WANAPA", 3990)]);
     expect(t.weeks[0].label).toBe("OBX Wind · 10-16 October");
+  });
+
+  it("leaves out an early-access week until its public_from day, like the trip page", () => {
+    // Review, 28 Sep 2026: the Crew/Legend head start (migration 170) was on
+    // the gift page for anyone, dates and prices included.
+    const rows = (publicFrom: string | null) => catalog(
+      [exp("bon", "NP7 Experience Bonaire")],
+      [ed("w1", "bon"), ed("w27", "bon", { date_start: "2027-11-28", date_end: "2027-12-04", public_from: publicFrom })],
+      [pkg("a", "bon", "w1", "No Hotel", 2390), pkg("b", "bon", "w27", "No Hotel", 2490)],
+    );
+    expect(rows("2026-10-15")[0].weeks.map((w) => w.id)).toEqual(["w1"]);
+    expect(rows(TODAY)[0].weeks.map((w) => w.id)).toEqual(["w1", "w27"]);
+    expect(rows("2026-09-01")[0].weeks.map((w) => w.id)).toEqual(["w1", "w27"]);
+    expect(rows(null)[0].weeks.map((w) => w.id)).toEqual(["w1", "w27"]);
+    // A trip whose only week is still early access is not offered at all yet.
+    expect(catalog([exp("bon", "Bonaire")], [ed("w27", "bon", { public_from: "2026-10-15T00:00:00" })], [])).toEqual([]);
+  });
+
+  it("the loader reads public_from, or the rule above never sees it", () => {
+    // The fakes do not model column projection, so the select is checked here.
+    const src = readFileSync(join(process.cwd(), "src/lib/gift-data.ts"), "utf8");
+    const editions = src.split("\n").find((l) => l.includes('from("exp_editions")')) ?? "";
+    expect(editions).toContain("public_from");
+  });
+
+  it("isEarlyAccessWeek compares the day, not the time", () => {
+    expect(isEarlyAccessWeek("2026-09-28", TODAY)).toBe(true);
+    expect(isEarlyAccessWeek("2026-09-27", TODAY)).toBe(false);
+    expect(isEarlyAccessWeek("2026-09-27T23:00:00Z", TODAY)).toBe(false);
+    expect(isEarlyAccessWeek(null, TODAY)).toBe(false);
+    expect(isEarlyAccessWeek(undefined, TODAY)).toBe(false);
   });
 });
 
@@ -400,5 +435,15 @@ describe("guest-facing labels", () => {
     expect(giftPackageTitle("All Inclusive – Double Superior - Single Use", "advanced")).toBe("All Inclusive · Double Superior - Single Use");
     expect(giftPackageTitle("Beginner", "beginner")).toBe("Beginner");
     expect(giftPackageTitle("SOROBON RESORT Premium Ocean Front Beach House ", "advanced")).toBe("SOROBON RESORT Premium Ocean Front Beach House");
+  });
+
+  it("names the level groups the week really sells", () => {
+    // Review, 28 Sep 2026: it was hardcoded "Beginner and Advanced", wrong on
+    // a week that sells Mixed.
+    expect(giftLevelHint(["beginner", "advanced"])).toBe("Beginner and Advanced ride in separate coaching groups.");
+    expect(giftLevelHint(["advanced", "mixed"])).toBe("Advanced and Mixed ride in separate coaching groups.");
+    expect(giftLevelHint(["beginner", "advanced", "mixed"])).toBe("Beginner, Advanced and Mixed ride in separate coaching groups.");
+    expect(giftLevelHint(["advanced"])).toBe("");
+    expect(giftLevelHint([])).toBe("");
   });
 });

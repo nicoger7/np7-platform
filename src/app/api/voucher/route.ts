@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { generateVoucherCode } from "@/lib/vouchers";
+import { isEarlyAccessWeek } from "@/lib/gift-catalog";
 import { sendVoucherOrdered } from "@/lib/vouchers/notify";
 import { rateLimited, LIMITS } from "@/lib/rate-limit";
 
@@ -35,13 +36,16 @@ type WeekRow = {
   date_start?: string | null;
   date_end?: string | null;
   archived_at?: string | null;
+  public_from?: string | null;
 } | null;
 
 /**
  * Can this package be gifted? The same rule the gift form already applies
  * (src/lib/gift-catalog.ts): active, not archived, on the website, part of the
  * experience the buyer picked, and, when it belongs to a week, on a week the
- * form offers: published, not archived, not an event, not over.
+ * form offers: published, not archived, not an event, not over, and open to
+ * everyone (an early-access week before its public_from is the Crew/Legend
+ * perk, not something to sell a voucher from; review, 28 Sep 2026).
  *
  * The week half was missing (review, 27 Sep 2026). edition_id was selected
  * and never read, so a hand-made POST could still price a voucher from a
@@ -68,8 +72,27 @@ function giftPackageIssue(p: PkgRow, experienceId: string | null, week: WeekRow,
     if (!week || week.status !== "published" || week.archived_at || week.kind === "event") return "unavailable";
     const end = week.date_end || week.date_start;
     if (end && String(end).slice(0, 10) < today) return "unavailable";
+    if (isEarlyAccessWeek(week.public_from, today)) return "unavailable";
   }
   return null;
+}
+
+type ExpRow = { status?: string | null; page_template?: string | null; website_visible?: boolean | null } | null;
+
+/**
+ * Can a voucher name this experience at all? The gift chooser only offers a
+ * published experience that is on the website and is not an event template
+ * (loadGiftData and buildGiftCatalog). The route checked `published` only, so a
+ * hand-made POST could still order a value voucher for a clinic, which is paid
+ * by card in one go and has no voucher field, or for an invite-only trip that
+ * is off the website (review, 28 Sep 2026). Same 404 as a missing one, so the
+ * reply does not confirm a hidden trip exists.
+ */
+function giftExperienceOk(exp: ExpRow): boolean {
+  if (!exp || exp.status !== "published") return false;
+  if (exp.page_template === "event") return false;
+  if (exp.website_visible === false) return false;
+  return true;
 }
 
 export async function POST(req: Request) {
@@ -104,16 +127,16 @@ export async function POST(req: Request) {
   const db = createAdminClient() as any;
 
   const [expRes, pkgRes, csRes] = await Promise.all([
-    experienceId ? db.from("exp_experiences").select("id, title, currency, status, price").eq("id", experienceId).maybeSingle() : Promise.resolve({ data: null }),
+    experienceId ? db.from("exp_experiences").select("id, title, currency, status, price, page_template, website_visible").eq("id", experienceId).maybeSingle() : Promise.resolve({ data: null }),
     packageId ? db.from("exp_packages").select("id, name, price, experience_id, edition_id, status, archived_at, website_visible").eq("id", packageId).maybeSingle() : Promise.resolve({ data: null }),
     db.from("company_settings").select("iban, bic, bank_name, legal_name, currency").eq("division", "experience").maybeSingle().catch(() => ({ data: null })),
   ]);
   const exp = expRes?.data ?? null;
-  if (experienceId && (!exp || exp.status !== "published")) return NextResponse.json({ error: "That experience isn't available." }, { status: 404 });
+  if (experienceId && !giftExperienceOk(exp)) return NextResponse.json({ error: "That experience isn't available." }, { status: 404 });
   const pkg = pkgRes?.data ?? null;
   if (packageId) {
     const { data: week } = pkg?.edition_id
-      ? await db.from("exp_editions").select("status, kind, date_start, date_end, archived_at").eq("id", pkg.edition_id).maybeSingle()
+      ? await db.from("exp_editions").select("status, kind, date_start, date_end, archived_at, public_from").eq("id", pkg.edition_id).maybeSingle()
       : { data: null };
     // A hidden package gets the same answer as a missing one: the reply must
     // not confirm that a private package exists.

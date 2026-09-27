@@ -24,13 +24,15 @@ import { sweepHwOrders, sweepHwReturns, sweepHwEnquiries } from "@/lib/email/tea
  * the webhook tells the team directly (announceTransferProblem).
  */
 export const dynamic = "force-dynamic";
-// More sweeps than before (Nico, 28 Sep 2026). A quiet run is still well under
-// a second; the headroom is for a burst of sends after a campaign.
+// More sweeps than before (Nico, 28 Sep 2026). One after another, a quiet run
+// is about two seconds; the headroom is for a burst of sends after a campaign.
 export const maxDuration = 60;
 
-/** One sweep that throws must not take the others' results with it. */
-const safe = (p: Promise<SweepResult>): Promise<SweepResult | { error: string }> =>
-  p.catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
+/** One sweep that throws must not take the others' results with it. Takes the
+ *  sweep as a function, not a promise, so it only starts when its turn comes
+ *  (and a sweep that throws before its first await is caught too). */
+const safe = (run: () => Promise<SweepResult>): Promise<SweepResult | { error: string }> =>
+  Promise.resolve().then(run).catch((e) => ({ error: e instanceof Error ? e.message : String(e) }));
 
 export async function GET(req: NextRequest) {
   if (!cronAuthorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -42,28 +44,30 @@ export async function GET(req: NextRequest) {
   // click can come a day later. There is no "verified at", so it looks back a
   // week on created_at and the dedupe key does the rest.
   const signatureSince = new Date(Date.now() - SIGNATURE_LOOKBACK_MS).toISOString();
-  const [
-    bookings, addons, waitlist,
-    payments, requests, cancellations, widerrufe, signups, signature, reviews,
-    hwOrders, hwReturns, hwEnquiries,
-  ] = await Promise.all([
-    safe(sweepNewBookings({ since })),
-    safe(sweepAddonRequests({ since })),
-    safe(sweepInterestSignups({ since })),
-    safe(sweepPayments({ since })),
-    safe(sweepGuestRequests({ since })),
-    safe(sweepCancellationRequests({ since })),
-    safe(sweepWiderrufe({ since })),
-    safe(sweepAccountSignups({ since })),
-    safe(sweepSignatureApplications({ since: signatureSince })),
-    safe(sweepReviews({ since })),
-    safe(sweepHwOrders({ since })),
-    safe(sweepHwReturns({ since })),
-    safe(sweepHwEnquiries({ since })),
-  ]);
-  return NextResponse.json({
-    ok: true, bookings, addons, waitlist,
-    payments, requests, cancellations, widerrufe, signups, signature, reviews,
-    hwOrders, hwReturns, hwEnquiries,
-  });
+  // ONE AFTER ANOTHER, not Promise.all (review, 28 Sep 2026). Thirteen sweeps
+  // in parallel meant thirteen senders hitting Resend at once: a clinic
+  // checkout alone fires booking_created and payment_received in the same run,
+  // two sweeps times two recipients. sendEmail writes the email_log row with its
+  // dedupe key BEFORE it calls Resend and never retries, so a 429 in that burst
+  // kept the key and the alert was lost for good. In a row, each sweep's sends
+  // finish before the next one starts, and the run stays well inside
+  // maxDuration.
+  const sweeps: [string, () => Promise<SweepResult>][] = [
+    ["bookings", () => sweepNewBookings({ since })],
+    ["addons", () => sweepAddonRequests({ since })],
+    ["waitlist", () => sweepInterestSignups({ since })],
+    ["payments", () => sweepPayments({ since })],
+    ["requests", () => sweepGuestRequests({ since })],
+    ["cancellations", () => sweepCancellationRequests({ since })],
+    ["widerrufe", () => sweepWiderrufe({ since })],
+    ["signups", () => sweepAccountSignups({ since })],
+    ["signature", () => sweepSignatureApplications({ since: signatureSince })],
+    ["reviews", () => sweepReviews({ since })],
+    ["hwOrders", () => sweepHwOrders({ since })],
+    ["hwReturns", () => sweepHwReturns({ since })],
+    ["hwEnquiries", () => sweepHwEnquiries({ since })],
+  ];
+  const results: Record<string, SweepResult | { error: string }> = {};
+  for (const [name, run] of sweeps) results[name] = await safe(run);
+  return NextResponse.json({ ok: true, ...results });
 }

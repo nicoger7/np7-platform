@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase";
 import { publicOrigin } from "@/lib/public-origin";
 import { sumReceived } from "@/lib/payment-totals";
+import { coveredExtraTotal } from "@/lib/group-booking";
 import { guestRequestsIn, GUEST_REQUEST_MARK } from "@/lib/guest-request";
 import {
   recipientsFor, mailTeam, nobody, money, fmtRange, whoIs,
@@ -69,6 +70,24 @@ async function paidSoFar(db: Db, bookingId: string): Promise<number | null> {
   return sumReceived(data ?? []);
 }
 
+/**
+ * What the booking's payments are measured against in "Paid so far: X of Y".
+ *
+ * A group payer's invoices and payments carry the whole group (lib/group-booking),
+ * but agreed_price is the payer's own seat only. "€4,200 of €1,500" read like an
+ * overpayment (review, 28 Sep 2026). So a payer's figure adds what they cover.
+ * If that cannot be read, there is no "of" at all rather than a wrong one.
+ */
+async function paymentTarget(db: Db, bookingId: string, agreedPrice: unknown): Promise<number | null> {
+  const own = Number(agreedPrice);
+  if (!agreedPrice || !Number.isFinite(own) || own <= 0) return null;
+  try {
+    return own + (await coveredExtraTotal(db, bookingId));
+  } catch {
+    return null;
+  }
+}
+
 // ─── 1 · payment_received ────────────────────────────────────────────────────
 
 /**
@@ -99,8 +118,17 @@ const PAYMENT_KIND: Record<string, string> = {
   deposit: "Deposit", downpayment: "Down-payment", final: "Final payment", partial: "Part payment", addon: "Add-on",
 };
 
-function methodLabel(p: AnyRow): string {
-  if (p.method === "voucher") return `Gift voucher ${p.reference ?? ""}`.trim();
+/**
+ * How the money came. A gift voucher shows only its last four characters
+ * (review, 28 Sep 2026): a voucher with value left on it can still be spent,
+ * and this mail sits in the shared experience@ inbox. Staff who need the full
+ * code have it one click away in the admin.
+ */
+export function methodLabel(p: { method?: string | null; reference?: string | null; notes?: string | null }): string {
+  if (p.method === "voucher") {
+    const code = String(p.reference ?? "").trim();
+    return code ? `Gift voucher …${code.slice(-4)}` : "Gift voucher";
+  }
   return /bank transfer/i.test(String(p.notes ?? "")) ? "Bank transfer through Stripe" : "Online through Stripe (card or wallet)";
 }
 
@@ -124,6 +152,7 @@ export async function sweepPayments(opts?: { since?: string; limit?: number }): 
     const b = p.exp_bookings ?? {};
     const cur = b.exp_experiences?.currency ?? "EUR";
     const sofar = p.booking_id ? await paidSoFar(db, p.booking_id) : null;
+    const target = sofar != null && p.booking_id ? await paymentTarget(db, p.booking_id, b.agreed_price) : null;
     await mailTeam(to, {
       event: "payment_received",
       what: p.id,
@@ -136,7 +165,7 @@ export async function sweepPayments(opts?: { since?: string; limit?: number }): 
         method: methodLabel(p),
         paymentKind: PAYMENT_KIND[String(p.type ?? "")] ?? "",
         ...tripVars(b),
-        paidSoFar: sofar == null ? "" : `${money(sofar, cur)}${b.agreed_price ? ` of ${money(b.agreed_price, cur)}` : ""}`,
+        paidSoFar: sofar == null ? "" : `${money(sofar, cur)}${target ? ` of ${money(target, cur)}` : ""}`,
         adminLink: p.booking_id ? `${origin}/admin/bookings/${p.booking_id}` : `${origin}/admin/payments`,
       },
     }, tally);

@@ -41,12 +41,15 @@ export type GuestRequest = {
   at: string;
   from: string;
   message: string;
-  /** Stable per request: the minute plus a hash of the text, so two requests
-   *  in the same minute are two requests, and a rerun finds the same key. */
+  /** Stable per request: the minute, a hash of the sender and the request's
+   *  place among the request lines with that same minute. Two requests in one
+   *  minute are two keys, a rerun finds the same key, and nothing staff add to
+   *  the notes afterwards moves it (see guestRequestsIn). */
   key: string;
 };
 
-/** A short, stable, non-cryptographic hash (djb2). Only tells lines apart. */
+/** A short, stable, non-cryptographic hash (djb2). Only tells senders apart,
+ *  and keeps a guest's name out of the dedupe key in email_log. */
 function hash(s: string): string {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
@@ -69,15 +72,28 @@ export function guestRequestsIn(notes: string | null | undefined, sinceISO?: str
   const floor = sinceISO ? new Date(sinceISO) : null;
   if (floor) floor.setUTCSeconds(0, 0);
   const out: GuestRequest[] = [];
+  // How many request lines with each stamp came before this one. Counted over
+  // every line, before the window check, so the count never depends on it.
+  const seenAtStamp = new Map<string, number>();
   for (const m of text.matchAll(LINE)) {
+    const stamp = `${m[1].replace(/-/g, "")}${m[2].replace(":", "")}`;
+    const n = seenAtStamp.get(stamp) ?? 0;
+    seenAtStamp.set(stamp, n + 1);
     const at = `${m[1]}T${m[2]}:00.000Z`;
     if (floor && new Date(at) < floor) continue;
+    const from = m[3].trim();
     const message = m[4].trim();
     out.push({
       at,
-      from: m[3].trim(),
+      from,
       message,
-      key: `${m[1].replace(/-/g, "")}${m[2].replace(":", "")}-${hash(message)}`,
+      // NOT a hash of the message (review, 28 Sep 2026). The message runs to
+      // the next stamped line or the end of the notes, so a plain line staff
+      // typed under it in the admin's free-text notes became part of the
+      // message, changed the hash, and the same request was mailed again.
+      // The stamp, the sender and the place among same-minute lines do not
+      // change when text is added below.
+      key: `${stamp}-${hash(from)}-${n}`,
     });
   }
   return out;

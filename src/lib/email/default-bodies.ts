@@ -4,6 +4,7 @@
  * just creates an override row. Pure strings — safe to import client-side.
  */
 import { VOUCHER_HOW_TO_REDEEM } from "@/lib/vouchers";
+import { TEAM_CANCELLATION_REMINDER } from "@/lib/cancellation-policy";
 
 const P = (s: string) => `<p style="margin:0 0 14px;">${s}</p>`;
 const BTN = (label: string, linkVar: string) =>
@@ -483,7 +484,7 @@ export const DEFAULT_BODIES: Record<string, string> = {
   team_cancellation_requested:
     P("<strong>{{guestName}}</strong> asked to cancel their trip. Nothing has been cancelled or refunded yet: that is up to us.") +
     P("{{?experienceTitle}}Trip: <strong>{{experienceTitle}}</strong>{{/experienceTitle}}{{?editionLabel}} · {{editionLabel}}{{/editionLabel}}{{?dates}}<br>Dates: {{dates}}{{/dates}}{{?bookingStatus}}<br>Status: {{bookingStatus}}{{/bookingStatus}}{{?paidSoFar}}<br>Paid so far: <strong>{{paidSoFar}}</strong>{{/paidSoFar}}{{?askedAt}}<br>Asked: {{askedAt}}{{/askedAt}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
-    P("Before you answer: a deposit can be refunded while its refund window is open. The down-payment is the cancellation fee from the moment it lands. Passing the place to someone else costs them nothing.") +
+    P(TEAM_CANCELLATION_REMINDER) +
     BTN("Open the booking", "adminLink") +
     P("You are getting this because you are on the team list for cancellation requests. Change who gets it in Admin → Emails → Team."),
 

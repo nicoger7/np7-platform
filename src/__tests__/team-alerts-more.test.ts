@@ -28,15 +28,16 @@ vi.mock("@/lib/email/send", () => ({
 }));
 vi.mock("@/lib/auth", () => ({ getPortalUser: async () => state.user }));
 
-import { TEAM_EVENTS, isBookingNews, sweepNewBookings, money } from "@/lib/email/team-alerts";
+import { TEAM_EVENTS, isBookingNews, sweepNewBookings, money, inviteRewardLine, isInviteBookingSecured } from "@/lib/email/team-alerts";
 import {
-  isPaymentNews, sweepPayments, announceTransferProblem, sweepGuestRequests, sweepCancellationRequests,
+  isPaymentNews, sweepPayments, methodLabel, announceTransferProblem, sweepGuestRequests, sweepCancellationRequests,
   sweepWiderrufe, sweepAccountSignups, likelyTypo, sweepSignatureApplications, sweepReviews,
 } from "@/lib/email/team-alerts-guests";
 import { sweepHwOrders, sweepHwReturns, sweepHwEnquiries } from "@/lib/email/team-alerts-hardware";
 import { guestRequestNote, guestRequestsIn } from "@/lib/guest-request";
 import { renderTemplate } from "@/lib/email/templates";
 import { DEFAULT_BODIES, DEFAULT_SUBJECTS } from "@/lib/email/default-bodies";
+import { TEAM_CANCELLATION_REMINDER } from "@/lib/cancellation-policy";
 import { POST as cancelTrip } from "@/app/api/portal/bookings/[id]/cancel/route";
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
@@ -75,6 +76,15 @@ describe("booking_created: which rows are a new booking", () => {
     expect(isBookingNews({ status: "lead", contacts: { name: "Test booking" } })).toBe(false);
   });
 
+  it("matches 'test booking' as whole words only, so 'latest booking' is still news", () => {
+    // Review, 28 Sep 2026: /test booking/ without word boundaries skipped a
+    // real booking whose note said "moved from his latest booking".
+    expect(isBookingNews({ status: "lead", notes: "moved from his latest booking" })).toBe(true);
+    expect(isBookingNews({ status: "lead", name: "Contest booking prize" })).toBe(true);
+    expect(isBookingNews({ status: "lead", contacts: { name: "Greatest Booking" } })).toBe(true);
+    expect(isBookingNews({ status: "lead", notes: "TEST booking, ignore" })).toBe(false);
+  });
+
   const booking = (over: Row): Row => ({
     id: "b1", created_at: IN, status: "lead", name: "Lena Ott", agreed_price: 2390, covered_by_booking_id: null,
     package_id: "p1", invite_id: null, notes: "Website registration · package: No Hotel",
@@ -100,8 +110,37 @@ describe("booking_created: which rows are a new booking", () => {
       contacts: [{ id: "c-paul", name: "Paul Weber", email: "paul@example.com" }],
     });
     await sweepNewBookings({ since: SINCE });
-    expect(state.sent[0].vars.inviteLine).toBe("Came through Paul Weber's invite, so a friend reward is now due.");
+    // A fresh lead has paid nothing, so no reward is owed yet (review, 28 Sep 2026).
+    expect(state.sent[0].vars.inviteLine).toBe("Came through Paul Weber's invite. The friend reward becomes due once they pay.");
     expect(state.sent[0].vars.botCheck).toBeUndefined();
+  });
+
+  it("says the friend reward is due only once the booking is secured", async () => {
+    state.db = new FakeSupabase({
+      team_mail_recipients: subscribe("booking_created"),
+      exp_bookings: [booking({ invite_id: "inv1", status: "confirmed", downpayment_received: true })],
+      trip_invites: [{ id: "inv1", inviter_contact_id: "c-paul" }],
+      contacts: [{ id: "c-paul", name: "Paul Weber", email: "paul@example.com" }],
+    });
+    await sweepNewBookings({ since: SINCE });
+    expect(state.sent[0].vars.inviteLine).toBe("Came through Paul Weber's invite, so a friend reward is now due.");
+  });
+
+  it("the invite line follows the money, and an info request earns nothing", () => {
+    const due = "Came through Paul's invite, so a friend reward is now due.";
+    const later = "Came through Paul's invite. The friend reward becomes due once they pay.";
+    expect(inviteRewardLine("Paul", { status: "lead" })).toBe(later);
+    expect(inviteRewardLine("Paul", { status: "reserved" })).toBe(later);
+    expect(inviteRewardLine("Paul", { status: "lead", deposit_received: true })).toBe(due);
+    expect(inviteRewardLine("Paul", { status: "lead", downpayment_received: true })).toBe(due);
+    expect(inviteRewardLine("Paul", { status: "confirmed" })).toBe(due);
+    expect(inviteRewardLine("Paul", { status: "paid" })).toBe(due);
+    expect(inviteRewardLine("Paul", { status: "downpayment_paid" })).toBe(due); // legacy spelling of confirmed
+    expect(inviteRewardLine("Paul", { status: "lead", notes: "Website registration · package: No Hotel · friend invite (info request)" }))
+      .toBe("Asked for info through Paul's invite. No reward yet.");
+    expect(inviteRewardLine(null, { status: "lead" })).toBe("Came through a friend's invite. The friend reward becomes due once they pay.");
+    // A lost booking is never secured, whatever flags it still carries.
+    expect(isInviteBookingSecured({ status: "lost", downpayment_received: true })).toBe(false);
   });
 
   it("gives a group payer's mail the companions and the group total, and skips the companions", async () => {
@@ -167,7 +206,7 @@ describe("payment_received", () => {
       team_mail_recipients: subscribe("payment_received"),
       exp_payments: [
         pay({}),
-        pay({ id: "pay2", method: "voucher", reference: "NP7-GIFT-1", amount: 200, type: "partial", notes: "Gift voucher" }),
+        pay({ id: "pay2", method: "voucher", reference: "NP7-AAAA-BBBB", amount: 200, type: "partial", notes: "Gift voucher" }),
         pay({ id: "old", booking_id: "b-other", created_at: BEFORE }),
         pay({ id: "bank", booking_id: "b-other", method: "bank_transfer", reference: "NP7-XP-3" }),
         pay({ id: "ref", booking_id: "b-other", reference: "re_9", type: "refund", amount: -50 }),
@@ -181,13 +220,53 @@ describe("payment_received", () => {
       "team:payment_received:pay2:experience@np-seven.com",
     ]);
     expect(state.sent[0].vars).toMatchObject({ amount: "€1,195", method: "Bank transfer through Stripe", paymentKind: "Down-payment", guestName: "Lena Ott" });
-    expect(state.sent[2].vars.method).toBe("Gift voucher NP7-GIFT-1");
+    // Masked: a voucher with value left can still be spent (review, 28 Sep 2026).
+    expect(state.sent[2].vars.method).toBe("Gift voucher …BBBB");
+    expect(JSON.stringify(state.sent.map((x) => x.vars))).not.toContain("NP7-AAAA-BBBB");
     // Paid so far comes from the ledger: every received row on the booking.
     expect(state.sent[0].vars.paidSoFar).toBe("€1,395 of €2,390");
     expect(state.sent.every((s) => s.to.endsWith("@np-seven.com"))).toBe(true);
 
     await sweepPayments({ since: SINCE });
     expect(state.sent).toHaveLength(4);
+  });
+
+  it("masks a gift voucher code to its last four", () => {
+    expect(methodLabel({ method: "voucher", reference: "NP7-K3QZ-7XWP" })).toBe("Gift voucher …7XWP");
+    expect(methodLabel({ method: "voucher", reference: null })).toBe("Gift voucher");
+  });
+
+  it("measures a group payer's payments against the whole group, not their own seat", async () => {
+    // Review, 28 Sep 2026: the payer's payments carry the group, and
+    // "€4,200 of €2,390" read like an overpayment.
+    state.db = new FakeSupabase({
+      team_mail_recipients: subscribe("payment_received").filter((r) => String(r.email).startsWith("simona")),
+      exp_payments: [{
+        id: "pay1", booking_id: "b1", amount: 4200, type: "downpayment", method: "stripe", reference: "pi_abc",
+        notes: "Stripe card", direction: "revenue", status: "paid", created_at: IN,
+        exp_bookings: { id: "b1", agreed_price: 2390, contacts: { name: "Lena Ott", email: "lena@example.com" }, ...trip },
+      }],
+      exp_bookings: [
+        { id: "b2", covered_by_booking_id: "b1", agreed_price: 2000, contacts: { name: "Anna Berg" } },
+        { id: "b3", covered_by_booking_id: "b1", agreed_price: 1800, contacts: { name: "Tom Berg" } },
+      ],
+      exp_booking_addons: [],
+    });
+    await sweepPayments({ since: SINCE });
+    expect(state.sent[0].vars.paidSoFar).toBe("€4,200 of €6,190");
+  });
+
+  it("leaves the 'of' out when the booking has no price", async () => {
+    state.db = new FakeSupabase({
+      team_mail_recipients: subscribe("payment_received").filter((r) => String(r.email).startsWith("simona")),
+      exp_payments: [{
+        id: "pay1", booking_id: "b1", amount: 700, type: "downpayment", method: "stripe", reference: "pi_abc",
+        direction: "revenue", status: "paid", created_at: IN,
+        exp_bookings: { id: "b1", agreed_price: null, contacts: { name: "Lena Ott" }, ...trip },
+      }],
+    });
+    await sweepPayments({ since: SINCE });
+    expect(state.sent[0].vars.paidSoFar).toBe("€700");
   });
 });
 
@@ -278,6 +357,34 @@ describe("guest_request", () => {
     ]);
     expect(new Set(state.sent.map((s) => s.dedupeKey)).size).toBe(4);
   });
+
+  it("keeps the same key when staff add a plain line under the request", () => {
+    // Review, 28 Sep 2026: the message runs to the next stamped line, so a
+    // note typed under it changed a key built from the message text, and the
+    // request was mailed again.
+    const notes = guestRequestNote({ at: new Date(IN), from: "Lena Ott", message: "Can I land a day later?" });
+    const [before] = guestRequestsIn(notes, SINCE);
+    const [after] = guestRequestsIn(`${notes}\nCalled her back, flights sorted (Simona)`, SINCE);
+    expect(after.key).toBe(before.key);
+    // Two requests in the same minute are still two keys.
+    const second = guestRequestNote({ at: new Date(IN), from: "Lena Ott", message: "And a vegan option" });
+    const two = guestRequestsIn(`${notes}\n${second}`, SINCE);
+    expect(two[0].key).toBe(before.key);
+    expect(two[1].key).not.toBe(before.key);
+  });
+
+  it("does not mail a request again after staff edit the notes", async () => {
+    const notes = guestRequestNote({ at: new Date(IN), from: "Lena Ott", message: "Can I land a day later?" });
+    state.db = new FakeSupabase({
+      team_mail_recipients: subscribe("guest_request"),
+      exp_bookings: [{ id: "b1", updated_at: IN, notes, contacts: { name: "Lena Ott", email: "lena@example.com" }, ...trip }],
+    });
+    await sweepGuestRequests({ since: SINCE });
+    expect(state.sent).toHaveLength(2);
+    Object.assign(state.db.rows("exp_bookings")[0], { notes: `${notes}\nCalled her back`, updated_at: "2026-09-28T10:00:00.000Z" });
+    await sweepGuestRequests({ since: SINCE });
+    expect(state.sent).toHaveLength(2);
+  });
 });
 
 // ─── cancellation_requested ──────────────────────────────────────────────────
@@ -318,6 +425,27 @@ describe("cancellation_requested", () => {
     expect(state.sent.map((s) => s.bookingId)).toEqual(["b1", "b1"]);
     expect(state.sent[0].vars).toMatchObject({ paidSoFar: "€1,195", bookingStatus: "confirmed" });
     expect(state.sent[0].dedupeKey).toBe(`team:cancellation_requested:b1:${IN}:simona@np-seven.com`);
+  });
+
+  it("reminds staff of the real refund rule, in the coded mail and the editable default", () => {
+    // Review, 28 Sep 2026: it said passing the place on "costs them nothing"
+    // (§ 651e allows the real extra costs) and left out the full-balance and
+    // § 651h(3) rules. It now follows cancellation-policy.ts.
+    const vars = { guestName: "Lena Ott", experienceTitle: "Bonaire", adminLink: "https://x/admin" };
+    const coded = renderTemplate("team_cancellation_requested", vars).html;
+    const edited = renderTemplate("team_cancellation_requested", vars, {
+      subject_line: DEFAULT_SUBJECTS.team_cancellation_requested,
+      body: DEFAULT_BODIES.team_cancellation_requested,
+    }).html;
+    for (const html of [coded, edited]) {
+      expect(html).not.toMatch(/costs? them nothing/i);
+      expect(html).toContain("a deposit is refundable while its refund window is open");
+      expect(html).toContain("The down-payment is the cancellation fee from the moment it lands");
+      expect(html).toContain("once the full balance is paid, that is the fee");
+      expect(html).toContain("(§ 651e) is usually cheaper for them: they pay only the real extra costs");
+      expect(html).toContain("(§ 651h(3)) mean a full refund");
+    }
+    expect(DEFAULT_BODIES.team_cancellation_requested).toContain(TEAM_CANCELLATION_REMINDER);
   });
 });
 
@@ -530,13 +658,16 @@ describe("wiring", () => {
     }
   });
 
-  it("the cron runs every sweep", () => {
+  it("the cron runs every sweep, one after another", () => {
+    // The order and the no-overlap rule are pinned by running the route in
+    // team-alerts-cron.test.ts; this only checks nothing was dropped.
     const cron = read("src/app/api/cron/team-alerts/route.ts");
     for (const fn of [
       "sweepNewBookings", "sweepAddonRequests", "sweepInterestSignups", "sweepPayments", "sweepGuestRequests",
       "sweepCancellationRequests", "sweepWiderrufe", "sweepAccountSignups", "sweepSignatureApplications",
       "sweepReviews", "sweepHwOrders", "sweepHwReturns", "sweepHwEnquiries",
-    ]) expect(cron).toContain(`safe(${fn}(`);
+    ]) expect(cron).toContain(`() => ${fn}(`);
+    expect(cron).not.toContain("Promise.all(");
   });
 
   it("migration 264 seeds Simona and experience@ for events 1 to 8 and nobody for hardware", () => {

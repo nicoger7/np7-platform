@@ -65,6 +65,25 @@ export function defaultCancellationPolicy(terms: CancelTerms): string {
 }
 
 /**
+ * The reminder in the team's "a guest asked to cancel" mail (the coded
+ * template and its editable default body both print this one string, so the
+ * two cannot drift apart).
+ *
+ * The first version told staff that passing the place on "costs them nothing"
+ * (review, 28 Sep 2026). It does not: § 651e lets us charge the real extra
+ * costs of the change, which is why the guest-facing policy above only says it
+ * is usually cheaper. It also left out the two rules that decide the most
+ * money: once the full balance is paid, that is the fee, and extraordinary
+ * circumstances at the destination (§ 651h(3)) mean everything comes back.
+ * Staff answer the guest from this mail, so it says what the policy says.
+ */
+export const TEAM_CANCELLATION_REMINDER =
+  "Before you answer: a deposit is refundable while its refund window is open. " +
+  "The down-payment is the cancellation fee from the moment it lands, and once the full balance is paid, that is the fee. " +
+  "Passing the place to someone else (§ 651e) is usually cheaper for them: they pay only the real extra costs. " +
+  "Extraordinary circumstances at the destination (§ 651h(3)) mean a full refund.";
+
+/**
  * The short reassurance under a "secure your spot" button.
  *
  * With no deposit the honest promise is not that the money comes back, it is

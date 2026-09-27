@@ -95,8 +95,8 @@ describe("packageSaleIssue", () => {
 
 describe("what an invite unlocks", () => {
   const invite = { package_id: "pkg-turkish-locals", experience_id: TURKEY, edition_id: WEEK, status: "sent", inviter_booking_id: "bk-nico" };
-  /** The inviter's own booking, live and on the package the invite passes on. */
-  const seat = { id: "bk-nico", status: "confirmed", package_id: "pkg-turkish-locals" };
+  /** The inviter's own booking, live and on the package and week the invite passes on. */
+  const seat = { id: "bk-nico", status: "confirmed", package_id: "pkg-turkish-locals", edition_id: WEEK };
 
   it("its own package, as a set, while the invite is live", () => {
     for (const status of ["sent", "opened", "booked"]) {
@@ -157,10 +157,26 @@ describe("what an invite unlocks", () => {
     expect(inviterStillHolds(invite, noPackage)).toBe(false);
     expect(inviterStillHolds(invite, seat)).toBe(true);
   });
+
+  it("inviter moved to another week unlocks nothing", () => {
+    // Review, 28 Sep 2026: a private package with no week of its own (the
+    // Turkish Locals rate is shared across weeks) stays on the booking when
+    // the team moves the inviter to another week. The invite is a copy of
+    // their seat, so it follows the seat, not the week it was made on.
+    const moved = { ...seat, edition_id: "ed-week-3" };
+    expect(inviterStillHolds(invite, moved)).toBe(false);
+    expect(inviteUnlocks(invite, moved, SCOPE).size).toBe(0);
+    // A booking read without its week cannot vouch for one.
+    const { edition_id: _e, ...noWeek } = seat;
+    void _e;
+    expect(inviterStillHolds(invite, noWeek)).toBe(false);
+    // An invite that names no week does not look at the booking's week.
+    expect(inviterStillHolds({ ...invite, edition_id: null }, moved)).toBe(true);
+  });
 });
 
 describe("invitePackageUnlock reads trip_invites by token, then the inviter's booking", () => {
-  const db = (booking: Record<string, unknown> | null = { id: "bk-nico", status: "paid", package_id: "pkg-turkish-locals", contact_id: "c-nico" }) => new FakeSupabase({
+  const db = (booking: Record<string, unknown> | null = { id: "bk-nico", status: "paid", package_id: "pkg-turkish-locals", edition_id: WEEK, contact_id: "c-nico" }) => new FakeSupabase({
     trip_invites: [{ token: "nico-3f9a2b", package_id: "pkg-turkish-locals", experience_id: TURKEY, edition_id: WEEK, status: "opened", inviter_booking_id: "bk-nico" }],
     exp_bookings: booking ? [booking] : [],
   });
@@ -183,7 +199,12 @@ describe("invitePackageUnlock reads trip_invites by token, then the inviter's bo
   it("returns an empty set when the inviter's booking was deleted, cancelled or moved", async () => {
     expect((await invitePackageUnlock(db(null), "nico-3f9a2b", SCOPE)).size, "deleted").toBe(0);
     expect((await invitePackageUnlock(db({ id: "bk-nico", status: "lost", package_id: "pkg-turkish-locals" }), "nico-3f9a2b", SCOPE)).size, "lost").toBe(0);
-    expect((await invitePackageUnlock(db({ id: "bk-nico", status: "paid", package_id: "pkg-standard" }), "nico-3f9a2b", SCOPE)).size, "moved").toBe(0);
+    expect((await invitePackageUnlock(db({ id: "bk-nico", status: "paid", package_id: "pkg-standard", edition_id: WEEK }), "nico-3f9a2b", SCOPE)).size, "moved").toBe(0);
+  });
+
+  it("inviter moved to another week unlocks nothing, on the same shared private package", async () => {
+    const movedWeek = db({ id: "bk-nico", status: "paid", package_id: "pkg-turkish-locals", edition_id: "ed-week-3" });
+    expect((await invitePackageUnlock(movedWeek, "nico-3f9a2b", SCOPE)).size).toBe(0);
   });
 
   it("returns an empty set when the booking read fails", async () => {
@@ -214,6 +235,8 @@ describe("invitePackageUnlock reads trip_invites by token, then the inviter's bo
     expect(asked.exp_bookings[0]).not.toMatch(/archived_at/);
     expect(asked.exp_bookings[0]).toMatch(/status/);
     expect(asked.exp_bookings[0]).toMatch(/package_id/);
+    // The week rule needs the booking's week (review, 28 Sep 2026).
+    expect(asked.exp_bookings[0]).toMatch(/edition_id/);
     expect(asked.trip_invites[0]).toMatch(/inviter_booking_id/);
   });
 });

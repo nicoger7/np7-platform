@@ -1,5 +1,6 @@
 import { emailLayout, emailButton, emailPill, esc, type Division } from "./layout";
 import { VOUCHER_HOW_TO_REDEEM } from "@/lib/vouchers";
+import { TEAM_CANCELLATION_REMINDER } from "@/lib/cancellation-policy";
 
 export type EmailVars = {
   firstName?: string;
@@ -476,7 +477,10 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
           v.askedAt ? `Asked: ${v.askedAt}` : "",
           v.guestEmail ? `Email: ${v.guestEmail}` : "",
         ].filter(Boolean).join("\n")) +
-        p(`Before you answer: a deposit can be refunded while its refund window is open. The down-payment is the cancellation fee from the moment it lands. Passing the place to someone else costs them nothing.`) +
+        // The policy line lives in cancellation-policy.ts, shared with the
+        // default body (review, 28 Sep 2026: it said passing the place on to
+        // someone else costs nothing, which § 651e does not promise).
+        p(esc(TEAM_CANCELLATION_REMINDER)) +
         (v.adminLink ? emailButton("Open the booking", String(v.adminLink)) : "") +
         p(`You are getting this because you are on the team list for cancellation requests. Change who gets it in Admin → Emails → Team.`),
     }),

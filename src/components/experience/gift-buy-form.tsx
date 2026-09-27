@@ -7,6 +7,7 @@ import {
   GIFT_ANY_TRIP,
   giftChoice,
   giftFromPrice,
+  giftLevelHint,
   giftLevelLabel,
   giftPackagesFor,
   giftValueLine,
@@ -164,12 +165,17 @@ export function GiftBuyForm({ trips }: { trips: GiftTrip[] }) {
             account and the reference, so the buyer can close this page. The
             line says so only when there ARE bank details and the mail went
             out (review, 27 Sep 2026): with no IBAN in company settings the
-            screen and the mail both lack them, and the mail asks for a reply. */}
+            screen and the mail both lack them, and the mail asks for a reply.
+            With no IBAN AND no mail, nothing will reach the buyer on its own,
+            so the line asks them to write to us instead of promising an email
+            nobody sends (review, 28 Sep 2026). */}
         {done.pay ? (
           done.emailed !== false && <p className="text-[13px] text-[#8a9aa0] text-center mt-4">We&apos;ve also emailed you these details.</p>
         ) : (
           <p className="text-[13px] text-[#8a9aa0] text-center mt-4">
-            {done.emailed ? "We've emailed you your order. Reply to it and we'll send you our bank details." : "We'll email you our bank details."}
+            {done.emailed ? "We've emailed you your order. Reply to it and we'll send you our bank details." : (
+              <>Email <a href="mailto:experience@np-seven.com" className="underline">experience@np-seven.com</a> with reference {done.code} and we&apos;ll send you our bank details.</>
+            )}
           </p>
         )}
         <p className="text-[12px] text-[#9aa6ac] text-center mt-2">Please use reference <strong>{done.code}</strong> so we can match your payment.</p>
@@ -222,7 +228,8 @@ export function GiftBuyForm({ trips }: { trips: GiftTrip[] }) {
       {/* 3 · Which level (only when the week sells both) */}
       {week && askLevel && (
         <section aria-label="Which level" className="border-t border-[#f3ede2] pt-5">
-          <StepHead n={next()} title="Which level?" hint={weeks.length === 1 ? week.dates : "Beginner and Advanced ride in separate coaching groups."} />
+          {/* The hint names the groups this week really sells (review, 28 Sep 2026). */}
+          <StepHead n={next()} title="Which level?" hint={weeks.length === 1 ? week.dates : giftLevelHint(week.levels) || undefined} />
           <div className="grid grid-cols-2 gap-2">
             {week.levels.map((l) => {
               const on = level === l;

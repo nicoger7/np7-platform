@@ -49,6 +49,8 @@ beforeEach(() => {
     exp_experiences: [
       { id: "ex1", title: "NP7 Experience Bonaire", currency: "EUR", status: "published" },
       { id: "ex2", title: "NP7 Experience Alaçatı", currency: "EUR", status: "published" },
+      { id: "ex-clinic", title: "NP7 Coaching Clinics USA", currency: "EUR", status: "published", page_template: "event", website_visible: true },
+      { id: "ex-hidden", title: "NP7 Signature Maui", currency: "EUR", status: "published", page_template: "full", website_visible: false },
     ],
     exp_packages: [
       pkg({}),
@@ -62,6 +64,8 @@ beforeEach(() => {
       pkg({ id: "p-event-week", edition_id: "ed-event" }),
       pkg({ id: "p-lost-week", edition_id: "ed-gone" }),
       pkg({ id: "p-no-week", edition_id: null, price: 1450 }),
+      pkg({ id: "p-early-week", edition_id: "ed-early", price: 2490 }),
+      pkg({ id: "p-opened-week", edition_id: "ed-opened", price: 2590 }),
     ],
     exp_editions: [
       { id: "ed1", status: "published", kind: "trip", date_start: "2099-11-30", date_end: "2099-12-06", archived_at: null },
@@ -69,6 +73,9 @@ beforeEach(() => {
       { id: "ed-draft", status: "draft", kind: "trip", date_start: "2099-11-30", date_end: "2099-12-06", archived_at: null },
       { id: "ed-archived", status: "published", kind: "trip", date_start: "2099-11-30", date_end: "2099-12-06", archived_at: "2026-09-01T00:00:00Z" },
       { id: "ed-event", status: "published", kind: "event", date_start: "2099-10-10", date_end: "2099-10-11", archived_at: null },
+      // Early access (migration 170): public only from public_from on.
+      { id: "ed-early", status: "published", kind: "trip", date_start: "2099-11-30", date_end: "2099-12-06", archived_at: null, public_from: "2099-01-01" },
+      { id: "ed-opened", status: "published", kind: "trip", date_start: "2099-11-30", date_end: "2099-12-06", archived_at: null, public_from: "2020-01-01" },
     ],
     company_settings: [{ division: "experience", iban: "DE00 1234", bic: "QNTODEB2", bank_name: "Qonto", legal_name: "NP7 GmbH", currency: "EUR" }],
     contacts: [],
@@ -100,6 +107,8 @@ describe("which packages can be gifted", () => {
     ["on an archived week", "p-archived-week", 404],
     ["on an event week", "p-event-week", 404],
     ["on a week that no longer exists", "p-lost-week", 404],
+    // Review, 28 Sep 2026: the Crew/Legend head start is not for sale as a gift.
+    ["on an early-access week (public_from still ahead)", "p-early-week", 404],
   ])("a %s package: no voucher is created", async (_label, packageId, status) => {
     const r = await order({ experienceId: "ex1", packageId });
     expect(r.status).toBe(status);
@@ -123,6 +132,62 @@ describe("which packages can be gifted", () => {
     const hidden = await order({ experienceId: "ex1", packageId: "p-hidden" });
     const missing = await order({ experienceId: "ex1", packageId: "p-nope" });
     expect(hidden.body.error).toBe(missing.body.error);
+  });
+
+  it("a week whose public_from has passed is open to everyone, so it can be gifted", async () => {
+    const r = await order({ experienceId: "ex1", packageId: "p-opened-week" });
+    expect(r.status).toBe(200);
+    expect(state.db.rows("gift_vouchers")[0]).toMatchObject({ amount: 2590, package_id: "p-opened-week" });
+  });
+
+  it("reads the week's public_from, or the early-access rule never sees it", async () => {
+    // The fake does not model column projection, so the select is recorded.
+    const inner = state.db;
+    const asked: string[] = [];
+    state.db = {
+      rows: (t: string) => inner.rows(t),
+      from(table: string) {
+        const q = inner.from(table);
+        if (table === "exp_editions") {
+          const select = q.select.bind(q) as (cols?: string) => typeof q;
+          (q as unknown as { select: (cols?: string) => typeof q }).select = (cols?: string) => {
+            asked.push(String(cols ?? ""));
+            return select(cols);
+          };
+        }
+        return q;
+      },
+    } as unknown as FakeSupabase;
+    await order({ experienceId: "ex1", packageId: "p1" });
+    expect(asked[0]).toMatch(/public_from/);
+  });
+});
+
+describe("which trips a value voucher can name", () => {
+  // Review, 28 Sep 2026: the route checked `published` only, so a hand-made
+  // POST could order a value voucher for a clinic (card checkout, no voucher
+  // field) or an off-website trip. The gift chooser offers neither.
+  it.each([
+    ["an event-template experience (a clinic)", "ex-clinic"],
+    ["an experience that is off the website", "ex-hidden"],
+    ["an unknown experience", "ex-nope"],
+  ])("%s: 404, no voucher", async (_label, experienceId) => {
+    const r = await order({ experienceId, amount: 600 });
+    expect(r.status).toBe(404);
+    expect(state.db.rows("gift_vouchers")).toHaveLength(0);
+    expect(state.orders).toHaveLength(0);
+  });
+
+  it("the hidden trip gets the same answer as a missing one", async () => {
+    const hidden = await order({ experienceId: "ex-hidden", amount: 600 });
+    const missing = await order({ experienceId: "ex-nope", amount: 600 });
+    expect(hidden.body.error).toBe(missing.body.error);
+  });
+
+  it("a normal trip still takes a value voucher", async () => {
+    const r = await order({ experienceId: "ex1", amount: 600 });
+    expect(r.status).toBe(200);
+    expect(state.db.rows("gift_vouchers")[0]).toMatchObject({ amount: 600, experience_id: "ex1", package_id: null });
   });
 });
 

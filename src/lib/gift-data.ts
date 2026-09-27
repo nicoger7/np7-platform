@@ -24,7 +24,9 @@ export async function loadGiftData(): Promise<{ trips: GiftTrip[]; heroes: strin
 
   const [{ data: edRows }, { data: pkgRows }] = ids.length
     ? await Promise.all([
-        sb.from("exp_editions").select("id, experience_id, label, status, kind, date_start, date_end, archived_at").in("experience_id", ids),
+        // public_from: an early-access week stays off the gift page until it
+        // opens to everyone (migration 170; review, 28 Sep 2026).
+        sb.from("exp_editions").select("id, experience_id, label, status, kind, date_start, date_end, archived_at, public_from").in("experience_id", ids),
         sb.from("exp_packages").select("id, name, price, category, hotel_id, experience_id, edition_id, sort_order, status, website_visible, archived_at").in("experience_id", ids).order("sort_order"),
       ])
     : [{ data: [] }, { data: [] }];
