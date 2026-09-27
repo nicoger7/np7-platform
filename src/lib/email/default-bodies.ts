@@ -54,6 +54,17 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   guide_ready: "Your training guide · {{experienceTitle}} 🤙",
   skills_verified: "Your coach signed off new skills 🤙",
   team_booking_created: "New booking · {{guestName}} · {{experienceTitle}}",
+  team_payment_received: "Payment in · {{guestName}} · {{amount}}",
+  team_transfer_failed: "{{problemTitle}} · {{guestName}} · {{experienceTitle}}",
+  team_guest_request: "Guest request · {{guestName}} · {{experienceTitle}}",
+  team_cancellation_requested: "Cancellation request · {{guestName}} · {{experienceTitle}}",
+  team_widerruf_received: "Withdrawal (Widerruf) · {{guestName}} · {{contractRef}}",
+  team_account_signup: "New account · {{guestName}}",
+  team_signature_application: "Signature application · {{guestName}}",
+  team_review_submitted: "New review · {{guestName}}{{?experienceTitle}} · {{experienceTitle}}{{/experienceTitle}}",
+  team_hw_order_placed: "Shop order #{{orderNumber}} · {{guestName}} · {{total}}",
+  team_hw_return_requested: "Return request · order #{{orderNumber}} · {{guestName}}",
+  team_hw_enquiry: "Product enquiry · {{guestName}} · {{productName}}",
   team_addon_requested: "Add-on request · {{guestName}} · {{addonLabel}}",
   team_interest_signup: "Waiting list · {{guestName}} · {{experienceTitle}}",
   team_voucher_ordered: "Voucher ordered · {{guestName}} · {{amount}}",
@@ -430,9 +441,94 @@ export const DEFAULT_BODIES: Record<string, string> = {
 
   team_booking_created:
     P("<strong>{{guestName}}</strong> just booked.") +
-    P("Trip: <strong>{{experienceTitle}}</strong>{{?editionLabel}} · {{editionLabel}}{{/editionLabel}}{{?dates}}<br>Dates: {{dates}}{{/dates}}{{?packageName}}<br>Package: {{packageName}}{{/packageName}}{{?total}}<br>Worth: <strong>{{total}}</strong>{{/total}}{{?bookingStatus}}<br>Status: {{bookingStatus}}{{/bookingStatus}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
+    "{{?botCheck}}" + P('<strong style="color:#c0392b;">⚠ {{botCheck}}</strong>') + "{{/botCheck}}" +
+    P("Trip: <strong>{{experienceTitle}}</strong>{{?editionLabel}} · {{editionLabel}}{{/editionLabel}}{{?dates}}<br>Dates: {{dates}}{{/dates}}{{?packageName}}<br>Package: {{packageName}}{{/packageName}}{{?total}}<br>Worth: <strong>{{total}}</strong>{{/total}}{{?companions}}<br>Also booked for: {{companions}}{{/companions}}{{?groupTotal}}<br>Group total: <strong>{{groupTotal}}</strong>{{/groupTotal}}{{?bookingStatus}}<br>Status: {{bookingStatus}}{{/bookingStatus}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
+    "{{?inviteLine}}" + P("<strong>{{inviteLine}}</strong>") + "{{/inviteLine}}" +
     BTN("Open the booking", "adminLink") +
     P("You are getting this because you are on the team list for new bookings. Change who gets it in Admin → Emails → Team."),
+
+  team_payment_received:
+    P("<strong>{{guestName}}</strong> paid <strong>{{amount}}</strong>.") +
+    P("{{?experienceTitle}}Trip: <strong>{{experienceTitle}}</strong>{{/experienceTitle}}{{?editionLabel}} · {{editionLabel}}{{/editionLabel}}{{?dates}}<br>Dates: {{dates}}{{/dates}}{{?method}}<br>Paid with: {{method}}{{/method}}{{?paymentKind}}<br>For: {{paymentKind}}{{/paymentKind}}{{?paidSoFar}}<br>Paid so far: {{paidSoFar}}{{/paidSoFar}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
+    BTN("Open the booking", "adminLink") +
+    P("The payment is already recorded on the booking. Nothing to do unless something looks wrong.") +
+    P("You are getting this because you are on the team list for payments. Change who gets it in Admin → Emails → Team."),
+
+  team_transfer_failed:
+    P("<strong>{{problemLine}}</strong>") +
+    P("{{?experienceTitle}}Trip: <strong>{{experienceTitle}}</strong>{{/experienceTitle}}{{?editionLabel}} · {{editionLabel}}{{/editionLabel}}{{?dates}}<br>Dates: {{dates}}{{/dates}}{{?asked}}<br>Asked for: {{asked}}{{/asked}}{{?received}}<br>Arrived: {{received}}{{/received}}{{?short}}<br>Still missing: <strong>{{short}}</strong>{{/short}}{{?reason}}<br>Stripe says: {{reason}}{{/reason}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
+    BTN("Open the booking", "adminLink") +
+    P("Get in touch with them before anyone gives the spot away.") +
+    P("You are getting this because you are on the team list for failed payments. Change who gets it in Admin → Emails → Team."),
+
+  team_guest_request:
+    P("<strong>{{guestName}}</strong> sent a request from their trip page. Nobody has answered it yet.") +
+    '<p style="margin:0 0 14px;padding:12px 14px;background:#fffaf0;border-left:4px solid #f0a500;white-space:pre-line;">{{message}}</p>' +
+    P("{{?experienceTitle}}Trip: <strong>{{experienceTitle}}</strong>{{/experienceTitle}}{{?editionLabel}} · {{editionLabel}}{{/editionLabel}}{{?dates}}<br>Dates: {{dates}}{{/dates}}{{?sentAt}}<br>Sent: {{sentAt}}{{/sentAt}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
+    BTN("Open the booking", "adminLink") +
+    P("It is saved in the booking notes. Reply to the guest directly.") +
+    P("You are getting this because you are on the team list for guest requests. Change who gets it in Admin → Emails → Team."),
+
+  team_cancellation_requested:
+    P("<strong>{{guestName}}</strong> asked to cancel their trip. Nothing has been cancelled or refunded yet: that is up to us.") +
+    P("{{?experienceTitle}}Trip: <strong>{{experienceTitle}}</strong>{{/experienceTitle}}{{?editionLabel}} · {{editionLabel}}{{/editionLabel}}{{?dates}}<br>Dates: {{dates}}{{/dates}}{{?bookingStatus}}<br>Status: {{bookingStatus}}{{/bookingStatus}}{{?paidSoFar}}<br>Paid so far: <strong>{{paidSoFar}}</strong>{{/paidSoFar}}{{?askedAt}}<br>Asked: {{askedAt}}{{/askedAt}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
+    P("Before you answer: a deposit can be refunded while its refund window is open. The down-payment is the cancellation fee from the moment it lands. Passing the place to someone else costs them nothing.") +
+    BTN("Open the booking", "adminLink") +
+    P("You are getting this because you are on the team list for cancellation requests. Change who gets it in Admin → Emails → Team."),
+
+  team_widerruf_received:
+    P("<strong>{{guestName}}</strong> sent a withdrawal (Widerruf) through the form on the website. It is a legal declaration, and the clock runs from the moment it arrived.") +
+    P("{{?contractRef}}Booking, order or voucher: <strong>{{contractRef}}</strong>{{/contractRef}}{{?receivedAt}}<br>Received: {{receivedAt}}{{/receivedAt}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}{{?ackLine}}<br>{{ackLine}}{{/ackLine}}") +
+    "{{?note}}" + '<p style="margin:0 0 14px;padding:12px 14px;background:#fffaf0;border-left:4px solid #f0a500;white-space:pre-line;">{{note}}</p>' + "{{/note}}" +
+    BTN("Open the withdrawals", "adminLink") +
+    P("Find what it belongs to and deal with it soon. Mark it processed in the admin when it is done.") +
+    P("You are getting this because you are on the team list for withdrawals. Change who gets it in Admin → Emails → Team."),
+
+  team_account_signup:
+    P("<strong>{{guestName}}</strong> made an NP7 account and has not booked anything yet.") +
+    P("{{?guestEmail}}Email: <strong>{{guestEmail}}</strong>{{/guestEmail}}{{?signedUpAt}}<br>Signed up: {{signedUpAt}}{{/signedUpAt}}") +
+    "{{?typoLine}}" + P('<strong style="color:#c0392b;">⚠ {{typoLine}}</strong>') + "{{/typoLine}}" +
+    BTN("Open the contact", "adminLink") +
+    P("A warm lead. A short hello from us might be all it takes.") +
+    P("You are getting this because you are on the team list for new accounts. Change who gets it in Admin → Emails → Team."),
+
+  team_signature_application:
+    P("<strong>{{guestName}}</strong> applied for a Signature Trip and confirmed their email. It waits for someone to look at it and decide.") +
+    P("{{?wants}}Wants: <strong>{{wants}}</strong>{{/wants}}{{?level}}<br>Level: {{level}}{{/level}}{{?pitch}}<br>{{pitch}}{{/pitch}}{{?appliedAt}}<br>Applied: {{appliedAt}}{{/appliedAt}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}{{?phone}}<br>Phone: {{phone}}{{/phone}}") +
+    "{{?motivation}}" + '<p style="margin:0 0 14px;padding:12px 14px;background:#fffaf0;border-left:4px solid #f0a500;white-space:pre-line;">{{motivation}}</p>' + "{{/motivation}}" +
+    BTN("Open the applications", "adminLink") +
+    P("You are getting this because you are on the team list for Signature applications. Change who gets it in Admin → Emails → Team."),
+
+  team_review_submitted:
+    P("<strong>{{guestName}}</strong> wrote a review. Nothing shows on the website until someone approves it.") +
+    "{{?editedLine}}" + P("{{editedLine}}") + "{{/editedLine}}" +
+    P("{{?rating}}Rating: <strong>{{rating}}</strong>{{/rating}}{{?experienceTitle}}<br>Trip: {{experienceTitle}}{{/experienceTitle}}{{?editionLabel}} · {{editionLabel}}{{/editionLabel}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
+    "{{?quote}}" + '<p style="margin:0 0 14px;padding:12px 14px;background:#fffaf0;border-left:4px solid #f0a500;white-space:pre-line;">{{quote}}</p>' + "{{/quote}}" +
+    BTN("Approve or hide it", "adminLink") +
+    P("You are getting this because you are on the team list for reviews. Change who gets it in Admin → Emails → Team."),
+
+  team_hw_order_placed:
+    P("A new order in the NP7 Hardware shop from <strong>{{guestName}}</strong>. It waits for the bank transfer before anything ships.") +
+    '<p style="margin:0 0 14px;white-space:pre-line;">{{items}}</p>' +
+    P("{{?total}}Total: <strong>{{total}}</strong>{{/total}}{{?paymentStatus}}<br>Payment: {{paymentStatus}}{{/paymentStatus}}{{?reference}}<br>Reference to look for: <strong>{{reference}}</strong>{{/reference}}{{?shipTo}}<br>Ships to: {{shipTo}}{{/shipTo}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
+    BTN("Open the order", "adminLink") +
+    P("The stock is held for this order until it is paid or cancelled.") +
+    P("You are getting this because you are on the team list for shop orders. Change who gets it in Admin → Emails → Team."),
+
+  team_hw_return_requested:
+    P("<strong>{{guestName}}</strong> asked to send something back. Someone needs to approve it and receive the goods.") +
+    '<p style="margin:0 0 14px;white-space:pre-line;">{{items}}</p>' +
+    P("{{?returnType}}Type: <strong>{{returnType}}</strong>{{/returnType}}{{?orderNumber}}<br>Order: #{{orderNumber}}{{/orderNumber}}{{?declaredAt}}<br>Asked: {{declaredAt}}{{/declaredAt}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
+    "{{?message}}" + '<p style="margin:0 0 14px;padding:12px 14px;background:#fffaf0;border-left:4px solid #f0a500;white-space:pre-line;">{{message}}</p>' + "{{/message}}" +
+    BTN("Open the return", "adminLink") +
+    P("You are getting this because you are on the team list for shop returns. Change who gets it in Admin → Emails → Team."),
+
+  team_hw_enquiry:
+    P("<strong>{{guestName}}</strong> asked about <strong>{{productName}}</strong>. They are waiting for a reply, and nothing has been sent to them.") +
+    "{{?message}}" + '<p style="margin:0 0 14px;padding:12px 14px;background:#fffaf0;border-left:4px solid #f0a500;white-space:pre-line;">{{message}}</p>' + "{{/message}}" +
+    P("{{?guestEmail}}Email: <strong>{{guestEmail}}</strong>{{/guestEmail}}{{?phone}}<br>Phone: {{phone}}{{/phone}}") +
+    BTN("Open the product", "adminLink") +
+    P("You are getting this because you are on the team list for product enquiries. Change who gets it in Admin → Emails → Team."),
 
   skills_verified:
     P("Hey {{firstName}} 🤙") +

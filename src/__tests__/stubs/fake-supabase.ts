@@ -107,11 +107,12 @@ class FakeQuery implements PromiseLike<Result> {
     this.filters.push((r) => r[col] !== val);
     return this;
   }
-  /** Case-insensitive LIKE: `%` is any run, `_` any one character. */
+  /** Case-insensitive LIKE: `%` is any run, `_` any one character. Newlines
+   *  included, as in SQL: a note that runs over several lines still matches. */
   ilike(col: string, pattern: string): this {
     const rx = new RegExp(
       `^${String(pattern).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*").replace(/_/g, ".")}$`,
-      "i",
+      "is",
     );
     this.filters.push((r) => rx.test(String(r[col] ?? "")));
     return this;
@@ -122,6 +123,16 @@ class FakeQuery implements PromiseLike<Result> {
   }
   gt(col: string, val: unknown): this {
     this.filters.push((r) => (cmp(r[col]) as never) > (cmp(val) as never));
+    return this;
+  }
+  /** Range filters, the way a sweep's time window is written. A NULL never
+   *  matches a comparison in SQL, so a row missing the column never does here. */
+  gte(col: string, val: unknown): this {
+    this.filters.push((r) => r[col] != null && (cmp(r[col]) as never) >= (cmp(val) as never));
+    return this;
+  }
+  lte(col: string, val: unknown): this {
+    this.filters.push((r) => r[col] != null && (cmp(r[col]) as never) <= (cmp(val) as never));
     return this;
   }
   /**

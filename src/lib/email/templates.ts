@@ -376,16 +376,245 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       preheader: `${v.guestName ?? "Someone"} just booked ${v.experienceTitle ?? "a trip"}.`,
       bodyHtml:
         p(`<strong>${esc(String(v.guestName ?? "Someone"))}</strong> just booked.`) +
+        /* A flagged sign-up must not look like any other booking: it is the
+           one that should not be invoiced before somebody checks it. */
+        (v.botCheck ? p(`<strong style="color:#c0392b;">⚠ ${esc(String(v.botCheck))}</strong>`) : "") +
         checklist([
           v.experienceTitle ? `Trip: ${v.experienceTitle}${v.editionLabel ? ` · ${v.editionLabel}` : ""}` : "",
           v.dates ? `Dates: ${v.dates}` : "",
           v.packageName ? `Package: ${v.packageName}` : "",
-          v.total ? `Worth: ${v.total}` : "",
+          v.total ? `Worth: ${v.total}${v.groupTotal ? " (their own place)" : ""}` : "",
+          v.companions ? `Also booked for: ${v.companions}` : "",
+          v.groupTotal ? `Group total: ${v.groupTotal}` : "",
           v.bookingStatus ? `Status: ${v.bookingStatus}` : "",
           v.guestEmail ? `Email: ${v.guestEmail}` : "",
         ].filter(Boolean).join("\n")) +
+        (v.inviteLine ? p(`<strong>${esc(String(v.inviteLine))}</strong>`) : "") +
         (v.adminLink ? emailButton("Open the booking", String(v.adminLink)) : "") +
         p(`You are getting this because you are on the team list for new bookings. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
+  /* ---- more internal alerts (28 Sep 2026) --------------------------------
+     Same shape as the three above: the facts first, one button into the admin,
+     one line saying why you got it. Written to the team, never to a guest. */
+  team_payment_received: (v, opts) => ({
+    subject: `Payment in · ${v.guestName ?? "a guest"} · ${v.amount ?? ""}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `${v.guestName ?? "A guest"} paid ${v.amount ?? ""}${v.experienceTitle ? ` for ${v.experienceTitle}` : ""}.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "A guest"))}</strong> paid <strong>${esc(String(v.amount ?? ""))}</strong>.`) +
+        checklist([
+          v.experienceTitle ? `Trip: ${v.experienceTitle}${v.editionLabel ? ` · ${v.editionLabel}` : ""}` : "",
+          v.dates ? `Dates: ${v.dates}` : "",
+          v.method ? `Paid with: ${v.method}` : "",
+          v.paymentKind ? `For: ${v.paymentKind}` : "",
+          v.paidSoFar ? `Paid so far: ${v.paidSoFar}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+        ].filter(Boolean).join("\n")) +
+        (v.adminLink ? emailButton("Open the booking", String(v.adminLink)) : "") +
+        p(`The payment is already recorded on the booking. Nothing to do unless something looks wrong.`) +
+        p(`You are getting this because you are on the team list for payments. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
+  team_transfer_failed: (v, opts) => ({
+    subject: `${v.problemTitle ?? "Payment problem"} · ${v.guestName ?? "a guest"} · ${v.experienceTitle ?? "NP7"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: String(v.problemLine ?? "A payment did not go through."),
+      bodyHtml:
+        p(`<strong>${esc(String(v.problemLine ?? "A payment did not go through."))}</strong>`) +
+        checklist([
+          v.experienceTitle ? `Trip: ${v.experienceTitle}${v.editionLabel ? ` · ${v.editionLabel}` : ""}` : "",
+          v.dates ? `Dates: ${v.dates}` : "",
+          v.asked ? `Asked for: ${v.asked}` : "",
+          v.received ? `Arrived: ${v.received}` : "",
+          v.short ? `Still missing: ${v.short}` : "",
+          v.reason ? `Stripe says: ${v.reason}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+        ].filter(Boolean).join("\n")) +
+        (v.adminLink ? emailButton("Open the booking", String(v.adminLink)) : "") +
+        p(`Get in touch with them before anyone gives the spot away.`) +
+        p(`You are getting this because you are on the team list for failed payments. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
+  team_guest_request: (v, opts) => ({
+    subject: `Guest request · ${v.guestName ?? "a guest"} · ${v.experienceTitle ?? "NP7"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `${v.guestName ?? "A guest"} sent a request from their trip page.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "A guest"))}</strong> sent a request from their trip page. Nobody has answered it yet.`) +
+        note(v.message) +
+        checklist([
+          v.experienceTitle ? `Trip: ${v.experienceTitle}${v.editionLabel ? ` · ${v.editionLabel}` : ""}` : "",
+          v.dates ? `Dates: ${v.dates}` : "",
+          v.sentAt ? `Sent: ${v.sentAt}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+        ].filter(Boolean).join("\n")) +
+        (v.adminLink ? emailButton("Open the booking", String(v.adminLink)) : "") +
+        p(`It is saved in the booking notes. Reply to the guest directly.`) +
+        p(`You are getting this because you are on the team list for guest requests. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
+  team_cancellation_requested: (v, opts) => ({
+    subject: `Cancellation request · ${v.guestName ?? "a guest"} · ${v.experienceTitle ?? "NP7"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `${v.guestName ?? "A guest"} asked to cancel. Nothing is cancelled or refunded yet.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "A guest"))}</strong> asked to cancel their trip. Nothing has been cancelled or refunded yet: that is up to us.`) +
+        checklist([
+          v.experienceTitle ? `Trip: ${v.experienceTitle}${v.editionLabel ? ` · ${v.editionLabel}` : ""}` : "",
+          v.dates ? `Dates: ${v.dates}` : "",
+          v.bookingStatus ? `Status: ${v.bookingStatus}` : "",
+          v.paidSoFar ? `Paid so far: ${v.paidSoFar}` : "",
+          v.askedAt ? `Asked: ${v.askedAt}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+        ].filter(Boolean).join("\n")) +
+        p(`Before you answer: a deposit can be refunded while its refund window is open. The down-payment is the cancellation fee from the moment it lands. Passing the place to someone else costs them nothing.`) +
+        (v.adminLink ? emailButton("Open the booking", String(v.adminLink)) : "") +
+        p(`You are getting this because you are on the team list for cancellation requests. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
+  team_widerruf_received: (v, opts) => ({
+    subject: `Withdrawal (Widerruf) · ${v.guestName ?? "someone"} · ${v.contractRef ?? ""}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `${v.guestName ?? "Someone"} sent a withdrawal through the website.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "Someone"))}</strong> sent a withdrawal (Widerruf) through the form on the website. It is a legal declaration, and the clock runs from the moment it arrived.`) +
+        checklist([
+          v.contractRef ? `Booking, order or voucher: ${v.contractRef}` : "",
+          v.receivedAt ? `Received: ${v.receivedAt}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+          v.ackLine ? String(v.ackLine) : "",
+        ].filter(Boolean).join("\n")) +
+        note(v.note) +
+        (v.adminLink ? emailButton("Open the withdrawals", String(v.adminLink)) : "") +
+        p(`Find what it belongs to and deal with it soon. Mark it processed in the admin when it is done.`) +
+        p(`You are getting this because you are on the team list for withdrawals. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
+  team_account_signup: (v, opts) => ({
+    subject: `New account · ${v.guestName ?? "someone"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `${v.guestName ?? "Someone"} made an NP7 account and has not booked yet.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "Someone"))}</strong> made an NP7 account and has not booked anything yet.`) +
+        checklist([
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+          v.signedUpAt ? `Signed up: ${v.signedUpAt}` : "",
+        ].filter(Boolean).join("\n")) +
+        (v.typoLine ? p(`<strong style="color:#c0392b;">⚠ ${esc(String(v.typoLine))}</strong>`) : "") +
+        (v.adminLink ? emailButton("Open the contact", String(v.adminLink)) : "") +
+        p(`A warm lead. A short hello from us might be all it takes.`) +
+        p(`You are getting this because you are on the team list for new accounts. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
+  team_signature_application: (v, opts) => ({
+    subject: `Signature application · ${v.guestName ?? "someone"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `${v.guestName ?? "Someone"} applied for a Signature Trip. It waits for a decision.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "Someone"))}</strong> applied for a Signature Trip and confirmed their email. It waits for someone to look at it and decide.`) +
+        checklist([
+          v.wants ? `Wants: ${v.wants}` : "",
+          v.level ? `Level: ${v.level}` : "",
+          v.pitch ? String(v.pitch) : "",
+          v.appliedAt ? `Applied: ${v.appliedAt}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+          v.phone ? `Phone: ${v.phone}` : "",
+        ].filter(Boolean).join("\n")) +
+        note(v.motivation) +
+        (v.adminLink ? emailButton("Open the applications", String(v.adminLink)) : "") +
+        p(`You are getting this because you are on the team list for Signature applications. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
+  team_review_submitted: (v, opts) => ({
+    subject: `New review · ${v.guestName ?? "a guest"}${v.experienceTitle ? ` · ${v.experienceTitle}` : ""}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `${v.guestName ?? "A guest"} wrote a review. It waits for approval.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "A guest"))}</strong> wrote a review. Nothing shows on the website until someone approves it.`) +
+        (v.editedLine ? p(esc(String(v.editedLine))) : "") +
+        checklist([
+          v.rating ? `Rating: ${v.rating}` : "",
+          v.experienceTitle ? `Trip: ${v.experienceTitle}${v.editionLabel ? ` · ${v.editionLabel}` : ""}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+        ].filter(Boolean).join("\n")) +
+        note(v.quote) +
+        (v.adminLink ? emailButton("Approve or hide it", String(v.adminLink)) : "") +
+        p(`You are getting this because you are on the team list for reviews. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
+  team_hw_order_placed: (v, opts) => ({
+    subject: `Shop order #${v.orderNumber ?? ""} · ${v.guestName ?? "someone"} · ${v.total ?? ""}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `A new shop order, ${v.total ?? ""}. It waits for the bank transfer.`,
+      bodyHtml:
+        p(`A new order in the NP7 Hardware shop from <strong>${esc(String(v.guestName ?? "someone"))}</strong>. It waits for the bank transfer before anything ships.`) +
+        checklist(String(v.items ?? "")) +
+        checklist([
+          v.total ? `Total: ${v.total}` : "",
+          v.paymentStatus ? `Payment: ${v.paymentStatus}` : "",
+          v.reference ? `Reference to look for: ${v.reference}` : "",
+          v.shipTo ? `Ships to: ${v.shipTo}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+        ].filter(Boolean).join("\n")) +
+        (v.adminLink ? emailButton("Open the order", String(v.adminLink)) : "") +
+        p(`The stock is held for this order until it is paid or cancelled.`) +
+        p(`You are getting this because you are on the team list for shop orders. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
+  team_hw_return_requested: (v, opts) => ({
+    subject: `Return request · order #${v.orderNumber ?? ""} · ${v.guestName ?? "a customer"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `A customer wants to send something back from order #${v.orderNumber ?? ""}.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "A customer"))}</strong> asked to send something back. Someone needs to approve it and receive the goods.`) +
+        checklist(String(v.items ?? "")) +
+        checklist([
+          v.returnType ? `Type: ${v.returnType}` : "",
+          v.orderNumber ? `Order: #${v.orderNumber}` : "",
+          v.declaredAt ? `Asked: ${v.declaredAt}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+        ].filter(Boolean).join("\n")) +
+        note(v.message) +
+        (v.adminLink ? emailButton("Open the return", String(v.adminLink)) : "") +
+        p(`You are getting this because you are on the team list for shop returns. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
+  team_hw_enquiry: (v, opts) => ({
+    subject: `Product enquiry · ${v.guestName ?? "someone"} · ${v.productName ?? "a product"}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `${v.guestName ?? "Someone"} asked about ${v.productName ?? "a product"} and waits for a reply.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "Someone"))}</strong> asked about <strong>${esc(String(v.productName ?? "a product"))}</strong>. They are waiting for a reply, and nothing has been sent to them.`) +
+        note(v.message) +
+        checklist([
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+          v.phone ? `Phone: ${v.phone}` : "",
+        ].filter(Boolean).join("\n")) +
+        (v.adminLink ? emailButton("Open the product", String(v.adminLink)) : "") +
+        p(`You are getting this because you are on the team list for product enquiries. Change who gets it in Admin → Emails → Team.`),
     }),
   }),
 

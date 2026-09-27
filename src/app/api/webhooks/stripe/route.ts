@@ -953,6 +953,15 @@ async function onTransferPartlyFunded(pi: Record<string, unknown>): Promise<void
   console.warn(`[webhook] partially_funded ${piId}: ${received} of ${asked} arrived on link ${link.id}, ${short} still short`);
   if (!(short > 0.01)) return;
 
+  // The team hears too: the guest thinks they paid, the spot is not held
+  // (Nico, 28 Sep 2026). Best effort, it catches its own failures.
+  try {
+    const { announceTransferProblem } = await import("@/lib/email/team-alerts-guests");
+    await announceTransferProblem({ kind: "part_funded", linkId: String(link.id), bookingId: String(link.booking_id), receivedCents: Math.round(receivedCents) });
+  } catch (err) {
+    console.warn("[webhook] could not tell the team about the short transfer (non-fatal):", err);
+  }
+
   const bookingId = String(link.booking_id);
   const booking = await guestForBooking(db, bookingId);
   const contact = booking?.contacts;
@@ -1253,6 +1262,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       await db.from("exp_payment_links")
         .update({ status: "failed", note: `Stripe reported the payment failed: ${String(reason).slice(0, 240)}` })
         .eq("id", linkId).not("status", "in", "(paid,part_funded)");
+    }
+    // Until now this reached only the logs. The team is told whatever kind of
+    // payment it was; a link that has since been paid is skipped in there.
+    // Best effort: nothing about it may change what Stripe is answered.
+    if (linkId || bookingId) {
+      try {
+        const { announceTransferProblem } = await import("@/lib/email/team-alerts-guests");
+        await announceTransferProblem({
+          kind: "failed", linkId, bookingId,
+          sessionId: typeof session["id"] === "string" ? (session["id"] as string) : null,
+          reason,
+        });
+      } catch (err) {
+        console.warn("[webhook] could not tell the team about the failed payment (non-fatal):", err);
+      }
     }
     if (bookingId && metadata["kind"] === "trip_transfer") {
       try {

@@ -3,6 +3,9 @@ import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { publicOrigin } from "@/lib/public-origin";
 import { isWeekInterest } from "@/lib/week-interest";
+import { getCoveredBookings } from "@/lib/group-booking";
+import type { EmailVars } from "@/lib/email/templates";
+import type { Division } from "@/lib/email/layout";
 
 /**
  * The mail NP7's own people get.
@@ -43,6 +46,21 @@ export const TEAM_EVENTS = [
     blurb: "One mail per booking, the moment the sweep next runs. Who booked, which week, which package, and what it is worth.",
     templateKey: "team_booking_created",
   },
+  /* The newer sweeps live in team-alerts-guests.ts and team-alerts-hardware.ts;
+     this list stays the one registry (Nico, 28 Sep 2026: the team hears about
+     every sign-up and every order). */
+  {
+    key: "payment_received",
+    title: "A payment comes in",
+    blurb: "A guest paid online (card or bank transfer through Stripe) or used a gift voucher on a booking. Who, which trip, how much, and how. Bank transfers straight to our account are not in this yet.",
+    templateKey: "team_payment_received",
+  },
+  {
+    key: "transfer_failed",
+    title: "A bank transfer fails or falls short",
+    blurb: "Stripe reports a payment that bounced, or a transfer where only part of the money arrived. The guest probably thinks they have paid, and the spot is not held.",
+    templateKey: "team_transfer_failed",
+  },
   {
     key: "addon_requested",
     title: "A guest asks for an add-on",
@@ -50,10 +68,46 @@ export const TEAM_EVENTS = [
     templateKey: "team_addon_requested",
   },
   {
+    key: "guest_request",
+    title: "A guest sends a request",
+    blurb: "A guest wrote to us from their trip page (\"Any other requests?\"): extra nights, other flight dates, food, anything. It is saved in the booking notes and waits for a reply.",
+    templateKey: "team_guest_request",
+  },
+  {
+    key: "cancellation_requested",
+    title: "A guest asks to cancel",
+    blurb: "A guest pressed Cancel this trip. Nothing is cancelled or refunded until we do it, and what they get back depends on what they have paid.",
+    templateKey: "team_cancellation_requested",
+  },
+  {
+    key: "widerruf_received",
+    title: "A withdrawal (Widerruf) comes in",
+    blurb: "Someone used the withdrawal form on the website. It is a legal declaration, and the clock runs from the moment it arrived.",
+    templateKey: "team_widerruf_received",
+  },
+  {
     key: "interest_signup",
     title: "Someone joins a waiting list",
     blurb: "A visitor asked to be told when a week without packages goes on sale. Who, which week, and how many are now waiting for it.",
     templateKey: "team_interest_signup",
+  },
+  {
+    key: "account_signup",
+    title: "Someone makes an account",
+    blurb: "A visitor made an NP7 account and, a quarter of an hour later, has not booked anything. Anyone who books in that time gets the booking mail instead, never both.",
+    templateKey: "team_account_signup",
+  },
+  {
+    key: "signature_application",
+    title: "A Signature Trip application",
+    blurb: "Someone applied for a Signature Trip and confirmed their email address. It waits for someone to look at it and decide.",
+    templateKey: "team_signature_application",
+  },
+  {
+    key: "review_submitted",
+    title: "A guest writes a review",
+    blurb: "A guest wrote or changed a review of their trip. Nothing shows on the website until someone approves it.",
+    templateKey: "team_review_submitted",
   },
   /* Not a sweep: /api/voucher sends it the moment the order lands (see
      sendVoucherOrdered in src/lib/vouchers/notify.ts). A voucher order has one
@@ -64,6 +118,27 @@ export const TEAM_EVENTS = [
     title: "Someone orders a gift voucher",
     blurb: "A gift voucher was ordered on the website and waits for its bank transfer. Who ordered it, how much, the reference to look for, and whether Nico is to call the recipient.",
     templateKey: "team_voucher_ordered",
+  },
+  /* Hardware. The shop is hidden until launch and nobody is on these yet: Nico
+     has not said who gets them (28 Sep 2026). They exist so the alerts are
+     already there the day the shop opens. */
+  {
+    key: "hw_order_placed",
+    title: "Hardware · a shop order",
+    blurb: "Someone ordered in the NP7 Hardware web shop. It waits for the bank transfer, and the stock is held for it until then.",
+    templateKey: "team_hw_order_placed",
+  },
+  {
+    key: "hw_return_requested",
+    title: "Hardware · a return request",
+    blurb: "A customer asked to send something back, as a withdrawal or a warranty claim. Someone has to approve it and receive the goods.",
+    templateKey: "team_hw_return_requested",
+  },
+  {
+    key: "hw_enquiry",
+    title: "Hardware · a product enquiry",
+    blurb: "Someone asked about a product through the form on a product page. They are waiting for a reply, and nothing has been sent to them.",
+    templateKey: "team_hw_enquiry",
   },
 ] as const;
 
@@ -83,10 +158,16 @@ export async function recipientsFor(eventKey: string): Promise<TeamRecipient[]> 
   return (data ?? []) as TeamRecipient[];
 }
 
-const money = (n: number | null | undefined, cur = "EUR") =>
-  n == null ? null : `${cur === "EUR" ? "€" : cur + " "}${Number(n).toLocaleString("en-US")}`;
+/** Whole euros stay whole; anything with cents shows both digits, so a
+ *  €1,399.50 payment never reads as "€1,399.5". */
+export const money = (n: number | string | null | undefined, cur = "EUR") => {
+  if (n == null || n === "" || !Number.isFinite(Number(n))) return null;
+  const v = Number(n);
+  const cents = Math.abs(v - Math.round(v)) > 0.001;
+  return `${cur === "EUR" ? "€" : cur + " "}${v.toLocaleString("en-US", cents ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : undefined)}`;
+};
 
-const fmtRange = (start?: string | null, end?: string | null) => {
+export const fmtRange = (start?: string | null, end?: string | null) => {
   if (!start) return null;
   const s = new Date(start), e = end ? new Date(end) : null;
   const d = (x: Date) => x.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
@@ -94,6 +175,120 @@ const fmtRange = (start?: string | null, end?: string | null) => {
 };
 
 export type SweepResult = { looked: number; announced: number; recipients: number; skipped: string[] };
+
+/** What a sweep with nobody subscribed returns: it did not even look. */
+export const nobody = (): SweepResult => ({ looked: 0, announced: 0, recipients: 0, skipped: ["nobody is subscribed"] });
+
+/**
+ * One alert to everyone on an event's list.
+ *
+ * Always `manual`: this is mail to us, and it must not wait behind the
+ * soft-launch gate that holds guest mail. Always deduped on
+ * `team:<event>:<what>:<address>`, so a sweep can run as often as it likes and
+ * an overlapping run announces nothing twice. Never a guest: `to` only ever
+ * comes from team_mail_recipients.
+ */
+export async function mailTeam(
+  to: TeamRecipient[],
+  m: { event: TeamEventKey; what: string; templateKey: string; vars: EmailVars; bookingId?: string | null; division?: Division },
+  tally: { announced: number; skipped: string[] },
+): Promise<void> {
+  for (const r of to) {
+    const res = await sendEmail({
+      to: r.email,
+      templateKey: m.templateKey,
+      vars: m.vars,
+      manual: true,
+      bookingId: m.bookingId ?? null,
+      ...(m.division ? { division: m.division } : {}),
+      dedupeKey: `team:${m.event}:${m.what}:${r.email.toLowerCase()}`,
+    }).catch((e) => ({ status: "error" as const, error: e instanceof Error ? e.message : String(e) }));
+    if (res.status === "sent") tally.announced++;
+    else if (res.status !== "skipped") tally.skipped.push(`${r.email}: ${res.error ?? "failed"}`);
+  }
+}
+
+/** A person's name for a mail, never blank. */
+export const whoIs = (name?: string | null, email?: string | null, fallback = "Someone") =>
+  String(name ?? "").trim() || String(email ?? "").trim() || fallback;
+
+/**
+ * Is this booking row a booking somebody just made?
+ *
+ * The sweep reads every row that lands in exp_bookings, and not every row is
+ * news. Besides lost rows and companions (always skipped), three kinds would
+ * have been mailed as "X just booked" (Nico, 27 Sep 2026):
+ *  · status attended: a trip that already happened, typed in after the fact;
+ *  · [ARCHIVE] rows: pre-platform trips backfilled for the loyalty ladder (ten
+ *    so far, and the next import would mail every one of them);
+ *  · TEST bookings, by name or by note.
+ * The waiting list is not decided here: it has its own mail and its own check.
+ */
+export function isBookingNews(b: {
+  status?: string | null;
+  covered_by_booking_id?: string | null;
+  name?: string | null;
+  notes?: string | null;
+  contacts?: { name?: string | null } | null;
+}): boolean {
+  const status = String(b.status ?? "").toLowerCase();
+  if (status === "lost" || status === "attended") return false;
+  if (b.covered_by_booking_id) return false;
+  const name = String(b.name ?? "");
+  const notes = String(b.notes ?? "");
+  if (/^\s*\[ARCHIVE\]/i.test(name) || notes.includes("[ARCHIVE]")) return false;
+  if ([name, notes, String(b.contacts?.name ?? "")].some((t) => /test booking/i.test(t))) return false;
+  return true;
+}
+
+/** The register routes write "BOT-CHECK FLAGGED" into the notes when Vercel
+ *  BotID flags a sign-up. It never blocks, so somebody has to look first. */
+export const isBotFlagged = (notes?: string | null) => /bot[- ]check flagged/i.test(String(notes ?? ""));
+
+/**
+ * What the booking mail needs beyond the booking row itself (Nico, 27 Sep 2026):
+ *  · a bot-check warning, because a flagged sign-up otherwise reads like any
+ *    other booking and gets invoiced;
+ *  · who invited them, because a friend booking through an invite means a
+ *    two-sided reward is now owed, and nothing else tells anyone;
+ *  · for a group payer, who else is on the booking and what the whole group
+ *    comes to. "Worth" alone is only the payer's own seat.
+ *
+ * Every lookup is best effort: a failed read leaves its line out, it never
+ * stops the mail. The invite is read on its own, NOT embedded, because
+ * trip_invites has two foreign keys to contacts and two to exp_bookings, and a
+ * short embed across an ambiguous key answers 300 instead of rows.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function bookingExtras(db: any, b: any, currency: string): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  if (isBotFlagged(b.notes)) out.botCheck = "Bot check flagged, verify before invoicing.";
+
+  if (b.invite_id) {
+    try {
+      const { data: inv } = await db.from("trip_invites")
+        .select("id,inviter_contact_id").eq("id", b.invite_id).maybeSingle();
+      let inviter: string | null = null;
+      if (inv?.inviter_contact_id) {
+        const { data: c } = await db.from("contacts").select("name,email").eq("id", inv.inviter_contact_id).maybeSingle();
+        inviter = String(c?.name ?? "").trim() || c?.email || null;
+      }
+      out.inviteLine = inviter
+        ? `Came through ${inviter}'s invite, so a friend reward is now due.`
+        : "Came through a friend's invite, so a friend reward is now due.";
+    } catch { /* leave the line out */ }
+  }
+
+  try {
+    const covered = await getCoveredBookings(db, b.id);
+    if (covered.length) {
+      out.companions = covered.map((c) => c.guestName || "a guest without a name yet").join(", ");
+      const group = (Number(b.agreed_price) || 0) + covered.reduce((s, c) => s + c.total, 0);
+      out.groupTotal = `${money(group, currency)} for ${covered.length + 1} people`;
+    }
+  } catch { /* leave the lines out */ }
+  return out;
+}
 
 /**
  * Announce every booking created since `since` that nobody has been told about.
@@ -112,7 +307,7 @@ export async function sweepNewBookings(opts?: { since?: string; limit?: number }
   const since = opts?.since ?? new Date(Date.now() - 6 * 3600 * 1000).toISOString();
   const { data, error } = await db
     .from("exp_bookings")
-    .select("id,created_at,status,agreed_price,covered_by_booking_id,package_id,notes,contacts(name,email),exp_experiences(title,currency),exp_editions(label,date_start,date_end),exp_packages(name)")
+    .select("id,created_at,status,name,agreed_price,covered_by_booking_id,package_id,invite_id,notes,contacts(name,email),exp_experiences(title,currency),exp_editions(label,date_start,date_end),exp_packages(name)")
     .gte("created_at", since)
     .order("created_at", { ascending: true })
     .limit(opts?.limit ?? 50);
@@ -125,13 +320,15 @@ export async function sweepNewBookings(opts?: { since?: string; limit?: number }
   const skipped: string[] = [];
 
   for (const b of rows) {
-    // A lost booking, or a companion somebody else is paying for, is not a new
-    // booking arriving. The payer's own mail already names the whole group.
-    if (String(b.status ?? "").toLowerCase() === "lost" || b.covered_by_booking_id) continue;
+    // A lost booking, a companion somebody else is paying for (the payer's own
+    // mail names the whole group), a trip that already happened, an archive
+    // backfill or a test is not a new booking arriving.
+    if (!isBookingNews(b)) continue;
     // A waiting-list sign-up is a lead row too, but nobody booked anything:
     // it has its own mail, to its own list (sweepInterestSignups below).
     if (isWeekInterest(b)) continue;
 
+    const currency = b.exp_experiences?.currency ?? "EUR";
     const vars = {
       guestName: String(b.contacts?.name ?? "").trim() || b.contacts?.email || "Someone",
       guestEmail: b.contacts?.email ?? "",
@@ -139,9 +336,10 @@ export async function sweepNewBookings(opts?: { since?: string; limit?: number }
       editionLabel: b.exp_editions?.label ?? "",
       dates: fmtRange(b.exp_editions?.date_start, b.exp_editions?.date_end) ?? "",
       packageName: b.exp_packages?.name ?? "",
-      total: money(b.agreed_price, b.exp_experiences?.currency) ?? "",
+      total: money(b.agreed_price, currency) ?? "",
       bookingStatus: String(b.status ?? "lead"),
       adminLink: `${origin}/admin/bookings/${b.id}`,
+      ...(await bookingExtras(db, b, currency)),
     };
 
     for (const r of to) {

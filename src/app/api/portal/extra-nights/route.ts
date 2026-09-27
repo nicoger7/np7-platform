@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePortalApi } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
+import { guestRequestNote } from "@/lib/guest-request";
 
 // POST { bookingId, message } — member requests extra hotel nights / different
 // flight dates. Recorded on the booking for the team to action from admin.
@@ -18,8 +19,9 @@ export async function POST(request: NextRequest) {
     .eq("id", bookingId).eq("contact_id", auth.user.contactId).maybeSingle();
   if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 });
 
-  const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
-  const note = `[${stamp}] EXTRA-NIGHTS / FLIGHT REQUEST from ${auth.user.name}: ${String(message ?? "").slice(0, 500) || "(member requested extra nights / different flight dates)"}`;
+  // The line comes from lib/guest-request so the team-alert sweep that reads it
+  // back can never disagree with how it was written (Nico, 28 Sep 2026).
+  const note = guestRequestNote({ from: auth.user.name, message: String(message ?? "") });
   const notes = booking.notes ? `${booking.notes}\n${note}` : note;
 
   const { error } = await db.from("exp_bookings").update({ notes, updated_at: new Date().toISOString() }).eq("id", bookingId);
