@@ -20,6 +20,7 @@ import { TransferPending } from "@/components/portal/transfer-pending";
 import { guestCountry, onlineMethodsFor, canPayOnline, crossBorderTransferFor } from "@/lib/payment-methods";
 import { billingAddressIncomplete, type BillingAddress } from "@/lib/billing-address";
 import { BillingAddressAsk } from "@/components/portal/billing-address-ask";
+import { countryOptions } from "@/lib/countries";
 import { TripView, type TripTab, type TripTile } from "@/components/portal/trip-view";
 import { TripHero } from "@/components/portal/trip-hero";
 import { ShareGoing } from "@/components/portal/share-going";
@@ -278,6 +279,16 @@ export default async function BookingDetail({ params }: Props) {
     && !b.covered_by_booking_id
     && paid < (total ?? 0)
     && billingAddressIncomplete(who);
+  /*
+   * We can't tell where this guest lives, so there is no way to pay online
+   * until they say: no card, no bank app, nothing, and until 27 Sep 2026 no word
+   * about why (John Fisher, via Simona). The address box then stands where the
+   * Pay button would, says it is the step that sets up payment, and the tile
+   * and hero point at it. Not tied to needsBillingAddress: a complete address
+   * with a country we cannot read is the same dead end.
+   */
+  const paySetupNeeded = !payCountry && !isEvent && !b.covered_by_booking_id
+    && !tripEnded && dueNow > 0 && !awaitingTransfer && paid < (total ?? 0);
   const whatsNext = tripEnded ? [] : buildWhatsNext({
     now,
     start: startsAt,
@@ -429,9 +440,9 @@ export default async function BookingDetail({ params }: Props) {
        nothing is owed before the deadline. */
     const heldUntil = step.dueDate ? new Date(step.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "long" }) : null;
     const securingWord = hasDeposit ? "deposit" : "down-payment";
-    hero = { eyebrow: "Your next step", title: "Secure your spot", body: `Pay the ${money(step.amount, cur)} ${securingWord} to lock in your place.${heldUntil ? ` We hold it for you until ${heldUntil}, and cancelling before then costs you nothing.` : ""}`, ctaLabel: "See how to pay", ctaHref: "#payment", tone: "coral" };
+    hero = { eyebrow: "Your next step", title: "Secure your spot", body: `Pay the ${money(step.amount, cur)} ${securingWord} to lock in your place.${heldUntil ? ` We hold it for you until ${heldUntil}, and cancelling before then costs you nothing.` : ""}`, ctaLabel: paySetupNeeded ? "Set up payment" : "See how to pay", ctaHref: "#payment", tone: "coral" };
   } else if (step.kind === "balance") {
-    hero = { eyebrow: "Your next step", title: `Balance due · ${money(step.amount, cur)}`, body: `Pay by bank transfer${step.dueDate ? ` (due ${new Date(step.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})` : ""}. The bank details are in your payment plan.`, ctaLabel: "View payment plan", ctaHref: "#payment", tone: "amber" };
+    hero = { eyebrow: "Your next step", title: `Balance due · ${money(step.amount, cur)}`, body: `Pay by bank transfer${step.dueDate ? ` (due ${new Date(step.dueDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })})` : ""}. The bank details are in your payment plan.`, ctaLabel: paySetupNeeded ? "Set up payment" : "View payment plan", ctaHref: "#payment", tone: "amber" };
   } else {
     hero = { eyebrow: "You're all set", title: "You're set 🎉", body: "Everything's sorted for your trip.", ctaLabel: "Open trip prep", ctaHref: "#prep", tone: "green" };
   }
@@ -463,7 +474,7 @@ export default async function BookingDetail({ params }: Props) {
          as already spoken for. */
       cta: fullyPaid ? undefined : isEvent ? "Pay now"
         : awaitingTransfer ? "See the details"
-        : nextMilestone ? (payMethods ? (depositPaid ? "Pay balance" : "Pay now") : "See how to pay") : undefined,
+        : nextMilestone ? (payMethods ? (depositPaid ? "Pay balance" : "Pay now") : paySetupNeeded ? "Set up payment" : "See how to pay") : undefined,
     },
     ...(isEvent ? [] : [{
       key: "flights", label: "Arrival", tab: (tripStarted ? undefined : "prep") as TripTile["tab"],
@@ -640,6 +651,15 @@ export default async function BookingDetail({ params }: Props) {
                 preview={!!user.preview}
               />
             : null}
+          setup={paySetupNeeded
+            ? <BillingAddressAsk
+                address={who?.billing_address} postalCode={who?.billing_postal_code}
+                companyName={who?.company_name} vatId={who?.vat_id}
+                city={who?.billing_city} country={who?.billing_country}
+                countries={countryOptions()} unlocksPayment
+                preview={!!user.preview}
+              />
+            : null}
         />
       </div>
       {/* How to pay + the invoice/pro-forma (with the bank details & reference)
@@ -661,26 +681,17 @@ export default async function BookingDetail({ params }: Props) {
                 ? <>Use the button above, or pay by <strong className="text-[#00374a]">bank transfer</strong> with the account details and payment reference printed on your invoice below. Either way, send it before the due date and we mark it here once it lands.</>
                 : <>Pay by <strong className="text-[#00374a]">bank transfer</strong> using the account details and payment reference printed on your invoice below, no need to wait for our email. Send it any time before the due date; we mark it here once it lands.</>}
             </p>
-            {/* We hide the card button when we don't know where the guest
-                lives, because which ways to pay are lawful depends on it. That
-                left John Fisher (no country, no phone on file) with no card
-                option and no idea why (Simona, 27 Sep 2026). The address box
-                below is what fixes it, so say so. */}
-            {!payMethods && !payCountry && needsBillingAddress && (
-              <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-1.5">
-                <strong className="text-[#00374a]">Want to pay by card?</strong> Add your address below first. Which ways to pay online work depends on the country you live in, and we don&apos;t know yours yet.
-              </p>
-            )}
           </>
         )}
         {/* Directly above the invoices, because that is what it is for and what
             the guest is looking at when they read it. */}
-        {needsBillingAddress && (
+        {needsBillingAddress && !paySetupNeeded && (
           <div className="mt-3">
             <BillingAddressAsk
               address={who?.billing_address} postalCode={who?.billing_postal_code}
               companyName={who?.company_name} vatId={who?.vat_id}
               city={who?.billing_city} country={who?.billing_country}
+              countries={countryOptions()}
               preview={!!user.preview}
             />
           </div>

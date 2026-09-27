@@ -1,3 +1,5 @@
+import { isoFromCountryName } from "@/lib/countries";
+
 /**
  * Which ways to pay a given guest is actually shown.
  *
@@ -152,6 +154,10 @@ export function guestCountry(c: {
     // one-line box.
     const tail = named.split(",").pop()?.trim() ?? "";
     if (NAME_TO_ISO[tail]) return NAME_TO_ISO[tail];
+    // Any country the trip page's dropdown offers, which is every one Intl can
+    // name: "Curaçao" or "Mexico" is an answer, not "we cannot tell".
+    const listed = isoFromCountryName(named) ?? isoFromCountryName(tail);
+    if (listed) return listed;
   }
   const phone = (c.phone ?? "").replace(/[^\d+]/g, "");
   if (phone.startsWith("+")) {

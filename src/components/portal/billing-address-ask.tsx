@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { mutate } from "@/lib/mutate";
+import type { CountryOption } from "@/lib/countries";
 
 /**
  * "Your invoice needs your address", asked of the guest who never presses Pay.
@@ -24,9 +25,16 @@ import { mutate } from "@/lib/mutate";
  *
  * Whatever is on the contact is prefilled, so a guest missing only their
  * postcode adds a postcode rather than retyping an address we already hold.
+ *
+ * IT IS ALSO WHAT SWITCHES ON PAYING ONLINE. Which ways to pay a guest is shown
+ * depends on the country they live in, and a guest we know nothing about is
+ * shown none: John Fisher had no card button and no idea why (Simona, 27 Sep
+ * 2026). So when the page cannot tell where they live it puts this box where
+ * the Pay button would be and says what it is for (`unlocksPayment`), and the
+ * country is a dropdown, because a misspelt one unlocked nothing.
  */
 export function BillingAddressAsk({
-  address, postalCode, city, country, preview, companyName, vatId,
+  address, postalCode, city, country, preview, companyName, vatId, countries, unlocksPayment,
 }: {
   address?: string | null;
   postalCode?: string | null;
@@ -39,6 +47,12 @@ export function BillingAddressAsk({
   preview?: boolean;
   companyName?: string | null;
   vatId?: string | null;
+  /** Every country, built on the server so the name saved is the name the
+   *  server reads back. Without it the country stays a text field. */
+  countries?: CountryOption[];
+  /** We don't know where this guest lives, so they cannot pay online until
+   *  this is saved. Changes what the box says, not what it asks. */
+  unlocksPayment?: boolean;
 }) {
   const router = useRouter();
   const [f, setF] = useState({
@@ -85,21 +99,41 @@ export function BillingAddressAsk({
   if (done) {
     return (
       <p className="text-[12.5px] font-semibold text-green-600 mb-4">
-        ✓ Saved. Your invoices will show it from now on.
+        {unlocksPayment
+          ? "✓ Saved. Your ways to pay online appear here in a moment."
+          : "✓ Saved. Your invoices will show it from now on."}
       </p>
     );
   }
+
+  /* A value we hold that is not in the list (typed before this was a dropdown)
+     is kept as an option, so opening the form never silently blanks it. */
+  const listed = !countries || countries.some((c) => c.name === f.billing_country);
 
   const field = "w-full px-3 py-2 rounded-lg border border-[#dce3e6] text-[13.5px] text-[#00374a] placeholder:text-[#b4c0c5] focus:outline-none focus:border-[#00afdb] focus:ring-1 focus:ring-[#00afdb]";
   const label = "block text-[11px] font-bold tracking-[0.08em] uppercase text-[#9aa6ac] mb-1";
 
   return (
-    <div className="mb-4 rounded-2xl border border-[#f0e6d6] bg-[#fffaf3] p-4">
-      <p className="text-[13px] font-bold text-[#00374a]">Your invoice needs your address</p>
-      <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-0.5 max-w-[56ch]">
-        German invoices over 250 euro have to show the address they are made out to, and yours
-        does not have one yet. Four fields, once, and every invoice for this trip prints properly.
-      </p>
+    <div id="billing-address" className={`mb-4 rounded-2xl border p-4 ${unlocksPayment ? "border-[#00afdb]/50 bg-[#f2fbfe]" : "border-[#f0e6d6] bg-[#fffaf3]"}`}>
+      {unlocksPayment ? (
+        <>
+          <p className="text-[11px] font-bold tracking-[0.1em] uppercase text-[#00afdb]">One step before you can pay online</p>
+          <p className="text-[15px] font-extrabold text-[#00374a] mt-1">Add your address to set up payment</p>
+          <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-1 max-w-[56ch]">
+            Which ways to pay work for you (card, your bank&apos;s app, or a transfer) depends on the
+            country you live in, and we don&apos;t know yours yet. Save it once and your payment
+            options appear right here. Your invoices need the address too.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-[13px] font-bold text-[#00374a]">Your invoice needs your address</p>
+          <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-0.5 max-w-[56ch]">
+            German invoices over 250 euro have to show the address they are made out to, and yours
+            does not have one yet. Four fields, once, and every invoice for this trip prints properly.
+          </p>
+        </>
+      )}
       <div className="grid sm:grid-cols-2 gap-3 mt-3.5">
         <div className="sm:col-span-2">
           <label className={label} htmlFor="ba-street">Street and number</label>
@@ -117,9 +151,18 @@ export function BillingAddressAsk({
             onChange={(e) => set("billing_city", e.target.value)} placeholder="Schönberg" autoComplete="address-level2" />
         </div>
         <div className="sm:col-span-2">
-          <label className={label} htmlFor="ba-country">Country</label>
-          <input id="ba-country" className={field} value={f.billing_country} disabled={preview}
-            onChange={(e) => set("billing_country", e.target.value)} placeholder="Germany" autoComplete="country-name" />
+          <label className={label} htmlFor="ba-country">Country you live in</label>
+          {countries ? (
+            <select id="ba-country" className={`${field} bg-white`} value={f.billing_country} disabled={preview}
+              onChange={(e) => set("billing_country", e.target.value)} autoComplete="country-name">
+              <option value="">Choose your country</option>
+              {!listed && f.billing_country && <option value={f.billing_country}>{f.billing_country}</option>}
+              {countries.map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+            </select>
+          ) : (
+            <input id="ba-country" className={field} value={f.billing_country} disabled={preview}
+              onChange={(e) => set("billing_country", e.target.value)} placeholder="Germany" autoComplete="country-name" />
+          )}
         </div>
         <div className="sm:col-span-2">
           {!business ? (
@@ -147,7 +190,7 @@ export function BillingAddressAsk({
         <button onClick={save} disabled={busy || !!preview}
           title={preview ? "Disabled in the admin preview" : undefined}
           className="px-5 py-2.5 rounded-full text-[13px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-colors">
-          {busy ? "Saving…" : "Save address"}
+          {busy ? "Saving…" : unlocksPayment ? "Save and set up payment" : "Save address"}
         </button>
         {preview && <span className="text-[12px] text-[#7d8b91]">Saving is disabled while you are looking at this as the member.</span>}
         {error && <span className="text-[12.5px] text-[#b4472a]">{error}</span>}

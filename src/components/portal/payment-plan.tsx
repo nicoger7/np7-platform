@@ -20,6 +20,7 @@ export function PaymentPlan({
   voucherCredit = 0,
   pay,
   pending,
+  setup,
 }: {
   milestones: Milestone[];
   currency?: string;
@@ -33,6 +34,10 @@ export function PaymentPlan({
   /** Money already on its way by bank transfer. Rendered ABOVE the button,
    *  because "it's coming" is the answer to the question the button provokes. */
   pending?: React.ReactNode;
+  /** What stands where the button would, when this guest cannot pay online
+   *  until they tell us something (their country). Not a button, so the line
+   *  below must not say "pay online above" about it. */
+  setup?: React.ReactNode;
 }) {
   const balance = Math.max(0, total - paid);
   const paidInFull = total > 0 && balance <= 0.01;
@@ -134,6 +139,7 @@ export function PaymentPlan({
 
       {!paidInFull && pending}
       {!paidInFull && pay}
+      {!paidInFull && !pay && setup && <div className="mt-4">{setup}</div>}
 
       {/* Two sentences, because there are two truths. Where the guest's country
           has an instant rail the button above is real and the transfer is the
