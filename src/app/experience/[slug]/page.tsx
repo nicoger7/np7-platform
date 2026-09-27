@@ -14,6 +14,7 @@ import { packageLevelLabel } from "@/lib/package-levels";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
 import { getTeamMember, getPortalUser } from "@/lib/auth";
+import { experienceGateOpen, redirectToMemberLogin } from "@/lib/member-gate";
 import { getEventForSlug, getEventRuns, type EventInfo } from "@/lib/events";
 import { ClinicTicketBox } from "@/components/experience/clinic-ticket-box";
 import { ClinicEditions, ClinicDateChips, type ClinicRun } from "@/components/experience/clinic-editions";
@@ -203,15 +204,45 @@ type Detail = {
   exp_editions: Edition[] | null; exp_packages: PackageRow[] | null;
 };
 
+/** What a shut gate answers with. Names nothing: the visitor is on their way
+ *  to the login page, and the URL already told them everything this does. */
+const GATED_METADATA: Metadata = { title: { absolute: "NP7 Experience" }, robots: { index: false, follow: false } };
+/** A trip that does not exist, or is switched off the website, for the public. */
+const NOT_FOUND_METADATA: Metadata = { title: { absolute: "Experience not found · NP7" }, robots: { index: false, follow: false } };
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
+  /*
+   * The gate first, before the database (Nico, 27 Sep 2026).
+   *
+   * Metadata renders alongside the layout, not after it, so the layout's
+   * redirect never stopped this function. While the Experience world is
+   * hidden, the 307 to the login page carried each trip's real title and
+   * description in its head, including trips that are off the website
+   * altogether (Mauritius & Madagascar, the Race Clinic). A browser follows the
+   * redirect and never shows it; a scraper reads it. Same guard as the page
+   * body below, and the same fix app/destinations/[slug] made.
+   */
+  if (!(await experienceGateOpen(slug))) return GATED_METADATA;
   // `as any`: public_by_link (migration 155) is not in the generated types yet.
-  // The Experience layout casts for the same reason.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data } = await (supabase as any)
-    .from("exp_experiences").select("title, description, location, public_by_link")
+    .from("exp_experiences").select("title, description, location, public_by_link, website_visible")
     .eq("slug", slug).eq("status", "published").maybeSingle();
-  if (!data) return { title: { absolute: "Experience not found — NP7" } };
+  if (!data) return NOT_FOUND_METADATA;
+  /*
+   * A trip switched off the website 404s in the page body for the public, but
+   * its title and description were still printed here once the gate was open
+   * (a signed-in member, or after the reveal). It now answers like a trip that
+   * does not exist. The team keeps the real title, because the admin "Preview
+   * page" button renders the page for them and a tab reading "not found" over
+   * a working page would be a lie. Never indexed either way.
+   */
+  if (data.website_visible === false) {
+    const team = await getTeamMember().catch(() => null);
+    if (!team) return NOT_FOUND_METADATA;
+    return { title: { absolute: `${data.title} · NP7 Experience` }, robots: { index: false, follow: false } };
+  }
   // A trip opened by direct link while the Experience world is still hidden is
   // reachable on purpose — for an ad, a newsletter, a DM — but it has not been
   // launched. Without this it would drift into organic search on its own and
@@ -220,7 +251,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // landing page never needs to be indexed to be advertised.
   const linkOnlyWhileHidden = !flags.showExperience && data.public_by_link === true;
   return {
-    title: { absolute: `${data.title} — NP7 Experience` },
+    // A middot, not a long dash: every other title this function writes uses
+    // one, and the long dash reads as machine-written copy.
+    title: { absolute: `${data.title} · NP7 Experience` },
     description: data.description || `NP7 Experience in ${data.location}`,
     ...(linkOnlyWhileHidden ? { robots: { index: false, follow: false } } : {}),
   };
@@ -228,6 +261,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ExperienceDetailPage({ params, searchParams }: Props) {
   const { slug, edition: pickedEdition } = await params;
+  /*
+   * The gate, decided here before a single query (Nico, 27 Sep 2026).
+   *
+   * The layout redirects logged-out visitors too, but it renders alongside
+   * this page, not ahead of it. Its 307 used to arrive with this whole page
+   * already rendered inside: Alaçatı's "Reserve your spot · from €1,800",
+   * every package price, the room names. So the page asks for itself. Open for
+   * the team, signed-in members, the whole public once SHOW_EXPERIENCE is on,
+   * and link-only experiences (Bonaire, Alaçatı) for anyone holding the link.
+   * A clinic's per-edition URL renders this same component and is judged by
+   * its series' slug, exactly as the layout judges it. Where to come back to
+   * after signing in is the page they asked for, edition included.
+   */
+  if (!(await experienceGateOpen(slug))) {
+    await redirectToMemberLogin(pickedEdition ? `/experience/${slug}/${pickedEdition}` : `/experience/${slug}`);
+  }
   const { paid, b: paidBookingId } = (await searchParams) ?? {};
   // Team members can preview drafts + off-website experiences (the admin
   // "Preview page" button); the public only ever sees published ones.
