@@ -1,10 +1,11 @@
 /**
- * Printable gift-voucher PDF (A5 portrait) — built with @react-pdf/renderer.
+ * Printable gift-voucher PDF (A5 portrait), built with @react-pdf/renderer.
  * A guest can print this as a real gift: experience hero photo, the amount, the
  * code, who it's from/for, validity and redeem steps. Call renderVoucherPdf().
  */
 /* eslint-disable jsx-a11y/alt-text -- @react-pdf/renderer <Image> is not an HTML img */
 import { Document, Page, View, Text, Image, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import { VOUCHER_HOW_TO_REDEEM } from "@/lib/vouchers";
 
 const TEAL = "#00374a";
 const CYAN = "#0aa3c7";
@@ -41,7 +42,14 @@ export type VoucherPdfData = {
   message: string | null;
   validUntil: string | null;  // formatted date
   heroImage: string | null;
-  legalName: string | null;   // issuing entity (Surfcenter Experience B.V.)
+  /**
+   * The issuing entity, printed in the footer. Pass company_settings.legal_name
+   * for the Experience division: the same row whose IBAN the gift form and the
+   * order email show, so the voucher names whoever the buyer actually paid
+   * (NP7 GmbH today). This comment used to say "Surfcenter Experience B.V.",
+   * which is not the payee and never was for a voucher (Nico, 27 Sep 2026).
+   */
+  legalName: string | null;
 };
 
 function VoucherDoc({ d }: { d: VoucherPdfData }) {
@@ -64,13 +72,17 @@ function VoucherDoc({ d }: { d: VoucherPdfData }) {
             <Text style={s.code}>{d.code}</Text>
           </View>
 
+          {/* One sentence for how a voucher is used, shared with the gift page,
+              the print page and the emails. This used to offer "reply to your
+              confirmation email and we'll apply it", but a recipient has no
+              confirmation email and nobody applies anything by hand. */}
           <Text style={s.steps}>
-            Redeem at np-seven.com. Sign in (or create your free account) and enter this code on your trip, or simply reply to your confirmation email and we&apos;ll apply it.
+            {`How to use it at np-seven.com: ${VOUCHER_HOW_TO_REDEEM} If the trip costs less, whatever is left stays on the voucher.`}
             {d.validUntil ? `\nValid until ${d.validUntil}.` : ""}
           </Text>
         </View>
         <View style={s.footer}>
-          <Text>{d.legalName ?? "NP7 Experience"}</Text>
+          <Text>{d.legalName ? `Issued by ${d.legalName}` : "NP7 Experience"}</Text>
           <Text>Premium watersports travel</Text>
         </View>
       </Page>
