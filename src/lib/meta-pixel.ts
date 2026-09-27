@@ -43,6 +43,9 @@ export function loadMetaPixel(): void {
   (function (f: any, b: Document, e: string, v: string) {
     if (f.fbq) return;
     const n: any = (f.fbq = function () {
+      // Meta's own loader, kept verbatim: fbevents.js reads `arguments` off the
+      // queue, so the rest/spread rewrites lint asks for would change the shape.
+      // eslint-disable-next-line prefer-spread, prefer-rest-params, @typescript-eslint/no-unused-expressions
       n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
     });
     if (!f._fbq) f._fbq = n;
@@ -73,11 +76,19 @@ export function metaTrack(event: string, params?: Record<string, unknown>, event
 }
 
 /** Map our internal analytics events → Meta standard events (skip the ones the
- *  pixel component already handles, like pageview). */
+ *  pixel component already handles, like pageview).
+ *
+ *  voucher_buy is an ORDER, not a purchase (Nico, 27 Sep 2026). It fires the
+ *  moment a pending voucher row exists, before a single euro has moved: the
+ *  buyer still has to make the bank transfer, and some never do. Reporting it
+ *  as "Purchase" with the voucher's value told Meta's optimiser it was earning
+ *  money on every order, and would have trained the ads towards people who
+ *  order and do not pay. InitiateCheckout is what it is. A real Purchase
+ *  belongs on the team's "activate" in admin, once the money has landed. */
 const EVENT_MAP: Record<string, string> = {
   reserve_start: "InitiateCheckout",
   register: "Lead",
-  voucher_buy: "Purchase",
+  voucher_buy: "InitiateCheckout",
 };
 
 /** The Meta standard event an internal event maps to, or null if it isn't a conversion. */
@@ -98,6 +109,14 @@ function metaParams(std: string, meta?: Record<string, unknown>): Record<string,
     const value = Number(meta.amount);
     if (Number.isFinite(value) && value > 0) p.value = value;
     p.currency = typeof meta.currency === "string" && meta.currency ? meta.currency : "EUR";
+  } else if (std === "InitiateCheckout") {
+    // The size of what was started (a voucher order carries its amount) may
+    // ride along on a checkout; it is just never reported as money earned.
+    const value = Number(meta.amount);
+    if (Number.isFinite(value) && value > 0) {
+      p.value = value;
+      p.currency = typeof meta.currency === "string" && meta.currency ? meta.currency : "EUR";
+    }
   }
   if (typeof meta.experience === "string") p.content_name = meta.experience;
   if (typeof meta.package === "string") p.content_ids = [meta.package];
