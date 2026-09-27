@@ -12,10 +12,19 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { FakeSupabase, type Row } from "./stubs/fake-supabase";
 import type { VoucherOrder } from "@/lib/vouchers/notify";
 
-const state = vi.hoisted(() => ({ db: null as unknown as FakeSupabase, orders: [] as unknown[] }));
+const state = vi.hoisted(() => ({ db: null as unknown as FakeSupabase, orders: [] as unknown[], limits: [] as { name: string; subject?: string | null }[] }));
 
 vi.mock("@/lib/supabase", () => ({ createAdminClient: () => state.db }));
 vi.mock("@/lib/auth", () => ({ getPortalUser: async () => null }));
+// The route emails any address it is given, so it is rate-limited per caller
+// and per address; here the limiter only records that it was asked.
+vi.mock("@/lib/rate-limit", () => ({
+  LIMITS: { mailToAnyAddress: { limit: 5, windowSeconds: 900 } },
+  rateLimited: async (_req: unknown, opts: { name: string; subject?: string | null }) => {
+    state.limits.push({ name: opts.name, subject: opts.subject });
+    return null;
+  },
+}));
 vi.mock("@/lib/vouchers/notify", () => ({
   sendVoucherOrdered: async (o: unknown) => {
     state.orders.push(o);
@@ -32,6 +41,7 @@ const pkg = (over: Row): Row => ({
 
 beforeEach(() => {
   state.orders = [];
+  state.limits = [];
   state.db = new FakeSupabase({
     exp_experiences: [
       { id: "ex1", title: "NP7 Experience Bonaire", currency: "EUR", status: "published" },
@@ -108,5 +118,15 @@ describe("after the order", () => {
     const r = await order({ amount: 1000 });
     expect(r.status).toBe(200);
     expect((state.orders[0] as VoucherOrder).experienceTitle).toBeNull();
+  });
+});
+
+describe("the order route cannot be used to mail strangers", () => {
+  it("asks the rate limiter per caller and per buyer address before sending", async () => {
+    await order({});
+    expect(state.limits).toEqual([
+      { name: "voucher-order", subject: undefined },
+      { name: "voucher-order", subject: "lena@example.com" },
+    ]);
   });
 });
