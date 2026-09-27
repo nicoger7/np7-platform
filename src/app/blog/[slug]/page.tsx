@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
 import { getPortalUser } from "@/lib/auth";
@@ -125,10 +125,14 @@ export default async function BlogPostPage({ params }: Props) {
 
   // The old magazine spotguide template is superseded by the structured /spotguide
   // section — send these to the real destination page so there's ONE spotguide.
+  // Permanent (308), not redirect()'s temporary 307: the move is for good, and a
+  // 307 tells Google to keep the old /blog URL indexed and come back to it. Same
+  // as /blog/spotguide itself already does (next.config.ts). Both live posts
+  // land on destinations that answer 200 (checked 27 Sep 2026).
   if (post.template === "spotguide") {
     const dn = asText(data.destinationName);
     const slug = dn.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    redirect(slug ? `/spotguide/${slug}` : "/spotguide");
+    permanentRedirect(slug ? `/spotguide/${slug}` : "/spotguide");
   }
 
   // Only a gated post needs to know WHO is reading. Resolving the member on a

@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { getLegalEntity } from "@/lib/legal";
 import { LegalShell } from "@/components/shared/legal-shell";
 
-export const metadata: Metadata = { title: "Terms · NP7", robots: { index: true } };
+// Bare title: the root layout's template adds " · NP7" itself. Spelling it here
+// as well read "Terms · NP7 · NP7" in the tab and in Google (site audit, 27 Sep 2026).
+export const metadata: Metadata = { title: "Terms", robots: { index: true } };
 export const revalidate = 86400;
 
 export default async function TermsPage() {
