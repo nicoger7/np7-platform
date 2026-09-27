@@ -15,8 +15,11 @@ import { getLandingReviews } from "@/lib/landing-reviews";
 import { getExperienceCards } from "@/lib/experience-cards";
 import { experienceGateOpen, redirectToMemberLogin } from "@/lib/member-gate";
 
+// A middot, not a long dash: the long dash reads as machine-written copy, and
+// every trip title under /experience already uses one (review follow-up,
+// 28 Sep 2026).
 export const metadata: Metadata = {
-  title: { absolute: "NP7 Experience — Premium Watersports Travel" },
+  title: { absolute: "NP7 Experience · Premium Watersports Travel" },
   description:
     "Guided windsurf & foil trips with Nico Prien (GER-7). World-class coaching, hand-picked crews, and everything arranged.",
 };

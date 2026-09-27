@@ -17,7 +17,9 @@
  *                      listed once SHOW_EXPERIENCE is on.
  *
  * Plus the destination page's trip cards, which must leave out a trip that is
- * switched off the website, the same way that trip's own page does.
+ * switched off the website, the same way that trip's own page does, and
+ * (review follow-up, 28 Sep 2026) a clinic with no run left, the same way the
+ * sitemap does.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { FakeSupabase, type Row } from "./stubs/fake-supabase";
@@ -45,7 +47,7 @@ vi.mock("@/lib/events", () => ({
 }));
 
 import sitemap from "@/app/sitemap";
-import { listedTrips } from "@/lib/spotguide-data";
+import { listedTrips, destinationTrips } from "@/lib/spotguide-data";
 
 const SITE = "https://www.np-seven.com";
 
@@ -257,5 +259,52 @@ describe("a destination page's trip cards", () => {
       { id: "a", title: "Trip", slug: "trip", hero_image: null, tagline: null },
     ]);
     expect(listedTrips(null)).toEqual([]);
+  });
+
+  it("leave out a clinic with no run left, and keep one with a run coming up", async () => {
+    state.runs = { "np7-race-clinic": 0, "np7-coaching-clinics-usa": 2 };
+    const cards = await destinationTrips([
+      trip({ id: "a", slug: "np7-race-clinic", page_template: "event", website_visible: true }),
+      trip({ id: "b", slug: "np7-coaching-clinics-usa", page_template: "event", website_visible: true }),
+      trip({ id: "c", slug: "np7-bonaire", page_template: "trip", website_visible: true }),
+    ]);
+
+    expect(cards.map((c) => c.slug)).toEqual(["np7-coaching-clinics-usa", "np7-bonaire"]);
+  });
+
+  it("keep a trip between seasons: only event rows are asked for runs", async () => {
+    const cards = await destinationTrips([
+      trip({ id: "a", slug: "np7-bonaire", page_template: "trip" }),
+      trip({ id: "b", slug: "np7-tenerife", page_template: null }),
+    ]);
+
+    expect(cards.map((c) => c.slug)).toEqual(["np7-bonaire", "np7-tenerife"]);
+    expect(state.runLookups).toEqual([]);
+  });
+
+  it("drop a clinic whose run lookup fails, and keep the rest of the page", async () => {
+    state.runs = { "np7-race-clinic": "throw" };
+    const cards = await destinationTrips([
+      trip({ id: "a", slug: "np7-race-clinic", page_template: "event" }),
+      trip({ id: "b", slug: "np7-bonaire", page_template: "trip" }),
+    ]);
+
+    expect(cards.map((c) => c.slug)).toEqual(["np7-bonaire"]);
+  });
+
+  it("never ask for runs of a clinic already switched off the website", async () => {
+    state.runs = { "np7-race-clinic": 3 };
+    const cards = await destinationTrips([trip({ id: "a", slug: "np7-race-clinic", page_template: "event", website_visible: false })]);
+
+    expect(cards).toEqual([]);
+    expect(state.runLookups).toEqual([]);
+  });
+
+  it("carry only what a card shows, and answer an empty list for no rows", async () => {
+    state.runs = { "np7-coaching-clinics-usa": 1 };
+    expect(await destinationTrips([trip({ id: "a", slug: "np7-coaching-clinics-usa", page_template: "event" })])).toEqual([
+      { id: "a", title: "Trip", slug: "np7-coaching-clinics-usa", hero_image: null, tagline: null },
+    ]);
+    expect(await destinationTrips(null)).toEqual([]);
   });
 });

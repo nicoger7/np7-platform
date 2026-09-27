@@ -12,11 +12,15 @@
  * and week, and nothing else), the companion roster judged by the same rule
  * and the same key, and the public quote refusing a private id with the same
  * 404 as an unknown one.
+ *
+ * Review follow-ups (28 Sep 2026): a row read without website_visible is
+ * private, not visible, and an invite only opens its package while the
+ * inviter's own booking is live and still on that package.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { FakeSupabase } from "./stubs/fake-supabase";
-import { packageSaleIssue, inviteUnlocks, invitePackageUnlock } from "@/lib/package-guard";
+import { packageSaleIssue, inviteUnlocks, invitePackageUnlock, inviterStillHolds } from "@/lib/package-guard";
 import { companionPackageIssue, validateCompanions } from "@/lib/group-register";
 
 const state = vi.hoisted(() => ({ db: null as unknown as { from: (t: string) => unknown } }));
@@ -45,10 +49,15 @@ describe("packageSaleIssue", () => {
     expect(packageSaleIssue(visible, SCOPE)).toBeNull();
   });
 
-  it("reads a row without the column as visible, which is the column's default", () => {
-    const { website_visible: _omit, ...legacy } = visible;
+  it("reads a row without the column as private: the caller forgot to select it", () => {
+    // website_visible is NOT NULL DEFAULT true, so a real row always has it.
+    // Guessing "visible" here was how dropping it from one select would have
+    // quietly put every private rate back on sale.
+    const { website_visible: _omit, ...unselected } = visible;
     void _omit;
-    expect(packageSaleIssue(legacy, SCOPE)).toBeNull();
+    expect(packageSaleIssue(unselected, SCOPE)).toBe("private");
+    // An invite for exactly that package still opens it, as for any private row.
+    expect(packageSaleIssue(unselected, { ...SCOPE, unlocked: new Set(["pkg-standard"]) })).toBeNull();
   });
 
   it("refuses a private package to a request with no invite", () => {
@@ -85,38 +94,75 @@ describe("packageSaleIssue", () => {
 });
 
 describe("what an invite unlocks", () => {
-  const invite = { package_id: "pkg-turkish-locals", experience_id: TURKEY, edition_id: WEEK, status: "sent" };
+  const invite = { package_id: "pkg-turkish-locals", experience_id: TURKEY, edition_id: WEEK, status: "sent", inviter_booking_id: "bk-nico" };
+  /** The inviter's own booking, live and on the package the invite passes on. */
+  const seat = { id: "bk-nico", status: "confirmed", package_id: "pkg-turkish-locals" };
 
   it("its own package, as a set, while the invite is live", () => {
     for (const status of ["sent", "opened", "booked"]) {
-      expect([...inviteUnlocks({ ...invite, status }, SCOPE)], status).toEqual(["pkg-turkish-locals"]);
+      expect([...inviteUnlocks({ ...invite, status }, seat, SCOPE)], status).toEqual(["pkg-turkish-locals"]);
     }
   });
 
   it("nothing once it is cancelled or expired", () => {
-    expect(inviteUnlocks({ ...invite, status: "cancelled" }, SCOPE).size).toBe(0);
-    expect(inviteUnlocks({ ...invite, status: "expired" }, SCOPE).size).toBe(0);
+    expect(inviteUnlocks({ ...invite, status: "cancelled" }, seat, SCOPE).size).toBe(0);
+    expect(inviteUnlocks({ ...invite, status: "expired" }, seat, SCOPE).size).toBe(0);
   });
 
   it("nothing on another trip or another week", () => {
-    expect(inviteUnlocks(invite, { ...SCOPE, experienceId: "exp-bonaire" }).size).toBe(0);
-    expect(inviteUnlocks(invite, { ...SCOPE, editionId: "ed-week-3" }).size).toBe(0);
-    expect(inviteUnlocks({ ...invite, experience_id: null }, SCOPE).size).toBe(0);
+    expect(inviteUnlocks(invite, seat, { ...SCOPE, experienceId: "exp-bonaire" }).size).toBe(0);
+    expect(inviteUnlocks(invite, seat, { ...SCOPE, editionId: "ed-week-3" }).size).toBe(0);
+    expect(inviteUnlocks({ ...invite, experience_id: null }, seat, SCOPE).size).toBe(0);
   });
 
   it("any week of its trip when the invite names none", () => {
-    expect([...inviteUnlocks({ ...invite, edition_id: null }, { ...SCOPE, editionId: "ed-week-3" })]).toEqual(["pkg-turkish-locals"]);
+    expect([...inviteUnlocks({ ...invite, edition_id: null }, seat, { ...SCOPE, editionId: "ed-week-3" })]).toEqual(["pkg-turkish-locals"]);
   });
 
   it("nothing when there is no invite or it carries no package", () => {
-    expect(inviteUnlocks(null, SCOPE).size).toBe(0);
-    expect(inviteUnlocks({ ...invite, package_id: null }, SCOPE).size).toBe(0);
+    expect(inviteUnlocks(null, seat, SCOPE).size).toBe(0);
+    expect(inviteUnlocks({ ...invite, package_id: null }, seat, SCOPE).size).toBe(0);
+  });
+
+  it("opens for every live stage of the inviter's booking, legacy spellings included", () => {
+    for (const status of ["lead", "reserved", "confirmed", "paid", "attended", "downpayment_paid"]) {
+      expect(inviteUnlocks(invite, { ...seat, status }, SCOPE).size, status).toBe(1);
+    }
+  });
+
+  it("nothing once the inviter's booking is gone, cancelled or archived", () => {
+    expect(inviteUnlocks(invite, null, SCOPE).size, "deleted").toBe(0);
+    expect(inviteUnlocks(invite, undefined, SCOPE).size, "never read").toBe(0);
+    for (const status of ["lost", "cancelled", "Cancelled"]) {
+      expect(inviteUnlocks(invite, { ...seat, status }, SCOPE).size, status).toBe(0);
+    }
+    expect(inviteUnlocks(invite, { ...seat, archived_at: "2026-09-20T10:00:00Z" }, SCOPE).size, "archived").toBe(0);
+  });
+
+  it("nothing once the inviter has moved to another package", () => {
+    expect(inviteUnlocks(invite, { ...seat, package_id: "pkg-standard" }, SCOPE).size).toBe(0);
+    expect(inviteUnlocks(invite, { ...seat, package_id: null }, SCOPE).size).toBe(0);
+  });
+
+  it("nothing for an invite with no inviter booking, or a booking that is not the one it names", () => {
+    expect(inviteUnlocks({ ...invite, inviter_booking_id: null }, seat, SCOPE).size).toBe(0);
+    expect(inviteUnlocks(invite, { ...seat, id: "bk-someone-else" }, SCOPE).size).toBe(0);
+  });
+
+  it("reads a booking without its status or package as not holding the seat", () => {
+    const { status: _s, ...noStatus } = seat;
+    const { package_id: _p, ...noPackage } = seat;
+    void _s; void _p;
+    expect(inviterStillHolds(invite, noStatus)).toBe(false);
+    expect(inviterStillHolds(invite, noPackage)).toBe(false);
+    expect(inviterStillHolds(invite, seat)).toBe(true);
   });
 });
 
-describe("invitePackageUnlock reads trip_invites by token", () => {
-  const db = () => new FakeSupabase({
-    trip_invites: [{ token: "nico-3f9a2b", package_id: "pkg-turkish-locals", experience_id: TURKEY, edition_id: WEEK, status: "opened" }],
+describe("invitePackageUnlock reads trip_invites by token, then the inviter's booking", () => {
+  const db = (booking: Record<string, unknown> | null = { id: "bk-nico", status: "paid", package_id: "pkg-turkish-locals", contact_id: "c-nico" }) => new FakeSupabase({
+    trip_invites: [{ token: "nico-3f9a2b", package_id: "pkg-turkish-locals", experience_id: TURKEY, edition_id: WEEK, status: "opened", inviter_booking_id: "bk-nico" }],
+    exp_bookings: booking ? [booking] : [],
   });
 
   it("returns the invite's package for a live token on its own week", async () => {
@@ -132,6 +178,43 @@ describe("invitePackageUnlock reads trip_invites by token", () => {
     const broken = db();
     broken.failOn("trip_invites", "select");
     expect((await invitePackageUnlock(broken, "nico-3f9a2b", SCOPE)).size).toBe(0);
+  });
+
+  it("returns an empty set when the inviter's booking was deleted, cancelled or moved", async () => {
+    expect((await invitePackageUnlock(db(null), "nico-3f9a2b", SCOPE)).size, "deleted").toBe(0);
+    expect((await invitePackageUnlock(db({ id: "bk-nico", status: "lost", package_id: "pkg-turkish-locals" }), "nico-3f9a2b", SCOPE)).size, "lost").toBe(0);
+    expect((await invitePackageUnlock(db({ id: "bk-nico", status: "paid", package_id: "pkg-standard" }), "nico-3f9a2b", SCOPE)).size, "moved").toBe(0);
+  });
+
+  it("returns an empty set when the booking read fails", async () => {
+    const broken = db();
+    broken.failOn("exp_bookings", "select");
+    expect((await invitePackageUnlock(broken, "nico-3f9a2b", SCOPE)).size).toBe(0);
+  });
+
+  it("never asks exp_bookings for archived_at, a column that table does not have", async () => {
+    // PostgREST refuses a whole read that names a missing column, and here a
+    // refused read means no invite ever opens its package again. The fake does
+    // not model columns, so the select strings are recorded and checked.
+    const inner = db();
+    const asked: Record<string, string[]> = {};
+    const spy = {
+      from(table: string) {
+        const q = inner.from(table);
+        const select = q.select.bind(q) as (cols?: string) => typeof q;
+        (q as unknown as { select: (cols?: string) => typeof q }).select = (cols?: string) => {
+          (asked[table] ??= []).push(String(cols ?? ""));
+          return select(cols);
+        };
+        return q;
+      },
+    };
+    expect((await invitePackageUnlock(spy, "nico-3f9a2b", SCOPE)).size).toBe(1);
+    expect(asked.exp_bookings).toHaveLength(1);
+    expect(asked.exp_bookings[0]).not.toMatch(/archived_at/);
+    expect(asked.exp_bookings[0]).toMatch(/status/);
+    expect(asked.exp_bookings[0]).toMatch(/package_id/);
+    expect(asked.trip_invites[0]).toMatch(/inviter_booking_id/);
   });
 });
 

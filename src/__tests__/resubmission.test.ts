@@ -79,12 +79,14 @@ const prior: LiveBookingRow = {
   agreed_price: 4590, notes: "Website registration · package: Standard room",
 };
 
+// website_visible is spelled out: a real row always carries it (NOT NULL
+// DEFAULT true), and the sale rule refuses a row that lacks it.
 const packages = [
-  { id: "pkg-standard", name: "Standard room", price: 4590, experience_id: BONAIRE, edition_id: null, status: "active", archived_at: null, category: "advanced", gear_baseline: "rental" },
+  { id: "pkg-standard", name: "Standard room", price: 4590, experience_id: BONAIRE, edition_id: null, status: "active", archived_at: null, website_visible: true, category: "advanced", gear_baseline: "rental" },
   // A SECOND package, and it earns its place: with only one in the fixture,
   // moving a companion to a different room could not be expressed, and the
   // identity check silently passed on it for exactly that reason.
-  { id: "pkg-private", name: "Private room", price: 5600, experience_id: BONAIRE, edition_id: null, status: "active", archived_at: null, category: "advanced", gear_baseline: "rental" },
+  { id: "pkg-private", name: "Private room", price: 5600, experience_id: BONAIRE, edition_id: null, status: "active", archived_at: null, website_visible: true, category: "advanced", gear_baseline: "rental" },
 ];
 const contacts = [
   { id: "c-nico", email: "nico@example.com", created_at: "2024-01-01T00:00:00.000Z" },

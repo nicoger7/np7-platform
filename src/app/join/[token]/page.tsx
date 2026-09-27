@@ -4,6 +4,7 @@ import { getInviteLanding } from "@/lib/invites";
 import { StampOpened } from "@/components/shared/stamp-opened";
 import { JoinSignup } from "@/components/join/join-signup";
 import { flags } from "@/lib/flags";
+import { countryOptions } from "@/lib/countries";
 
 const HIGHLIGHTS = ["Pro coaching every day", "Small, hand-picked crew", "Hotel, transfers & gear sorted"];
 
@@ -149,6 +150,10 @@ export default async function JoinPage({ params }: Props) {
               inviteToken={invite.token}
               defaultName={invite.invitee_name ?? ""}
               defaultEmail={invite.invitee_email ?? ""}
+              // "Country you live in", the same list the reserve modal gets,
+              // built here on the server so the names match what
+              // /api/register stores (review follow-up, 28 Sep 2026).
+              countries={countryOptions()}
             />
           </div>
 

@@ -16,6 +16,7 @@ import {
   type CrowdWindow, type LevelConsensus, type ConditionShare, type InfraShare,
 } from "@/lib/spotguide";
 import type { WindStats } from "@/lib/wind-stats";
+import { getEventRuns } from "@/lib/events";
 
 export type SpotguideDestinationCard = {
   id: string; name: string; slug: string | null; region: string | null; country: string | null;
@@ -329,7 +330,7 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
 
   const [{ data: dratings }, { data: trips }] = await Promise.all([
     sb.from("destination_ratings").select("ratings").eq("destination_id", d.id),
-    sb.from("exp_experiences").select("id, title, slug, hero_image, tagline, status, website_visible").eq("destination_id", d.id).eq("status", "published"),
+    sb.from("exp_experiences").select("id, title, slug, hero_image, tagline, status, website_visible, page_template").eq("destination_id", d.id).eq("status", "published"),
   ]);
 
   const publicSpots = await shapeSpots(spots, ownPendingIds, teamPendingIds);
@@ -378,8 +379,37 @@ export async function getSpotguideDestination(slug: string, viewerId?: string | 
     np7: np7Overall(d.np7_ratings, DESTINATION_CRITERIA_KEYS),
     member: summariseRatings(dratings ?? [], DESTINATION_CRITERIA_KEYS),
     spots: publicSpots,
-    trips: listedTrips(trips),
+    trips: await destinationTrips(trips),
   };
+}
+
+/**
+ * The trip cards a destination page shows, with the clinic rule on top of
+ * listedTrips (review follow-up, 28 Sep 2026).
+ *
+ * A clinic series with nothing coming up is not a page: the experience page
+ * 404s when getEventRuns() comes back empty (app/experience/[slug]/page.tsx),
+ * and the sitemap already leaves such a clinic out by asking that very
+ * function (app/sitemap.ts). The destination page did not, so once
+ * SHOW_EXPERIENCE is on it would show a card for a clinic whose last run is
+ * over, leading straight to a 404. Same question, same function, so the
+ * card, the sitemap and the page can never disagree.
+ *
+ * Only event rows pay for the lookup, and only the ones still on the website,
+ * because a trip is a page whether or not a week is left. A failed lookup
+ * leaves that one clinic's card out rather than failing the whole
+ * destination page, the same trade the sitemap makes.
+ */
+export async function destinationTrips(rows: Record<string, unknown>[] | null | undefined): Promise<SpotguideTrip[]> {
+  const visible = (rows ?? []).filter((t) => t.website_visible !== false);
+  const live = await Promise.all(
+    visible.map(async (t) =>
+      t.page_template === "event"
+        ? (await getEventRuns(String(t.slug ?? "")).catch(() => [])).length > 0
+        : true,
+    ),
+  );
+  return listedTrips(visible.filter((_, i) => live[i]));
 }
 
 /**

@@ -15,7 +15,9 @@ import { describe, it, expect } from "vitest";
 import { companionPackageIssue, sumCompanionPrices } from "@/lib/group-register";
 
 const WEEK = { experienceId: "exp-bonaire", editionId: "ed-week-1" };
-const ok = { status: "active", archived_at: null, experience_id: "exp-bonaire", edition_id: null };
+// website_visible is part of every real row (NOT NULL DEFAULT true), and a
+// row without it is read as private, so the fixture carries it.
+const ok = { status: "active", archived_at: null, experience_id: "exp-bonaire", edition_id: null, website_visible: true };
 
 describe("companionPackageIssue", () => {
   it("accepts an active package of this experience that belongs to no single week", () => {

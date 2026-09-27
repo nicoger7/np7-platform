@@ -407,7 +407,7 @@ describe("resolveContactIdsByEmail", () => {
 
 describe("validateCompanions: a friend who is already on this week", () => {
   const packages = [
-    { id: "pkg-standard", name: "Standard room", price: 4590, experience_id: BONAIRE, edition_id: null, status: "active", archived_at: null, category: "advanced", gear_baseline: "rental" },
+    { id: "pkg-standard", name: "Standard room", price: 4590, experience_id: BONAIRE, edition_id: null, status: "active", archived_at: null, website_visible: true, category: "advanced", gear_baseline: "rental" },
   ];
   const contacts = [
     { id: "c-anna", email: "anna@example.com", created_at: "2025-01-01T00:00:00.000Z" },

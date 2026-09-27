@@ -230,20 +230,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { data } = await (supabase as any)
     .from("exp_experiences").select("title, description, location, public_by_link, website_visible")
     .eq("slug", slug).eq("status", "published").maybeSingle();
-  if (!data) return NOT_FOUND_METADATA;
   /*
    * A trip switched off the website 404s in the page body for the public, but
    * its title and description were still printed here once the gate was open
    * (a signed-in member, or after the reveal). It now answers like a trip that
-   * does not exist. The team keeps the real title, because the admin "Preview
-   * page" button renders the page for them and a tab reading "not found" over
-   * a working page would be a lie. Never indexed either way.
+   * does not exist, and so does a draft. The team keeps the real title (see
+   * teamPreviewMetadata). Never indexed either way.
    */
-  if (data.website_visible === false) {
-    const team = await getTeamMember().catch(() => null);
-    if (!team) return NOT_FOUND_METADATA;
-    return { title: { absolute: `${data.title} · NP7 Experience` }, robots: { index: false, follow: false } };
-  }
+  if (!data || data.website_visible === false) return teamPreviewMetadata(slug);
   // A trip opened by direct link while the Experience world is still hidden is
   // reachable on purpose — for an ad, a newsletter, a DM — but it has not been
   // launched. Without this it would drift into organic search on its own and
@@ -258,6 +252,34 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: data.description || `NP7 Experience in ${data.location}`,
     ...(linkOnlyWhileHidden ? { robots: { index: false, follow: false } } : {}),
   };
+}
+
+/**
+ * The title for a page the public may not see: a draft, or a trip switched off
+ * the website (review follow-up, 28 Sep 2026).
+ *
+ * Everyone who is not on the team gets "not found", exactly as before. The
+ * team gets the trip's real title, because the admin "Preview page" button
+ * renders the page for them and a tab reading "Experience not found" over a
+ * working page is a lie. That promise only held for published trips: the read
+ * above goes through the anon client and asks for status = published, so a
+ * team preview of a DRAFT still read "not found" while the body rendered the
+ * draft. So the team reads here through the service role, with no status
+ * filter, the same reader and the same pick (published first) the page body
+ * uses for them. The team is only looked up on this path, so a public visitor
+ * on a live trip pays nothing extra.
+ */
+async function teamPreviewMetadata(slug: string): Promise<Metadata> {
+  const team = await getTeamMember().catch(() => null);
+  if (!team) return NOT_FOUND_METADATA;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rows } = await (createAdminClient() as any)
+    .from("exp_experiences").select("title")
+    .eq("slug", slug)
+    .order("status", { ascending: false }).limit(1);
+  const title = (rows?.[0]?.title as string | null | undefined) ?? null;
+  if (!title) return NOT_FOUND_METADATA;
+  return { title: { absolute: `${title} · NP7 Experience` }, robots: { index: false, follow: false } };
 }
 
 export default async function ExperienceDetailPage({ params, searchParams }: Props) {
