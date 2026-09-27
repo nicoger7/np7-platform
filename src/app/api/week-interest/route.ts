@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { composeBookingName } from "@/lib/booking-name";
 import { findLiveBookings } from "@/lib/existing-booking";
+import { WEEK_INTEREST_NOTE } from "@/lib/week-interest";
 
 import { rateLimited, LIMITS } from "@/lib/rate-limit";
 /**
@@ -110,7 +111,7 @@ export async function POST(request: NextRequest) {
     experience_id: exp.id,
     edition_id: editionId,
     status: "lead",
-    notes: "Website interest · asked to be emailed when this week's packages go live.",
+    notes: WEEK_INTEREST_NOTE,
   });
   if (bErr) return bad("Could not save your request. Please try again.", 500);
 

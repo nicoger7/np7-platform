@@ -326,6 +326,24 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  team_interest_signup: (v, opts) => ({
+    subject: `Waiting list · ${v.guestName ?? "someone"} · ${v.experienceTitle ?? "NP7"}${v.editionLabel ? ` (${esc(String(v.editionLabel))})` : ""}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `${v.guestName ?? "Someone"} wants to hear when ${v.experienceTitle ?? "a week"} goes on sale.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "Someone"))}</strong> joined the waiting list. They want an email when this week's packages go on sale.`) +
+        checklist([
+          v.experienceTitle ? `Trip: ${v.experienceTitle}${v.editionLabel ? ` · ${v.editionLabel}` : ""}` : "",
+          v.dates ? `Dates: ${v.dates}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+        ].filter(Boolean).join("\n")) +
+        (v.waitingCount ? p(`<strong>${esc(String(v.waitingCount))}</strong>`) : "") +
+        (v.adminLink ? emailButton("Open the lead", String(v.adminLink)) : "") +
+        p(`You are getting this because you are on the team list for waiting-list sign-ups. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
   team_booking_created: (v, opts) => ({
     subject: `New booking · ${v.guestName ?? "someone"} · ${v.experienceTitle ?? "NP7"}${v.editionLabel ? ` (${esc(String(v.editionLabel))})` : ""}`,
     html: emailLayout({

@@ -52,6 +52,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   skills_verified: "Your coach signed off new skills 🤙",
   team_booking_created: "New booking · {{guestName}} · {{experienceTitle}}",
   team_addon_requested: "Add-on request · {{guestName}} · {{addonLabel}}",
+  team_interest_signup: "Waiting list · {{guestName}} · {{experienceTitle}}",
   password_reset: "Reset your NP7 password",
 };
 
@@ -392,6 +393,13 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("Asked for: <strong>{{addonLabel}}</strong>{{?addonPrice}} · {{addonPrice}}{{/addonPrice}}{{?experienceTitle}}<br>Trip: {{experienceTitle}}{{/experienceTitle}}{{?editionLabel}} · {{editionLabel}}{{/editionLabel}}{{?dates}}<br>Dates: {{dates}}{{/dates}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
     BTN("Confirm or decline", "adminLink") +
     P("You are getting this because you are on the team list for add-on requests. Change who gets it in Admin → Emails → Team."),
+
+  team_interest_signup:
+    P("<strong>{{guestName}}</strong> joined the waiting list. They want an email when this week's packages go on sale.") +
+    P("Trip: <strong>{{experienceTitle}}</strong>{{?editionLabel}} · {{editionLabel}}{{/editionLabel}}{{?dates}}<br>Dates: {{dates}}{{/dates}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
+    "{{?waitingCount}}" + P("<strong>{{waitingCount}}</strong>") + "{{/waitingCount}}" +
+    BTN("Open the lead", "adminLink") +
+    P("You are getting this because you are on the team list for waiting-list sign-ups. Change who gets it in Admin → Emails → Team."),
 
   team_booking_created:
     P("<strong>{{guestName}}</strong> just booked.") +

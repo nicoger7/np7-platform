@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
 import { publicOrigin } from "@/lib/public-origin";
+import { isWeekInterest } from "@/lib/week-interest";
 
 /**
  * The mail NP7's own people get.
@@ -47,6 +48,12 @@ export const TEAM_EVENTS = [
     title: "A guest asks for an add-on",
     blurb: "A guest asked for something from their trip page (an extra night, a lesson, a transfer) and it is waiting for someone to confirm or decline it.",
     templateKey: "team_addon_requested",
+  },
+  {
+    key: "interest_signup",
+    title: "Someone joins a waiting list",
+    blurb: "A visitor asked to be told when a week without packages goes on sale. Who, which week, and how many are now waiting for it.",
+    templateKey: "team_interest_signup",
   },
 ] as const;
 
@@ -95,7 +102,7 @@ export async function sweepNewBookings(opts?: { since?: string; limit?: number }
   const since = opts?.since ?? new Date(Date.now() - 6 * 3600 * 1000).toISOString();
   const { data, error } = await db
     .from("exp_bookings")
-    .select("id,created_at,status,agreed_price,covered_by_booking_id,contacts(name,email),exp_experiences(title,currency),exp_editions(label,date_start,date_end),exp_packages(name)")
+    .select("id,created_at,status,agreed_price,covered_by_booking_id,package_id,notes,contacts(name,email),exp_experiences(title,currency),exp_editions(label,date_start,date_end),exp_packages(name)")
     .gte("created_at", since)
     .order("created_at", { ascending: true })
     .limit(opts?.limit ?? 50);
@@ -111,6 +118,9 @@ export async function sweepNewBookings(opts?: { since?: string; limit?: number }
     // A lost booking, or a companion somebody else is paying for, is not a new
     // booking arriving. The payer's own mail already names the whole group.
     if (String(b.status ?? "").toLowerCase() === "lost" || b.covered_by_booking_id) continue;
+    // A waiting-list sign-up is a lead row too, but nobody booked anything:
+    // it has its own mail, to its own list (sweepInterestSignups below).
+    if (isWeekInterest(b)) continue;
 
     const vars = {
       guestName: String(b.contacts?.name ?? "").trim() || b.contacts?.email || "Someone",
@@ -200,6 +210,78 @@ export async function sweepAddonRequests(opts?: { since?: string; limit?: number
         manual: true,
         bookingId: a.booking_id,
         dedupeKey: `team:addon_requested:${a.id}:${r.email.toLowerCase()}`,
+      }).catch((e) => ({ status: "error" as const, error: e instanceof Error ? e.message : String(e) }));
+      if (res.status === "sent") announced++;
+      else if (res.status !== "skipped") skipped.push(`${r.email}: ${res.error ?? "failed"}`);
+    }
+  }
+  return { looked: rows.length, announced, recipients: to.length, skipped };
+}
+
+/**
+ * Announce every waiting-list sign-up: somebody asked to be told when a week
+ * with no packages on sale yet goes live.
+ *
+ * These used to go out, if at all, as "New booking" with no package and no
+ * price, which reads like a broken booking. They are demand, not bookings, and
+ * the useful number is how many people are now waiting for that week (Nico,
+ * 27 Sep 2026: "yes simona and me for now").
+ */
+export async function sweepInterestSignups(opts?: { since?: string; limit?: number }): Promise<SweepResult> {
+  const to = await recipientsFor("interest_signup");
+  if (!to.length) return { looked: 0, announced: 0, recipients: 0, skipped: ["nobody is subscribed"] };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = createAdminClient() as any;
+  const since = opts?.since ?? new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+  const { data, error } = await db
+    .from("exp_bookings")
+    .select("id,created_at,status,package_id,notes,edition_id,contacts(name,email),exp_experiences(title),exp_editions(label,date_start,date_end)")
+    .gte("created_at", since)
+    .is("package_id", null)
+    .order("created_at", { ascending: true })
+    .limit(opts?.limit ?? 50);
+  if (error) return { looked: 0, announced: 0, recipients: to.length, skipped: [String(error.message ?? error)] };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = ((data ?? []) as any[]).filter((b) => isWeekInterest(b) && String(b.status ?? "").toLowerCase() !== "lost");
+  const origin = publicOrigin();
+  let announced = 0;
+  const skipped: string[] = [];
+  const waitingOn = new Map<string, number>();
+
+  for (const b of rows) {
+    // How many are waiting on this week now, this sign-up included. A failed
+    // count leaves the line out rather than printing a wrong number.
+    if (b.edition_id && !waitingOn.has(b.edition_id)) {
+      const { data: same, error: countErr } = await db
+        .from("exp_bookings").select("id,package_id,notes,status")
+        .eq("edition_id", b.edition_id).is("package_id", null);
+      if (!countErr) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        waitingOn.set(b.edition_id, ((same ?? []) as any[])
+          .filter((r) => isWeekInterest(r) && String(r.status ?? "").toLowerCase() !== "lost").length);
+      }
+    }
+    const waiting = b.edition_id ? waitingOn.get(b.edition_id) : undefined;
+
+    const vars = {
+      guestName: String(b.contacts?.name ?? "").trim() || b.contacts?.email || "Someone",
+      guestEmail: b.contacts?.email ?? "",
+      experienceTitle: b.exp_experiences?.title ?? "an NP7 trip",
+      editionLabel: b.exp_editions?.label ?? "",
+      dates: fmtRange(b.exp_editions?.date_start, b.exp_editions?.date_end) ?? "",
+      waitingCount: waiting ? `${waiting} ${waiting === 1 ? "person is" : "people are"} now waiting for this week.` : "",
+      adminLink: `${origin}/admin/bookings/${b.id}`,
+    };
+    for (const r of to) {
+      const res = await sendEmail({
+        to: r.email,
+        templateKey: "team_interest_signup",
+        vars,
+        manual: true,
+        bookingId: b.id,
+        dedupeKey: `team:interest_signup:${b.id}:${r.email.toLowerCase()}`,
       }).catch((e) => ({ status: "error" as const, error: e instanceof Error ? e.message : String(e) }));
       if (res.status === "sent") announced++;
       else if (res.status !== "skipped") skipped.push(`${r.email}: ${res.error ?? "failed"}`);
