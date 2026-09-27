@@ -4,7 +4,25 @@ import { useEffect, useState } from "react";
 
 const KEY = "np7_consent";                     // marker that a choice was made + summary
 const ANALYTICS_KEY = "np7_consent_analytics"; // "yes" | "no"
-const MARKETING_KEY = "np7_consent_marketing"; // "yes" | "no"  (read by the Meta Pixel)
+const MARKETING_KEY = "np7_consent_marketing"; // "yes" | "no"  (read by the Meta Pixel + Google Ads tag)
+const VERSION_KEY = "np7_consent_v";           // the banner wording the choice was made under
+
+/**
+ * Bumped whenever the banner starts naming a new vendor. 2 = the Marketing
+ * option names the Google Ads tag next to the Meta Pixel. A "yes" given under
+ * 1 covered Meta alone, so those visitors are asked again, never silently
+ * opted in to Google.
+ */
+export const CONSENT_VERSION = 2;
+
+/** The banner version the stored choice was made under (1 = before versioning). */
+export function consentVersion(): number {
+  try {
+    return Number(localStorage.getItem(VERSION_KEY)) || 1;
+  } catch {
+    return 1;
+  }
+}
 
 /** Read the stored analytics consent (client-only). Analytics must check this. */
 export function hasAnalyticsConsent(): boolean {
@@ -23,6 +41,7 @@ function persist(analytics: boolean, marketing: boolean) {
     localStorage.setItem(KEY, analytics && marketing ? "all" : analytics || marketing ? "custom" : "essential");
     localStorage.setItem(ANALYTICS_KEY, analytics ? "yes" : "no");
     localStorage.setItem(MARKETING_KEY, marketing ? "yes" : "no");
+    localStorage.setItem(VERSION_KEY, String(CONSENT_VERSION));
     localStorage.setItem(`${KEY}_at`, new Date().toISOString());
   } catch {
     /* storage blocked */
@@ -46,10 +65,24 @@ function Toggle({ on, onChange, label, desc }: { on: boolean; onChange: (v: bool
 }
 
 /**
+ * Reopens the banner so a visitor can change or withdraw their choice. The
+ * privacy policy promises exactly that, and withdrawing must be as easy as
+ * consenting (Art. 7(3) GDPR); without it the banner never came back.
+ */
+export function CookieSettingsButton({ className }: { className?: string }) {
+  return (
+    <button type="button" onClick={() => window.dispatchEvent(new Event("np7-open-consent"))} className={className}>
+      Cookie settings
+    </button>
+  );
+}
+
+/**
  * Cookie-consent banner. Privacy-first + GDPR-granular: essential always runs;
  * analytics and marketing are each a separate opt-in (default OFF), and rejecting
  * is as easy as accepting. The choice is stored locally and broadcast via the
- * `np7-consent` event so the first-party tracker and the Meta Pixel can start/stop.
+ * `np7-consent` event so the first-party tracker, the Meta Pixel and the Google
+ * Ads tag can start/stop.
  */
 export function CookieConsent() {
   const [show, setShow] = useState(false);
@@ -59,10 +92,24 @@ export function CookieConsent() {
 
   useEffect(() => {
     try {
-      if (!localStorage.getItem(KEY)) setShow(true);
+      // A marketing "yes" from an older banner didn't name every vendor we now use.
+      const outdatedYes = localStorage.getItem(MARKETING_KEY) === "yes" && consentVersion() < CONSENT_VERSION;
+      if (!localStorage.getItem(KEY) || outdatedYes) setShow(true);
     } catch {
       /* storage blocked — don't nag */
     }
+    // "Cookie settings" opens the detailed view on the visitor's current choice.
+    // A marketing yes only shows as on if it was given under today's wording.
+    const reopen = () => {
+      let m = false;
+      try { m = localStorage.getItem(MARKETING_KEY) === "yes" && consentVersion() >= CONSENT_VERSION; } catch { /* off */ }
+      setAnalytics(hasAnalyticsConsent());
+      setMarketing(m);
+      setCustomize(true);
+      setShow(true);
+    };
+    window.addEventListener("np7-open-consent", reopen);
+    return () => window.removeEventListener("np7-open-consent", reopen);
   }, []);
 
   const acceptAll = () => { persist(true, true); setShow(false); };
@@ -76,8 +123,8 @@ export function CookieConsent() {
       <div className="pointer-events-auto max-w-[760px] mx-auto rounded-2xl bg-[#00374a] text-white shadow-[0_12px_40px_rgba(0,0,0,0.3)] border border-white/10 p-4 sm:p-5">
         <p className="text-[13px] leading-relaxed text-white/85">
           We use essential cookies to run the site. With your consent we also measure how the site is
-          used (first-party, no ad networks) and, only if you choose, use marketing cookies like the
-          Meta Pixel to make our ads more relevant.{" "}
+          used (first-party, no ad networks) and, only if you choose, use marketing cookies (the
+          Meta Pixel and the Google Ads tag) to make our ads more relevant.{" "}
           <a href="/privacy" className="font-semibold text-[#5fd0e8] hover:underline">Privacy policy</a>
         </p>
 
@@ -91,7 +138,7 @@ export function CookieConsent() {
               </span>
             </div>
             <Toggle on={analytics} onChange={setAnalytics} label="Analytics" desc="First-party measurement of pages and the booking funnel. No third-party tools." />
-            <Toggle on={marketing} onChange={setMarketing} label="Marketing" desc="Meta (Facebook) Pixel: shares your actions with Meta to measure & target our ads." />
+            <Toggle on={marketing} onChange={setMarketing} label="Marketing" desc="Meta (Facebook) Pixel and Google Ads tag: share your actions with Meta and Google to measure & target our ads." />
           </div>
         )}
 

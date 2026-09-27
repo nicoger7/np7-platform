@@ -6,6 +6,7 @@
 
 import { hasAnalyticsConsent } from "@/components/shared/cookie-consent";
 import { metaForward, metaStandardEvent } from "@/lib/meta-pixel";
+import { googleAdsForward } from "@/lib/google-ads";
 import { hasAuthCookie } from "@/lib/has-auth-cookie";
 
 const VID_KEY = "np7_vid"; // stable-ish visitor id (localStorage)
@@ -132,15 +133,17 @@ export function track(event: string, meta?: Record<string, unknown>): void {
   try {
     if (typeof window === "undefined") return;
     if (window.top !== window.self) return; // never track inside an iframe (e.g. the admin heatmap preview)
-    // Conversions get one id that both sinks share: Meta receives it as the
-    // dedup key, and we store it below so a future Conversions API call can
-    // replay the same conversion without it being counted twice. Only real
-    // conversions get one — a scroll-depth ping has nothing to deduplicate.
+    // Conversions get one id that every sink shares: Meta receives it as the
+    // dedup key, Google as the transaction_id, and we store it below so a
+    // future Conversions API call can replay the same conversion without it
+    // being counted twice. Only real conversions get one — a scroll-depth ping
+    // has nothing to deduplicate.
     const eventId = metaStandardEvent(event) ? rid() : undefined;
-    // Forward conversions to Meta — self-gated on its OWN marketing consent, so
-    // it stays independent of first-party analytics consent (and is inert until
-    // a Pixel id + marketing consent both exist).
+    // Forward conversions to Meta and Google — each self-gated on its OWN
+    // marketing consent, so they stay independent of first-party analytics
+    // consent (and are inert until their own gates pass).
     metaForward(event, meta, eventId);
+    googleAdsForward(event, eventId);
     if (!hasAnalyticsConsent()) return;
     const path = window.location.pathname;
     const params = new URLSearchParams(window.location.search);

@@ -4,6 +4,7 @@ import "./globals.css";
 import { CookieConsent } from "@/components/shared/cookie-consent";
 import { AnalyticsTracker } from "@/components/analytics/tracker";
 import { MetaPixel } from "@/components/analytics/meta-pixel";
+import { GoogleAdsTag } from "@/components/analytics/google-ads-tag";
 import { SECTION_CSS, SECTION_SCRIPT } from "@/components/shared/section-world";
 import { SectionSync } from "@/components/shared/section-sync";
 
@@ -96,6 +97,7 @@ export default function RootLayout({
         <SectionSync />
         <AnalyticsTracker />
         <MetaPixel />
+        <GoogleAdsTag />
         <CookieConsent />
       </body>
     </html>

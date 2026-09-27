@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getLegalEntity, addressLine } from "@/lib/legal";
 import { LegalShell } from "@/components/shared/legal-shell";
+import { CookieSettingsButton } from "@/components/shared/cookie-consent";
 
 export const metadata: Metadata = { title: { absolute: "Privacy Policy · NP7" }, robots: { index: true } };
 export const revalidate = 86400;
@@ -10,7 +11,7 @@ export default async function PrivacyPage() {
   const contact = e.email || "privacy@np-seven.com";
 
   return (
-    <LegalShell title="Privacy Policy" updated="21 June 2026">
+    <LegalShell title="Privacy Policy" updated="27 September 2026">
       <p className="note">
         <strong>Draft template: have this reviewed by your data-protection counsel before relying on it.</strong>{" "}
         It describes the processing this platform actually performs; adjust to your final setup and the
@@ -37,8 +38,9 @@ export default async function PrivacyPage() {
       <ul>
         <li><strong>Essential</strong> (always on, no consent needed, Art. 6(1)(f)): a sign-in session cookie, a small preference for which section you’re viewing, and a record of your cookie choice.</li>
         <li><strong>Analytics</strong> (off unless you opt in): our own <strong>first-party</strong> measurement of page views and the booking funnel. No third-party analytics tools, no advertising networks, and we store no IP address with it.</li>
-        <li><strong>Marketing</strong> (off unless you opt in): the <strong>Meta (Facebook) Pixel</strong>. When enabled it shares your interactions (e.g. pages viewed, registrations) with Meta Platforms Ireland Ltd. so we can measure and target our advertising. This sets third-party cookies and may transfer data to Meta (incl. the USA, safeguarded by EU Standard Contractual Clauses). You can withdraw consent any time via the cookie banner; this does not affect prior processing.</li>
+        <li><strong>Marketing</strong> (off unless you opt in): the <strong>Meta (Facebook) Pixel</strong> and the <strong>Google Ads tag</strong>. When enabled they share your interactions (e.g. pages viewed, registrations) with Meta Platforms Ireland Ltd. and Google Ireland Ltd. so we can measure and target our advertising. This sets third-party cookies and may transfer data to Meta and Google (incl. the USA, safeguarded by EU Standard Contractual Clauses). You can withdraw consent any time via the cookie banner; this does not affect prior processing.</li>
       </ul>
+      <p>To change or withdraw your choice, open the <CookieSettingsButton className="font-semibold text-[#00afdb] underline" />.</p>
 
       <h2>4. Processors &amp; recipients</h2>
       <ul>
@@ -47,6 +49,7 @@ export default async function PrivacyPage() {
         <li><strong>Resend</strong>: transactional &amp; (opted-in) marketing email delivery.</li>
         <li><strong>Surfcenter</strong>: our operating partner for bookings &amp; payments; receives the data needed to fulfil your trip.</li>
         <li><strong>Meta Platforms Ireland</strong>: Facebook/Instagram advertising measurement (Meta Pixel), <strong>only if you opt into Marketing cookies</strong>.</li>
+        <li><strong>Google Ireland</strong>: Google Ads measurement of sign-ups from our search ads (Google Ads tag), <strong>only if you opt into Marketing cookies</strong>.</li>
       </ul>
       <p>Where a processor operates outside the EU/EEA, transfers are safeguarded by EU Standard Contractual Clauses or an adequacy decision.</p>
 
