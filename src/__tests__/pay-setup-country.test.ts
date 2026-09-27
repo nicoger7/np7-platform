@@ -46,3 +46,22 @@ describe("the country dropdown on the trip page", () => {
     expect(canPayOnline(onlineMethodsFor(null))).toBe(false);
   });
 });
+
+describe("an address in a country with no postcode", () => {
+  it("is complete without one, so the setup box can be saved and goes away", async () => {
+    const { billingAddressIncomplete } = await import("@/lib/billing-address");
+    const curacao = { billing_address: "Kaya Grandi 1", billing_postal_code: "", billing_city: "Willemstad", billing_country: "Curaçao" };
+    expect(billingAddressIncomplete(curacao)).toBe(false);
+    expect(billingAddressIncomplete({ ...curacao, billing_country: "Germany" })).toBe(true);
+    expect(billingAddressIncomplete({ ...curacao, billing_country: "BQ" })).toBe(false);
+  });
+
+  it("from Stripe replaces an incomplete one and clears a stale postcode", async () => {
+    const { fillGaps } = await import("@/lib/billing-address");
+    const patch = fillGaps(
+      { billing_address: null, billing_postal_code: "20095", billing_city: null, billing_country: null },
+      { billing_address: "Kaya Grandi 1", billing_city: "Willemstad", billing_country: "CW" },
+    );
+    expect(patch).toEqual({ billing_address: "Kaya Grandi 1", billing_postal_code: null, billing_city: "Willemstad", billing_country: "CW" });
+  });
+});

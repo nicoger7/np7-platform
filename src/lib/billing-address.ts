@@ -1,3 +1,5 @@
+import { usesPostcode } from "@/lib/countries";
+
 /**
  * The address that belongs on an invoice, and the rules for filling it in.
  *
@@ -117,11 +119,13 @@ export function fillGaps(
   incoming: Partial<BillingAddress>,
 ): Partial<BillingAddress> {
   const keys = ["billing_address", "billing_postal_code", "billing_city", "billing_country"] as const;
-  const complete = (a: Partial<BillingAddress> | null | undefined) => keys.every((k) => filled(a?.[k]));
-  if (complete(current)) return {};
-  if (!complete(incoming)) return {};
+  if (!billingAddressIncomplete(current)) return {};
+  if (billingAddressIncomplete(incoming)) return {};
+  // A complete address from a country with no postcode clears the old one
+  // rather than keeping it: a Curaçao street with a Hamburg postcode is the
+  // same fiction as above.
   const patch: Partial<BillingAddress> = {};
-  for (const k of keys) patch[k] = incoming[k] as string;
+  for (const k of keys) patch[k] = filled(incoming[k]) ? (incoming[k] as string) : null;
   return patch;
 }
 
@@ -136,7 +140,10 @@ export function fillGaps(
  */
 export function billingAddressIncomplete(current: Partial<BillingAddress> | null | undefined): boolean {
   return !filled(current?.billing_address)
-    || !filled(current?.billing_postal_code)
+    // Not in a country that has none (Curaçao, Bonaire, the Emirates): an
+    // address there is complete without one, and asking for it forever means
+    // the guest can never finish, and never pay online.
+    || (!filled(current?.billing_postal_code) && usesPostcode(current?.billing_country))
     || !filled(current?.billing_city)
     || !filled(current?.billing_country);
 }

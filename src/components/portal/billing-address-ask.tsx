@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { mutate } from "@/lib/mutate";
-import type { CountryOption } from "@/lib/countries";
+import { usesPostcode, type CountryOption } from "@/lib/countries";
 
 /**
  * "Your invoice needs your address", asked of the guest who never presses Pay.
@@ -78,7 +78,7 @@ export function BillingAddressAsk({
     // be told which one rather than made to hunt for it.
     const missing = [
       !f.billing_address.trim() && "street and number",
-      !f.billing_postal_code.trim() && "postcode",
+      !f.billing_postal_code.trim() && usesPostcode(f.billing_country) && "postcode",
       !f.billing_city.trim() && "city",
       !f.billing_country.trim() && "country",
     ].filter(Boolean) as string[];
@@ -141,7 +141,7 @@ export function BillingAddressAsk({
             onChange={(e) => set("billing_address", e.target.value)} placeholder="Graskamp 8" autoComplete="street-address" />
         </div>
         <div>
-          <label className={label} htmlFor="ba-postcode">Postcode</label>
+          <label className={label} htmlFor="ba-postcode">{usesPostcode(f.billing_country) ? "Postcode" : "Postcode (if you have one)"}</label>
           <input id="ba-postcode" className={field} value={f.billing_postal_code} disabled={preview}
             onChange={(e) => set("billing_postal_code", e.target.value)} placeholder="24217" autoComplete="postal-code" />
         </div>

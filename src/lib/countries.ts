@@ -54,3 +54,26 @@ export function isoFromCountryName(raw: string | null | undefined): string | nul
   if (!byName) byName = new Map(countryOptions().map((c) => [c.name.toUpperCase(), c.code]));
   return byName.get(key) ?? null;
 }
+
+/**
+ * Countries with no postcode, or none in everyday use. A guest in Curaçao or
+ * Bonaire cannot type one, and a box that insists on it cannot be saved, which
+ * for the payment setup means they can never pay online. The list follows
+ * Google's address data (libaddressinput), which is what Stripe's own address
+ * form uses to drop the field.
+ */
+const NO_POSTCODE = new Set([
+  "AE", "AG", "AO", "AW", "BF", "BI", "BJ", "BO", "BQ", "BS", "BW", "BZ", "CD",
+  "CF", "CG", "CI", "CK", "CM", "CW", "DJ", "DM", "ER", "FJ", "GA", "GD", "GH",
+  "GM", "GQ", "GY", "HK", "JM", "KI", "KM", "KN", "KP", "LC", "ML", "MO", "MR",
+  "MW", "NR", "NU", "QA", "RW", "SB", "SC", "SL", "SR", "ST", "SX", "SY", "TD",
+  "TF", "TG", "TK", "TL", "TO", "TT", "TV", "UG", "VU", "YE", "ZW",
+]);
+
+/** Whether an address in this country (a code or an English name) has a
+ *  postcode to ask for. Anything we cannot place is assumed to have one. */
+export function usesPostcode(country: string | null | undefined): boolean {
+  const raw = (country ?? "").trim().toUpperCase();
+  const code = /^[A-Z]{2}$/.test(raw) ? raw : isoFromCountryName(raw);
+  return !(code && NO_POSTCODE.has(code));
+}
