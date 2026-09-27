@@ -13,6 +13,7 @@ import { UpcomingExperiences } from "@/components/experience/upcoming-experience
 import { CrewReviews } from "@/components/experience/crew-reviews";
 import { getLandingReviews } from "@/lib/landing-reviews";
 import { getExperienceCards } from "@/lib/experience-cards";
+import { experienceGateOpen, redirectToMemberLogin } from "@/lib/member-gate";
 
 export const metadata: Metadata = {
   title: { absolute: "NP7 Experience — Premium Watersports Travel" },
@@ -61,6 +62,17 @@ const REVIEWS_DEFAULTS = {
 /* --------------------------------- page --------------------------------- */
 
 export default async function ExperienceOverviewPage() {
+  /*
+   * The gate first, before any query (Nico, 27 Sep 2026).
+   *
+   * The layout redirects logged-out visitors while the world is hidden, but it
+   * renders alongside this page, so its 307 carried the finished overview in
+   * the body: every trip card with its "from" price (€1,800, €2,190, €2,390
+   * and on). The overview is never link-only, so this opens for the team,
+   * signed-in members, and everyone once SHOW_EXPERIENCE is on. With the flag
+   * on it answers without reading a cookie, so it costs the page nothing then.
+   */
+  if (!(await experienceGateOpen("/experience"))) await redirectToMemberLogin("/experience");
   // Admin-editable hero (Templates → Experience landing hero, site_settings).
   // Every field optional; the shipped constants stay the floor so a half-filled
   // or missing row can never blank the page.

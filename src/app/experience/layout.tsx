@@ -1,22 +1,27 @@
 import { headers } from "next/headers";
 import { BotIdClient } from "botid/client";
-import { flags } from "@/lib/flags";
-import { canSeeExperienceWorld } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase";
-import { redirectToMemberLogin } from "@/lib/member-gate";
+import { experienceGateOpen, redirectToMemberLogin } from "@/lib/member-gate";
 
-// Hidden in production until SHOW_EXPERIENCE=true — a plain 404, no public hint.
-// Exceptions: the gift-voucher purchase page stays open (standalone commerce
-// flow), and logged-in TEAM members always get through — that's the admin
-// "Preview page" button working in production before the reveal. (The team
-// check only runs when the flag is off, so it can't affect rendering later.)
+// Hidden in production until SHOW_EXPERIENCE=true. Logged-out visitors are
+// asked to sign in (members can already see this world). Exceptions: the
+// gift-voucher purchase page stays open (standalone commerce flow), link-only
+// experiences open by their own link, and logged-in TEAM members always get
+// through, which is the admin "Preview page" button working in production
+// before the reveal. (The team check only runs when the flag is off, so it
+// can't affect rendering later.)
+//
+// This is the BACKSTOP, not the gate (Nico, 27 Sep 2026). Next renders this
+// layout, the page and generateMetadata side by side, so a redirect from here
+// lands after the page has already rendered and its content rides along in the
+// body of the 307. The pages under /experience therefore ask
+// experienceGateOpen() themselves, first, before any query. This check stays
+// for any page that does not.
 export default async function ExperienceLayout({ children }: { children: React.ReactNode }) {
-  // the header carries path + query — strip the query before matching
-  const path = ((await headers()).get("x-np7-pathname") ?? "").split("?")[0];
-  const isGift = path.startsWith("/experience/gift");
-  if (!isGift && !(await canSeeExperienceWorld(flags.showExperience)) && !(await publicByLink(path))) {
+  // the header carries path + query; experienceGateOpen strips the query
+  const path = (await headers()).get("x-np7-pathname") ?? "";
+  if (!(await experienceGateOpen(path))) {
     // Members can see this world already, so someone arriving logged out is
-    // asked to sign in and sent back here — not told the page does not exist.
+    // asked to sign in and sent back here, not told the page does not exist.
     await redirectToMemberLogin("/experience");
   }
   return (
@@ -26,32 +31,4 @@ export default async function ExperienceLayout({ children }: { children: React.R
       {children}
     </>
   );
-}
-
-/**
- * One experience opened by direct link while the world is still hidden
- * (migration 155). Detail pages only — /experience itself and every other slug
- * keep 404ing — and the row's own admin state still governs, so unticking the
- * box or unpublishing closes the door again. It never reaches an index or the
- * sitemap: those are gated by the same flag.
- */
-async function publicByLink(path: string): Promise<boolean> {
-  // The detail page, and — since an event series sells one clinic per URL —
-  // its per-edition pages too. Without the second form, opening the Alaçatı
-  // link 404'd at the layout before the route ever ran, which is a link-only
-  // experience that cannot be opened by its own link.
-  const m = /^\/experience\/([^/]+)(?:\/[^/]+)?$/.exec(path);
-  if (!m) return false;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = createAdminClient() as any;
-    const { data } = await db
-      .from("exp_experiences")
-      .select("public_by_link,status,website_visible")
-      .eq("slug", m[1])
-      .maybeSingle();
-    return data?.public_by_link === true && data.status === "published" && data.website_visible !== false;
-  } catch {
-    return false; // pre-migration or transient → the gate stays shut
-  }
 }

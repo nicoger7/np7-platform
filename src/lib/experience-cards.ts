@@ -72,6 +72,41 @@ function money(n: number | null, currency: string | null) {
   return `${symbol}${n.toLocaleString("en-US")}`;
 }
 
+/** A package as the card query embeds it: only what the "from" price needs. */
+export type CardPackage = {
+  price: number | null;
+  status: string | null;
+  edition_id: string | null;
+  website_visible: boolean | null;
+  archived_at?: string | null;
+};
+
+/**
+ * Lowest price among packages that are active, visible, not deleted, and
+ * either shared or on the WEEK being priced. Null when nothing qualifies: a
+ * card with nothing on sale shows no price rather than a made-up one.
+ *
+ * The week is passed in. It used to be read off exp.ed, the experience's
+ * single next edition, which was the same thing until a card became a season:
+ * the Bonaire 2027 card then priced itself off Bonaire's next 2026 week and
+ * advertised 2027 at the 2026 entry price.
+ *
+ * Deleted packages are skipped (Nico, 27 Sep 2026). Delete in the admin is a
+ * soft delete: it stamps archived_at and leaves status alone, so a package
+ * deleted while "active" stayed active, and its price could become a card's
+ * "from €X" on /experience and the homepage tiles. The detail page and the
+ * gift page already skipped them; the cards were the one reader that did not.
+ * Nothing was affected yet (every archived package also reads "archived"
+ * today), but it was one click away.
+ */
+export function cheapestCardPrice(packages: CardPackage[], edId: string | undefined): number | null {
+  const prices = packages
+    .filter((p) => p.price != null && p.status === "active" && p.website_visible !== false && !p.archived_at)
+    .filter((p) => !p.edition_id || p.edition_id === edId)
+    .map((p) => Number(p.price));
+  return prices.length ? Math.min(...prices) : null;
+}
+
 // The lead coach for a tile: the first name in the edition's free-text coaches
 // field ("Nico Prien, Simona" -> "Nico Prien"). Empty -> null.
 function leadCoach(coaches: string | null | undefined): string | null {
@@ -83,7 +118,7 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
   const { data } = await supabase
     .from("exp_experiences")
     .select(
-      "id,title,slug,location,price,currency,description,hero_image,destination_id,page_template,exp_packages(price,status,edition_id,website_visible),exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active,coaches,launch_discount_pct,launch_price_until,public_from,archived_at)"
+      "id,title,slug,location,price,currency,description,hero_image,destination_id,page_template,exp_packages(price,status,edition_id,website_visible,archived_at),exp_editions(id,date_start,date_end,max_spots,spots_taken,status,active,coaches,launch_discount_pct,launch_price_until,public_from,archived_at)"
     )
     .eq("status", "published");
 
@@ -94,21 +129,9 @@ export async function getExperienceCards(viewer?: { tierKey: "rider" | "crew" | 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hiddenIds = new Set(((visRows ?? []) as any[]).filter((e) => e.website_visible === false).map((e) => e.id as string));
 
-  /** Lowest price among packages that are active, visible, and either shared or
-   *  on the WEEK being priced.
-   *
-   *  The week is passed in. It used to be read off exp.ed, the experience's
-   *  single next edition, which was the same thing until a card became a
-   *  season: the Bonaire 2027 card then priced itself off Bonaire's next 2026
-   *  week and advertised 2027 at the 2026 entry price. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cheapestPackagePrice = (exp: any, edId: string | undefined): number | null => {
-    const prices = ((exp.exp_packages ?? []) as { price: number | null; status: string | null; edition_id: string | null; website_visible: boolean | null }[])
-      .filter((p) => p.price != null && p.status === "active" && p.website_visible !== false)
-      .filter((p) => !p.edition_id || p.edition_id === edId)
-      .map((p) => Number(p.price));
-    return prices.length ? Math.min(...prices) : null;
-  };
+  const cheapestPackagePrice = (exp: any, edId: string | undefined): number | null =>
+    cheapestCardPrice((exp.exp_packages ?? []) as CardPackage[], edId);
 
   const todayIso = new Date().toISOString().slice(0, 10);
   const withEd = ((data as RawExperience[] | null) ?? [])
