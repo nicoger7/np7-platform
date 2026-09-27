@@ -3,6 +3,8 @@
  * restored by "Back to default". These mirror the built-in wording; saving one
  * just creates an override row. Pure strings — safe to import client-side.
  */
+import { VOUCHER_HOW_TO_REDEEM } from "@/lib/vouchers";
+
 const P = (s: string) => `<p style="margin:0 0 14px;">${s}</p>`;
 const BTN = (label: string, linkVar: string) =>
   `<p style="margin:0 0 16px;"><a href="{{${linkVar}}}" style="display:inline-block;background:#00afdb;color:#ffffff;padding:13px 28px;border-radius:999px;text-decoration:none;font-weight:700;">${label}</a></p>`;
@@ -15,8 +17,9 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   team_invite: "Your NP7 admin access",
   trip_invite: "{{inviterName}} invited you to {{experienceTitle}} 🌊",
   voucher_purchased: "Your NP7 gift voucher is ready 🎁",
+  voucher_ordered: "Your NP7 gift voucher order · {{amount}}",
   withdrawal_received: "Eingangsbestätigung: Ihr Widerruf ist eingegangen",
-  voucher_gift: "🎁 You've been gifted an NP7 windsurf trip",
+  voucher_gift: "You've been gifted an NP7 voucher",
   cancellation_confirmed: "Your cancellation · {{experienceTitle}}",
   payment_pending_nudge: "Your spot is waiting · {{experienceTitle}}",
   invoice_after_payment: "Payment received 🤙 your invoice for {{experienceTitle}}",
@@ -53,6 +56,7 @@ export const DEFAULT_SUBJECTS: Record<string, string> = {
   team_booking_created: "New booking · {{guestName}} · {{experienceTitle}}",
   team_addon_requested: "Add-on request · {{guestName}} · {{addonLabel}}",
   team_interest_signup: "Waiting list · {{guestName}} · {{experienceTitle}}",
+  team_voucher_ordered: "Voucher ordered · {{guestName}} · {{amount}}",
   password_reset: "Reset your NP7 password",
 };
 
@@ -345,23 +349,38 @@ export const DEFAULT_BODIES: Record<string, string> = {
 
   // ── Vouchers ───────────────────────────────────────────────────────────────
 
+  /* "It can be redeemed any time" was untrue (vouchers run out on redeem_by),
+     and "we'll take it straight off your booking" described a process that
+     does not exist. One sentence, VOUCHER_HOW_TO_REDEEM, says how on every
+     surface (27 Sep 2026). */
   voucher_purchased:
     P("Hey {{firstName}} 🤙") +
-    P("Thank you! Your <strong>{{amount}}</strong> gift voucher{{?experienceTitle}} towards <strong>{{experienceTitle}}</strong>{{/experienceTitle}} is confirmed and ready. 🎁") +
-    P("It's attached as a <strong>printable PDF</strong>: print it, hand it over or send it on. The code is <strong>{{voucherCode}}</strong>, and it can be redeemed any time.") +
+    P("Thank you! Your <strong>{{amount}}</strong> gift voucher{{?experienceTitle}} towards <strong>{{experienceTitle}}</strong>{{/experienceTitle}} is paid and ready. 🎁") +
+    P("It's attached as a <strong>printable PDF</strong>: print it, hand it over or send it on. The code is <strong>{{voucherCode}}</strong>.{{?validUntil}} Valid until <strong>{{validUntil}}</strong>.{{/validUntil}}") +
+    P(`How to use it: ${VOUCHER_HOW_TO_REDEEM} Whatever one trip doesn't need stays on the voucher for the next.`) +
+    "{{?nicoCall}}" + P("Nico will call {{recipientName}} personally to tell them, so we haven't emailed the voucher to them.") + "{{/nicoCall}}" +
     P("Thanks for giving the gift of riding." + SIGN),
+
+  voucher_ordered:
+    P("Hey {{firstName}} 🤙") +
+    P("Thank you for ordering an NP7 gift voucher{{?recipientName}} for <strong>{{recipientName}}</strong>{{/recipientName}}: <strong>{{amount}}</strong>{{?experienceTitle}} towards <strong>{{experienceTitle}}</strong>{{/experienceTitle}}.") +
+    P("To pay, send a bank transfer with these details:") +
+    P("<strong>Amount:</strong> {{amount}}{{?accountHolder}}<br><strong>Account holder:</strong> {{accountHolder}}{{/accountHolder}}{{?iban}}<br><strong>IBAN:</strong> {{iban}}{{/iban}}{{?bic}}<br><strong>BIC:</strong> {{bic}}{{/bic}}{{?bankName}}<br><strong>Bank:</strong> {{bankName}}{{/bankName}}<br><strong>Reference:</strong> {{reference}}") +
+    P("Please quote <strong>{{reference}}</strong> as the reference so we can match your payment. Once the money lands, usually within one to three working days, we email you the voucher as a printable PDF{{?nicoCall}} and set up Nico's call{{/nicoCall}}.") +
+    P("Any questions, just reply to this email." + SIGN),
 
   voucher_gift:
     P("Hey {{firstName}} 🤙") +
     P("<strong>{{fromName}}</strong> has gifted you a <strong>{{amount}}</strong> voucher{{?experienceTitle}} towards <strong>{{experienceTitle}}</strong>{{/experienceTitle}}. That's a coached windsurf, wing &amp; foil adventure. 🌊") +
-    P("Your voucher (code <strong>{{voucherCode}}</strong>) is attached as a printable PDF. To use it, pick a trip and we'll take it straight off your booking:") +
+    P("Your voucher (code <strong>{{voucherCode}}</strong>) is attached as a printable PDF.{{?validUntil}} It is valid until <strong>{{validUntil}}</strong>.{{/validUntil}}") +
+    P(`How to use it: ${VOUCHER_HOW_TO_REDEEM}`) +
     BTN("Explore the trips", "joinLink") +
     P("See you on the water." + SIGN),
 
   voucher_expiry_reminder:
     P("Hey {{firstName}} 🤙") +
-    P("A friendly heads-up: your NP7 gift voucher <strong>{{code}}</strong> over <strong>{{amountLabel}}</strong> is valid until <strong>{{redeemByLabel}}</strong>. After that it expires.") +
-    P("Redeeming is easy: pick any experience, mention the code when you book, and we take it straight off the invoice.") +
+    P("A friendly heads-up: your NP7 gift voucher <strong>{{code}}</strong> with <strong>{{amountLabel}}</strong> on it is valid until <strong>{{redeemByLabel}}</strong>. After that it expires.") +
+    P(`How to use it: ${VOUCHER_HOW_TO_REDEEM}`) +
     BTN("Browse the experiences", "browseLink") +
     P("Not sure which week fits? Just reply and we'll help you pick." + SIGN),
 
@@ -400,6 +419,14 @@ export const DEFAULT_BODIES: Record<string, string> = {
     "{{?waitingCount}}" + P("<strong>{{waitingCount}}</strong>") + "{{/waitingCount}}" +
     BTN("Open the lead", "adminLink") +
     P("You are getting this because you are on the team list for waiting-list sign-ups. Change who gets it in Admin → Emails → Team."),
+
+  team_voucher_ordered:
+    P("<strong>{{guestName}}</strong> ordered a gift voucher. It waits for the bank transfer.") +
+    P("Voucher: <strong>{{amount}}</strong>{{?experienceTitle}} towards {{experienceTitle}}{{/experienceTitle}}{{?packageName}}<br>Package: {{packageName}}{{/packageName}}{{?recipientName}}<br>For: {{recipientName}}{{/recipientName}}{{?voucherCode}}<br>Reference to look for: <strong>{{voucherCode}}</strong>{{/voucherCode}}{{?guestEmail}}<br>Email: {{guestEmail}}{{/guestEmail}}") +
+    "{{?callLine}}" + P("<strong>{{callLine}}</strong>") + "{{/callLine}}" +
+    BTN("Open the vouchers", "adminLink") +
+    P("When the transfer lands, press Mark paid on the voucher. That emails the voucher to the buyer.") +
+    P("You are getting this because you are on the team list for gift-voucher orders. Change who gets it in Admin → Emails → Team."),
 
   team_booking_created:
     P("<strong>{{guestName}}</strong> just booked.") +

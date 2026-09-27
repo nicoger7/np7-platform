@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cronAuthorized } from "@/lib/cron-auth";
 import { createAdminClient } from "@/lib/supabase";
 import { sendEmail } from "@/lib/email/send";
+import { fmtVoucherValue, voucherValueLeft } from "@/lib/vouchers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -43,9 +44,11 @@ export async function GET(req: NextRequest) {
 
   // 2. Warn about the ones on the clock.
   const horizon = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+  // `*` so the sweep keeps working whether or not the balance column
+  // (migration 262) has landed yet: a missing column is simply undefined.
   const { data: soon } = await db
     .from("gift_vouchers")
-    .select("id, code, amount, currency, redeem_by, recipient_name, recipient_email, buyer_contact_id")
+    .select("*")
     .eq("status", "active").not("redeem_by", "is", null)
     .gte("redeem_by", today).lte("redeem_by", horizon);
 
@@ -70,9 +73,10 @@ export async function GET(req: NextRequest) {
       (new Date(`${v.redeem_by}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) / 86_400_000,
     );
     const bucket = daysLeft <= 7 ? "7" : "30";
-    const amountLabel = new Intl.NumberFormat("de-DE", {
-      style: "currency", currency: v.currency || "EUR", maximumFractionDigits: 0,
-    }).format(Number(v.amount) || 0);
+    // What is LEFT on it, in the en-GB format every other voucher surface
+    // uses. This was the one place writing "1.000 €" (de-DE), and it named
+    // the original amount even after part of the voucher had been spent.
+    const amountLabel = fmtVoucherValue(voucherValueLeft(v), v.currency || "EUR");
     const redeemByLabel = new Date(`${v.redeem_by}T00:00:00Z`).toLocaleDateString("en-GB", {
       day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
     });

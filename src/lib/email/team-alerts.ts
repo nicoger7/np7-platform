@@ -55,6 +55,16 @@ export const TEAM_EVENTS = [
     blurb: "A visitor asked to be told when a week without packages goes on sale. Who, which week, and how many are now waiting for it.",
     templateKey: "team_interest_signup",
   },
+  /* Not a sweep: /api/voucher sends it the moment the order lands (see
+     sendVoucherOrdered in src/lib/vouchers/notify.ts). A voucher order has one
+     door, so there is no seventh route to forget, and the team should hear
+     before the transfer does (Nico, 27 Sep 2026). */
+  {
+    key: "voucher_ordered",
+    title: "Someone orders a gift voucher",
+    blurb: "A gift voucher was ordered on the website and waits for its bank transfer. Who ordered it, how much, the reference to look for, and whether Nico is to call the recipient.",
+    templateKey: "team_voucher_ordered",
+  },
 ] as const;
 
 export type TeamEventKey = (typeof TEAM_EVENTS)[number]["key"];

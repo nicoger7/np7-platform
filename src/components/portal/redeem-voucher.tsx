@@ -1,15 +1,18 @@
 "use client";
 
-import { formatMoneyExact } from "@/lib/money";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { mutate } from "@/lib/mutate";
+import { fmtVoucherValue } from "@/lib/vouchers";
 
 /**
- * "Apply a gift voucher" — a small form on the member booking page. Sends the
- * code to the redeem API, which credits the voucher amount to this booking's
- * payment plan. Shown only while there's still a balance to pay.
+ * "Apply a gift voucher": a small form on the member booking page. Sends the
+ * code to the redeem API, which credits what the trip still owes to this
+ * booking's payment plan. Shown only while there's still a balance to pay.
+ *
+ * Whatever the trip does not need stays on the voucher (Nico, 27 Sep 2026).
+ * This used to say, after the fact, that the rest "isn't carried over": a
+ * €10,000 gift on a €2,390 week told the guest they had just lost €7,610.
  */
 export function RedeemVoucher({ bookingId }: { bookingId: string }) {
   const router = useRouter();
@@ -17,7 +20,7 @@ export function RedeemVoucher({ bookingId }: { bookingId: string }) {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<null | { forfeited: number; currency: string }>(null);
+  const [done, setDone] = useState<null | { applied: number; left: number; currency: string }>(null);
 
   async function submit() {
     const trimmed = code.trim();
@@ -27,27 +30,24 @@ export function RedeemVoucher({ bookingId }: { bookingId: string }) {
     // A dropped connection used to leave the button stuck on "Applying…" with no
     // message: the member sat there believing a €500 gift voucher was being
     // credited to their trip, when nothing had been sent at all.
-    const res = await mutate<{ forfeited?: number; currency?: string }>("/api/portal/vouchers/redeem", {
+    const res = await mutate<{ amount?: number; left?: number; currency?: string }>("/api/portal/vouchers/redeem", {
       method: "POST",
       body: { code: trimmed, bookingId },
     });
     setBusy(false);
     if (!res.ok) { setError(res.error); return; }
     const data = res.data ?? {};
-    setDone({ forfeited: Number(data.forfeited) || 0, currency: data.currency || "EUR" });
+    setDone({ applied: Number(data.amount) || 0, left: Number(data.left) || 0, currency: data.currency || "EUR" });
     router.refresh();
   }
 
   if (done) {
-    const surplus = done.forfeited > 0
-      ? (formatMoneyExact(done.forfeited, done.currency) as string)
-      : null;
     return (
       <div className="text-[12.5px] font-semibold text-green-600">
-        ✓ Voucher applied. Your payment plan has been updated.
-        {surplus && (
+        ✓ Voucher applied{done.applied > 0 ? `: ${fmtVoucherValue(done.applied, done.currency)} off this trip` : ""}. Your payment plan has been updated.
+        {done.left > 0 && (
           <span className="block font-normal text-[#8a9aa0] mt-0.5">
-            It covered the full balance; the remaining {surplus} isn&apos;t carried over.
+            {fmtVoucherValue(done.left, done.currency)} left on your voucher. Keep the code for your next trip.
           </span>
         )}
       </div>

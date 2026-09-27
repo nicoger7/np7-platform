@@ -1,4 +1,5 @@
 import { emailLayout, emailButton, emailPill, esc, type Division } from "./layout";
+import { VOUCHER_HOW_TO_REDEEM } from "@/lib/vouchers";
 
 export type EmailVars = {
   firstName?: string;
@@ -344,6 +345,30 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /** A voucher was ordered on the website and waits for its transfer. The
+   *  reference is the voucher code, so it is the thing to look for on the bank
+   *  line (27 Sep 2026). */
+  team_voucher_ordered: (v, opts) => ({
+    subject: `Voucher ordered · ${v.guestName ?? "someone"} · ${v.amount ?? ""}`,
+    html: emailLayout({
+      ...opts,
+      preheader: `${v.guestName ?? "Someone"} ordered a gift voucher. It waits for the bank transfer.`,
+      bodyHtml:
+        p(`<strong>${esc(String(v.guestName ?? "Someone"))}</strong> ordered a gift voucher. It waits for the bank transfer.`) +
+        checklist([
+          v.amount ? `Voucher: ${v.amount} towards ${v.experienceTitle || "any NP7 trip"}` : "",
+          v.packageName ? `Package: ${v.packageName}` : "",
+          v.recipientName ? `For: ${v.recipientName}` : "",
+          v.voucherCode ? `Reference to look for: ${v.voucherCode}` : "",
+          v.guestEmail ? `Email: ${v.guestEmail}` : "",
+        ].filter(Boolean).join("\n")) +
+        (v.callLine ? p(`<strong>${esc(String(v.callLine))}</strong>`) : "") +
+        (v.adminLink ? emailButton("Open the vouchers", String(v.adminLink)) : "") +
+        p(`When the transfer lands, press Mark paid on the voucher. That emails the voucher to the buyer.`) +
+        p(`You are getting this because you are on the team list for gift-voucher orders. Change who gets it in Admin → Emails → Team.`),
+    }),
+  }),
+
   team_booking_created: (v, opts) => ({
     subject: `New booking · ${v.guestName ?? "someone"} · ${v.experienceTitle ?? "NP7"}${v.editionLabel ? ` (${esc(String(v.editionLabel))})` : ""}`,
     html: emailLayout({
@@ -497,16 +522,19 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
   }),
 
   /** Scheduled from the voucher-expiry cron at ~30 and ~7 days before
-   *  redeem_by. A €5k voucher must never die silently. */
+   *  redeem_by. A €5k voucher must never die silently. amountLabel is what is
+   *  LEFT on it: a voucher can be used in parts since 27 Sep 2026. The old
+   *  "mention the code when you book, and we take it off the invoice" described
+   *  a process that does not exist; the code box on the trip page is the way. */
   voucher_expiry_reminder: (v, opts) => ({
     subject: `Your NP7 gift voucher runs out on ${v.redeemByLabel ?? "…"}`,
     html: emailLayout({
       ...opts,
-      preheader: "Still yours to ride. Book any experience and we'll apply it.",
+      preheader: "Still yours to ride. Use it before it runs out.",
       bodyHtml:
         greet(v) +
-        p(`A friendly heads-up: your NP7 gift voucher <strong>${esc(String(v.code ?? ""))}</strong>${v.amountLabel ? ` over <strong>${esc(String(v.amountLabel))}</strong>` : ""} is valid until <strong>${esc(String(v.redeemByLabel ?? "soon"))}</strong>. After that it expires.`) +
-        p(`Redeeming is easy: pick any experience, mention the code when you book, and we take it straight off the invoice.`) +
+        p(`A friendly heads-up: your NP7 gift voucher <strong>${esc(String(v.code ?? ""))}</strong>${v.amountLabel ? ` with <strong>${esc(String(v.amountLabel))}</strong> on it` : ""} is valid until <strong>${esc(String(v.redeemByLabel ?? "soon"))}</strong>. After that it expires.`) +
+        p(`How to use it: ${esc(VOUCHER_HOW_TO_REDEEM)}`) +
         (v.browseLink ? emailButton("Browse the experiences", String(v.browseLink)) : "") +
         p(`Not sure which week fits? Just reply and we'll help you pick.<br>Nico & the NP7 team`),
     }),
@@ -944,6 +972,10 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /** The voucher is paid and active. "It can be redeemed any time" was not
+   *  true: it runs out on redeem_by, which only the PDF mentioned (27 Sep 2026).
+   *  With Nico's call booked, the recipient gets no mail (notify.ts), so this
+   *  one says so. */
   voucher_purchased: (v, opts) => ({
     subject: `Your NP7 gift voucher is ready 🎁`,
     html: emailLayout({
@@ -951,9 +983,38 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
       preheader: "Your printable gift voucher is attached.",
       bodyHtml:
         greet(v) +
-        p(`Thank you! Your <strong>${esc(v.amount || "")}</strong> gift voucher towards <strong>${esc(v.experienceTitle || "an NP7 trip")}</strong> is confirmed and ready. 🎁`) +
-        p(`We've attached it as a <strong>printable PDF</strong>${v.recipientName ? `, ready to hand or send to <strong>${esc(v.recipientName)}</strong>` : ""}. The code is <strong>${esc(v.voucherCode || "")}</strong>; it can be redeemed any time in the account at np-seven.com.`) +
+        p(`Thank you! Your <strong>${esc(v.amount || "")}</strong> gift voucher towards <strong>${esc(v.experienceTitle || "any NP7 trip")}</strong> is paid and ready. 🎁`) +
+        p(`We've attached it as a <strong>printable PDF</strong>${v.recipientName ? `, ready to hand or send to <strong>${esc(v.recipientName)}</strong>` : ""}. The code is <strong>${esc(v.voucherCode || "")}</strong>.${v.validUntil ? ` Valid until <strong>${esc(v.validUntil)}</strong>.` : ""}`) +
+        p(`How to use it: ${esc(VOUCHER_HOW_TO_REDEEM)} Whatever one trip doesn't need stays on the voucher for the next.`) +
+        (v.nicoCall ? p(`Nico will call ${v.recipientName ? `<strong>${esc(v.recipientName)}</strong>` : "them"} personally to tell them, so we haven't emailed the voucher to them.`) : "") +
         p(`Thanks for giving the gift of riding.<br>Nico & the NP7 team`),
+    }),
+  }),
+
+  /** Sent the moment a voucher is ordered on the website (/api/voucher). The
+   *  buyer's only copy of the bank details used to be the confirmation screen,
+   *  and that screen promised an email that never came (27 Sep 2026). */
+  voucher_ordered: (v, opts) => ({
+    subject: `Your NP7 gift voucher order${v.amount ? ` · ${v.amount}` : ""}`,
+    html: emailLayout({
+      ...opts,
+      preheader: "How to pay for your voucher. We email it to you once the money lands.",
+      bodyHtml:
+        greet(v) +
+        p(`Thank you for ordering an NP7 gift voucher${v.recipientName ? ` for <strong>${esc(v.recipientName)}</strong>` : ""}: <strong>${esc(v.amount || "")}</strong> towards <strong>${esc(v.experienceTitle || "any NP7 trip")}</strong>.`) +
+        (v.iban
+          ? p(`To pay, send a bank transfer with these details:`) +
+            facts([
+              ["Amount", v.amount],
+              ["Account holder", v.accountHolder],
+              ["IBAN", v.iban],
+              ["BIC", v.bic],
+              ["Bank", v.bankName],
+              ["Reference", v.reference || v.voucherCode],
+            ])
+          : p(`We'll send you the bank details for the transfer in a separate email.`)) +
+        p(`Please quote <strong>${esc(v.reference || v.voucherCode || "")}</strong> as the reference so we can match your payment. Once the money lands, usually within one to three working days, we email you the voucher as a printable PDF${v.nicoCall ? " and set up Nico's call" : ""}.`) +
+        p(`Any questions, just reply to this email.<br>Nico &amp; the NP7 team`),
     }),
   }),
 
@@ -977,15 +1038,19 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
     }),
   }),
 
+  /** To the person the gift is for. The product is a value voucher, so the
+   *  subject says voucher: "an NP7 windsurf trip" promised a whole trip to
+   *  somebody holding €200 (27 Sep 2026). */
   voucher_gift: (v, opts) => ({
-    subject: `🎁 You've been gifted an NP7 windsurf trip${v.fromName ? ` by ${v.fromName}` : ""}`,
+    subject: `You've been gifted an NP7 voucher${v.fromName ? ` by ${v.fromName}` : ""}`,
     html: emailLayout({
       ...opts,
-      preheader: "A gift voucher towards an NP7 Experience. Open to redeem.",
+      preheader: "A gift voucher towards your next NP7 trip.",
       bodyHtml:
         p(`Hey ${esc(v.firstName || "there")} 🤙`) +
-        p(`${v.fromName ? `<strong>${esc(v.fromName)}</strong> has` : "You've"} gifted you a <strong>${esc(v.amount || "")}</strong> voucher towards <strong>${esc(v.experienceTitle || "an NP7 trip")}</strong>. That's a coached windsurf, wing &amp; foil adventure. 🌊`) +
-        p(`Your voucher (code <strong>${esc(v.voucherCode || "")}</strong>) is attached as a printable PDF. To use it, explore the trips and we'll apply it to your booking:`) +
+        p(`${v.fromName ? `<strong>${esc(v.fromName)}</strong> has` : "Someone has"} gifted you a <strong>${esc(v.amount || "")}</strong> voucher towards <strong>${esc(v.experienceTitle || "any NP7 trip")}</strong>. That's a coached windsurf, wing &amp; foil adventure. 🌊`) +
+        p(`Your voucher (code <strong>${esc(v.voucherCode || "")}</strong>) is attached as a printable PDF.${v.validUntil ? ` It is valid until <strong>${esc(v.validUntil)}</strong>.` : ""}`) +
+        p(`How to use it: ${esc(VOUCHER_HOW_TO_REDEEM)}`) +
         (v.joinLink ? emailButton("Explore the trips", v.joinLink) : "") +
         p(`See you on the water.<br>Nico & the NP7 team`),
     }),

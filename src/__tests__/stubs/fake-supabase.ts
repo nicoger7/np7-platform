@@ -107,6 +107,15 @@ class FakeQuery implements PromiseLike<Result> {
     this.filters.push((r) => r[col] !== val);
     return this;
   }
+  /** Case-insensitive LIKE: `%` is any run, `_` any one character. */
+  ilike(col: string, pattern: string): this {
+    const rx = new RegExp(
+      `^${String(pattern).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*").replace(/_/g, ".")}$`,
+      "i",
+    );
+    this.filters.push((r) => rx.test(String(r[col] ?? "")));
+    return this;
+  }
   in(col: string, vals: unknown[]): this {
     this.filters.push((r) => vals.includes(r[col]));
     return this;

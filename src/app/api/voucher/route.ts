@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { generateVoucherCode } from "@/lib/vouchers";
+import { sendVoucherOrdered } from "@/lib/vouchers/notify";
 
 /**
  * Buy a gift voucher — GUEST checkout (no sign-in). The voucher is a VALUE voucher
@@ -16,6 +17,36 @@ function validAmount(n: number): boolean {
   if (n >= 200 && n <= 5000) return n % 200 === 0;
   if (n > 5000 && n <= 10000) return n % 1000 === 0;
   return false;
+}
+
+type PkgRow = {
+  experience_id?: string | null;
+  status?: string | null;
+  archived_at?: string | null;
+  website_visible?: boolean | null;
+} | null;
+
+/**
+ * Can this package be gifted? The same rule the gift form already applies
+ * (src/lib/gift-data.ts): active, not archived, on the website, and part of
+ * the experience the buyer picked.
+ *
+ * The route only refused `archived`, and checked the experience only when one
+ * was sent (27 Sep 2026 audit). A hand-made POST could therefore price a
+ * voucher from a draft package, from one of the 50 hidden ones (Bonaire 2027,
+ * Turkish Locals), or from a package of some other trip with no experience at
+ * all. The voucher's value is the package price, so that is what it sold.
+ *
+ * Kept local on purpose: the booking routes are getting a shared guard of
+ * their own, and a voucher has no week or invite to unlock anything with.
+ * (Not exported: a route file may only export its handlers.)
+ */
+function giftPackageIssue(p: PkgRow, experienceId: string | null): "unavailable" | "private" | "other-experience" | null {
+  if (!p) return "unavailable";
+  if (p.archived_at || p.status !== "active") return "unavailable";
+  if (p.website_visible === false) return "private";
+  if (!experienceId || p.experience_id !== experienceId) return "other-experience";
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -41,14 +72,19 @@ export async function POST(req: Request) {
 
   const [expRes, pkgRes, csRes] = await Promise.all([
     experienceId ? db.from("exp_experiences").select("id, title, currency, status, price").eq("id", experienceId).maybeSingle() : Promise.resolve({ data: null }),
-    packageId ? db.from("exp_packages").select("id, price, experience_id, status").eq("id", packageId).maybeSingle() : Promise.resolve({ data: null }),
+    packageId ? db.from("exp_packages").select("id, name, price, experience_id, edition_id, status, archived_at, website_visible").eq("id", packageId).maybeSingle() : Promise.resolve({ data: null }),
     db.from("company_settings").select("iban, bic, bank_name, legal_name, currency").eq("division", "experience").maybeSingle().catch(() => ({ data: null })),
   ]);
   const exp = expRes?.data ?? null;
   if (experienceId && (!exp || exp.status !== "published")) return NextResponse.json({ error: "That experience isn't available." }, { status: 404 });
   const pkg = pkgRes?.data ?? null;
-  if (packageId && (!pkg || pkg.status === "archived")) return NextResponse.json({ error: "That package isn't available." }, { status: 404 });
-  if (pkg && experienceId && pkg.experience_id !== experienceId) return NextResponse.json({ error: "That package doesn't belong to the chosen experience." }, { status: 400 });
+  if (packageId) {
+    // A hidden package gets the same answer as a missing one: the reply must
+    // not confirm that a private package exists.
+    const issue = giftPackageIssue(pkg, experienceId);
+    if (issue === "other-experience") return NextResponse.json({ error: "That package doesn't belong to the chosen experience." }, { status: 400 });
+    if (issue) return NextResponse.json({ error: "That package isn't available." }, { status: 404 });
+  }
 
   /*
    * Value is server-authoritative: a chosen package's price, else a free amount
@@ -123,6 +159,26 @@ export async function POST(req: Request) {
 
   // Bank details so the buyer can pay immediately (same as on invoices).
   const pay = cs?.iban ? { iban: cs.iban, bic: cs.bic, bank_name: cs.bank_name, legal_name: cs.legal_name } : null;
+
+  // The buyer gets the same bank details by email, and the team hears the
+  // order exists. Awaited so it runs inside the request, best-effort so a mail
+  // problem never turns a saved order into an error screen.
+  await sendVoucherOrdered({
+    voucherId: voucher.id,
+    code: voucher.code,
+    amount: Number(voucher.amount) || amount,
+    currency: voucher.currency || currency,
+    buyerName,
+    buyerEmail,
+    buyerContactId: buyerContactId ?? null,
+    recipientName: recipientName || null,
+    experienceTitle: exp?.title ?? null,
+    packageName: pkg?.name ?? null,
+    nicoCall,
+    recipientPhone: recipientPhone || null,
+    callDate: callDate || null,
+    bank: pay,
+  }).catch(() => null);
 
   return NextResponse.json({ ok: true, voucher, pay });
 }

@@ -6,6 +6,9 @@ import {
   STATUS_LABEL,
   STATUS_TONE,
   fmtVoucherMoney,
+  fmtVoucherValue,
+  voucherPartlyUsed,
+  voucherValueLeft,
   type VoucherStatus,
 } from "@/lib/vouchers";
 import { useMailConfirm, type MailAudience } from "@/components/admin/mail-confirm";
@@ -16,6 +19,8 @@ interface VoucherRow {
   id: string;
   code: string;
   amount: number | null;
+  /** What is left after partial use (migration 262). NULL = never used. */
+  balance?: number | null;
   currency: string | null;
   status: VoucherStatus;
   recipient_name: string | null;
@@ -84,6 +89,7 @@ export default function VouchersPage() {
     setLoading(false);
   }, [filterStatus]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- loading the list from the API on mount and on a filter change is the sync with an external system this rule allows; the only synchronous set is the loading flag.
   useEffect(() => { fetchVouchers(); }, [fetchVouchers]);
 
   async function act(id: string, action: "activate" | "cancel") {
@@ -294,6 +300,13 @@ export default function VouchersPage() {
                 </div>
                 <span className="text-sm font-medium admin-heading self-center">
                   {fmtVoucherMoney(v.amount, v.currency || "EUR") || "—"}
+                  {/* A voucher is spent in parts since 27 Sep 2026: an active
+                      one that has been used shows what is still on it. */}
+                  {v.status === "active" && voucherPartlyUsed(v) && (
+                    <span className="block text-[11px] font-semibold text-green-500">
+                      {fmtVoucherValue(voucherValueLeft(v), v.currency || "EUR")} left
+                    </span>
+                  )}
                 </span>
                 <span className="self-center">
                   <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${TONE_CLASS[tone]}`}>
