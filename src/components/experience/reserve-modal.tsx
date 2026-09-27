@@ -7,6 +7,7 @@ import { PackageChoice, type WeekPackage } from "./package-choice";
 import { AlreadyBooked, supportMailto, type ConflictKind } from "./already-booked";
 import { GearPills } from "./gear-pills";
 import { GEAR_LABELS, encodeGearSpec, gearAdjustment, type GearChoice, type GearOptions } from "@/lib/gear-shape";
+import type { CountryOption } from "@/lib/countries";
 
 /** @deprecated The real deposit comes from the package config via /api/register/quote —
     this constant only remains so older imports keep compiling. Do not use for display. */
@@ -65,6 +66,10 @@ export type ReserveContext = {
   going?: number | null;
   /** Every package bookable this week — a companion picks their own from these. */
   weekPackages?: WeekPackage[];
+  /** The "Country you live in" list, built on the SERVER (countryOptions) and
+   *  handed down, so the name a guest picks is the exact string guestCountry
+   *  reads back. Absent, the question is simply not asked. */
+  countries?: CountryOption[];
 };
 
 /**
@@ -78,7 +83,7 @@ type Companion = { firstName: string; lastName: string; email: string; packageId
 
 /**
  * Free, low-friction registration. Guests give just First name · Last name ·
- * Email (+ optional marketing consent) — no phone, no payment. Registering
+ * Email · Country (+ optional marketing consent) — no phone, no payment. Registering
  * creates a lead; the refundable downpayment that SECURES the spot happens later
  * from the member account. Logged-in members skip the form (one-tap register).
  */
@@ -154,6 +159,23 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  /*
+   * Where the payer lives (Nico, 27 Sep 2026: "yes").
+   *
+   * Which ways to pay online a guest is offered depends on their country, and
+   * sign-up used to ask for a name and an email only: about one guest in four
+   * arrived with no country, and their trip page could not offer them a way to
+   * pay online until they filled in a billing address. One dropdown here,
+   * pre-selected from where they are browsing, answers it up front.
+   *
+   * Asked of the payer only (the money is theirs), and of a member only when
+   * their account has no country yet. The server never overwrites one.
+   */
+  const [country, setCountry] = useState("");
+  /** They chose it themselves: nothing may pre-select over that. A ref, so
+   *  the geo answer that lands after the pick reads it on the same tick. */
+  const countryPicked = useRef(false);
+  const [memberHasCountry, setMemberHasCountry] = useState(false);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -244,6 +266,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
         if (me?.loggedIn) {
           setMember(true);
           setFirstName(me.firstName ?? ""); setLastName(me.lastName ?? ""); setEmail(me.email ?? "");
+          setMemberHasCountry(!!String(me.country ?? "").trim());
         } else {
           // Returning guest — prefill what they typed last time (their own device;
           // localStorage, never sent anywhere new) so the form isn't a blank slate.
@@ -253,6 +276,11 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
               if (saved.firstName) setFirstName(saved.firstName);
               if (saved.lastName) setLastName(saved.lastName);
               if (saved.email) setEmail(saved.email);
+              // What they picked last time beats where they happen to be
+              // browsing from today. Only a name the list still offers.
+              if (saved.country && ctx.countries?.some((c) => c.name === saved.country) && !countryPicked.current) {
+                setCountry(saved.country);
+              }
             }
           } catch { /* ignore */ }
         }
@@ -262,7 +290,29 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
       })
       .catch(() => {})
       .finally(() => setReady(true));
-  }, [ctx.experienceId, ctx.editionId, tripLabel]);
+  }, [ctx.experienceId, ctx.editionId, tripLabel, ctx.countries]);
+
+  /** Whether this sign-up asks where they live: a list to pick from, and an
+   *  account that does not already say. */
+  const askCountry = !!ctx.countries?.length && (!member || !memberHasCountry);
+
+  // Pre-select the country they are browsing from, once we know the question
+  // is being asked and nothing is chosen yet. /api/geo rather than a header
+  // read in the page, which is ISR and must stay static. A guess, shown and
+  // changeable, never sent anywhere unless they register with it.
+  useEffect(() => {
+    if (!ready || !askCountry || country || countryPicked.current) return;
+    let dead = false;
+    fetch("/api/geo", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (dead || countryPicked.current) return;
+        const hit = ctx.countries?.find((c) => c.code === d?.country);
+        if (hit) setCountry((prev) => prev || hit.name);
+      })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, [ready, askCountry, country, ctx.countries]);
 
   // How often this screen is reached, and in which tone. It is the number that
   // says whether the by-hand "add someone to my booking" job is worth building.
@@ -301,6 +351,9 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
      * supabase/migrations/20260915_246_one_live_booking_per_person_per_week.sql.
      */
     if (inFlight.current) return;
+    // The guest form's own `required` catches this first; the member card has
+    // no form around it, so it is said here, in the same red line.
+    if (askCountry && !country) { setError("Please choose the country you live in."); return; }
     inFlight.current = true;
     setError("");
     setCompanionBlocked(null);
@@ -317,6 +370,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
           rentalId: ctx.rentalId ?? null,
           extras: ctx.extras ?? [],
           firstName, lastName, email, marketingOptIn,
+          ...(askCountry && country ? { country } : {}),
           trap, filledMs: Date.now() - openedAt,
           companions: roster,
         }),
@@ -352,7 +406,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
          nobody holds. */
       setCreated(Array.isArray(json.companions) ? json.companions : []);
       // Remember this guest on their own device so a later reserve is one-tap.
-      try { localStorage.setItem("np7_reserve_guest", JSON.stringify({ firstName, lastName, email })); } catch { /* ignore */ }
+      try { localStorage.setItem("np7_reserve_guest", JSON.stringify({ firstName, lastName, email, ...(country ? { country } : {}) })); } catch { /* ignore */ }
       setRegistered(true);
       setSubmitting(false);
     } catch {
@@ -412,6 +466,29 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
   }
 
   const inputCls = "px-4 py-3.5 rounded-xl border border-[#dde6e9] text-[15px] text-[#00374a] outline-none focus:border-[#00afdb] placeholder:text-[#9aa6ac]";
+
+  /* "Country you live in": one element, rendered by the guest form and by the
+     member card when their account has no country, like groupBlock below.
+     Grey while nothing is chosen, so the prompt reads as a placeholder. */
+  const countryField = askCountry ? (
+    <div className="mb-4">
+      <div className="relative">
+        <select
+          required
+          aria-label="Country you live in"
+          autoComplete="country-name"
+          value={country}
+          onChange={(e) => { countryPicked.current = true; setCountry(e.target.value); setError(""); }}
+          className={`w-full appearance-none bg-white pl-4 pr-10 py-3.5 rounded-xl border border-[#dde6e9] text-[15px] outline-none focus:border-[#00afdb] [&>option]:text-[#00374a] ${country ? "text-[#00374a]" : "text-[#9aa6ac]"}`}
+        >
+          <option value="" disabled>Country you live in</option>
+          {(ctx.countries ?? []).map((c) => <option key={c.code} value={c.name}>{c.name}</option>)}
+        </select>
+        <svg className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#9aa6ac]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+      </div>
+      <p className="mt-1.5 text-[11.5px] text-[#9aa6ac] leading-snug">It decides which ways to pay online we can offer you.</p>
+    </div>
+  ) : null;
 
   /* Group booking — collapsed until asked for, because most people book alone
      and an empty roster is noise. Each person added becomes their own booking
@@ -748,6 +825,7 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                   <p className="text-[15px] font-bold text-[#00374a]">{firstName} {lastName}</p>
                   <p className="text-[13px] text-[#5a6b72] mt-0.5 break-all">{email}</p>
                 </div>
+                {countryField}
                 {groupBlock}
                 {error && <p className="text-[13px] text-red-500 mb-4">{error}</p>}
                 <button onClick={go} disabled={blocked}
@@ -775,7 +853,8 @@ export function ReserveModal({ ctx, onClose }: { ctx: ReserveContext; onClose: (
                   <input required value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" autoComplete="given-name" className={inputCls} />
                   <input required value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" autoComplete="family-name" className={inputCls} />
                 </div>
-                <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" autoComplete="email" className={`w-full mb-4 ${inputCls}`} />
+                <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" autoComplete="email" className={`w-full ${askCountry ? "mb-3" : "mb-4"} ${inputCls}`} />
+                {countryField}
 
                 {groupBlock}
 

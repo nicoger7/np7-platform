@@ -21,6 +21,8 @@ import { getMemberTier } from "@/lib/member-tier";
 import { generateDocument } from "@/lib/invoices/generate";
 import { publicOrigin } from "@/lib/public-origin";
 import { rateLimited, LIMITS } from "@/lib/rate-limit";
+import { invitePackageUnlock, packageSaleIssue } from "@/lib/package-guard";
+import { fillContactCountry } from "@/lib/signup-country";
 /**
  * Free, low-friction registration (the redesigned funnel).
  *
@@ -46,6 +48,9 @@ type Body = {
   firstName?: string;
   lastName?: string;
   email?: string;
+  /** Where the payer lives, as the dropdown's English name (or an ISO code).
+      Filled into contacts.country only when that is empty (lib/signup-country). */
+  country?: string;
   marketingOptIn?: boolean;
   inviteToken?: string;
   /** "reserve" (ready to book) or "info" (just wants the details first). */
@@ -142,12 +147,17 @@ export async function POST(request: NextRequest) {
   // Validate the selection server-side.
   const [{ data: exp }, { data: pkg }, { data: edition }] = await Promise.all([
     db.from("exp_experiences").select("id,title,slug").eq("id", experienceId).maybeSingle(),
-    db.from("exp_packages").select("id,name,price,experience_id,status,deposit,deposit_refund_days,category,gear_baseline").eq("id", packageId).maybeSingle(),
+    db.from("exp_packages").select("id,name,price,experience_id,edition_id,status,archived_at,website_visible,deposit,deposit_refund_days,category,gear_baseline").eq("id", packageId).maybeSingle(),
     editionId
       ? db.from("exp_editions").select("id,label,experience_id,date_start,deposit,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
-  if (!exp || !pkg || pkg.experience_id !== exp.id || pkg.status !== "active") return bad("This package is no longer available.", 409);
+  // One sale rule for every public door (lib/package-guard). A private package
+  // opens only for the invite link that carries it, the same token the
+  // referral attribution below reads (Nico, 27 Sep 2026).
+  const unlocked = await invitePackageUnlock(db, body.inviteToken || request.cookies.get("np7_invite")?.value, { experienceId, editionId: editionId ?? null });
+  const saleIssue = packageSaleIssue(pkg, { experienceId: exp?.id ?? "", editionId: editionId ?? null, unlocked });
+  if (!exp || saleIssue) return bad(saleIssue === "other-week" ? "This package isn't offered in this week." : "This package is no longer available.", 409);
   if (editionId && (!edition || edition.experience_id !== exp.id)) return bad("This week is no longer available.", 409);
 
   const fullName = `${firstName} ${lastName}`.trim();
@@ -216,6 +226,7 @@ export async function POST(request: NextRequest) {
     },
     extras: extraRows.map((r) => ({ componentId: r.component_id, price: r.price })),
     resolveGear,
+    unlocked,
   };
 
   type Decision =
@@ -296,7 +307,7 @@ export async function POST(request: NextRequest) {
   // before a single row is written — a rejected companion must not leave the
   // payer with a half-created group.
   const companionCheck = await validateCompanions(db, rawCompanions, {
-    experienceId: exp.id, editionId: editionId ?? null, payerEmail: email,
+    experienceId: exp.id, editionId: editionId ?? null, payerEmail: email, unlocked,
   });
   if (!companionCheck.ok) {
     // Already-on-this-week is the one companion failure the modal can act on
@@ -321,6 +332,9 @@ export async function POST(request: NextRequest) {
     if (cErr) return bad("Could not save your details. Please try again.", 500);
     contactId = created.id;
   }
+  // The payer's country, so their trip page can offer a way to pay online.
+  // Only into an empty field, never over one (lib/signup-country).
+  await fillContactCountry(db, contactId, body.country);
   if (body.marketingOptIn && contactId) {
     await db.from("contacts").update({ marketing_opt_in: true }).eq("id", contactId).then(() => {}, () => {});
   }

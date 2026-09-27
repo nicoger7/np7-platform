@@ -43,6 +43,8 @@ export type ReserveTarget = {
   editionDates: string | null;
   spotsLeft?: number | null;
   going?: number | null;
+  /** The sign-up's country list, from the server page (see ReserveContext). */
+  countries?: ReserveContext["countries"];
 };
 
 export type BookingExtra = { id: string; name: string; description: string | null; price: number };

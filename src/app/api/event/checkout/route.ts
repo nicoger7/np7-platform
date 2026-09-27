@@ -49,9 +49,15 @@ export async function POST(request: NextRequest) {
 
   const { data: exp } = await db
     .from("exp_experiences")
-    .select("id,title,slug,currency,price,page_template,event_mode,event_deposit_pct,event_refund_pct,status")
+    .select("id,title,slug,currency,price,page_template,event_mode,event_deposit_pct,event_refund_pct,status,website_visible")
     .eq("id", body.experienceId).maybeSingle();
-  if (!exp || exp.page_template !== "event") return bad("This event is no longer available.", 409);
+  // The page's own rule (experience/[slug]/page.tsx, the clinic notFound): a
+  // draft or off-website event has no public page, so it has no public till
+  // either. The Malmö event was a 404 to the public while a direct POST here
+  // would still have sold it a €190 ticket (audit, 27 Sep 2026).
+  if (!exp || exp.page_template !== "event" || exp.status !== "published" || exp.website_visible === false) {
+    return bad("This event is no longer available.", 409);
+  }
 
   const mode: "fixed" | "standby" = exp.event_mode === "standby" ? "standby" : "fixed";
   const { data: dateRows } = await db
@@ -234,11 +240,14 @@ export async function POST(request: NextRequest) {
   if (edition) {
     const { data: pkgRows } = await db
       .from("exp_packages")
-      .select("id,deposit,final_days_before")
+      .select("id,deposit,final_days_before,website_visible")
       .eq("edition_id", edition.id)
       .eq("status", "active")
       .is("archived_at", null);
-    const usable = (pkgRows ?? []) as { id: string; deposit: number | null; final_days_before: number | null }[];
+    // Off-website packages skipped, exactly as the page's pick in lib/events.ts
+    // skips them, so the plan charged here is the plan the buyer was shown.
+    const usable = ((pkgRows ?? []) as { id: string; deposit: number | null; final_days_before: number | null; website_visible?: boolean | null }[])
+      .filter((p) => p.website_visible !== false);
     pkgRow = usable.sort((a, b) => Number(a.deposit ?? Infinity) - Number(b.deposit ?? Infinity))[0] ?? null;
   }
   const plan = eventDepositPlan(price, pkgRow, edition?.date_start ?? null);

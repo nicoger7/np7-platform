@@ -42,6 +42,10 @@ export type Submission = {
    *  component ids and prices the insert would use. */
   extras: SubmissionAddon[];
   resolveGear: (level: string | null) => Promise<GearInfo>;
+  /** Private packages this request may sell (lib/package-guard). The roster is
+   *  judged here with the same key the write will use, or a group on an
+   *  invite's package could never compare equal to itself. */
+  unlocked?: ReadonlySet<string> | null;
 };
 
 export type ResubmissionVerdict =
@@ -99,6 +103,7 @@ export async function isUnchangedResubmission(
       editionId: sub.editionId,
       payerEmail: sub.payerEmail,
       ignoreCoveredBy: prior.id,
+      unlocked: sub.unlocked,
     });
     if (!check.ok) return no;
 
