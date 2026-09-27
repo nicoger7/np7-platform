@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
 import { sendVoucherIssued } from "@/lib/vouchers/notify";
+import { defaultRedeemBy, lookupSoleContactId } from "@/lib/vouchers";
 import { requireAdminGate } from "@/lib/admin-auth";
 // Admin routes are gated by middleware; no per-route auth check needed.
 
@@ -33,10 +34,25 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   let updates: Record<string, unknown>;
 
   if (action === "update") {
-    const { data: existing } = await db.from("gift_vouchers").select("status").eq("id", id).maybeSingle();
+    const { data: existing } = await db.from("gift_vouchers").select("*").eq("id", id).maybeSingle();
     if (!existing) return NextResponse.json({ error: "Voucher not found." }, { status: 404 });
     const fields = body.fields ?? {};
-    const allowed = existing.status === "redeemed" ? (["notes"] as readonly string[]) : EDITABLE;
+    /*
+     * A voucher that has been partly used (balance set, still active) keeps
+     * its amount: part of it already sits on a booking as a payment row, and
+     * changing the headline figure would make "what is left" meaningless
+     * (27 Sep 2026). Everything else stays editable.
+     */
+    const partlyUsed = existing.balance != null;
+    const allowed = existing.status === "redeemed"
+      ? (["notes"] as readonly string[])
+      : partlyUsed ? EDITABLE.filter((k) => k !== "amount") : EDITABLE;
+    if (partlyUsed && "amount" in fields && Number(fields.amount) !== Number(existing.amount)) {
+      return NextResponse.json(
+        { error: "Part of this voucher is already used on a booking, so its amount can't change. Cancel it and issue a new one instead." },
+        { status: 400 }
+      );
+    }
     updates = {};
     for (const k of allowed) if (k in fields) updates[k] = fields[k] === "" ? null : fields[k];
     if ("amount" in updates) {
@@ -56,7 +72,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     // Confirm the bank transfer and start the 1-year validity clock.
     const { data: existing } = await db
       .from("gift_vouchers")
-      .select("paid_at, status, amount, experience_id")
+      .select("*")
       .eq("id", id)
       .maybeSingle();
     if (existing && !["pending", "active"].includes(existing.status)) {
@@ -66,16 +82,30 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       );
     }
     // Validity: 1 year. Value vouchers (not tied to a specific experience) over
-    // €5,000 get 2 years — a trip-specific voucher is always 1 year.
-    const months = Number(existing?.amount) > 5000 && !existing?.experience_id ? 24 : 12;
-    const rb = new Date(now);
-    rb.setMonth(rb.getMonth() + months);
+    // €5,000 get 2 years; a trip-specific voucher is always 1 year. A use-by
+    // date the team typed on a pending voucher is kept rather than replaced:
+    // the shop never sets one, so a date there was put there on purpose. One
+    // already in the past is ignored: activating straight into expiry helps no one.
+    const typedRedeemBy = existing?.status === "pending" && existing?.redeem_by && String(existing.redeem_by).slice(0, 10) >= now.slice(0, 10)
+      ? String(existing.redeem_by).slice(0, 10)
+      : null;
     updates = {
       status: "active",
       paid_at: existing?.paid_at ?? now,
       issued_at: now,
-      redeem_by: rb.toISOString().slice(0, 10),
+      redeem_by: typedRedeemBy ?? defaultRedeemBy(existing?.amount, existing?.experience_id, now),
     };
+    /*
+     * Put the voucher in the recipient's account when their address is already
+     * a contact. Until 27 Sep 2026 recipient_contact_id was only set when the
+     * voucher was used, so a recipient who signed in to "print & use one
+     * you've been given" found nothing there. Exactly one match only: two
+     * contacts on one address means we cannot tell whose account it is.
+     */
+    if (existing && !existing.recipient_contact_id && existing.recipient_email) {
+      const contactId = await lookupSoleContactId(db, existing.recipient_email);
+      if (contactId) updates.recipient_contact_id = contactId;
+    }
   } else if (action === "cancel") {
     updates = { status: "cancelled" };
   } else {

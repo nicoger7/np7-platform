@@ -6,12 +6,18 @@ import { createAdminClient } from "@/lib/supabase";
 import { PortalChrome } from "@/components/portal/portal-chrome";
 import { GiftBuyForm } from "@/components/experience/gift-buy-form";
 import { loadGiftData } from "@/lib/gift-data";
-import { STATUS_LABEL, STATUS_TONE, fmtVoucherMoney, type Voucher } from "@/lib/vouchers";
+import {
+  STATUS_LABEL, STATUS_TONE, VOUCHER_HOW_TO_REDEEM, fmtVoucherMoney, fmtVoucherValue, voucherPartlyUsed, voucherValueLeft, type Voucher,
+} from "@/lib/vouchers";
 
 export const metadata: Metadata = { title: "Gift vouchers · NP7" };
 export const dynamic = "force-dynamic";
 
-type Row = Voucher & { exp_experiences: { title: string | null } | null };
+type Row = Voucher & {
+  /** What is left (migration 262). NULL = never used, worth the full amount. */
+  balance?: number | null;
+  exp_experiences: { title: string | null; slug: string | null } | null;
+};
 
 const TONE: Record<string, string> = {
   amber: "bg-amber-100 text-amber-700",
@@ -32,7 +38,7 @@ export default async function VouchersPage() {
   try {
     const [{ data }, { data: cs }] = await Promise.all([
       db.from("gift_vouchers")
-        .select("*, exp_experiences(title)")
+        .select("*, exp_experiences(title, slug)")
         .or(`buyer_contact_id.eq.${user.contactId},recipient_contact_id.eq.${user.contactId}`)
         .order("created_at", { ascending: false }),
       db.from("company_settings").select("legal_name, iban, bic, bank_name").eq("division", "experience").maybeSingle(),
@@ -51,7 +57,7 @@ export default async function VouchersPage() {
           <Link href="/account" className="text-[13px] font-semibold text-[#6a7a80] hover:text-[#00374a]">← Home</Link>
           <div className="mt-2 mb-8">
             <h1 className="text-3xl sm:text-4xl font-black tracking-[-0.03em] text-[#00374a]">Gift vouchers</h1>
-            <p className="text-[15px] text-[#6a7a80] mt-1.5">Gift a windsurf, wing &amp; foil trip, or print &amp; use one you&apos;ve been given.</p>
+            <p className="text-[15px] text-[#6a7a80] mt-1.5">Gift an NP7 voucher, or print &amp; use one you&apos;ve been given.</p>
           </div>
 
           {rows.length > 0 && (
@@ -60,12 +66,25 @@ export default async function VouchersPage() {
               <div className="space-y-4">
               {rows.map((v) => {
                 const mine = v.buyer_contact_id === user.contactId;
+                const currency = v.currency ?? "EUR";
+                /*
+                 * What it is worth NOW. A voucher can be used in parts since
+                 * 27 Sep 2026, so an active one shows what is left on it, with
+                 * the original amount beside it once some has been spent. A
+                 * fully used one keeps showing what it was, under "Redeemed".
+                 */
+                const partly = v.status === "active" && voucherPartlyUsed(v);
+                const shown = v.status === "active" ? voucherValueLeft(v) : v.amount;
+                /* The trip itself when the voucher is for one, the list when
+                   it is for any. "Book this trip" used to open the list either
+                   way, and any-trip vouchers were titled "NP7 trip". */
+                const tripHref = v.exp_experiences?.slug ? `/experience/${v.exp_experiences.slug}` : "/experience";
                 return (
                   <div key={v.id} className="bg-white rounded-2xl border border-[#f0e6d6] p-5 sm:p-6">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2.5">
-                          <h2 className="text-[17px] font-extrabold text-[#00374a]">{v.exp_experiences?.title ?? "NP7 trip"}</h2>
+                          <h2 className="text-[17px] font-extrabold text-[#00374a]">{v.exp_experiences?.title ?? "Any NP7 trip"}</h2>
                           <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${TONE[STATUS_TONE[v.status]]}`}>{STATUS_LABEL[v.status]}</span>
                         </div>
                         <p className="text-[13px] text-[#8a9aa0] mt-1">
@@ -75,7 +94,8 @@ export default async function VouchersPage() {
                         </p>
                       </div>
                       <div className="text-right">
-                        {v.amount != null && <p className="text-[20px] font-black text-[#00374a]">{fmtVoucherMoney(v.amount, v.currency ?? "EUR")}</p>}
+                        {shown != null && <p className="text-[20px] font-black text-[#00374a]">{fmtVoucherValue(shown, currency)}{partly && <span className="text-[13px] font-bold text-[#8a9aa0]"> left</span>}</p>}
+                        {partly && <p className="text-[12px] text-[#8a9aa0]">of {fmtVoucherMoney(v.amount, currency)}</p>}
                         <p className="text-[12px] font-mono text-[#8a9aa0] tracking-wide">{v.code}</p>
                       </div>
                     </div>
@@ -93,12 +113,10 @@ export default async function VouchersPage() {
                       <div className="mt-4">
                         <div className="flex flex-wrap gap-2.5">
                           <Link href={`/account/vouchers/${v.id}/print`} className="px-4 py-2 rounded-full text-[12.5px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] transition-colors">Print voucher</Link>
-                          {v.exp_experiences && (
-                            <Link href={`/experience`} className="px-4 py-2 rounded-full text-[12.5px] font-bold text-[#00374a] bg-[#f1f5f6] hover:bg-[#e7eef0] transition-colors">Book this trip</Link>
-                          )}
+                          <Link href={tripHref} className="px-4 py-2 rounded-full text-[12.5px] font-bold text-[#00374a] bg-[#f1f5f6] hover:bg-[#e7eef0] transition-colors">{v.exp_experiences ? "Book this trip" : "Pick a trip"}</Link>
                         </div>
                         <p className="text-[12.5px] text-[#8a9aa0] mt-2.5 leading-relaxed">
-                          To use it: register for the trip (it&apos;s free), then open your trip&apos;s <strong>payment plan</strong> and enter code <strong className="font-mono text-[#00374a]">{v.code}</strong>. The voucher covers what you&apos;ve been invoiced.
+                          To use it: {VOUCHER_HOW_TO_REDEEM} Your code is <strong className="font-mono text-[#00374a]">{v.code}</strong>. Whatever one trip doesn&apos;t need stays on the voucher for the next.
                         </p>
                       </div>
                     )}
@@ -111,7 +129,7 @@ export default async function VouchersPage() {
 
           {/* The options — gift a trip, right here (no detour to the public site) */}
           <div className="max-w-[760px]">
-            <h2 className="text-2xl sm:text-[28px] font-black tracking-[-0.02em] text-[#00374a] mb-1.5">{rows.length > 0 ? "Gift another trip" : "Gift a trip"}</h2>
+            <h2 className="text-2xl sm:text-[28px] font-black tracking-[-0.02em] text-[#00374a] mb-1.5">{rows.length > 0 ? "Gift another voucher" : "Gift a voucher"}</h2>
             <p className="text-[14px] text-[#6a7a80] mb-6">A windsurf, wing &amp; foil adventure wrapped as a voucher. Pay by bank transfer. We email a printable voucher once it lands, and call the recipient if you like.</p>
             <GiftBuyForm experiences={experiences} packages={packages} />
           </div>

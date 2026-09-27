@@ -64,7 +64,11 @@ const SOFT_LAUNCH_ALLOWED = new Set(["account_magic_link", "team_invite", "passw
   /* A double opt-in confirmation is the signup, not lifecycle marketing. Held
      back, the address sits pending for ever and the form is broken again in a
      new way: the visitor is told to check an inbox nothing was sent to. */
-  "newsletter_confirm"]);
+  "newsletter_confirm",
+  /* The gift-voucher order: the buyer's own action, carrying the IBAN and the
+     reference, gated exactly like voucher_purchased. Held back, their only copy
+     of how to pay is the screen they just left (27 Sep 2026). */
+  "voucher_ordered"]);
 function lifecycleSuppressed(templateKey: string): boolean {
   const live = process.env.EMAIL_LIFECYCLE_LIVE === "true" || process.env.EMAIL_LIFECYCLE_LIVE === "1";
   return !live && !SOFT_LAUNCH_ALLOWED.has(templateKey);
