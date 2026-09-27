@@ -251,8 +251,9 @@ export default async function BookingDetail({ params }: Props) {
       .eq("id", user.contactId).maybeSingle(),
   ]);
   const who = (whoRow?.data ?? null) as ({ phone?: string | null; country?: string | null; company_name?: string | null; vat_id?: string | null } & Partial<BillingAddress>) | null;
+  const payCountry = guestCountry({ billingCountry: who?.billing_country, country: who?.country, phone: who?.phone });
   const payMethods = (() => {
-    const country = guestCountry({ billingCountry: who?.billing_country, country: who?.country, phone: who?.phone });
+    const country = payCountry;
     const m = onlineMethodsFor(country);
     // US and UK guests are offered a Stripe bank transfer BESIDE the card
     // (Nico, 19 Sep 2026): Stripe can issue those two an account number of
@@ -660,6 +661,16 @@ export default async function BookingDetail({ params }: Props) {
                 ? <>Use the button above, or pay by <strong className="text-[#00374a]">bank transfer</strong> with the account details and payment reference printed on your invoice below. Either way, send it before the due date and we mark it here once it lands.</>
                 : <>Pay by <strong className="text-[#00374a]">bank transfer</strong> using the account details and payment reference printed on your invoice below, no need to wait for our email. Send it any time before the due date; we mark it here once it lands.</>}
             </p>
+            {/* We hide the card button when we don't know where the guest
+                lives, because which ways to pay are lawful depends on it. That
+                left John Fisher (no country, no phone on file) with no card
+                option and no idea why (Simona, 27 Sep 2026). The address box
+                below is what fixes it, so say so. */}
+            {!payMethods && !payCountry && needsBillingAddress && (
+              <p className="text-[12.5px] text-[#6a7a80] leading-snug mt-1.5">
+                <strong className="text-[#00374a]">Want to pay by card?</strong> Add your address below first. Which ways to pay online work depends on the country you live in, and we don&apos;t know yours yet.
+              </p>
+            )}
           </>
         )}
         {/* Directly above the invoices, because that is what it is for and what
