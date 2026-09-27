@@ -71,3 +71,13 @@ export function fmtVoucherMoney(amount: number | null | undefined, currency = "E
   if (amount == null) return "";
   return new Intl.NumberFormat("en-GB", { style: "currency", currency, maximumFractionDigits: 0 }).format(amount);
 }
+
+/**
+ * How a voucher is used, in one sentence, for every surface that explains it:
+ * the gift page, the account page, the PDF, the print page and the emails.
+ * Until 27 Sep 2026 those were six different explanations, two of which
+ * described a process that does not exist ("reply to your confirmation email",
+ * "we'll apply it to your booking").
+ */
+export const VOUCHER_HOW_TO_REDEEM =
+  "Create a free NP7 account, register for a trip, then enter the code under Payment on your trip page.";
