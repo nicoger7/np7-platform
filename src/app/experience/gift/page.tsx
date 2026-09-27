@@ -8,7 +8,7 @@ import { canSeeExperienceWorld } from "@/lib/auth";
 import { VOUCHER_HOW_TO_REDEEM } from "@/lib/vouchers";
 
 // Absolute, so the layout's " · NP7" is not added on top: the tab used to read
-// "Gift a trip — NP7 Experience · NP7", the brand twice and a long dash. It is
+// "Gift a trip, NP7 Experience · NP7" (with a long dash), the brand twice. It is
 // a value voucher, so the title says voucher (site audit, 27 Sep 2026).
 export const metadata: Metadata = { title: { absolute: "Gift an NP7 voucher" } };
 export const dynamic = "force-dynamic";

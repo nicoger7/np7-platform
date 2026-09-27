@@ -3,6 +3,7 @@ import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { generateVoucherCode } from "@/lib/vouchers";
 import { sendVoucherOrdered } from "@/lib/vouchers/notify";
+import { rateLimited, LIMITS } from "@/lib/rate-limit";
 
 /**
  * Buy a gift voucher — GUEST checkout (no sign-in). The voucher is a VALUE voucher
@@ -50,6 +51,14 @@ function giftPackageIssue(p: PkgRow, experienceId: string | null): "unavailable"
 }
 
 export async function POST(req: Request) {
+  /* This route needs no login and emails the address it is given (the order
+     confirmation with our bank details), plus one mail per team subscriber.
+     Without a limit anyone with curl could fill a stranger's inbox with "Your
+     NP7 gift voucher order", and ours with the team copies (review, 27 Sep
+     2026). Per caller first, then per address, the same pair every other
+     mail-to-any-address route uses. */
+  const tooMany = await rateLimited(req, { name: "voucher-order", policy: LIMITS.mailToAnyAddress });
+  if (tooMany) return tooMany;
   const body = await req.json().catch(() => ({}));
   const experienceId = typeof body.experienceId === "string" && body.experienceId ? body.experienceId : null;
   const packageId = typeof body.packageId === "string" && body.packageId ? body.packageId : null;
@@ -65,6 +74,8 @@ export async function POST(req: Request) {
 
   if (!buyerName) return NextResponse.json({ error: "Please enter your name." }, { status: 400 });
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(buyerEmail)) return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
+  const tooManyForThem = await rateLimited(req, { name: "voucher-order", policy: LIMITS.mailToAnyAddress, subject: buyerEmail });
+  if (tooManyForThem) return tooManyForThem;
   if (nicoCall && !recipientPhone) return NextResponse.json({ error: "Add the recipient's phone number so Nico can call them." }, { status: 400 });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

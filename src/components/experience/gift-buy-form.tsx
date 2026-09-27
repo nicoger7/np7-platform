@@ -131,7 +131,10 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: GiftE
           </p>
           <p className="text-[13px] text-[#8a9aa0] mb-5 max-w-[440px] mx-auto">
             Then we email the printable voucher to <strong>{buyerEmail}</strong>
-            {to ? <> and to <strong>{to}</strong></> : null}
+            {/* Not to the recipient when Nico is calling them: notify.ts holds
+                that mail back so the call is the surprise, and this line must
+                not promise it (review, 27 Sep 2026). */}
+            {to && !nicoCall ? <> and to <strong>{to}</strong></> : null}
             {nicoCall ? ", and line up Nico's call" : ""}.
           </p>
         </div>
@@ -235,7 +238,9 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: GiftE
                 their inbox the day the transfer cleared. */}
             <label className={label}>Recipient email (optional)</label>
             <input className={input} type="email" value={recipientEmail} onChange={(e) => setRecipientEmail(e.target.value)} placeholder="their@email.com" />
-            <p className="text-[12px] text-[#8a9aa0] mt-1.5">We email them the voucher when your payment lands. Leave it empty to hand it over yourself.</p>
+            <p className="text-[12px] text-[#8a9aa0] mt-1.5">{nicoCall
+              ? "Nico brings them the news, so we don't email them. Leave it empty to hand it over yourself."
+              : "We email them the voucher when your payment lands. Leave it empty to hand it over yourself."}</p>
           </div>
         </div>
         <div className="mt-3"><label className={label}>Personal message</label><textarea className={`${input} min-h-[80px] resize-y`} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Add a note. It'll show on the printed voucher." /></div>
