@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PackagePicker, type RealPackage, type BookingExtra } from "./package-picker";
+import { PackagePicker, type RealPackage, type BookingExtra, type ReserveTarget } from "./package-picker";
 import { useSelectedEdition } from "./selected-edition";
 import { SCARCE_AT } from "@/lib/scarcity";
 
@@ -36,6 +36,7 @@ export function EditionBooking({
   heroImage,
   showAllTrips = true,
   viewer = null,
+  countries,
 }: {
   editions: EditionLite[];
   packagesByEdition: Record<string, RealPackage[]>;
@@ -57,6 +58,9 @@ export function EditionBooking({
    *  direct link while the world is hidden has none, and the link would land a
    *  sold-out visitor on a login wall. */
   showAllTrips?: boolean;
+  /** "Country you live in" for the sign-up, built on the server page from
+   *  countryOptions() so the names match what guestCountry reads back. */
+  countries?: ReserveTarget["countries"];
 }) {
   // The selected week is shared page-wide (see SelectedEditionProvider) so the
   // crew section below follows whichever week you pick here.
@@ -219,6 +223,7 @@ export function EditionBooking({
             editionDates: ed?.shortRange ?? null,
             spotsLeft: ed?.spotsLeft ?? null,
             going: ed?.going ?? null,
+            countries,
           }}
         />
       ) : (

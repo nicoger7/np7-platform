@@ -8,6 +8,7 @@ import { paidSpotsByEdition, spotsLeftFrom } from "@/lib/availability";
 import { composeBookingName } from "@/lib/booking-name";
 import { publicOrigin } from "@/lib/public-origin";
 import { rateLimited, LIMITS } from "@/lib/rate-limit";
+import { packageSaleIssue } from "@/lib/package-guard";
 /**
  * Public reservation endpoint.
  *
@@ -88,13 +89,17 @@ export async function POST(request: NextRequest) {
   // Load + sanity-check the selection server-side (never trust client prices).
   const [{ data: exp }, { data: pkg }, { data: edition }] = await Promise.all([
     db.from("exp_experiences").select("id,title,slug,currency").eq("id", experienceId).maybeSingle(),
-    db.from("exp_packages").select("id,name,price,experience_id,edition_id,status,deposit,deposit_refund_days").eq("id", packageId).maybeSingle(),
+    db.from("exp_packages").select("id,name,price,experience_id,edition_id,status,archived_at,website_visible,deposit,deposit_refund_days").eq("id", packageId).maybeSingle(),
     editionId
       ? db.from("exp_editions").select("id,label,date_start,date_end,experience_id,max_spots,deposit,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
-  if (!exp || !pkg || pkg.experience_id !== exp.id || pkg.status !== "active") {
+  // Nothing on the site calls this legacy door any more, but it is deployed
+  // and it takes a deposit and blocks a room, so it asks the same sale rule as
+  // /api/register (lib/package-guard), with no invite: a private package or
+  // another week's is simply not for sale here (27 Sep 2026).
+  if (!exp || packageSaleIssue(pkg, { experienceId: exp.id, editionId: editionId ?? null })) {
     return bad("This package is no longer available.", 409);
   }
   if (editionId && (!edition || edition.experience_id !== exp.id)) {

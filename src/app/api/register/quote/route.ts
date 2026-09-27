@@ -5,7 +5,8 @@ import { parseGearSpec, type GearOptions } from "@/lib/gear-shape";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { computePaymentPlan, mergeSameDayStages, PAYMENT_DEFAULTS } from "@/lib/payments";
-import { companionPackageIssue, sumCompanionPrices, MAX_COMPANIONS } from "@/lib/group-register";
+import { sumCompanionPrices, MAX_COMPANIONS } from "@/lib/group-register";
+import { packageSaleIssue } from "@/lib/package-guard";
 
 /**
  * Public payment-plan quote for the registration modal.
@@ -38,13 +39,21 @@ export async function GET(request: NextRequest) {
   const db = createAdminClient() as any;
   const [{ data: pkg }, { data: edition }] = await Promise.all([
     db.from("exp_packages")
-      .select("id,price,status,deposit,deposit_refund_days,downpayment_percent,final_days_before,category,experience_id,gear_baseline")
+      .select("id,price,status,archived_at,edition_id,website_visible,deposit,deposit_refund_days,downpayment_percent,final_days_before,category,experience_id,gear_baseline")
       .eq("id", packageId).maybeSingle(),
     editionId
       ? db.from("exp_editions").select("id,experience_id,deposit,date_start,launch_discount_pct,launch_price_until").eq("id", editionId).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
-  if (!pkg || pkg.status !== "active") {
+  /*
+   * The same sale rule the sign-up uses (lib/package-guard), with no invite:
+   * only the picker and the reserve modal ask for a quote, and they only ever
+   * hold packages the page shows. Before this, any id got its full price and
+   * payment plan back, a private Bonaire 2027 room and the €1,650 Turkish
+   * Locals rate included (audit, 27 Sep 2026). Every refusal is the same 404,
+   * so the answer cannot be used to find out which ids are private.
+   */
+  if (!pkg || packageSaleIssue(pkg, { experienceId: edition?.experience_id ?? pkg.experience_id, editionId: editionId || null })) {
     return NextResponse.json({ error: "Package not found" }, { status: 404 });
   }
 
@@ -117,7 +126,7 @@ export async function GET(request: NextRequest) {
     const parsed = companionSpecs.map(parseGearSpec);
     const { data: cpkgs } = await db
       .from("exp_packages")
-      .select("id,price,status,archived_at,experience_id,edition_id,category,gear_baseline")
+      .select("id,price,status,archived_at,website_visible,experience_id,edition_id,category,gear_baseline")
       .in("id", [...new Set(parsed.map((s) => s.packageId))]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const byId = new Map(((cpkgs ?? []) as any[]).map((p) => [p.id as string, p]));
@@ -130,7 +139,7 @@ export async function GET(request: NextRequest) {
       const raw = companionSpecs[i];
       if (priced.has(raw)) continue;
       const p = byId.get(spec.packageId);
-      if (companionPackageIssue(p, { experienceId: scopeExperienceId, editionId: editionId || null })) continue;
+      if (packageSaleIssue(p, { experienceId: scopeExperienceId, editionId: editionId || null })) continue;
       // Same resolver the companion's real booking will use, minus the member
       // tier: a companion's tier hangs off THEIR contact, and at quote time
       // nobody has typed their email yet. So a launch price applies here, a

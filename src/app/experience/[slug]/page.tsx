@@ -31,6 +31,7 @@ import { resolveTierPct, bestAdvantage, type TierPerkRule, type PriceAdvantage }
 import { getMemberTier } from "@/lib/member-tier";
 import { FOCUS_CLASS, FOCUS_CSS, focusVars, parseFocus } from "@/lib/placement";
 import { EditionBooking, type EditionLite } from "@/components/experience/edition-booking";
+import { countryOptions } from "@/lib/countries";
 import { HeroVideo } from "@/components/experience/hero-video";
 import { availabilityFor } from "@/lib/availability";
 import { GalleryStrip } from "@/components/experience/gallery-strip";
@@ -1473,6 +1474,11 @@ export default async function ExperienceDetailPage({ params, searchParams }: Pro
                 showAllTrips={flags.showExperience}
                 /* A signed-in member never retypes what we already hold. */
                 viewer={viewer?.email ? { firstName: String(viewer.name ?? "").trim().split(" ")[0] || "", email: viewer.email } : null}
+                /* The sign-up's "Country you live in", named by the server so
+                   the pick reads back in guestCountry (lib/countries). The
+                   visitor's own country is fetched by the modal from /api/geo,
+                   never read here: this page is ISR. */
+                countries={countryOptions()}
               />
             </Reveal>
           ) : (

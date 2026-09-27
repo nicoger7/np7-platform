@@ -5,6 +5,7 @@ import { parseGearBaseline, parseGearChoice, recordGearChoice, type GearChoice, 
 import {
   appendBookingNote, findLiveBookings, isEmptyLead, isUniqueViolation, resolveContactIdsByEmail,
 } from "@/lib/existing-booking";
+import { packageSaleIssue, type PackageSaleIssue, type SalePackageRow } from "@/lib/package-guard";
 
 /**
  * Group registration, phase 2: the payer books several people in one go.
@@ -71,12 +72,7 @@ type CleanedCompanion = Pick<ValidCompanion, "firstName" | "lastName" | "fullNam
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /** A package row as far as the group rules care. */
-export type CompanionPackageRow = {
-  status?: string | null;
-  archived_at?: string | null;
-  experience_id?: string | null;
-  edition_id?: string | null;
-};
+export type CompanionPackageRow = SalePackageRow;
 
 /**
  * Why a companion's package cannot ride this booking. null = it fits.
@@ -85,16 +81,17 @@ export type CompanionPackageRow = {
  * quote that prices them. If the quote counted a package the registration
  * would later refuse, the payment plan shown at signup would be for a group
  * that never existed.
+ *
+ * And since 27 Sep 2026 it is the SAME rule as the payer's own package, from
+ * lib/package-guard. It used to be a copy with no website_visible check, so a
+ * friend could be put on a private package (Turkish Locals, €1,650) that the
+ * payer could not have picked for themselves.
  */
 export function companionPackageIssue(
   p: CompanionPackageRow | null | undefined,
-  scope: { experienceId: string; editionId: string | null },
-): "unavailable" | "other-week" | null {
-  if (!p || p.archived_at || p.status !== "active" || p.experience_id !== scope.experienceId) return "unavailable";
-  // An edition-scoped package belongs to its week only; an edition-less one
-  // is shared across weeks. Same rule the experience page renders by.
-  if (p.edition_id && p.edition_id !== scope.editionId) return "other-week";
-  return null;
+  scope: { experienceId: string; editionId: string | null; unlocked?: ReadonlySet<string> | null },
+): PackageSaleIssue | null {
+  return packageSaleIssue(p, scope);
 }
 
 /**
@@ -151,6 +148,10 @@ export async function validateCompanions(
      *  has to run the roster rules against a group it may itself have created
      *  seconds ago. */
     ignoreCoveredBy?: string | null;
+    /** Private packages this request may sell, from the payer's invite link.
+     *  The SAME set the payer was judged with, so a friend can ride along on
+     *  the invite's package and on nothing else that is hidden. */
+    unlocked?: ReadonlySet<string> | null;
   },
 ): Promise<
   | { ok: true; companions: ValidCompanion[] }
@@ -192,7 +193,7 @@ export async function validateCompanions(
   const ids = [...new Set(cleaned.map((c) => c.packageId))];
   const { data: pkgs } = await db
     .from("exp_packages")
-    .select("id, name, price, experience_id, edition_id, status, archived_at, category, gear_baseline")
+    .select("id, name, price, experience_id, edition_id, status, archived_at, website_visible, category, gear_baseline")
     .in("id", ids);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const byId = new Map(((pkgs ?? []) as any[]).map((p) => [p.id, p]));
@@ -200,12 +201,14 @@ export async function validateCompanions(
   const companions: ValidCompanion[] = [];
   for (const c of cleaned) {
     const p = byId.get(c.packageId);
-    const issue = companionPackageIssue(p, { experienceId: ctx.experienceId, editionId: ctx.editionId });
-    if (issue === "unavailable") {
-      return { ok: false, error: `The package chosen for ${c.firstName} isn't available. Please pick another.` };
-    }
+    const issue = companionPackageIssue(p, { experienceId: ctx.experienceId, editionId: ctx.editionId, unlocked: ctx.unlocked });
     if (issue === "other-week") {
       return { ok: false, error: `The package chosen for ${c.firstName} isn't offered in this week. Please pick another.` };
+    }
+    // "private" reads exactly like "unavailable": the payer is not told that a
+    // hidden rate sits behind the id they tried.
+    if (issue) {
+      return { ok: false, error: `The package chosen for ${c.firstName} isn't available. Please pick another.` };
     }
     companions.push({
       ...c,

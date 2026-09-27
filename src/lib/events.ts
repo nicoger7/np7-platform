@@ -224,7 +224,12 @@ export async function getEventForSlug(
       .eq("edition_id", pinned.id)
       .eq("status", "active")
       .is("archived_at", null);
-    const usable = ((pkgRows ?? []) as { id: string; deposit: number | null; final_days_before: number | null }[]);
+    // An off-website package is sold by the team, not from this page. It was
+    // selected but never checked, so a private clinic rate with a smaller
+    // deposit would have become the public ticket's plan and its "included"
+    // chips (27 Sep 2026). /api/event/checkout picks by the same filter.
+    const usable = ((pkgRows ?? []) as { id: string; deposit: number | null; final_days_before: number | null; website_visible?: boolean | null }[])
+      .filter((p) => p.website_visible !== false);
     pkg = usable.sort((a, b) => Number(a.deposit ?? Infinity) - Number(b.deposit ?? Infinity))[0] ?? null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chosen = ((pkgRows ?? []) as any[]).find((p) => p.id === pkg?.id);
