@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { fmtVoucherMoney } from "@/lib/vouchers";
+import { useState, type ReactNode } from "react";
+import { fmtVoucherMoney, VOUCHER_VALIDITY_LABEL } from "@/lib/vouchers";
 import { track } from "@/lib/analytics-client";
-import type { GiftExp, GiftPkg } from "@/lib/gift-data";
+import {
+  GIFT_ANY_TRIP,
+  giftChoice,
+  giftFromPrice,
+  giftLevelLabel,
+  giftPackagesFor,
+  giftValueLine,
+  type GiftPackage,
+  type GiftTrip,
+} from "@/lib/gift-catalog";
 
 // €200 steps up to €5,000, then €1,000 steps to €10,000. The same grid
 // /api/voucher accepts for a free amount.
@@ -13,8 +22,8 @@ const AMOUNTS = [
 ];
 const DEFAULT_IDX = AMOUNTS.indexOf(1000);
 
-/** The slider step at or just below a package price, so the thumb sits where
- *  the number is when a package is picked. */
+/** The slider step at or just below a package price, so "change amount"
+ *  opens with the thumb where the number is. */
 function nearestIdx(price: number): number {
   let best = 0;
   AMOUNTS.forEach((a, i) => { if (a <= price) best = i; });
@@ -22,27 +31,37 @@ function nearestIdx(price: number): number {
 }
 
 /*
- * One product, one control (Nico, 27 Sep 2026). A voucher is VALUE: paid by
- * bank transfer, activated by the team when the money lands, and entered as a
- * code on a trip's payment plan. So every choice on this form ends on the same
- * slider, whether it is for any trip or a specific one.
+ * A step chooser (Nico, 27 Sep 2026: "make it easily bookable and choosable
+ * (package etc.)"). Mobile first, one question at a time:
  *
- * It used to be three different forms behind one row of buttons. "Any" had the
- * slider. An experience with packages quoted a package and promised "they pick
- * the week when they book", but every package is sold on one week only. And an
- * experience with no package on sale (Lake Garda, Croatia between seasons)
- * showed a fixed €1,000 "complete experience" with no way to change it, or
- * whatever the slider had been left on under "Any".
+ *   1  Which trip?   chips for every giftable trip, plus "Any NP7 trip"
+ *   2  Which week?   only when the trip has more than one week on sale
+ *   3  Which level?  only when that week sells Beginner AND Advanced
+ *   4  Room or package, plus "A set amount instead"
  *
- * Packages are now quick picks: tapping one sets the voucher to that
- * package's price and says which week it is on. Moving the slider goes back to
- * a free amount. Nothing is promised about the week, because the voucher does
- * not hold one.
+ * and then the voucher's value, big, with "Change amount" for the slider.
+ *
+ * Round 1 put every week's packages under the slider as flat quick picks.
+ * Bonaire sells the same room at both levels, so the buyer saw "WANAPA Double
+ * Deluxe with Balcony" twice with €660 between them and no way to tell which
+ * was which; Alaçatı sells one room name at two hotels. The level and the
+ * hotel now come with the data (gift-catalog.ts) and the chooser asks.
+ *
+ * The voucher itself is unchanged: VALUE, paid by bank transfer, activated when
+ * the money lands, entered as a code on a trip's payment plan. Picking a
+ * package only sets the amount to that package's price; the order still posts
+ * experienceId + packageId + amount and /api/voucher re-reads the price. A
+ * trip voucher works on any week of that trip (the redeem route checks the
+ * experience, never the week or the package), so that is what the copy says.
+ * It does not say "any NP7 trip": a trip voucher is refused on another trip.
  */
-export function GiftBuyForm({ experiences, packages = [] }: { experiences: GiftExp[]; packages?: GiftPkg[] }) {
+export function GiftBuyForm({ trips }: { trips: GiftTrip[] }) {
+  const [tripId, setTripId] = useState<string | null>(null); // null = nothing picked yet
+  const [weekId, setWeekId] = useState<string | null>(null);
+  const [level, setLevel] = useState<string | null>(null);
+  const [pkgId, setPkgId] = useState<string | null>(null);
+  const [custom, setCustom] = useState(false); // the slider is open
   const [idx, setIdx] = useState(DEFAULT_IDX);
-  const [expId, setExpId] = useState(""); // "" = any NP7 trip
-  const [pkgId, setPkgId] = useState(""); // "" = a free amount from the slider
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
   const [recipientName, setRecipientName] = useState("");
@@ -54,56 +73,52 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: GiftE
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   type Pay = { iban: string; bic: string | null; bank_name: string | null; legal_name: string | null } | null;
-  const [done, setDone] = useState<null | { code: string; amount: number | null; currency: string | null; pay: Pay }>(null);
+  const [done, setDone] = useState<null | { code: string; amount: number | null; currency: string | null; pay: Pay; emailed: boolean | null }>(null);
 
-  const isAny = !expId;
-  const selectedExp = experiences.find((e) => e.id === expId) || null;
-  const expPkgs = packages
-    .filter((p) => p.experience_id === expId && p.price != null && p.price > 0)
-    .sort((a, b) => (a.week_start ?? "").localeCompare(b.week_start ?? "") || (a.price as number) - (b.price as number));
-  // Grouped by week, soonest first; a package with no week reads "Any week".
-  const weeks: { label: string; pkgs: GiftPkg[] }[] = [];
-  for (const p of expPkgs) {
-    const label = p.week ?? "Any week";
-    const g = weeks.find((w) => w.label === label);
-    if (g) g.pkgs.push(p);
-    else weeks.push({ label, pkgs: [p] });
-  }
-  const selectedPkg = expPkgs.find((p) => p.id === pkgId) || null;
-  // No fallback to the experience's own price column: see no-legacy-price.test.ts.
-  const amount = selectedPkg?.price ?? AMOUNTS[idx];
-  // A voucher for any trip is in euros, like the invoices it pays; a specific
-  // trip's voucher is in that trip's currency.
-  const currency = selectedExp?.currency || "EUR";
-  // Same rule as activation (admin/vouchers/[id]): 2 years only for an
-  // any-trip voucher over €5,000, a trip-specific one is always 1 year.
-  const validity = isAny && amount > 5000 ? "Valid for 2 years." : "Valid for 1 year.";
+  // What is chosen so far, and what the order posts: one pure function
+  // (gift-catalog.ts), tested without a browser. A voucher for any trip is in
+  // euros, like the invoices it pays; a trip's voucher is in its currency.
+  const choice = giftChoice(trips, { tripId, weekId, level, pkgId, custom, sliderAmount: AMOUNTS[idx] });
+  const { isAny, trip, week, askLevel, cards, pkg, byValue, amount, ready, currency } = choice;
+  const weeks = trip?.weeks ?? [];
+  const money = (n: number | null) => fmtVoucherMoney(n, currency);
 
-  function pickExperience(eId: string) { setExpId(eId); setPkgId(""); }
-  function pickPackage(p: GiftPkg) {
-    if (pkgId === p.id) { setPkgId(""); return; }
-    setPkgId(p.id);
-    setIdx(nearestIdx(Number(p.price)));
+  function pickTrip(id: string) {
+    // A new trip starts the slider fresh, not wherever the last package left it.
+    setTripId(id); setWeekId(null); setLevel(null); setPkgId(null); setCustom(false); setIdx(DEFAULT_IDX); setError("");
   }
-  function slide(i: number) { setIdx(i); setPkgId(""); }
+  function pickWeek(id: string) { setWeekId(id); setLevel(null); setPkgId(null); setCustom(false); }
+  function pickLevel(l: string) { setLevel(l); setPkgId(null); setCustom(false); }
+  function pickPackage(p: GiftPackage) { setPkgId(p.id); setCustom(false); setIdx(nearestIdx(p.price)); setError(""); }
+  function pickSetAmount() { setPkgId(null); setCustom(true); setError(""); }
+  // "Change amount" keeps the package until the thumb actually moves.
+  function openSlider() { setCustom(true); if (pkg) setIdx(nearestIdx(pkg.price)); }
+  function slide(i: number) { setIdx(i); setPkgId(null); setCustom(true); }
 
   async function submit() {
     setError("");
+    if (!ready) { setError("Choose a trip and a room, or a set amount, first."); return; }
     if (!buyerName.trim()) { setError("Please enter your name."); return; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(buyerEmail.trim())) { setError("Please enter a valid email address."); return; }
     if (recipientEmail.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(recipientEmail.trim())) { setError("Please check the recipient's email address, or leave it empty."); return; }
     if (nicoCall && !recipientPhone.trim()) { setError("Add the recipient's phone number so Nico can call them."); return; }
     setBusy(true);
-    // A dropped connection used to leave the button on "Creating…" for good.
+    const { experienceId, packageId } = choice;
+    // A dropped connection used to leave the button on "Creating..." for good.
     const res = await fetch("/api/voucher", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ experienceId: expId || null, packageId: selectedPkg?.id || null, amount, buyerName, buyerEmail, recipientName, recipientEmail, message, nicoCall, recipientPhone, callDate }),
+      body: JSON.stringify({ experienceId, packageId, amount, buyerName, buyerEmail, recipientName, recipientEmail, message, nicoCall, recipientPhone, callDate }),
     }).catch(() => null);
     setBusy(false);
     if (!res) { setError("We couldn't reach the server. Please check your connection and try again."); return; }
     const j = await res.json().catch(() => ({}));
-    if (res.ok) { track("voucher_buy", { amount, currency, experience: expId || "any" }); setDone({ code: j.voucher?.code, amount: j.voucher?.amount ?? amount, currency: j.voucher?.currency ?? currency, pay: j.pay ?? null }); }
-    else { setError(j.error || "Couldn't order the voucher. Please try again."); }
+    if (res.ok) {
+      track("voucher_buy", { amount, currency, experience: experienceId || "any" });
+      setDone({
+        code: j.voucher?.code, amount: j.voucher?.amount ?? amount, currency: j.voucher?.currency ?? currency, pay: j.pay ?? null,
+        emailed: typeof j.emailed === "boolean" ? j.emailed : null,
+      });
+    } else { setError(j.error || "Couldn't order the voucher. Please try again."); }
   }
 
   const input = "w-full px-4 py-3 rounded-xl border border-[#dde6e9] text-[15px] text-[#00374a] outline-none focus:border-[#00afdb] bg-white";
@@ -122,7 +137,7 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: GiftE
     payRows.push(["Reference", done.code]);
     const to = recipientEmail.trim();
     return (
-      <div className="bg-white rounded-2xl border border-[#f0e6d6] p-7">
+      <div className="bg-white rounded-2xl border border-[#f0e6d6] p-6 sm:p-7">
         <div className="text-center">
           <div className="mx-auto w-14 h-14 rounded-full bg-[#00afdb] grid place-items-center mb-4"><svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg></div>
           <h2 className="text-2xl font-black text-[#00374a] mb-2">Voucher ordered</h2>
@@ -145,85 +160,149 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: GiftE
             </div>
           ))}
         </div>
-        {/* The order email (voucher_ordered, sent by /api/voucher) carries the
-            amount, the bank account and the reference, so the buyer can close
-            this page. This line used to promise "we'll email you the
-            bank-transfer details shortly" when no such email existed. */}
-        <p className="text-[13px] text-[#8a9aa0] text-center mt-4">We&apos;ve also emailed you these details.</p>
+        {/* The order email (voucher_ordered) carries the amount, the bank
+            account and the reference, so the buyer can close this page. The
+            line says so only when there ARE bank details and the mail went
+            out (review, 27 Sep 2026): with no IBAN in company settings the
+            screen and the mail both lack them, and the mail asks for a reply. */}
+        {done.pay ? (
+          done.emailed !== false && <p className="text-[13px] text-[#8a9aa0] text-center mt-4">We&apos;ve also emailed you these details.</p>
+        ) : (
+          <p className="text-[13px] text-[#8a9aa0] text-center mt-4">
+            {done.emailed ? "We've emailed you your order. Reply to it and we'll send you our bank details." : "We'll email you our bank details."}
+          </p>
+        )}
         <p className="text-[12px] text-[#9aa6ac] text-center mt-2">Please use reference <strong>{done.code}</strong> so we can match your payment.</p>
       </div>
     );
   }
 
+  // Steps are numbered as they appear, so a trip with one week reads 1, 2, 3.
+  let step = 0;
+  const next = () => ++step;
+
   return (
-    <div className="bg-white rounded-2xl border border-[#f0e6d6] p-6 sm:p-8 space-y-6">
-      {/* What the voucher is for */}
-      <div>
-        <label className={label}>Voucher for</label>
+    <div className="bg-white rounded-2xl border border-[#f0e6d6] p-5 sm:p-8 space-y-6">
+      {/* 1 · Which trip */}
+      <section aria-label="Which trip">
+        <StepHead n={next()} title="Which trip is it for?" hint="Pick one, or leave it open for any NP7 trip." />
         <div className="flex flex-wrap gap-2">
-          {[{ id: "", title: "Any NP7 trip" }, ...experiences].map((e) => {
-            const on = expId === e.id;
-            return (
-              <button key={e.id || "any"} type="button" onClick={() => pickExperience(e.id)}
-                className={`px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors border ${on ? "bg-[#00afdb] text-white border-[#00afdb]" : "bg-white text-[#00374a] border-[#dde6e9] hover:border-[#00afdb]"}`}>
-                {e.title}
-              </button>
-            );
-          })}
+          {trips.map((t) => (
+            <Chip key={t.id} on={tripId === t.id} onClick={() => pickTrip(t.id)}>{t.name}</Chip>
+          ))}
+          <Chip on={isAny} onClick={() => pickTrip(GIFT_ANY_TRIP)}>Any NP7 trip</Chip>
         </div>
-      </div>
-
-      {/* Value: always the slider; packages are quick picks on top of it */}
-      <div className="border-t border-[#f3ede2] pt-5">
-        <label className={label}>Voucher value</label>
-        <div className="flex items-baseline justify-between mb-2">
-          <span className="text-[34px] font-black text-[#00374a]">{fmtVoucherMoney(amount, currency)}</span>
-          <span className="text-[12px] text-[#9aa6ac]">{fmtVoucherMoney(AMOUNTS[0], currency)} to {fmtVoucherMoney(AMOUNTS[AMOUNTS.length - 1], currency)}</span>
-        </div>
-        <input type="range" aria-label="Voucher value" min={0} max={AMOUNTS.length - 1} step={1} value={idx} onChange={(e) => slide(Number(e.target.value))} className="w-full accent-[#00afdb] cursor-pointer" />
-        <p className="text-[13px] text-[#5a6b72] mt-2">
-          {isAny ? (
-            <>A voucher worth <strong>{fmtVoucherMoney(amount, currency)}</strong> towards any NP7 trip.</>
-          ) : selectedPkg ? (
-            <>A voucher for <strong>{selectedExp?.title}</strong>, worth the <strong>{selectedPkg.name}</strong> price{selectedPkg.week ? <>, {selectedPkg.week}</> : null}.</>
-          ) : (
-            <>A voucher for <strong>{selectedExp?.title}</strong>.</>
-          )}
-          {" "}{validity}
-        </p>
-
-        {weeks.length > 0 && (
-          <div className="mt-5">
-            <p className={label}>Or match a package price</p>
-            <div className="space-y-3">
-              {weeks.map((w) => (
-                <div key={w.label}>
-                  <p className="text-[12px] font-semibold text-[#6a7a80] mb-1.5">{w.label}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {w.pkgs.map((pk) => {
-                      const on = selectedPkg?.id === pk.id;
-                      return (
-                        <button key={pk.id} type="button" aria-pressed={on} onClick={() => pickPackage(pk)}
-                          className={`px-3.5 py-2 rounded-xl text-[13px] font-semibold transition-colors border text-left ${on ? "bg-[#f47b20] text-white border-[#f47b20]" : "bg-white text-[#00374a] border-[#dde6e9] hover:border-[#f47b20]"}`}>
-                          <span className="block">{pk.name}</span>
-                          <span className={`block text-[12px] font-bold ${on ? "text-white/90" : "text-[#f47b20]"}`}>{fmtVoucherMoney(pk.price, currency)}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {trip && weeks.length === 0 && (
+          <p className="text-[13px] text-[#6a7a80] mt-3">The next {trip.name} prices aren&apos;t out yet, so choose an amount below.</p>
         )}
-      </div>
+      </section>
+
+      {/* 2 · Which week (only with more than one on sale) */}
+      {trip && choice.askWeek && (
+        <section aria-label="Which week" className="border-t border-[#f3ede2] pt-5">
+          <StepHead n={next()} title="Which week?" hint={`It sets the price. They can still use the voucher on any ${trip.name} week.`} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {weeks.map((w) => {
+              const on = week?.id === w.id;
+              const from = giftFromPrice(w.packages);
+              return (
+                <button key={w.id} type="button" aria-pressed={on} onClick={() => pickWeek(w.id)}
+                  className={`min-h-[56px] px-4 py-3 rounded-xl border text-left transition-colors ${on ? "bg-[#00afdb] border-[#00afdb] text-white" : "bg-white border-[#dde6e9] text-[#00374a] hover:border-[#00afdb]"}`}>
+                  <span className="block text-[14.5px] font-bold">{w.dates}</span>
+                  <span className={`block text-[12px] ${on ? "text-white/85" : "text-[#6a7a80]"}`}>
+                    {[w.label, from != null ? `from ${money(from)}` : null].filter(Boolean).join(" · ")}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* 3 · Which level (only when the week sells both) */}
+      {week && askLevel && (
+        <section aria-label="Which level" className="border-t border-[#f3ede2] pt-5">
+          <StepHead n={next()} title="Which level?" hint={weeks.length === 1 ? week.dates : "Beginner and Advanced ride in separate coaching groups."} />
+          <div className="grid grid-cols-2 gap-2">
+            {week.levels.map((l) => {
+              const on = level === l;
+              const from = giftFromPrice(giftPackagesFor(week, l));
+              return (
+                <button key={l} type="button" aria-pressed={on} onClick={() => pickLevel(l)}
+                  className={`min-h-[56px] px-4 py-3 rounded-xl border text-left transition-colors ${on ? "bg-[#00afdb] border-[#00afdb] text-white" : "bg-white border-[#dde6e9] text-[#00374a] hover:border-[#00afdb]"}`}>
+                  <span className="block text-[14.5px] font-bold">{giftLevelLabel(l)}</span>
+                  {from != null && <span className={`block text-[12px] ${on ? "text-white/85" : "text-[#6a7a80]"}`}>from {money(from)}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* 4 · Room or package, or a set amount */}
+      {week && choice.showCards && (
+        <section aria-label="Room or package" className="border-t border-[#f3ede2] pt-5">
+          <StepHead
+            n={next()}
+            title="Room or package"
+            hint={[
+              weeks.length === 1 && !askLevel ? week.dates : null,
+              !askLevel && week.levels.length === 1 ? `${giftLevelLabel(week.levels[0])} coaching` : null,
+            ].filter(Boolean).join(" · ") || undefined}
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {cards.map((p) => {
+              const on = pkg?.id === p.id;
+              return (
+                <button key={p.id} type="button" aria-pressed={on} onClick={() => pickPackage(p)}
+                  className={`min-h-[64px] px-4 py-3 rounded-xl border text-left transition-colors flex items-start justify-between gap-3 ${on ? "bg-[#fff7ec] border-[#f47b20] ring-2 ring-[#f47b20]/25" : "bg-white border-[#dde6e9] hover:border-[#f47b20]"}`}>
+                  <span className="min-w-0">
+                    <span className="block text-[14.5px] font-bold text-[#00374a] leading-snug">{p.name}</span>
+                    {p.hotel && <span className="block text-[12px] text-[#6a7a80] mt-0.5">{p.hotel}</span>}
+                  </span>
+                  <span className="shrink-0 text-[14.5px] font-black text-[#f47b20]">{money(p.price)}</span>
+                </button>
+              );
+            })}
+            <button type="button" aria-pressed={custom && !pkg} onClick={pickSetAmount}
+              className={`min-h-[64px] px-4 py-3 rounded-xl border border-dashed text-left transition-colors ${custom && !pkg ? "bg-[#fff7ec] border-[#f47b20] ring-2 ring-[#f47b20]/25" : "bg-white border-[#cfd9dd] hover:border-[#f47b20]"}`}>
+              <span className="block text-[14.5px] font-bold text-[#00374a]">A set amount instead</span>
+              <span className="block text-[12px] text-[#6a7a80] mt-0.5">{money(AMOUNTS[0])} to {money(AMOUNTS[AMOUNTS.length - 1])}, you choose</span>
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* The voucher's value */}
+      {ready && (
+        <section aria-label="Voucher value" className="rounded-2xl bg-[#fff7ec] border border-[#f0e6d6] p-5">
+          <p className={label}>Voucher value</p>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[40px] leading-none font-black tracking-[-0.02em] text-[#00374a]">{money(amount)}</span>
+            {pkg && !custom && (
+              <button type="button" onClick={openSlider} className="shrink-0 whitespace-nowrap text-[12.5px] font-semibold text-[#00afdb] underline underline-offset-2 hover:text-[#00374a]">Change amount</button>
+            )}
+          </div>
+          <p className="text-[13.5px] text-[#5a6b72] mt-3 leading-relaxed">
+            {giftValueLine(choice)} {VOUCHER_VALIDITY_LABEL}.
+          </p>
+          {byValue && (
+            <div className="mt-4">
+              <input type="range" aria-label="Voucher value" min={0} max={AMOUNTS.length - 1} step={1} value={idx} onChange={(e) => slide(Number(e.target.value))} className="w-full accent-[#00afdb] cursor-pointer" />
+              <div className="flex justify-between text-[12px] text-[#9aa6ac] mt-1">
+                <span>{money(AMOUNTS[0])}</span><span>{money(AMOUNTS[AMOUNTS.length - 1])}</span>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Buyer */}
       <div className="border-t border-[#f3ede2] pt-5">
         <p className="text-[13px] text-[#8a9aa0] mb-3">Your details: where we&apos;ll send the confirmation.</p>
         <div className="grid sm:grid-cols-2 gap-3">
-          <div><label className={label}>Your name</label><input className={input} value={buyerName} onChange={(e) => setBuyerName(e.target.value)} placeholder="Your name" /></div>
-          <div><label className={label}>Your email</label><input className={input} type="email" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} placeholder="you@email.com" /></div>
+          <div><label className={label}>Your name</label><input className={input} value={buyerName} onChange={(e) => setBuyerName(e.target.value)} placeholder="Your name" autoComplete="name" /></div>
+          <div><label className={label}>Your email</label><input className={input} type="email" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} placeholder="you@email.com" autoComplete="email" /></div>
         </div>
       </div>
 
@@ -257,7 +336,7 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: GiftE
         </label>
         {nicoCall && (
           <div className="grid sm:grid-cols-2 gap-3 mt-3">
-            <div><label className={label}>Recipient phone</label><input className={input} value={recipientPhone} onChange={(e) => setRecipientPhone(e.target.value)} placeholder="+49 …" /></div>
+            <div><label className={label}>Recipient phone</label><input className={input} type="tel" value={recipientPhone} onChange={(e) => setRecipientPhone(e.target.value)} placeholder="+49 ..." /></div>
             <div><label className={label}>Preferred date</label><input className={input} type="date" value={callDate} onChange={(e) => setCallDate(e.target.value)} /></div>
           </div>
         )}
@@ -277,9 +356,30 @@ export function GiftBuyForm({ experiences, packages = [] }: { experiences: GiftE
       </p>
 
       {error && <p className="text-[13px] text-red-500">{error}</p>}
-      <button onClick={submit} disabled={busy} className="w-full px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">
-        {busy ? "Ordering…" : `Order a ${fmtVoucherMoney(amount, currency)} voucher`}
+      <button onClick={submit} disabled={busy || !ready} className="w-full px-7 py-4 rounded-full text-[15px] font-bold text-white bg-[#00afdb] hover:bg-[#15c0ec] disabled:opacity-60 transition-all">
+        {busy ? "Ordering..." : ready ? `Order a ${money(amount)} voucher` : "Choose the voucher above first"}
       </button>
     </div>
+  );
+}
+
+function StepHead({ n, title, hint }: { n: number; title: string; hint?: string }) {
+  return (
+    <div className="flex items-start gap-3 mb-3">
+      <span className="shrink-0 inline-grid place-items-center w-7 h-7 rounded-full text-[13px] font-black text-white" style={{ background: "linear-gradient(135deg,#ffc42e,#f47b20)" }} aria-hidden>{n}</span>
+      <div className="min-w-0">
+        <p className="text-[15.5px] font-extrabold text-[#00374a] leading-7">{title}</p>
+        {hint && <p className="text-[12.5px] text-[#6a7a80] leading-snug">{hint}</p>}
+      </div>
+    </div>
+  );
+}
+
+function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" aria-pressed={on} onClick={onClick}
+      className={`min-h-[44px] px-4 py-2 rounded-full text-[14px] font-semibold transition-colors border ${on ? "bg-[#00afdb] text-white border-[#00afdb]" : "bg-white text-[#00374a] border-[#dde6e9] hover:border-[#00afdb]"}`}>
+      {children}
+    </button>
   );
 }

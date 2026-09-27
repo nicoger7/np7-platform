@@ -5,7 +5,7 @@ import { OceanHeader } from "@/components/experience/ocean-header";
 import { GiftBuyForm } from "@/components/experience/gift-buy-form";
 import { loadGiftData } from "@/lib/gift-data";
 import { canSeeExperienceWorld } from "@/lib/auth";
-import { VOUCHER_HOW_TO_REDEEM } from "@/lib/vouchers";
+import { VOUCHER_HOW_TO_REDEEM, VOUCHER_VALIDITY_LABEL } from "@/lib/vouchers";
 
 // Absolute, so the layout's " · NP7" is not added on top: the tab used to read
 // "Gift a trip, NP7 Experience · NP7" (with a long dash), the brand twice. It is
@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: { absolute: "Gift an NP7 voucher" } }
 export const dynamic = "force-dynamic";
 
 export default async function GiftPage() {
-  const [{ experiences, heroes, packages }, canBrowse] = await Promise.all([
+  const [{ trips, heroes }, canBrowse] = await Promise.all([
     loadGiftData(),
     canSeeExperienceWorld(flags.showExperience).catch(() => false),
   ]);
@@ -31,14 +31,17 @@ export default async function GiftPage() {
                 who followed "Back to experiences" landed on a bare login form
                 with no word on why. Whoever may browse the trips gets the link
                 back; everyone else is told the account is free and what it
-                opens, and comes back to the trips after signing in. */}
+                opens, and comes back to the trips after signing in. The link
+                opens the login page on "create account" (review, 27 Sep 2026):
+                it said "create your free account" and landed on a password
+                login. */}
             {canBrowse ? (
               <Link href="/experience#experiences" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white/70 hover:text-white transition-colors mb-5">
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
                 Back to experiences
               </Link>
             ) : (
-              <Link href="/account/login?next=/experience" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white/70 hover:text-white transition-colors mb-5">
+              <Link href="/account/login?mode=register&next=/experience" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white/70 hover:text-white transition-colors mb-5">
                 Create your free account to see the trips
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
               </Link>
@@ -69,14 +72,16 @@ export default async function GiftPage() {
         {/* Cream panel rises over the teal with a soft curve */}
         <div className="relative -mt-7 rounded-t-[2.25rem] bg-[#fff7ec]">
           <div className="max-w-[760px] mx-auto px-6 sm:px-8 pt-10 pb-14 sm:pt-12 sm:pb-16">
-            <GiftBuyForm experiences={experiences} packages={packages} />
+            {/* The chooser is open to logged-out visitors on purpose: the gift
+                page is public, and a buyer is often not the rider. */}
+            <GiftBuyForm trips={trips} />
 
           {/* How gifting works */}
           <div className="mt-12">
             <p className="text-[11px] font-bold tracking-[0.22em] text-[#f47b20] mb-5 text-center">HOW GIFTING WORKS</p>
             <div className="grid sm:grid-cols-3 gap-4">
               {[
-                { n: "1", t: "Pick a value", d: "Any amount from €200 to €10,000, for any NP7 trip or a specific one. Pay by bank transfer. No account needed." },
+                { n: "1", t: "Pick a trip or a value", d: "Choose the trip, week and room and the voucher is worth that price. Or pick any amount from €200 to €10,000. Pay by bank transfer. No account needed." },
                 { n: "2", t: "We wrap it up", d: "Once your transfer lands we email a printable PDF voucher. If you asked us to, Nico calls them with the news." },
                 { n: "3", t: "They use it", d: `${VOUCHER_HOW_TO_REDEEM} If the trip costs less, whatever is left stays on the voucher.` },
               ].map((s) => (
@@ -88,7 +93,7 @@ export default async function GiftPage() {
               ))}
             </div>
             <div className="mt-5 flex flex-wrap justify-center gap-2.5">
-              {["Valid 1 year, or 2 years for any-trip vouchers over €5,000", "Printable PDF voucher", "Any trip or a specific one", "Optional: a call from Nico"].map((c) => (
+              {[VOUCHER_VALIDITY_LABEL, "Printable PDF voucher", "Any trip or a specific one", "Optional: a call from Nico"].map((c) => (
                 <span key={c} className="px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold text-[#00374a] bg-white border border-[#f0e6d6]">{c}</span>
               ))}
             </div>

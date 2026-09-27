@@ -1,8 +1,8 @@
 /**
- * Gift vouchers — each is for a specific experience, bought by a signed-in
- * member, paid by bank transfer (team-confirmed). Valid 1 year at the price
- * locked at purchase; 50% refundable if unused after that. Pure helpers shared
- * by the buy flow, member area, redemption and admin.
+ * Gift vouchers: value vouchers, for any NP7 trip or one trip, paid by bank
+ * transfer (team-confirmed). Valid 2 years from activation (see
+ * VOUCHER_VALID_MONTHS); 50% refundable if unused after that. Pure helpers
+ * shared by the buy flow, member area, redemption and admin.
  */
 
 export type VoucherStatus = "pending" | "active" | "redeemed" | "expired" | "refunded" | "cancelled";
@@ -28,8 +28,19 @@ export type Voucher = {
   created_at: string;
 };
 
-/** Validity in months from activation. */
-export const VOUCHER_VALID_MONTHS = 12;
+/*
+ * Validity in months from activation: 2 years for EVERY voucher (Nico, 27 Sep
+ * 2026: "maybe 2 for now"). It used to be 1 year, with 2 only for an any-trip
+ * voucher over €5,000, a rule the gift page needed a whole sentence to
+ * explain. One number now, for the shop, the admin, referral credits and
+ * every line of copy. Whether a shorter term would hold under German law
+ * stays a question for the lawyer; 2 years is the generous side of it.
+ */
+export const VOUCHER_VALID_MONTHS = 24;
+
+/** The same, in words, for every surface that states it. */
+export const VOUCHER_VALIDITY_LABEL = "Valid for 2 years";
+
 /** Share refunded if a voucher expires unused. */
 export const VOUCHER_UNUSED_REFUND_PCT = 50;
 
@@ -42,7 +53,9 @@ export function generateVoucherCode(): string {
   return `NP7-${block()}-${block()}`;
 }
 
-/** redeem_by date = issued + 12 months (yyyy-mm-dd). */
+/** redeem_by date = issued + VOUCHER_VALID_MONTHS (yyyy-mm-dd). The one
+ *  default use-by rule: shop activation, admin-issued vouchers and referral
+ *  credits all read it. */
 export function redeemByFrom(issuedISO: string): string {
   const d = new Date(issuedISO);
   d.setMonth(d.getMonth() + VOUCHER_VALID_MONTHS);
@@ -127,14 +140,17 @@ export type VoucherSplit = {
 /**
  * Split what is left on a voucher against a booking's open balance.
  *
- * `outstanding` is null when the booking has no agreed price yet. Then the
- * whole voucher goes on it, as before: there is no total to cap against, and
- * the team settles the difference when the price is set.
+ * `outstanding` is null when the booking has no agreed price yet. That counts
+ * as nothing owed: nothing is applied and the voucher keeps every euro. It
+ * used to put the WHOLE voucher on the booking and mark it used up, so a
+ * €10,000 gift on an unpriced booking lost its remainder, the very thing the
+ * balance column exists to stop (review, 27 Sep 2026). The redeem route
+ * refuses an unpriced booking before it gets here; this is the second guard.
  */
 export function splitVoucherCredit(valueLeft: number, outstanding: number | null): VoucherSplit {
   const value = cents(Math.max(0, Number(valueLeft) || 0));
-  const open = outstanding == null ? null : cents(Math.max(0, Number(outstanding) || 0));
-  const applied = open == null ? value : cents(Math.min(value, open));
+  const open = cents(Math.max(0, Number(outstanding ?? 0) || 0));
+  const applied = cents(Math.min(value, open));
   let left = cents(value - applied);
   if (left <= VOUCHER_SPENT_AT) left = 0;
   return { applied, left, status: left > 0 ? "active" : "redeemed" };
@@ -192,20 +208,6 @@ export function voucherPaymentRow(o: {
     off_bank_reason: `Gift voucher ${o.code}`,
     notes: note,
   };
-}
-
-/** Months a voucher is valid from activation. Value vouchers over €5,000 that
- *  are not tied to one trip get 24, everything else 12. Whether 12 holds under
- *  German law is a question for the lawyer, not for this file. */
-export function voucherValidMonths(amount: number | string | null | undefined, experienceId: string | null | undefined): number {
-  return Number(amount) > 5000 && !experienceId ? 24 : VOUCHER_VALID_MONTHS;
-}
-
-/** The default use-by date (yyyy-mm-dd) for a voucher activated at `fromISO`. */
-export function defaultRedeemBy(amount: number | string | null | undefined, experienceId: string | null | undefined, fromISO: string): string {
-  const d = new Date(fromISO);
-  d.setMonth(d.getMonth() + voucherValidMonths(amount, experienceId));
-  return d.toISOString().slice(0, 10);
 }
 
 /**

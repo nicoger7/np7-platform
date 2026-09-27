@@ -47,7 +47,7 @@ export default async function VouchersPage() {
     bank = cs ?? null;
   } catch { /* table not migrated yet → empty state */ }
 
-  const { experiences, packages } = await loadGiftData();
+  const { trips } = await loadGiftData();
 
   return (
     <>
@@ -131,7 +131,7 @@ export default async function VouchersPage() {
           <div className="max-w-[760px]">
             <h2 className="text-2xl sm:text-[28px] font-black tracking-[-0.02em] text-[#00374a] mb-1.5">{rows.length > 0 ? "Gift another voucher" : "Gift a voucher"}</h2>
             <p className="text-[14px] text-[#6a7a80] mb-6">A windsurf, wing &amp; foil adventure wrapped as a voucher. Pay by bank transfer. We email a printable voucher once it lands, and call the recipient if you like.</p>
-            <GiftBuyForm experiences={experiences} packages={packages} />
+            <GiftBuyForm trips={trips} />
           </div>
         </div>
       </main>

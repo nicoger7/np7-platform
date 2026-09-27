@@ -10,7 +10,8 @@ import { rateLimited, LIMITS } from "@/lib/rate-limit";
  * (chosen amount), optionally earmarked for a specific experience or "any NP7
  * Experience". It never holds a spot — the recipient redeems it when they book an
  * available trip. Paid by bank transfer; team activates once the money lands.
- * Amounts: €200 steps to €5,000, then €1,000 steps to €10,000 (>€5,000 valid 2y).
+ * Amounts: €200 steps to €5,000, then €1,000 steps to €10,000. Every voucher is
+ * valid 2 years from activation (VOUCHER_VALID_MONTHS), whatever its amount.
  * Optional extra: Nico personally calls the recipient (phone + preferred date).
  */
 function validAmount(n: number): boolean {
@@ -22,15 +23,31 @@ function validAmount(n: number): boolean {
 
 type PkgRow = {
   experience_id?: string | null;
+  edition_id?: string | null;
   status?: string | null;
   archived_at?: string | null;
   website_visible?: boolean | null;
 } | null;
 
+type WeekRow = {
+  status?: string | null;
+  kind?: string | null;
+  date_start?: string | null;
+  date_end?: string | null;
+  archived_at?: string | null;
+} | null;
+
 /**
  * Can this package be gifted? The same rule the gift form already applies
- * (src/lib/gift-data.ts): active, not archived, on the website, and part of
- * the experience the buyer picked.
+ * (src/lib/gift-catalog.ts): active, not archived, on the website, part of the
+ * experience the buyer picked, and, when it belongs to a week, on a week the
+ * form offers: published, not archived, not an event, not over.
+ *
+ * The week half was missing (review, 27 Sep 2026). edition_id was selected
+ * and never read, so a hand-made POST could still price a voucher from a
+ * package on last season's week or on a draft one. `week` is the package's
+ * edition row, or null when the package has none or the row is gone; a
+ * package that names a week we cannot find is refused, not waved through.
  *
  * The route only refused `archived`, and checked the experience only when one
  * was sent (27 Sep 2026 audit). A hand-made POST could therefore price a
@@ -42,11 +59,16 @@ type PkgRow = {
  * their own, and a voucher has no week or invite to unlock anything with.
  * (Not exported: a route file may only export its handlers.)
  */
-function giftPackageIssue(p: PkgRow, experienceId: string | null): "unavailable" | "private" | "other-experience" | null {
+function giftPackageIssue(p: PkgRow, experienceId: string | null, week: WeekRow, today: string): "unavailable" | "private" | "other-experience" | null {
   if (!p) return "unavailable";
   if (p.archived_at || p.status !== "active") return "unavailable";
   if (p.website_visible === false) return "private";
   if (!experienceId || p.experience_id !== experienceId) return "other-experience";
+  if (p.edition_id) {
+    if (!week || week.status !== "published" || week.archived_at || week.kind === "event") return "unavailable";
+    const end = week.date_end || week.date_start;
+    if (end && String(end).slice(0, 10) < today) return "unavailable";
+  }
   return null;
 }
 
@@ -90,9 +112,12 @@ export async function POST(req: Request) {
   if (experienceId && (!exp || exp.status !== "published")) return NextResponse.json({ error: "That experience isn't available." }, { status: 404 });
   const pkg = pkgRes?.data ?? null;
   if (packageId) {
+    const { data: week } = pkg?.edition_id
+      ? await db.from("exp_editions").select("status, kind, date_start, date_end, archived_at").eq("id", pkg.edition_id).maybeSingle()
+      : { data: null };
     // A hidden package gets the same answer as a missing one: the reply must
     // not confirm that a private package exists.
-    const issue = giftPackageIssue(pkg, experienceId);
+    const issue = giftPackageIssue(pkg, experienceId, week ?? null, new Date().toISOString().slice(0, 10));
     if (issue === "other-experience") return NextResponse.json({ error: "That package doesn't belong to the chosen experience." }, { status: 400 });
     if (issue) return NextResponse.json({ error: "That package isn't available." }, { status: 404 });
   }
@@ -174,7 +199,7 @@ export async function POST(req: Request) {
   // The buyer gets the same bank details by email, and the team hears the
   // order exists. Awaited so it runs inside the request, best-effort so a mail
   // problem never turns a saved order into an error screen.
-  await sendVoucherOrdered({
+  const mailed = await sendVoucherOrdered({
     voucherId: voucher.id,
     code: voucher.code,
     amount: Number(voucher.amount) || amount,
@@ -191,5 +216,7 @@ export async function POST(req: Request) {
     bank: pay,
   }).catch(() => null);
 
-  return NextResponse.json({ ok: true, voucher, pay });
+  // `emailed` lets the confirmation screen say "we've also emailed you these
+  // details" only when that mail really went out.
+  return NextResponse.json({ ok: true, voucher, pay, emailed: mailed?.buyer === true });
 }

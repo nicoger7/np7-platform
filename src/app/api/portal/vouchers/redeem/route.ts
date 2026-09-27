@@ -28,7 +28,10 @@ const round = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
  * compare-and-set on status AND balance, so two tabs applying the same code at
  * the same moment cannot both spend the same euros: the second finds the
  * balance already moved and is told to look again. If the payment then fails
- * to write, the claim is put back, so a failure never eats voucher value.
+ * to write, the claim is put back (only while it is still this claim), so a
+ * failure never eats voucher value.
+ *
+ * A booking with no price yet is refused: there is nothing to cap against.
  */
 export async function POST(req: Request) {
   const user = await getPortalUser({ allowPreview: false }).catch(() => null);
@@ -99,7 +102,18 @@ export async function POST(req: Request) {
   ]);
   const total = round((Number(booking.agreed_price) || 0) + addonsTotal);
   const outstanding = total > 0 ? round(Math.max(0, total - paid)) : null;
-  if (outstanding != null && outstanding <= 0) {
+  /* No price yet, no voucher (review, 27 Sep 2026). With nothing to cap
+     against, the whole voucher used to go on the booking and the voucher was
+     marked used up, so a €10,000 gift on an unpriced booking lost everything
+     above the trip's eventual price. Asking again once the price is set costs
+     the guest one click; the old way cost them the remainder. */
+  if (outstanding == null) {
+    return NextResponse.json(
+      { error: "This trip doesn't have a price yet, so the voucher can't be applied. Try again once your price is confirmed." },
+      { status: 409 }
+    );
+  }
+  if (outstanding <= 0) {
     return NextResponse.json(
       { error: "This trip is already fully paid. There's nothing left for the voucher to cover." },
       { status: 409 }
@@ -153,7 +167,13 @@ export async function POST(req: Request) {
     })
   );
   if (payErr) {
-    // Put the voucher back exactly as it was, so the failure costs nothing.
+    /* Put the voucher back exactly as it was, so the failure costs nothing.
+       Compare-and-set on THIS claim (review, 27 Sep 2026): if another request
+       claimed the new balance and wrote its payment while our insert was
+       failing, a blind restore would hand back euros that request already
+       spent. The claim wrote redeemed_at = now and redeemed_booking_id =
+       this booking; if either has moved on, the row is no longer ours to
+       roll back, and it stays as the later claim left it. */
     await db
       .from("gift_vouchers")
       .update({
@@ -164,7 +184,9 @@ export async function POST(req: Request) {
         recipient_contact_id: voucher.recipient_contact_id ?? null,
         notes: voucher.notes ?? null,
       })
-      .eq("id", voucher.id);
+      .eq("id", voucher.id)
+      .eq("redeemed_at", now)
+      .eq("redeemed_booking_id", bookingId);
     return NextResponse.json({ error: payErr.message }, { status: 400 });
   }
 

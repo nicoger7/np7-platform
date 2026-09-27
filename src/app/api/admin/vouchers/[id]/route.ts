@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { publicOrigin } from "@/lib/public-origin";
 import { createAdminClient } from "@/lib/supabase";
 import { sendVoucherIssued } from "@/lib/vouchers/notify";
-import { defaultRedeemBy, lookupSoleContactId } from "@/lib/vouchers";
+import { lookupSoleContactId, redeemByFrom } from "@/lib/vouchers";
 import { requireAdminGate } from "@/lib/admin-auth";
 // Admin routes are gated by middleware; no per-route auth check needed.
 
@@ -14,7 +14,7 @@ function isMissingTable(message?: string | null) {
 
 // ─── PATCH /api/admin/vouchers/[id] ────────────────────────────────────────────
 // Body: { action: "activate" | "cancel" | "update", fields?: {...} }
-//   activate → payment confirmed: status active, issued + redeem_by (= +1 year)
+//   activate → payment confirmed: status active, issued + redeem_by (= +2 years)
 //   cancel   → status cancelled
 //   update   → edit voucher fields; a REDEEMED voucher only accepts notes,
 //              because its money already sits on a booking as a payment row.
@@ -69,7 +69,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       );
     }
   } else if (action === "activate") {
-    // Confirm the bank transfer and start the 1-year validity clock.
+    // Confirm the bank transfer and start the 2-year validity clock.
     const { data: existing } = await db
       .from("gift_vouchers")
       .select("*")
@@ -81,8 +81,8 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
         { status: 409 }
       );
     }
-    // Validity: 1 year. Value vouchers (not tied to a specific experience) over
-    // €5,000 get 2 years; a trip-specific voucher is always 1 year. A use-by
+    // Validity: 2 years for every voucher (Nico, 27 Sep 2026; it was 1 year,
+    // 2 only for an any-trip voucher over €5,000). A use-by
     // date the team typed on a pending voucher is kept rather than replaced:
     // the shop never sets one, so a date there was put there on purpose. One
     // already in the past is ignored: activating straight into expiry helps no one.
@@ -93,7 +93,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
       status: "active",
       paid_at: existing?.paid_at ?? now,
       issued_at: now,
-      redeem_by: typedRedeemBy ?? defaultRedeemBy(existing?.amount, existing?.experience_id, now),
+      redeem_by: typedRedeemBy ?? redeemByFrom(now),
     };
     /*
      * Put the voucher in the recipient's account when their address is already
@@ -101,8 +101,14 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
      * voucher was used, so a recipient who signed in to "print & use one
      * you've been given" found nothing there. Exactly one match only: two
      * contacts on one address means we cannot tell whose account it is.
+     *
+     * Not when Nico is calling them (review, 27 Sep 2026). notify.ts already
+     * holds back the recipient's email so the call is the news; a recipient
+     * who happened to have an account still saw the voucher, its code and
+     * "Book this trip" under Gift vouchers the moment it was activated, before
+     * the phone rang. It links itself later, when they use the code.
      */
-    if (existing && !existing.recipient_contact_id && existing.recipient_email) {
+    if (existing && !existing.nico_call && !existing.recipient_contact_id && existing.recipient_email) {
       const contactId = await lookupSoleContactId(db, existing.recipient_email);
       if (contactId) updates.recipient_contact_id = contactId;
     }

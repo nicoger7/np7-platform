@@ -163,6 +163,9 @@ export async function sendVoucherOrdered(o: VoucherOrder): Promise<{ buyer: bool
       iban: o.bank?.iban ?? undefined,
       bic: o.bank?.bic ?? undefined,
       bankName: o.bank?.bank_name ?? undefined,
+      // An editable body cannot say "if there is NO iban" ({{?…}} only tests
+      // for a value), so the no-bank case gets its own flag.
+      noBankDetails: o.bank?.iban ? undefined : "yes",
       nicoCall: o.nicoCall ? "yes" : undefined,
     },
     contactId: o.buyerContactId ?? undefined,

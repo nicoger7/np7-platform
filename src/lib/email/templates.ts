@@ -993,7 +993,10 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
 
   /** Sent the moment a voucher is ordered on the website (/api/voucher). The
    *  buyer's only copy of the bank details used to be the confirmation screen,
-   *  and that screen promised an email that never came (27 Sep 2026). */
+   *  and that screen promised an email that never came (27 Sep 2026). With no
+   *  IBAN in company settings it used to promise the details "in a separate
+   *  email" that nothing sends; now it asks the buyer to reply, which lands
+   *  with the team (review, 27 Sep 2026). */
   voucher_ordered: (v, opts) => ({
     subject: `Your NP7 gift voucher order${v.amount ? ` · ${v.amount}` : ""}`,
     html: emailLayout({
@@ -1012,7 +1015,7 @@ export const TEMPLATES: Record<string, (v: EmailVars, opts?: LayoutOpts) => Buil
               ["Bank", v.bankName],
               ["Reference", v.reference || v.voucherCode],
             ])
-          : p(`We'll send you the bank details for the transfer in a separate email.`)) +
+          : p(`Reply to this email and we'll send you the bank details.`)) +
         p(`Please quote <strong>${esc(v.reference || v.voucherCode || "")}</strong> as the reference so we can match your payment. Once the money lands, usually within one to three working days, we email you the voucher as a printable PDF${v.nicoCall ? " and set up Nico's call" : ""}.`) +
         p(`Any questions, just reply to this email.<br>Nico &amp; the NP7 team`),
     }),

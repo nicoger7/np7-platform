@@ -5,8 +5,11 @@
  *    must be one the gift form offers: active, not archived, on the website,
  *    and part of the chosen trip. The route only refused `archived`, so a
  *    hand-made POST could price a voucher from a draft or hidden package.
+ *  · The package's week must be one the form offers too: published, not
+ *    archived, not an event, not over. edition_id was selected and never read.
  *  · After the order the buyer is emailed how to pay and the team is told.
- *    Before, nobody heard anything until the money landed.
+ *    Before, nobody heard anything until the money landed. The reply says
+ *    whether that mail went out, so the screen only claims it when it did.
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { FakeSupabase, type Row } from "./stubs/fake-supabase";
@@ -53,6 +56,19 @@ beforeEach(() => {
       pkg({ id: "p-draft", status: "draft" }),
       pkg({ id: "p-archived", archived_at: "2026-09-01T00:00:00Z" }),
       pkg({ id: "p-other", experience_id: "ex2" }),
+      pkg({ id: "p-past-week", edition_id: "ed-past" }),
+      pkg({ id: "p-draft-week", edition_id: "ed-draft" }),
+      pkg({ id: "p-archived-week", edition_id: "ed-archived" }),
+      pkg({ id: "p-event-week", edition_id: "ed-event" }),
+      pkg({ id: "p-lost-week", edition_id: "ed-gone" }),
+      pkg({ id: "p-no-week", edition_id: null, price: 1450 }),
+    ],
+    exp_editions: [
+      { id: "ed1", status: "published", kind: "trip", date_start: "2099-11-30", date_end: "2099-12-06", archived_at: null },
+      { id: "ed-past", status: "published", kind: "trip", date_start: "2025-11-30", date_end: "2025-12-06", archived_at: null },
+      { id: "ed-draft", status: "draft", kind: "trip", date_start: "2099-11-30", date_end: "2099-12-06", archived_at: null },
+      { id: "ed-archived", status: "published", kind: "trip", date_start: "2099-11-30", date_end: "2099-12-06", archived_at: "2026-09-01T00:00:00Z" },
+      { id: "ed-event", status: "published", kind: "event", date_start: "2099-10-10", date_end: "2099-10-11", archived_at: null },
     ],
     company_settings: [{ division: "experience", iban: "DE00 1234", bic: "QNTODEB2", bank_name: "Qonto", legal_name: "NP7 GmbH", currency: "EUR" }],
     contacts: [],
@@ -79,11 +95,22 @@ describe("which packages can be gifted", () => {
     ["archived", "p-archived", 404],
     ["unknown", "p-nope", 404],
     ["of another trip", "p-other", 400],
+    ["on a week that is over", "p-past-week", 404],
+    ["on a draft week", "p-draft-week", 404],
+    ["on an archived week", "p-archived-week", 404],
+    ["on an event week", "p-event-week", 404],
+    ["on a week that no longer exists", "p-lost-week", 404],
   ])("a %s package: no voucher is created", async (_label, packageId, status) => {
     const r = await order({ experienceId: "ex1", packageId });
     expect(r.status).toBe(status);
     expect(state.db.rows("gift_vouchers")).toHaveLength(0);
     expect(state.orders).toHaveLength(0);
+  });
+
+  it("a package with no week at all is sold on every week, so it can be gifted", async () => {
+    const r = await order({ experienceId: "ex1", packageId: "p-no-week" });
+    expect(r.status).toBe(200);
+    expect(state.db.rows("gift_vouchers")[0]).toMatchObject({ amount: 1450, package_id: "p-no-week" });
   });
 
   it("a package with no trip chosen at all: no voucher", async () => {
@@ -112,6 +139,11 @@ describe("after the order", () => {
       experienceTitle: "NP7 Experience Bonaire", nicoCall: true, recipientPhone: "+49 170 000",
       bank: { iban: "DE00 1234", bic: "QNTODEB2", bank_name: "Qonto", legal_name: "NP7 GmbH" },
     });
+  });
+
+  it("tells the screen whether the order mail went out", async () => {
+    const r = await order({ experienceId: "ex1", packageId: "p1" });
+    expect(r.body).toMatchObject({ ok: true, emailed: true, pay: { iban: "DE00 1234" } });
   });
 
   it("any-trip value vouchers are ordered too, with no trip title", async () => {

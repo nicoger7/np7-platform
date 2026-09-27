@@ -57,4 +57,41 @@ describe("gift voucher copy", () => {
     expect(form).not.toContain("bank-transfer details and your voucher shortly");
     expect(form).toContain("We&apos;ve also emailed you these details.");
   });
+
+  it("says 'we've also emailed you these details' only when there are details, and the mail went out", () => {
+    // Review, 27 Sep 2026: with no IBAN in company settings the screen showed
+    // no bank details and still claimed to have emailed them.
+    const form = read("src/components/experience/gift-buy-form.tsx");
+    const gate = form.indexOf("{done.pay ? (");
+    const line = form.indexOf("We&apos;ve also emailed you these details.");
+    expect(gate).toBeGreaterThan(-1);
+    expect(line).toBeGreaterThan(gate);
+    expect(form.slice(gate, line)).toContain("done.emailed !== false");
+    expect(form).toContain("Reply to it and we'll send you our bank details.");
+  });
+
+  it("never tells a trip voucher's buyer it works on any NP7 trip", () => {
+    // The redeem route refuses a trip voucher on another trip. The line under
+    // the value comes from giftValueLine (gift-catalog.ts), tested there.
+    const form = read("src/components/experience/gift-buy-form.tsx");
+    expect(form).toContain("giftValueLine(choice)");
+    expect(form).not.toMatch(/Worth the[^"]*any NP7 trip/);
+  });
+
+  it("the logged-out link opens the login page on 'create account'", () => {
+    expect(read("src/app/experience/gift/page.tsx")).toContain('href="/account/login?mode=register&next=/experience"');
+    const login = read("src/app/account/login/page.tsx");
+    expect(login).toContain('mode === "register"');
+    expect(login).toMatch(/initialMode=\{expired \? "magic" : register \? "register" : "login"\}/);
+  });
+
+  it("the print page names who the voucher is from, through the buyer FK hint", () => {
+    // gift_vouchers has two FKs to contacts; a short contacts(...) embed
+    // answers 300 and the page would bounce the member back to the list.
+    const src = read("src/app/account/vouchers/[id]/print/page.tsx");
+    const select = src.split("\n").find((l) => l.includes('.select("*, exp_experiences(title)')) ?? "";
+    expect(select).toContain("buyer:contacts!buyer_contact_id(name)");
+    expect(select).not.toMatch(/[\s,(]contacts\(/);
+    expect(src).toContain("fromName={v.buyer?.name ?? null}");
+  });
 });

@@ -358,14 +358,25 @@ export const DEFAULT_BODIES: Record<string, string> = {
     P("Thank you! Your <strong>{{amount}}</strong> gift voucher{{?experienceTitle}} towards <strong>{{experienceTitle}}</strong>{{/experienceTitle}} is paid and ready. 🎁") +
     P("It's attached as a <strong>printable PDF</strong>: print it, hand it over or send it on. The code is <strong>{{voucherCode}}</strong>.{{?validUntil}} Valid until <strong>{{validUntil}}</strong>.{{/validUntil}}") +
     P(`How to use it: ${VOUCHER_HOW_TO_REDEEM} Whatever one trip doesn't need stays on the voucher for the next.`) +
-    "{{?nicoCall}}" + P("Nico will call {{recipientName}} personally to tell them, so we haven't emailed the voucher to them.") + "{{/nicoCall}}" +
+    // No name inside the block: {{?…}} blocks do not nest, and a bare
+    // {{recipientName}} left "Nico will call  personally" with a double space
+    // and no one named when the buyer gave no name (review, 27 Sep 2026).
+    "{{?nicoCall}}" + P("Nico will call the person you're gifting it to with the news, so we haven't emailed the voucher to them.") + "{{/nicoCall}}" +
     P("Thanks for giving the gift of riding." + SIGN),
 
+  /* The bank block only exists with an IBAN (review, 27 Sep 2026). It
+     printed "To pay, send a bank transfer with these details:" over an Amount
+     and a Reference and nothing to transfer to. {{?…}} blocks do not nest, so
+     the block is flat: the paragraph opens and closes inside {{?iban}}
+     stretches, and the other rows only exist when the IBAN does (they come
+     from the same company-settings row). Without one, noBankDetails (set by
+     notify.ts) asks the buyer to reply. */
   voucher_ordered:
     P("Hey {{firstName}} 🤙") +
     P("Thank you for ordering an NP7 gift voucher{{?recipientName}} for <strong>{{recipientName}}</strong>{{/recipientName}}: <strong>{{amount}}</strong>{{?experienceTitle}} towards <strong>{{experienceTitle}}</strong>{{/experienceTitle}}.") +
-    P("To pay, send a bank transfer with these details:") +
-    P("<strong>Amount:</strong> {{amount}}{{?accountHolder}}<br><strong>Account holder:</strong> {{accountHolder}}{{/accountHolder}}{{?iban}}<br><strong>IBAN:</strong> {{iban}}{{/iban}}{{?bic}}<br><strong>BIC:</strong> {{bic}}{{/bic}}{{?bankName}}<br><strong>Bank:</strong> {{bankName}}{{/bankName}}<br><strong>Reference:</strong> {{reference}}") +
+    "{{?iban}}" + P("To pay, send a bank transfer with these details:") + "{{/iban}}" +
+    "{{?iban}}<p style=\"margin:0 0 14px;\"><strong>Amount:</strong> {{amount}}{{/iban}}{{?accountHolder}}<br><strong>Account holder:</strong> {{accountHolder}}{{/accountHolder}}{{?iban}}<br><strong>IBAN:</strong> {{iban}}{{/iban}}{{?bic}}<br><strong>BIC:</strong> {{bic}}{{/bic}}{{?bankName}}<br><strong>Bank:</strong> {{bankName}}{{/bankName}}{{?iban}}<br><strong>Reference:</strong> {{reference}}</p>{{/iban}}" +
+    "{{?noBankDetails}}" + P("Reply to this email and we'll send you the bank details.") + "{{/noBankDetails}}" +
     P("Please quote <strong>{{reference}}</strong> as the reference so we can match your payment. Once the money lands, usually within one to three working days, we email you the voucher as a printable PDF{{?nicoCall}} and set up Nico's call{{/nicoCall}}.") +
     P("Any questions, just reply to this email." + SIGN),
 

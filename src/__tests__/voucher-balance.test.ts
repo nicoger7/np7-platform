@@ -46,8 +46,10 @@ describe("splitting a voucher against what a trip still owes", () => {
     expect(splitVoucherCredit(2390.01, 2390)).toEqual({ applied: 2390, left: 0, status: "redeemed" });
   });
 
-  it("applies the whole value when the booking has no price yet", () => {
-    expect(splitVoucherCredit(1000, null)).toEqual({ applied: 1000, left: 0, status: "redeemed" });
+  it("applies nothing when the booking has no price yet: the voucher keeps every euro", () => {
+    // It used to put the whole voucher on an unpriced booking and mark it used
+    // up, so the remainder was lost (review, 27 Sep 2026).
+    expect(splitVoucherCredit(1000, null)).toEqual({ applied: 0, left: 1000, status: "active" });
   });
 
   it("reads what is left: the balance once used, else the amount", () => {
@@ -103,6 +105,7 @@ function setup(v: Row = voucher()): FakeSupabase {
     exp_bookings: [
       { id: "bk1", contact_id: "ct1", experience_id: "ex1", agreed_price: 2390 },
       { id: "bk2", contact_id: "ct1", experience_id: "ex1", agreed_price: 9000 },
+      { id: "bk-unpriced", contact_id: "ct1", experience_id: "ex1", agreed_price: null },
     ],
     gift_vouchers: [v],
     exp_payments: [],
@@ -198,6 +201,45 @@ describe("redeeming a voucher on a booking", () => {
     expect(v.balance ?? null).toBeNull();
     expect(v.redeemed_booking_id).toBeNull();
     expect(v.recipient_contact_id).toBeNull();
+  });
+
+  it("refuses a booking with no price yet and leaves the voucher untouched", async () => {
+    const r = await redeem("bk-unpriced");
+    expect(r.status).toBe(409);
+    expect(String(r.body.error)).toMatch(/doesn't have a price yet/);
+    const v = state.db.rows("gift_vouchers")[0];
+    expect(v.status).toBe("active");
+    expect(v.balance ?? null).toBeNull();
+    expect(state.db.rows("exp_payments")).toHaveLength(0);
+  });
+
+  it("does not undo a later claim when its own payment fails (compare-and-set restore)", async () => {
+    // Request A claims, request B claims the new balance and pays, then A's
+    // payment insert fails. A's restore must not hand B's euros back.
+    const db = setup();
+    const realFrom = db.from.bind(db);
+    db.from = ((table: string) => {
+      const q = realFrom(table);
+      if (table === "exp_payments") {
+        const origInsert = q.insert.bind(q);
+        q.insert = (rows: Row | Row[]) => {
+          // B lands between A's claim and A's failing insert.
+          const v = db.rows("gift_vouchers")[0];
+          v.balance = 0;
+          v.status = "redeemed";
+          v.redeemed_booking_id = "bk2";
+          v.redeemed_at = "2026-09-27T12:00:00.000Z";
+          return origInsert(rows);
+        };
+      }
+      return q;
+    }) as typeof db.from;
+    db.failOn("exp_payments", "insert", { message: "insert failed" });
+
+    const r = await redeem("bk1");
+    expect(r.status).toBe(400);
+    const v = db.rows("gift_vouchers")[0];
+    expect(v).toMatchObject({ status: "redeemed", balance: 0, redeemed_booking_id: "bk2" });
   });
 
   it("still refuses an expired voucher and one for another trip", async () => {
