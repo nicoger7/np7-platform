@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { NP7_LOGO } from "@/components/shared/brand";
+import { CookieSettingsButton } from "@/components/shared/cookie-consent";
 
 const LEGAL_LINKS = [
   { href: "/impressum", label: "Impressum" },
@@ -36,6 +37,7 @@ export function LegalShell({ title, updated, children }: { title: string; update
           {LEGAL_LINKS.map((l) => (
             <Link key={l.href} href={l.href} className="hover:text-[#00374a] transition-colors">{l.label}</Link>
           ))}
+          <CookieSettingsButton className="hover:text-[#00374a] transition-colors" />
           {/* § 356a BGB: the withdrawal function must be highlighted, not buried
               among the other legal links — hence the accented pill. */}
           <Link href="/widerruf" className="px-2.5 py-1 rounded-full font-semibold text-[#00afdb] border border-[#00afdb]/40 hover:bg-[#00afdb]/10 transition-colors">Withdraw from contract</Link>
