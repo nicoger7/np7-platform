@@ -13,11 +13,10 @@ export default async function ImpressumPage() {
 
   return (
     <LegalShell title="Impressum">
-      <p className="note">
-        Angaben gemäß § 5 TMG / § 18 MStV. The details below are maintained in the admin company
-        settings. Fill any blanks there. Bookings &amp; payments are currently operated by our partner
-        Surfcenter; see <a href="/terms">Terms</a> for the booking party.
-      </p>
+      {/* The details come from Admin → Company settings (legal.ts). That sentence
+          used to be printed here for the reader, in English, on a German legal
+          page (Nico, 1 Oct 2026). § 5 DDG replaced § 5 TMG in May 2024. */}
+      <p className="note">Angaben gemäß § 5 DDG / § 18 MStV</p>
 
       <h2>Diensteanbieter</h2>
       <p>
@@ -56,10 +55,11 @@ export default async function ImpressumPage() {
       <h2>Verantwortlich i.S.d. § 18 Abs. 2 MStV</h2>
       <p>{has(e.managingDirector) ? e.managingDirector : e.legalName}{has(e.addressLine1) ? `, ${e.addressLine1}, ${[e.postalCode, e.city].filter(Boolean).join(" ")}` : ""}</p>
 
-      <h2>EU-Streitschlichtung</h2>
+      {/* The EU's online dispute platform (OS) was shut down on 20 July 2025 and
+          the duty to link it went with it, so the dead link is gone. The § 36
+          VSBG statement stays. */}
+      <h2>Verbraucherstreitbeilegung</h2>
       <p>
-        Die Europäische Kommission stellt eine Plattform zur Online-Streitbeilegung (OS) bereit:{" "}
-        <a href="https://ec.europa.eu/consumers/odr/" target="_blank" rel="noopener">https://ec.europa.eu/consumers/odr/</a>.
         Wir sind nicht verpflichtet und nicht bereit, an Streitbeilegungsverfahren vor einer
         Verbraucherschlichtungsstelle teilzunehmen.
       </p>
