@@ -160,7 +160,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
 
       <Tabs tabs={tabs} active={tab} onChange={setTab} />
 
-      {tab === "overview" && <OverviewTab board={d} onSaved={load} goMeasure={() => setTab("measurements")} />}
+      {tab === "overview" && <OverviewTab board={d} onSaved={load} goMeasure={() => setTab("measurements")} goNotes={() => setTab("notes")} />}
       {tab === "measurements" && (
         <>
           <BoardReadout board={d} series={d.series} points={d.points} />
@@ -183,7 +183,7 @@ export default function BoardPage({ params }: { params: Promise<{ id: string }> 
 
 // ─── Overview ────────────────────────────────────────────────────────────────
 
-function OverviewTab({ board, onSaved, goMeasure }: { board: Bundle; onSaved: () => void; goMeasure: () => void }) {
+function OverviewTab({ board, onSaved, goMeasure, goNotes }: { board: Bundle; onSaved: () => void; goMeasure: () => void; goNotes: () => void }) {
   // The composer sits at the top of the FIRST page: "it will be the easiest
   // way to enter stuff." The board's details come after it.
   const [fileText, setFileText] = useState<string | null>(null);
@@ -207,7 +207,7 @@ function OverviewTab({ board, onSaved, goMeasure }: { board: Bundle; onSaved: ()
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-5">
       <div className="space-y-5 min-w-0">
         <Card title="Quick entry" icon="paste" tone="violet" subtitle="Paste a measuring session, write a note or record one">
-          <NoteComposer key={composerKey} board={board} onSaved={onSaved} onFile={setFileText} />
+          <NoteComposer key={composerKey} board={board} onSaved={onSaved} onFile={setFileText} onOpenNotes={goNotes} />
         </Card>
         {fileText != null && (
           <ImportDialog board={board} initialText={fileText} onClose={() => setFileText(null)}
