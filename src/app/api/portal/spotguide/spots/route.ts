@@ -2,7 +2,8 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { getPortalUser } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase";
 import { revalidateDestinationById } from "@/lib/revalidate-public";
-import { slugifySpot, asWindWindow, CONDITIONS, LEVELS } from "@/lib/spotguide";
+import { slugifySpot, asWindWindow, CONDITIONS } from "@/lib/spotguide";
+import { normalizeSpotLevels, isSpotLevel } from "@/lib/spot-levels";
 import { fetchWindStatsBoth } from "@/lib/wind-stats";
 import { getStanding } from "@/lib/spotguide-trust";
 import { canAutoPublish } from "@/lib/spotguide-autopublish";
@@ -103,11 +104,14 @@ export async function POST(request: NextRequest) {
     destinationId = nd.id;
   }
   if (!destinationId) return NextResponse.json({ error: "Pick a destination or name a new area." }, { status: 400 });
-  const { data: dest } = await db.from("destinations").select("id").eq("id", destinationId).maybeSingle();
+  const { data: dest } = await db.from("destinations").select("id, slug, spotguide_status").eq("id", destinationId).maybeSingle();
   if (!dest) return NextResponse.json({ error: "Destination not found." }, { status: 404 });
 
-  const levels = Array.isArray(body.levels) ? body.levels.filter((l: string) => (LEVELS as readonly string[]).includes(l)) : [];
-  const level = levels[0] ?? (LEVELS.includes(body.level) ? body.level : null); // single `level` = primary, kept for back-compat
+  // One vocabulary (lib/spot-levels.ts), in ladder order, so the single `level`
+  // (primary, kept for back-compat) is the lowest picked, exactly as the admin
+  // editor writes it, not whichever pill the rider happened to tap first.
+  const levels = normalizeSpotLevels(body.levels);
+  const level = levels[0] ?? (isSpotLevel(body.level) ? body.level : null);
   const conditions = Array.isArray(body.conditions) ? body.conditions.filter((c: string) => CONDITIONS.some((x) => x.key === c)) : [];
   const infrastructure = Array.isArray(body.infrastructure) ? body.infrastructure.map((t: unknown) => String(t).slice(0, 40)).slice(0, 20) : [];
   const description = typeof body.description === "string" ? body.description.trim().slice(0, 4000) : null;
@@ -148,6 +152,8 @@ export async function POST(request: NextRequest) {
 
   const insertRow: Record<string, unknown> = {
     destination_id: destinationId, name, slug,
+    // wind_window is the column every spot row reads for "Best: NE"; the add
+    // form sends it from its windrose since 6 Oct 2026 (before, it never did).
     level, levels, conditions, infrastructure, wind_window: asWindWindow(body.wind_window),
     lat: coords.lat, lng: coords.lng,
     /*
@@ -215,5 +221,17 @@ export async function POST(request: NextRequest) {
 
   // the new spot (badged "under review") must show on the cached index at once
   await revalidateDestinationById(db, destinationId, { alsoMagazine: true });
-  return NextResponse.json({ ok: true, id: data.id }, { status: 201 });
+  /*
+   * What the form needs to tell the truth afterwards (Nico, 6 Oct 2026): live
+   * or waiting, whether the words were held back, and where the spot lives so
+   * "Open my spot" lands on it. The id also lets the form attach the rider's
+   * photo through the normal photo route right after this.
+   */
+  return NextResponse.json({
+    ok: true, id: data.id, slug,
+    verification,
+    wordsHeld: !!auto?.publish && !!(description || summary),
+    destSlug: dest.slug ?? null,
+    destDraft: dest.spotguide_status !== "published",
+  }, { status: 201 });
 }

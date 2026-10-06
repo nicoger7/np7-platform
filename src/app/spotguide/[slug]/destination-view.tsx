@@ -270,7 +270,13 @@ export async function DestinationView({
             <VerifyEdits destId={d.id} accent={chrome.accent} />
             <section>
               <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Contribute</h2>
-              <AddSpot destId={d.id} destName={d.name} accent={chrome.accent} />
+              {/* `area` opens the pin map on this destination, not the world (Nico, 6 Oct 2026) */}
+              <AddSpot destId={d.id} destName={d.name} accent={chrome.accent}
+                area={{
+                  centre: d.lat != null && d.lng != null ? { lat: d.lat, lng: d.lng } : null,
+                  points: d.spots.filter((s) => s.lat != null && s.lng != null)
+                    .map((s) => ({ lat: s.lat as number, lng: s.lng as number, name: s.name, key: s.slug || s.id })),
+                }} />
             </section>
             {/* Where next.
                 The bottom of a destination is the moment someone decides whether
