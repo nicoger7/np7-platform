@@ -20,6 +20,8 @@ import { SetupProgress, type SetupStep } from "@/components/portal/setup-progres
 import { SetPasswordPrompt } from "@/components/portal/set-password-prompt";
 import { NextStepHero } from "@/components/portal/next-step-hero";
 import { getMemberApplication } from "@/lib/signature";
+import { memberHasAddedSpot } from "@/lib/spotguide-member";
+import { ADD_SPOT_ANCHOR } from "@/lib/spotguide-nudge";
 import { flags } from "@/lib/flags";
 
 export const metadata: Metadata = { title: "My account · NP7" };
@@ -53,7 +55,12 @@ export default async function AccountHome() {
   // bottom of one booking's Trip tab, where nobody found it. Unread, it leads
   // the home. Read, it becomes a tile like the rest.
   const unreadGuides = guides.filter((g) => !g.openedAt);
-  const ownPhotoCount = await getProfilePhotoChoices(user.contactId).then((p) => p.length).catch(() => 0);
+  const [ownPhotoCount, addedSpot] = await Promise.all([
+    getProfilePhotoChoices(user.contactId).then((p) => p.length).catch(() => 0),
+    // Only asked while the spotguide is public: the step links into it, and a
+    // step that 404s is worse than no step. null = unknown, and then no step.
+    flags.showBlog ? memberHasAddedSpot(user.contactId) : Promise.resolve(null),
+  ]);
   // An experience the member already has an UPCOMING booking in doesn't need
   // selling — "book your next trip" means the next one, not the one they're
   // packing for. A PAST trip hides nothing: rebooking Bonaire next season is
@@ -172,6 +179,12 @@ export default async function AccountHome() {
         // The crew shirt needs a size — the step nags until it's filled in.
         { key: "tshirt", label: "Your T-shirt size", hint: "For the crew shirt waiting on your next trip", done: !!profile.tshirt_size, href: "/account/settings" },
         { key: "handle", label: "Pick your @handle", hint: "Your name on the crew & spotguide", done: !!profile.username, href: "/account/profile", inline: "handle" },
+        // Nico, 6 Oct 2026: a rider who joined from the spotguide was never
+        // pointed back at it. Done once they've submitted any spot of their own;
+        // the link opens the add form on the spotguide index straight away.
+        ...(addedSpot !== null
+          ? [{ key: "spot", label: "Add your home spot", hint: "Put the water you know on the spotguide", done: addedSpot, href: `/spotguide#${ADD_SPOT_ANCHOR}` } as SetupStep]
+          : []),
       ]
     : [];
 

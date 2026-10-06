@@ -9,7 +9,8 @@ import {
 } from "@/lib/spotguide";
 import { LEVELS } from "@/lib/member-level";
 import { WindRose, WindRoseLegend } from "./wind-rose";
-import { RatingHeadline, RatingBreakdown } from "./rating-panel";
+import { RatingHeadline, RatingBreakdown, hasRatingHeadline } from "./rating-panel";
+import { firstUnratedSpotId } from "@/lib/spotguide-nudge";
 import { ForecastPanel } from "./forecast-panel";
 import { WindStatsChart } from "./wind-stats-chart";
 import { SpotPhotos } from "./spot-photos";
@@ -31,13 +32,25 @@ export function SpotsList({ spots: published, accent = "#00afdb", focus }: { spo
   // viewer's not-yet-public spots — their own, or all of them for the team —
   // are merged in here from the provider. Anonymous visitors get an empty list,
   // which is exactly what the cached HTML already showed.
-  const { pendingSpots } = useSpotguide();
+  const { pendingSpots, loggedIn, mineSpot } = useSpotguide();
   const spots = useMemo(() => {
     if (!pendingSpots.length) return published;
     const have = new Set(published.map((s) => s.id));
     const extra = pendingSpots.filter((s) => !have.has(s.id));
     return extra.length ? [...published, ...extra] : published;
   }, [published, pendingSpots]);
+
+  // "Be the first to rate" on ONE row, for members only (Nico, 6 Oct 2026):
+  // the first spot nobody has rated yet and this member hasn't either. A guest
+  // sees no line at all where "No member ratings yet" used to sit on every row.
+  // "Rated" here means anything they added on their visit, the same test the
+  // contribute block uses to go quiet.
+  const inviteId = loggedIn
+    ? firstUnratedSpotId(spots, (id) => {
+        const m = mineSpot(id);
+        return !!m && (Object.values(m.ratings ?? {}).some((n) => n > 0) || !!m.level || (m.levels ?? []).length > 0 || (m.conditions ?? []).length > 0);
+      })
+    : null;
 
   const [open, setOpen] = useState<string[]>(spots.length === 1 ? [spots[0].id] : []);
   const toggle = (id: string) => setOpen((o) => (o.includes(id) ? o.filter((x) => x !== id) : [...o, id]));
@@ -88,6 +101,14 @@ export function SpotsList({ spots: published, accent = "#00afdb", focus }: { spo
           spot.conditions.map(conditionLabel).join(" · "),
           winds.length ? `Best: ${winds.join(", ")}` : "",
         ].filter(Boolean);
+        // Folded only: open, the spot's own "Been here? Add what you know" block
+        // is right there and says it louder.
+        const invite = spot.id === inviteId && !isOpen;
+        const inviteLabel = (
+          <span className="inline-flex items-center gap-1 text-[12px] font-bold whitespace-nowrap" style={{ color: accent }}>
+            <span aria-hidden>★</span>Be the first to rate
+          </span>
+        );
         return (
           <div key={spot.id} id={`spot-${spotKey(spot)}`}
             className={`rounded-2xl bg-white overflow-hidden scroll-mt-24 transition-all ${isOpen ? "mb-7" : ""}`}
@@ -113,8 +134,15 @@ export function SpotsList({ spots: published, accent = "#00afdb", focus }: { spo
                   )}
                 </div>
                 {chips.length > 0 && <div className="hidden sm:block text-[12px] font-semibold text-[#6a7a80] mt-0.5 truncate">{chips.join("  ·  ")}</div>}
+                {/* phones have no right-hand slot, so the invite sits under the name */}
+                {invite && <div className="sm:hidden mt-0.5">{inviteLabel}</div>}
               </div>
-              <div className="hidden sm:block shrink-0"><RatingHeadline np7={spot.np7} member={spot.member} accent={accent} /></div>
+              {(hasRatingHeadline(spot.np7, spot.member) || invite) && (
+                <div className="hidden sm:flex items-center gap-4 shrink-0">
+                  <RatingHeadline np7={spot.np7} member={spot.member} accent={accent} />
+                  {invite && inviteLabel}
+                </div>
+              )}
               <svg className={`shrink-0 w-5 h-5 text-[#9aa6ac] transition-transform ${isOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
             </button>
 
@@ -133,7 +161,7 @@ export function SpotsList({ spots: published, accent = "#00afdb", focus }: { spo
                     <span className="font-bold">Member-submitted, not public yet.</span> It goes live once riders confirm it in <span className="font-semibold">Help verify</span>{" "}below. You see it because you&apos;re on the team.
                   </div>
                 )}
-                <div className="sm:hidden"><RatingHeadline np7={spot.np7} member={spot.member} accent={accent} /></div>
+                {hasRatingHeadline(spot.np7, spot.member) && <div className="sm:hidden"><RatingHeadline np7={spot.np7} member={spot.member} accent={accent} /></div>}
                 {/* Contributor credit — real riders vouched for this page. Trust for
                     visitors, and the named locals tend to share "their" spot. */}
                 {spot.confirmedBy.count > 0 && (() => {

@@ -5,16 +5,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SpotguideDestinationCard } from "@/lib/spotguide-data";
 import { levelRangeLabel, DESTINATION_TAGS } from "@/lib/spotguide";
-import { LEVELS } from "@/lib/member-level";
+import { destinationFitsLevel, levelFilterOptions } from "@/lib/spot-levels";
 import { RatingHeadline } from "./rating-panel";
 import { SpotMap, type MapSpot } from "./spot-map";
+import { DestCardImage } from "./dest-card-image";
 
 /**
  * The spotguide destination grid + a light, unobtrusive filter (country · level
  * · vibe tags). Client-side so it filters instantly; facets only appear when
  * there's something to filter by, so it stays quiet until the guide grows.
+ *
+ * The Level pills are the SAME six levels the add-a-spot form offers (Nico,
+ * 6 Oct 2026). They were a hand-kept four, so a spot a rider tagged "Expert"
+ * or "Semi-Pro" matched no pill at all. spot-levels.ts holds the one list.
  */
-const CORE_LEVELS = ["Beginner", "Intermediate", "Advanced", "Pro"];
 
 // Long-tail countries are grouped by continent inside the "All places" panel.
 const CONTINENT_OF: Record<string, string> = {
@@ -54,15 +58,6 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
     return () => document.removeEventListener("mousedown", close);
   }, [whereOpen]);
 
-  const rankIdx = (l: string | null) => (l ? LEVELS.indexOf(l as (typeof LEVELS)[number]) : -1);
-  const fitsLevel = (d: SpotguideDestinationCard, sel: string) => {
-    const si = rankIdx(sel);
-    if (si === -1) return true;
-    const lo = d.level_min ? rankIdx(d.level_min) : 0;
-    const hi = d.level_max ? rankIdx(d.level_max) : LEVELS.length - 1;
-    return si >= (lo < 0 ? 0 : lo) && si <= (hi < 0 ? LEVELS.length - 1 : hi);
-  };
-
   // Where facet: countries ranked by destination count. The first few are
   // one-tap pills; everything else lives in the searchable "More places"
   // panel (grouped by continent) — so the row never outgrows one line.
@@ -74,7 +69,7 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
   }, [dests]);
   const quickCountries = countryCounts.slice(0, QUICK_PILLS).map(([c]) => c);
   const moreCountries = countryCounts.slice(QUICK_PILLS);
-  const levelOpts = useMemo(() => CORE_LEVELS.filter((l) => dests.some((d) => fitsLevel(d, l))), [dests]);
+  const levelOpts = useMemo(() => levelFilterOptions(dests), [dests]);
   const tagOpts = useMemo(() => {
     const present = new Set(dests.flatMap((d) => d.tags));
     return DESTINATION_TAGS.filter((t) => present.has(t)); // curated order, only what exists
@@ -82,7 +77,7 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
 
   const filtered = useMemo(() => dests.filter((d) =>
     (!country || d.country === country) &&
-    (!level || fitsLevel(d, level)) &&
+    (!level || destinationFitsLevel(d, level)) &&
     (tags.size === 0 || [...tags].every((t) => d.tags.includes(t)))
   ), [dests, country, level, tags]);
 
@@ -179,9 +174,12 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
             </div>
           )}
           {levelOpts.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1.5">
+            /* one line like Where: six levels wrapped to three ragged rows on a phone */
+            <div className="flex items-center gap-1.5 min-w-0">
               <span className="text-[11px] font-bold uppercase tracking-wide text-[#9aa6ac] mr-1 w-14 shrink-0">Level</span>
-              {levelOpts.map((l) => pill(level === l, () => setLevel(level === l ? null : l), l))}
+              <div className="flex items-center gap-1.5 flex-nowrap overflow-x-auto min-w-0 py-0.5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {levelOpts.map((l) => <span key={l} className="shrink-0">{pill(level === l, () => setLevel(level === l ? null : l), l)}</span>)}
+              </div>
             </div>
           )}
           {tagOpts.length > 0 && (
@@ -208,13 +206,12 @@ export function SpotguideBrowser({ dests, accent = "#00afdb", section = "experie
             return (
               <Link key={d.id} href={`/spotguide/${d.slug}?from=${section}`}
                 className="group flex flex-col rounded-2xl overflow-hidden bg-white border border-[#f0e6d6] hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(0,55,74,0.10)] transition-all">
-                <div className="relative aspect-[16/10] bg-cover bg-center bg-[#e9eef0]" style={{ backgroundImage: `url('${d.image}')` }}>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
+                <DestCardImage src={d.image} accent={accent} shade className="aspect-[16/10]">
                   <div className="absolute left-4 bottom-3 right-4">
                     <h2 className="text-white text-[20px] font-black tracking-[-0.02em] leading-tight">{d.name}</h2>
                     <p className="text-white/80 text-[12.5px] font-semibold">{[d.region, d.country].filter(Boolean).join(", ")}</p>
                   </div>
-                </div>
+                </DestCardImage>
                 <div className="p-4 flex flex-col gap-2.5">
                   <RatingHeadline np7={d.np7} member={d.member} accent={accent} />
                   <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[12px] font-semibold text-[#6a7a80]">
