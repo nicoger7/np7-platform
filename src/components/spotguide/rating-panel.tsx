@@ -16,8 +16,21 @@ function Stars({ value, color = "#f5a623", size = 15 }: { value: number; color?:
   );
 }
 
-/** The headline dual-track score: NP7 (authoritative) + member average. */
+/** Is there any score for RatingHeadline to show? Callers use it to drop the
+    box or slot around it instead of rendering an empty one. */
+export function hasRatingHeadline(np7: number, member: RatingSummary): boolean {
+  return np7 > 0 || member.count > 0;
+}
+
+/** The headline dual-track score: NP7 (authoritative) + member average.
+ *
+ *  Says nothing when there is nothing (Nico, 6 Oct 2026). It used to print a
+ *  grey "No member ratings yet" on every unrated card and row, and a page of
+ *  those reads like an abandoned project rather than a young one. The absence
+ *  of a score is honest on its own; members get one quiet "Be the first to
+ *  rate" from the spot list instead (spotguide-nudge.ts firstUnratedSpotId). */
 export function RatingHeadline({ np7, member, accent = "#00afdb" }: { np7: number; member: RatingSummary; accent?: string }) {
+  if (!hasRatingHeadline(np7, member)) return null;
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
       {np7 > 0 && (
@@ -31,14 +44,12 @@ export function RatingHeadline({ np7, member, accent = "#00afdb" }: { np7: numbe
           <Stars value={np7} /><span className="text-[13px] font-bold text-[#00374a]">{np7.toFixed(1)}</span>
         </span>
       )}
-      {member.count > 0 ? (
+      {member.count > 0 && (
         <span className="inline-flex items-center gap-1.5">
           <span className="text-[10px] font-black uppercase tracking-[0.12em] text-[#9aa6ac]">Members</span>
           <Stars value={member.overall} color="#1f9e57" /><span className="text-[13px] font-bold text-[#00374a]">{member.overall.toFixed(1)}</span>
           {member.count >= MEMBER_PROOF_MIN && <span className="text-[12px] font-semibold text-[#1f9e57]">· rated by {member.count} riders</span>}
         </span>
-      ) : (
-        <span className="text-[12px] text-[#9aa6ac]">No member ratings yet</span>
       )}
     </div>
   );

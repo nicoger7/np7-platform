@@ -6,7 +6,10 @@ import { levelRangeLabel, DESTINATION_CRITERIA } from "@/lib/spotguide";
 import { resolveSection, SECTION_CHROME } from "@/lib/blog-section";
 import { SectionHeader } from "@/components/shared/section-header";
 import { BlogFooter } from "@/components/blog/blog-footer";
-import { RatingHeadline, RatingBreakdown } from "@/components/spotguide/rating-panel";
+import { RatingHeadline, RatingBreakdown, hasRatingHeadline } from "@/components/spotguide/rating-panel";
+import { DestCardImage } from "@/components/spotguide/dest-card-image";
+import { withRealCardPhotos } from "@/lib/spotguide-card-photos";
+import { ADD_SPOT_ANCHOR, SPOTS_ANCHOR } from "@/lib/spotguide-nudge";
 import { SpotsList } from "@/components/spotguide/spots-list";
 import { SpotguideProvider } from "@/components/spotguide/spotguide-provider";
 import { DestinationRater } from "@/components/spotguide/raters";
@@ -54,7 +57,8 @@ export async function DestinationView({
      feed both exits — pins on this page's own map, and the row at the bottom —
      and they are ordered by how far they actually are, because "what else is
      near here" is the question someone reading Sørlandet is asking. */
-  const others = (await getSpotguideDestinations().catch(() => []))
+  // Neighbour cards get the same real-photo pass as the index (Nico, 6 Oct 2026).
+  const others = (await getSpotguideDestinations().then(withRealCardPhotos).catch(() => []))
     .filter((o) => o.slug && o.id !== d.id && o.lat != null && o.lng != null)
     .map((o) => {
       const km =
@@ -141,11 +145,14 @@ export async function DestinationView({
             <h1 className="text-white text-4xl sm:text-6xl font-black tracking-[-0.03em] mt-3">{d.name}</h1>
             <p className="text-white/75 text-[15px] font-semibold mt-2">{[d.region, d.country].filter(Boolean).join(", ")}{lvl ? `  ·  ${lvl}` : ""}</p>
             {d.tagline && <p className="text-white/80 text-[17px] mt-4 max-w-[620px] leading-relaxed">{d.tagline}</p>}
-            <div className="mt-5 inline-flex rounded-xl bg-white/10 backdrop-blur px-4 py-3"><RatingHeadline np7={d.np7} member={d.member} accent={chrome.eyebrow} /></div>
+            {/* no score yet, no empty glass box: the hero just ends with the tagline */}
+            {hasRatingHeadline(d.np7, d.member) && (
+              <div className="mt-5 inline-flex rounded-xl bg-white/10 backdrop-blur px-4 py-3"><RatingHeadline np7={d.np7} member={d.member} accent={chrome.eyebrow} /></div>
+            )}
           </div>
         </header>
 
-        <SpotguideProvider destId={d.id} initialLoggedIn={loggedIn}>
+        <SpotguideProvider destId={d.id} initialLoggedIn={loggedIn} accent={chrome.accent}>
           <div className="max-w-[1000px] mx-auto px-6 sm:px-8 py-10 sm:py-14 space-y-10">
             {d.intro && <p className="text-[16.5px] text-[#3f5158] leading-relaxed max-w-[680px] whitespace-pre-line">{d.intro}</p>}
 
@@ -226,8 +233,9 @@ export async function DestinationView({
               </section>
             )}
 
-            {/* The spots — metered for anonymous visitors, full for members */}
-            <section>
+            {/* The spots — metered for anonymous visitors, full for members.
+                The anchor is where the welcome strip's "Rate a spot you know" lands. */}
+            <section id={SPOTS_ANCHOR} className="scroll-mt-24">
               <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">The spots <span className="text-[#c3b9a6]">({d.spots.length})</span></h2>
               {d.spots.length === 0 ? (
                 <p className="text-[14px] text-[#6a7a80]">Spots for {d.name} are coming soon.</p>
@@ -268,7 +276,7 @@ export async function DestinationView({
             {/* Community: verify pending member spots + corrections, then add your own */}
             <VerifySpots destId={d.id} accent={chrome.accent} />
             <VerifyEdits destId={d.id} accent={chrome.accent} />
-            <section>
+            <section id={ADD_SPOT_ANCHOR} className="scroll-mt-24">
               <h2 className="text-[13px] font-black uppercase tracking-[0.14em] text-[#9aa6ac] mb-3">Contribute</h2>
               {/* `area` opens the pin map on this destination, not the world (Nico, 6 Oct 2026) */}
               <AddSpot destId={d.id} destName={d.name} accent={chrome.accent}
@@ -290,7 +298,7 @@ export async function DestinationView({
                   {others.slice(0, 4).map((o) => (
                     <Link key={o.id} href={`/spotguide/${o.slug}?from=${section}`}
                       className="group flex flex-col rounded-2xl overflow-hidden bg-white border border-[#f0e6d6] hover:-translate-y-0.5 hover:shadow-[0_14px_36px_rgba(0,55,74,0.10)] transition-all">
-                      <div className="aspect-[4/3] bg-cover bg-center" style={{ backgroundImage: `url('${o.image}')` }} />
+                      <DestCardImage src={o.image} accent={chrome.accent} className="aspect-[4/3]" />
                       <div className="p-3">
                         <p className="text-[13.5px] font-extrabold text-[#00374a] leading-snug group-hover:underline">{o.name}</p>
                         <p className="text-[11.5px] text-[#8a9aa0] mt-0.5">

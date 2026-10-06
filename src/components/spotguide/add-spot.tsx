@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSpotguide } from "./spotguide-provider";
+import { useAddSpotOpenRequest } from "./add-spot-open";
 import { CONDITIONS, INFRASTRUCTURE_TAGS } from "@/lib/spotguide";
 import { PinPicker } from "./pin-picker";
 import { LevelPicker } from "./level-picker";
@@ -81,6 +82,11 @@ export function AddSpot({ destId, destName, destinations, area, accent = "#00afd
   function toggle(list: "conditions" | "infrastructure", v: string) {
     setF((p) => ({ ...p, [list]: p[list].includes(v) ? p[list].filter((x) => x !== v) : [...p[list], v] }));
   }
+  // The welcome strip and /spotguide#sg-add-spot ask for the form with an event
+  // instead of pressing its button (add-spot-open.ts, Nico, 6 Oct 2026). Only
+  // ever sent for a signed-in rider, so no sign-up detour here. A rider who has
+  // just added a spot keeps seeing that confirmation and its choices.
+  useAddSpotOpenRequest(() => setOpen(true));
   function addCustomTag() {
     const t = customTag.trim().slice(0, 40);
     if (!t) return;
@@ -308,8 +314,11 @@ export function AddSpot({ destId, destName, destinations, area, accent = "#00afd
       </div>
       {error && <p className="text-[13px] font-semibold text-[#c4471a]">{error}</p>}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
-        <button onClick={submit} disabled={!!busy} className="w-full sm:w-auto px-6 py-3 sm:py-2.5 rounded-full text-[14px] font-bold text-white disabled:opacity-50 transition-opacity hover:opacity-90" style={{ backgroundColor: accent }}>
-          {busy === "spot" ? "Submitting…" : busy === "photo" ? "Uploading your photo…" : "Submit spot"}
+        {/* Not while the photo is still being shrunk: a rider who picks a big
+            phone shot and taps Submit at once would send the spot without it
+            (review, 6 Oct 2026). */}
+        <button onClick={submit} disabled={!!busy || photoBusy} className="w-full sm:w-auto px-6 py-3 sm:py-2.5 rounded-full text-[14px] font-bold text-white disabled:opacity-50 transition-opacity hover:opacity-90" style={{ backgroundColor: accent }}>
+          {busy === "spot" ? "Submitting…" : busy === "photo" ? "Uploading your photo…" : photoBusy ? "Getting your photo ready…" : "Submit spot"}
         </button>
         <button onClick={() => setOpen(false)} className="text-[13.5px] font-semibold text-[#6a7a80] py-1">Cancel</button>
         <span className="sm:ml-auto text-[11.5px] text-[#9aa6ac]">Verified by members before it&apos;s public</span>

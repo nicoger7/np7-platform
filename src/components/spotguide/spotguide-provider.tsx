@@ -1,8 +1,12 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { AuthModal } from "@/components/shared/auth-modal";
 import { hasAuthCookie } from "@/lib/has-auth-cookie";
+import { isFreshAccount, welcomeSeenKey, ADD_SPOT_ANCHOR, SPOTS_ANCHOR } from "@/lib/spotguide-nudge";
+import { WelcomeStrip } from "./welcome-strip";
+import { openAddSpotForm } from "./add-spot-open";
 import type { RatingSummary, ForecastTally, InfraShare } from "@/lib/spotguide";
 import type { PublicSpot } from "@/lib/spotguide-data";
 
@@ -32,7 +36,52 @@ export function useSpotguide(): Ctx {
   return c;
 }
 
-export function SpotguideProvider({ destId, initialLoggedIn = false, children }: { destId: string; initialLoggedIn?: boolean; children: React.ReactNode }) {
+/** Has this member had their welcome on this device? Storage can throw (private
+ *  mode, blocked site data); then we cannot remember past this page, and count
+ *  it as seen for the page's life, which is the quieter mistake. */
+const seenThisPage = new Set<string>();
+function welcomeSeen(userId: string): boolean {
+  if (seenThisPage.has(userId)) return true;
+  try { return window.localStorage.getItem(welcomeSeenKey(userId)) === "1"; } catch { return false; }
+}
+function markWelcomeSeen(userId: string) {
+  seenThisPage.add(userId);
+  try { window.localStorage.setItem(welcomeSeenKey(userId), "1"); } catch { /* remembered for this page only */ }
+}
+
+/**
+ * Should this viewer get the welcome now? Resolves to their first name (maybe
+ * "") or null. `justLoggedIn` skips the account-age test: they signed in here.
+ * Anonymous visitors (no auth cookie, nearly everyone) never reach the session
+ * read or the name lookup.
+ */
+async function resolveWelcome(justLoggedIn: boolean): Promise<{ firstName: string } | null> {
+  if (!hasAuthCookie()) return null;
+  try {
+    // loaded on demand, so the provider adds no auth client to a guest's page
+    const { createClient } = await import("@/lib/supabase/client");
+    const { data } = await createClient().auth.getSession();
+    const user = data.session?.user;
+    if (!user) return null;
+    if (!justLoggedIn && !isFreshAccount(user.created_at)) return null;
+    if (welcomeSeen(user.id)) return null;
+    markWelcomeSeen(user.id); // shown once means once, tapped or not
+    const me = await fetch("/api/portal/me").then((r) => r.json()).catch(() => null);
+    if (me && me.loggedIn === false) return null;
+    return { firstName: typeof me?.firstName === "string" ? me.firstName : "" };
+  } catch {
+    return null; // a welcome is never worth an error
+  }
+}
+
+export function SpotguideProvider({ destId, initialLoggedIn = false, accent = "var(--np7-accent, #00afdb)", children }: {
+  destId: string; initialLoggedIn?: boolean;
+  /** The world's accent, for the welcome strip. The index passes nothing and
+   *  gets the CSS variable, which is the same answer, settled in the browser. */
+  accent?: string;
+  children: React.ReactNode;
+}) {
+  const router = useRouter();
   const [loggedIn, setLoggedIn] = useState(initialLoggedIn);
   const [mineDest, setMineDest] = useState<Record<string, number> | null>(null);
   const [mineSpots, setMineSpots] = useState<Record<string, SpotMine>>({});
@@ -62,6 +111,52 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
       .catch(() => {});
   }, [destId, initialLoggedIn]);
   useEffect(() => { load(); }, [load]);
+
+  /*
+   * The welcome after sign-up (Nico, 6 Oct 2026). Two ways in:
+   *   · a password login through this provider's AuthModal (onLoggedIn below)
+   *     greets the rider whatever the account's age: they just came in here
+   *   · the first page load after a magic link, which is how every NEW account
+   *     arrives (sign-up mails a link back to this page). There is no callback
+   *     for that, so the account's own age decides (isFreshAccount).
+   * Either way once per member and device (resolveWelcome, above).
+   */
+  const [welcome, setWelcome] = useState<{ firstName: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    resolveWelcome(false).then((w) => { if (alive && w) setWelcome(w); });
+    return () => { alive = false; };
+  }, []);
+
+  /*
+   * /spotguide#sg-add-spot opens the add form on arrival. The welcome strip on
+   * a destination page and the member home's "Add your home spot" step both
+   * land here, so one tap from either ends in an open form, not a scroll hunt.
+   * Waits for `loggedIn`: a guest following a shared link should meet the
+   * form's own "sign up to add a spot" box, not a form they cannot send.
+   */
+  useEffect(() => {
+    if (!loggedIn) return;
+    if (window.location.hash !== `#${ADD_SPOT_ANCHOR}`) return;
+    const raf = requestAnimationFrame(() => { openAddSpotForm(); });
+    return () => cancelAnimationFrame(raf);
+  }, [loggedIn]);
+
+  const closeWelcome = useCallback(() => setWelcome(null), []);
+  const welcomeAddSpot = useCallback(() => {
+    setWelcome(null);
+    // The INDEX form, with its destination picker: a home spot is rarely in the
+    // area the rider happened to sign up on, and a destination page's form is
+    // fixed to that area.
+    if (window.location.pathname === "/spotguide" && openAddSpotForm()) return;
+    router.push(`/spotguide#${ADD_SPOT_ANCHOR}`);
+  }, [router]);
+  const welcomeRate = useCallback(() => {
+    setWelcome(null);
+    const el = document.getElementById(SPOTS_ANCHOR);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    else router.push(`/spotguide#${SPOTS_ANCHOR}`);
+  }, [router]);
 
   const needAuth = useCallback((mode: "login" | "register" = "register") => setAuth(mode), []);
 
@@ -110,8 +205,12 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, children }:
           title={auth === "login" ? "Welcome back" : "Join NP7 · free"}
           subtitle={auth === "login" ? "Log in to rate spots and unlock every guide." : "It takes a few seconds. Then rate spots and unlock every guide."}
           onClose={() => setAuth(false)}
-          onLoggedIn={() => { setAuth(false); load(); }}
+          onLoggedIn={() => { setAuth(false); load(); resolveWelcome(true).then((w) => { if (w) setWelcome(w); }); }}
         />
+      )}
+      {welcome && !auth && (
+        <WelcomeStrip firstName={welcome.firstName} accent={accent}
+          onAddSpot={welcomeAddSpot} onRate={welcomeRate} onClose={closeWelcome} />
       )}
     </SpotguideCtx.Provider>
   );

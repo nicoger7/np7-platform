@@ -7,7 +7,19 @@ export type SetupStep = {
   key: string; label: string; hint?: string; done: boolean; href: string; accent?: boolean;
   /** Finishable right here instead of on another page. */
   inline?: "handle";
+  /**
+   * An optional step: it gets a "Not now", which sets this cookie and takes the
+   * step out of the count at once. The page reads the cookie and leaves the
+   * step out from then on (Nico, 6 Oct 2026: "Add your home spot").
+   */
+  skipCookie?: string;
 };
+
+/** A year: "Not now" on an optional step is an answer, not a snooze. */
+const SKIP_MAX_AGE = 60 * 60 * 24 * 365;
+function rememberSkip(cookie: string) {
+  document.cookie = `${cookie}=1; max-age=${SKIP_MAX_AGE}; path=/account; samesite=lax`;
+}
 
 /**
  * "Get set up" — an endowed-progress onboarding strip for the member home.
@@ -24,7 +36,10 @@ export type SetupStep = {
  *   once by a warm "You're all set" moment instead of silently vanishing. A
  *   member who arrives already complete never sees it — no hollow celebration.
  */
-export function SetupProgress({ steps }: { steps: SetupStep[] }) {
+export function SetupProgress({ steps: allSteps }: { steps: SetupStep[] }) {
+  // optional steps skipped on this page; the cookie keeps them out next time
+  const [skipped, setSkipped] = useState<string[]>([]);
+  const steps = allSteps.filter((s) => !skipped.includes(s.key));
   const total = steps.length;
   const done = steps.filter((s) => s.done).length;
   const remaining = total - done;
@@ -50,6 +65,19 @@ export function SetupProgress({ steps }: { steps: SetupStep[] }) {
       setPhase("celebrate");
     }
   }, [remaining]);
+
+  const skip = (s: SetupStep) => {
+    if (!s.skipCookie) return;
+    rememberSkip(s.skipCookie);
+    if (!s.done && remaining === 1) {
+      // A skip, not a finished step, left nothing to do: no "You're all set"
+      // moment. The strip just goes, and forgetting it was ever incomplete
+      // keeps a later visit from celebrating a step that was skipped.
+      try { window.localStorage.removeItem("np7_setup_incomplete"); } catch { /* private mode */ }
+      setPhase("hidden");
+    }
+    setSkipped((k) => [...k, s.key]);
+  };
 
   if (phase === "hidden") return null;
 
@@ -109,17 +137,24 @@ export function SetupProgress({ steps }: { steps: SetupStep[] }) {
             s.inline === "handle" ? (
               <HandleStep key={s.key} step={s} />
             ) : (
-            <Link key={s.key} href={s.href} className="group flex items-center gap-3 px-1 py-1.5 rounded-lg hover:bg-[#f7fbfc] transition-colors">
-              <span className={`shrink-0 w-5 h-5 rounded-full border-2 transition-colors ${s.accent ? "border-[#f47b20]" : "border-[#cdd6d9]"} group-hover:border-[#00afdb]`} />
-              <span className="flex-1 min-w-0">
-                <span className="block text-[13.5px] font-bold text-[#00374a]">{s.label}</span>
-                {s.hint && <span className="block text-[11.5px] text-[#9aa6ac] leading-snug">{s.hint}</span>}
-              </span>
-              <span className="shrink-0 inline-flex items-center gap-1 text-[12.5px] font-bold text-[#00afdb] opacity-0 group-hover:opacity-100 transition-opacity">
-                {s.accent ? "Secure" : "Do it"}
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-              </span>
-            </Link>
+            <div key={s.key} className="flex items-center gap-2">
+              <Link href={s.href} className="group flex-1 min-w-0 flex items-center gap-3 px-1 py-1.5 rounded-lg hover:bg-[#f7fbfc] transition-colors">
+                <span className={`shrink-0 w-5 h-5 rounded-full border-2 transition-colors ${s.accent ? "border-[#f47b20]" : "border-[#cdd6d9]"} group-hover:border-[#00afdb]`} />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[13.5px] font-bold text-[#00374a]">{s.label}</span>
+                  {s.hint && <span className="block text-[11.5px] text-[#9aa6ac] leading-snug">{s.hint}</span>}
+                </span>
+                <span className="shrink-0 inline-flex items-center gap-1 text-[12.5px] font-bold text-[#00afdb] opacity-0 group-hover:opacity-100 transition-opacity">
+                  {s.accent ? "Secure" : "Do it"}
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                </span>
+              </Link>
+              {s.skipCookie && (
+                <button type="button" onClick={() => skip(s)} className="shrink-0 px-1 py-1.5 text-[12px] text-[#b6c2c7] hover:text-[#6a7a80] transition-colors">
+                  Not now
+                </button>
+              )}
+            </div>
           ))
         )}
       </div>
