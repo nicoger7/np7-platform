@@ -16,7 +16,7 @@ export const PARTNERS_TITLE_DEFAULT = "Partners";
 export const DEFAULT_PARTNERS: Partner[] = [
   { name: "Surfcenter", logo: "https://media.np-seven.com/logos/partners/surfcenter.png", url: "https://surfcenter-experience.com" },
   { name: "JP Australia", logo: "https://media.np-seven.com/logos/partners/jp-australia.svg", url: "https://jp-australia.com" },
-  { name: "NeilPryde", logo: "https://media.np-seven.com/logos/partners/neilpryde.png", url: "https://www.neilpryde.com" },
+  { name: "NeilPryde", logo: "https://media.np-seven.com/logos/partners/neilpryde-trim.png", url: "https://www.neilpryde.com" },
 ];
 
 /** The saved list, cleaned: rows without a logo are dropped, links must be
