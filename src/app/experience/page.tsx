@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { NewsletterSignup } from "@/components/experience/newsletter-signup";
+import { readPartners, PARTNERS_TITLE_DEFAULT } from "@/lib/partners";
+import { PartnerLogos } from "@/components/experience/partner-logos";
 import { flags } from "@/lib/flags";
 import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
@@ -108,6 +110,9 @@ export default async function ExperienceOverviewPage() {
         reviewsSub: t(v.reviewsSub, REVIEWS_DEFAULTS.reviewsSub),
         reviewsHidden: !!t(v.reviewsHidden, ""),
         reviewIds: Array.isArray(v.reviewIds) ? (v.reviewIds as unknown[]).filter((x): x is string => typeof x === "string") : [],
+        partners: readPartners((v as { partners?: unknown }).partners),
+        partnersTitle: t((v as { partnersTitle?: string }).partnersTitle, PARTNERS_TITLE_DEFAULT),
+        partnersHidden: !!t((v as { partnersHidden?: string }).partnersHidden, ""),
       };
     } catch {
       return {
@@ -119,6 +124,7 @@ export default async function ExperienceOverviewPage() {
         upcomingEyebrow: "NEXT ON THE WATER", upcomingTitle: "Upcoming experiences",
         upcomingSub: "Pick a date, pack your harness — we'll handle the rest.",
         ...REVIEWS_DEFAULTS, reviewsHidden: false, reviewIds: [] as string[],
+        partners: readPartners(undefined), partnersTitle: PARTNERS_TITLE_DEFAULT, partnersHidden: false,
       };
     }
   })();
@@ -349,6 +355,18 @@ export default async function ExperienceOverviewPage() {
             </Reveal>
           </div>
         </section>
+
+        {/* PARTNERS: one quiet line of white logos between the vibe and the
+            newsletter. Small on purpose, it vouches without selling (Nico,
+            6 Oct 2026). Admin: Home -> Experience landing -> Partners. */}
+        {!hero.partnersHidden && hero.partners.length > 0 && (
+          <section className="pb-14 sm:pb-16 text-white" aria-label={hero.partnersTitle}>
+            <div className="max-w-[900px] mx-auto px-6 sm:px-8 text-center">
+              <p className="text-[10px] font-bold tracking-[0.3em] uppercase text-white/35 mb-5">{hero.partnersTitle}</p>
+              <PartnerLogos partners={hero.partners} />
+            </div>
+          </section>
+        )}
 
         {/* NEWSLETTER + FOOTER — the seabed */}
         <section className="pt-20 pb-10 text-white border-t border-white/[0.06]">

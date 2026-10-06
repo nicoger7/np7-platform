@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import ImagePickerModal from "@/components/image-picker-modal";
+import { readPartners, PARTNERS_TITLE_DEFAULT, type Partner } from "@/lib/partners";
 import { HeroFocusPicker } from "@/components/admin/placement-editors";
 
 /**
@@ -246,6 +247,7 @@ export default function HomeContentPage() {
     | { target: "expPhoto" }
     | { target: "poster" }
     | { target: "photo"; index: number }
+    | { target: "partner"; index: number }
     | null
   >(null);
 
@@ -260,6 +262,10 @@ export default function HomeContentPage() {
   const [landingState, setLandingState] = useState<SaveState>("loading");
   // The review wall: which reviews (empty = automatic) and whether it shows.
   const [reviewIds, setReviewIds] = useState<string[]>([]);
+  // The partners line (lib/partners): logos drawn white, small, under the vibe.
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [partnersTitle, setPartnersTitle] = useState(PARTNERS_TITLE_DEFAULT);
+  const [partnersHidden, setPartnersHidden] = useState(false);
   const [reviewsHidden, setReviewsHidden] = useState(false);
   const [reviewPool, setReviewPool] = useState<PoolReview[]>([]);
 
@@ -279,6 +285,9 @@ export default function HomeContentPage() {
       setImageFocus([0, 1, 2, 3, 4].map((i) => foc[i] ?? null));
       setReviewIds(Array.isArray(v.reviewIds) ? (v.reviewIds as unknown[]).filter((x): x is string => typeof x === "string") : []);
       setReviewsHidden(typeof v.reviewsHidden === "string" && !!v.reviewsHidden.trim());
+      setPartners(readPartners((v as { partners?: unknown }).partners));
+      setPartnersTitle(typeof v.partnersTitle === "string" && v.partnersTitle.trim() ? v.partnersTitle.trim() : PARTNERS_TITLE_DEFAULT);
+      setPartnersHidden(typeof v.partnersHidden === "string" && !!v.partnersHidden.trim());
       setLandingState("idle");
     });
     fetch("/api/admin/reviews?status=approved").then((r) => (r.ok ? r.json() : [])).then((rows) => {
@@ -311,6 +320,11 @@ export default function HomeContentPage() {
     // A chosen review that has since been un-approved just drops off the wall.
     value.reviewIds = reviewIds;
     if (reviewsHidden) value.reviewsHidden = "yes";
+    // Rows without a logo are dropped on read anyway; saving them would only
+    // leave half-filled rows behind for the next editor to wonder about.
+    value.partners = partners.map((p) => ({ name: p.name.trim(), logo: p.logo.trim(), url: p.url.trim() })).filter((p) => p.logo);
+    value.partnersTitle = partnersTitle.trim() || PARTNERS_TITLE_DEFAULT;
+    if (partnersHidden) value.partnersHidden = "yes";
     const ok = await saveSetting("experience_landing_hero", value);
     setLandingState(ok ? "saved" : "error");
     if (ok) setTimeout(() => setLandingState("idle"), 2200);
@@ -413,6 +427,36 @@ export default function HomeContentPage() {
               </p>
               <ReviewPicker pool={reviewPool} ids={reviewIds} onChange={setReviewIds} />
             </Card>
+            <Card title="Partners" hint="one small line of white logos above the newsletter">
+              <label className="flex items-center gap-2 text-xs admin-muted cursor-pointer select-none">
+                <input type="checkbox" checked={!partnersHidden} onChange={(e) => setPartnersHidden(!e.target.checked)} />
+                Show this line
+              </label>
+              <Field label="Label" value={partnersTitle} onChange={setPartnersTitle} />
+              <p className="text-xs admin-faint -mt-1">
+                Any logo file works: the page draws it white. A transparent PNG or SVG looks cleanest.
+              </p>
+              <div className="space-y-3">
+                {partners.map((p, i) => (
+                  <div key={i} className="flex flex-wrap items-end gap-3">
+                    <PhotoPick label={`Logo ${i + 1}`} url={p.logo} onPick={() => setPicker({ target: "partner", index: i })} />
+                    <div className="flex-1 min-w-[180px] space-y-2">
+                      <input className={inputCls} placeholder="Name (for screen readers)" value={p.name}
+                        onChange={(e) => setPartners((arr) => arr.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+                      <input className={inputCls} placeholder="Link (https://…), optional" value={p.url}
+                        onChange={(e) => setPartners((arr) => arr.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))} />
+                    </div>
+                    <div className="flex gap-2 pb-1 text-xs">
+                      <button disabled={i === 0} onClick={() => setPartners((arr) => { const a = [...arr]; [a[i - 1], a[i]] = [a[i], a[i - 1]]; return a; })}
+                        className="admin-muted hover:underline disabled:opacity-30">Up</button>
+                      <button onClick={() => setPartners((arr) => arr.filter((_, j) => j !== i))} className="text-red-400 hover:underline">Remove</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setPartners((arr) => [...arr, { name: "", logo: "", url: "" }])}
+                className="text-xs font-bold text-[#0aa3c7] hover:underline">+ Add partner</button>
+            </Card>
             <Card title="Upcoming strip" hint="the experience list further down the page">
               <Field label="Eyebrow" value={landing.upcomingEyebrow ?? ""} onChange={setL("upcomingEyebrow")} />
               <Field label="Heading" value={landing.upcomingTitle ?? ""} onChange={setL("upcomingTitle")} />
@@ -458,6 +502,7 @@ export default function HomeContentPage() {
           onSelect={(url) => {
             if (picker.target === "expPhoto") setFront((m) => ({ ...m, expPhoto: url }));
             else if (picker.target === "poster") setLanding((m) => ({ ...m, poster: url }));
+            else if (picker.target === "partner") setPartners((arr) => arr.map((x, j) => (j === picker.index ? { ...x, logo: url } : x)));
             else setImages((arr) => arr.map((x, j) => (j === picker.index ? url : x)));
             setPicker(null);
           }}
