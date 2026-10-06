@@ -327,7 +327,10 @@ export default function EditionDetailPage({
   // reminder, balance, photos) and hiding the tab left no way to see which —
   // while the dashboard was still nagging about content for the trip series it
   // never sends. The tab now lists only what actually fires.
-  const EVENT_HIDDEN: readonly string[] = ["arrivals", "rooms", "levels"];
+  // Levels is NOT hidden: the tab is the riders' level review, not level caps,
+  // and a clinic's coach signs off skills like any trip coach (Nico, 6 Oct
+  // 2026: "seems there is no levels tab??" on OBX Wind).
+  const EVENT_HIDDEN: readonly string[] = ["arrivals", "rooms"];
   const dragTab = useRef<number | null>(null);
 
   // Restore the active tab from the URL on load, and reflect tab changes back into
