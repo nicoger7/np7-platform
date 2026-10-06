@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import type { Metadata } from "next";
 import { getPortalUser, getTeamMember } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -21,7 +22,7 @@ import { SetPasswordPrompt } from "@/components/portal/set-password-prompt";
 import { NextStepHero } from "@/components/portal/next-step-hero";
 import { getMemberApplication } from "@/lib/signature";
 import { memberHasAddedSpot } from "@/lib/spotguide-member";
-import { ADD_SPOT_ANCHOR } from "@/lib/spotguide-nudge";
+import { ADD_SPOT_ANCHOR, SPOT_STEP_SKIP_COOKIE, showHomeSpotStep } from "@/lib/spotguide-nudge";
 import { flags } from "@/lib/flags";
 
 export const metadata: Metadata = { title: "My account · NP7" };
@@ -55,11 +56,18 @@ export default async function AccountHome() {
   // bottom of one booking's Trip tab, where nobody found it. Unread, it leads
   // the home. Read, it becomes a tile like the rest.
   const unreadGuides = guides.filter((g) => !g.openedAt);
+  // "Add your home spot" is for riders without a booking, and gone after one
+  // "Not now" (showHomeSpotStep says why). Only asked when it would show: the
+  // step links into the spotguide, so not while that is hidden either.
+  const spotStep = showHomeSpotStep({
+    spotguideLive: flags.showBlog,
+    bookingCount: bookings.length,
+    skipped: (await cookies()).get(SPOT_STEP_SKIP_COOKIE)?.value === "1",
+  });
   const [ownPhotoCount, addedSpot] = await Promise.all([
     getProfilePhotoChoices(user.contactId).then((p) => p.length).catch(() => 0),
-    // Only asked while the spotguide is public: the step links into it, and a
-    // step that 404s is worse than no step. null = unknown, and then no step.
-    flags.showBlog ? memberHasAddedSpot(user.contactId) : Promise.resolve(null),
+    // null = unknown, and then no step rather than nag someone who may have done it
+    spotStep ? memberHasAddedSpot(user.contactId) : Promise.resolve(null),
   ]);
   // An experience the member already has an UPCOMING booking in doesn't need
   // selling — "book your next trip" means the next one, not the one they're
@@ -182,8 +190,9 @@ export default async function AccountHome() {
         // Nico, 6 Oct 2026: a rider who joined from the spotguide was never
         // pointed back at it. Done once they've submitted any spot of their own;
         // the link opens the add form on the spotguide index straight away.
+        // Skippable: it is an invitation, not part of a working profile.
         ...(addedSpot !== null
-          ? [{ key: "spot", label: "Add your home spot", hint: "Put the water you know on the spotguide", done: addedSpot, href: `/spotguide#${ADD_SPOT_ANCHOR}` } as SetupStep]
+          ? [{ key: "spot", label: "Add your home spot", hint: "Put the water you know on the spotguide", done: addedSpot, href: `/spotguide#${ADD_SPOT_ANCHOR}`, skipCookie: SPOT_STEP_SKIP_COOKIE } as SetupStep]
           : []),
       ]
     : [];

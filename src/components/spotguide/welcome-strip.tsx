@@ -1,26 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { welcomeHeadline, ADD_SPOT_ANCHOR } from "@/lib/spotguide-nudge";
-
-/**
- * Open the add-a-spot form through its own entry point, then bring it into view.
- *
- * add-spot.tsx keeps its open state to itself, and its closed state is a single
- * button (the dashed "Know a spot we're missing?" box). So this presses that
- * button, exactly as a rider would. Only when the form is closed: an open form
- * has fields, and pressing its first button would toggle a level pill instead.
- * Returns false when this page has no form, so the caller can go to one.
- */
-export function openAddSpotForm(): boolean {
-  if (typeof document === "undefined") return false;
-  const root = document.getElementById(ADD_SPOT_ANCHOR);
-  if (!root) return false;
-  const isOpen = !!root.querySelector("input, textarea, select");
-  if (!isOpen) root.querySelector<HTMLButtonElement>("button")?.click();
-  requestAnimationFrame(() => root.scrollIntoView({ behavior: "smooth", block: "start" }));
-  return true;
-}
+import { welcomeHeadline } from "@/lib/spotguide-nudge";
 
 /**
  * The moment right after sign-up (Nico, 6 Oct 2026).

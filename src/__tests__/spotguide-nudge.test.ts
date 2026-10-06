@@ -5,24 +5,43 @@
  *     add-a-spot form offered six, so an "Expert" spot matched no pill
  *   · a welcome right after sign-up, once, for genuinely new accounts
  *   · "Be the first to rate" on ONE row instead of "No member ratings yet" on all
- *   · real photos before satellite tiles on destination cards
+ *   · real photos before satellite tiles on destination cards, never an
+ *     unreviewed member upload
+ *   · "Add your home spot" on the member home, for riders without a booking,
+ *     skippable
+ *   · the welcome strip opens the add form by asking it, never by pressing
+ *     whatever button the form shows first
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { LEVELS } from "@/lib/member-level";
-import { SPOT_LEVELS, destinationFitsLevel, levelFilterOptions, spotLevelIndex } from "@/lib/spot-levels";
+import {
+  SPOT_LEVELS, destinationFitsLevel, levelFilterOptions, spotLevelIndex, isSpotLevel, normalizeSpotLevels,
+} from "@/lib/spot-levels";
 import {
   isFreshAccount, welcomeHeadline, welcomeSeenKey, firstUnratedSpotId,
   isSatelliteImage, pickRealPhoto, blogCoverFor, FRESH_ACCOUNT_HOURS,
+  showHomeSpotStep, ADD_SPOT_ANCHOR, ADD_SPOT_OPEN_EVENT,
 } from "@/lib/spotguide-nudge";
+import { openAddSpotForm, onAddSpotOpenRequest } from "@/components/spotguide/add-spot-open";
 import { satImage } from "@/lib/satellite";
 
 describe("one level list for the form and the filter", () => {
   it("is the six-rung ladder the add-a-spot form's LevelPicker offers", () => {
     // level-picker.tsx renders LEVELS from member-level; the filter must match it
     expect([...SPOT_LEVELS]).toEqual([...LEVELS]);
+    expect(SPOT_LEVELS).toBe(LEVELS);
     expect([...SPOT_LEVELS]).toEqual(["Beginner", "Intermediate", "Advanced", "Expert", "Semi-Pro", "Pro"]);
+  });
+
+  it("is also where the add form's checks live, so the form and the filter share one module", () => {
+    expect(isSpotLevel("Semi-Pro")).toBe(true);
+    expect(isSpotLevel("Shredder")).toBe(false);
+    expect(isSpotLevel(3)).toBe(false);
+    // known levels only, each once, ladder order
+    expect(normalizeSpotLevels(["Pro", "Beginner", "Kook", "Pro", 7])).toEqual(["Beginner", "Pro"]);
+    expect(normalizeSpotLevels("Pro")).toEqual([]);
   });
 
   it("offers Expert and Semi-Pro as filter pills when a destination's range covers them", () => {
@@ -133,7 +152,7 @@ describe("card photos before satellite tiles", () => {
     expect(isSatelliteImage(null)).toBe(false);
   });
 
-  it("prefers the destination's own gallery, then spot galleries, rider photos, a magazine cover", () => {
+  it("prefers the destination's own gallery, then spot galleries, NP7 spot photos, a magazine cover", () => {
     expect(pickRealPhoto({ gallery: ["g.jpg"], spotGalleries: [["s.jpg"]], spotPhotos: ["p.jpg"], blogCover: "b.jpg" })).toBe("g.jpg");
     expect(pickRealPhoto({ gallery: [], spotGalleries: [null, ["s.jpg"]], spotPhotos: ["p.jpg"], blogCover: "b.jpg" })).toBe("s.jpg");
     expect(pickRealPhoto({ spotPhotos: ["p.jpg"], blogCover: "b.jpg" })).toBe("p.jpg");
@@ -167,9 +186,16 @@ vi.mock("@/lib/supabase", () => ({
   createAdminClient: () => ({
     from(table: string) {
       if (failFrom) throw new Error("db down");
+      // eq() filters for real on the columns a fake row carries, so a test can
+      // tell which rows the query lets through; everything else passes all.
+      const eqs: [string, unknown][] = [];
       const b: Record<string, unknown> = {};
-      for (const m of ["select", "in", "eq", "order", "not", "or", "limit"]) b[m] = () => b;
-      b.then = (res: (v: { data: unknown[] | null }) => unknown) => res({ data: tables[table] ?? [] });
+      for (const m of ["select", "in", "order", "not", "or", "limit"]) b[m] = () => b;
+      b.eq = (col: string, v: unknown) => { eqs.push([col, v]); return b; };
+      b.then = (res: (v: { data: unknown[] | null }) => unknown) => res({
+        data: ((tables[table] ?? []) as Record<string, unknown>[])
+          .filter((r) => eqs.every(([c, v]) => !(c in r) || r[c] === v)),
+      });
       return b;
     },
   }),
@@ -187,12 +213,28 @@ describe("withRealCardPhotos", () => {
     const { withRealCardPhotos } = await import("@/lib/spotguide-card-photos");
     tables.destinations = [{ id: "tf", gallery: [] }];
     tables.spots = [{ id: "s1", destination_id: "tf", gallery: [] }];
-    tables.spot_photos = [{ spot_id: "s1", url: "rider.jpg" }];
+    tables.spot_photos = [{ spot_id: "s1", url: "np7.jpg", source: "np7", status: "approved" }];
     const out = await withRealCardPhotos([
       { id: "tf", name: "Tenerife", image: sat },
       { id: "bon", name: "Bonaire", image: "bonaire.jpg" },
     ]);
-    expect(out.map((c) => c.image)).toEqual(["rider.jpg", "bonaire.jpg"]);
+    expect(out.map((c) => c.image)).toEqual(["np7.jpg", "bonaire.jpg"]);
+  });
+
+  it("never makes an unreviewed member upload the face of a destination", async () => {
+    // the photo route stores every member upload as 'approved' straight away
+    const { withRealCardPhotos } = await import("@/lib/spotguide-card-photos");
+    tables.spots = [{ id: "s1", destination_id: "tf", gallery: [] }];
+    tables.spot_photos = [{ spot_id: "s1", url: "anyone.jpg", source: "member", status: "approved" }];
+    expect((await withRealCardPhotos([{ id: "tf", name: "Tenerife", image: sat }]))[0].image).toBe(sat);
+    // a magazine cover still beats the satellite tile
+    tables.exp_blog_posts = [{ title: "Tenerife in winter", cover_image: "cover.jpg" }];
+    expect((await withRealCardPhotos([{ id: "tf", name: "Tenerife", image: sat }]))[0].image).toBe("cover.jpg");
+  });
+
+  it("says so in the query, not only in a comment", () => {
+    const src = readFileSync("src/lib/spotguide-card-photos.ts", "utf8");
+    expect(src).toMatch(/from\("spot_photos"\)[\s\S]*?\.eq\("source", "np7"\)/);
   });
 
   it("keeps the satellite tile when we hold no photo of the place", async () => {
@@ -214,5 +256,101 @@ describe("withRealCardPhotos", () => {
     failFrom = true;
     const cards = [{ id: "tf", name: "Tenerife", image: sat }];
     expect(await withRealCardPhotos(cards)).toEqual(cards);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* "Add your home spot" on the member home                             */
+/* ------------------------------------------------------------------ */
+
+describe("the home spot step", () => {
+  const base = { spotguideLive: true, bookingCount: 0, skipped: false };
+
+  it("is there for a rider without a booking, who joined for the guide", () => {
+    expect(showHomeSpotStep(base)).toBe(true);
+  });
+
+  it("never brings the setup strip back for a trip guest", () => {
+    expect(showHomeSpotStep({ ...base, bookingCount: 1 })).toBe(false);
+  });
+
+  it("is gone after one Not now", () => {
+    expect(showHomeSpotStep({ ...base, skipped: true })).toBe(false);
+  });
+
+  it("is not there while the spotguide is hidden, since it links into it", () => {
+    expect(showHomeSpotStep({ ...base, spotguideLive: false })).toBe(false);
+  });
+
+  it("the member home wires the skip cookie the step reads", () => {
+    const page = readFileSync("src/app/account/page.tsx", "utf8");
+    expect(page).toContain("SPOT_STEP_SKIP_COOKIE");
+    expect(page).toMatch(/skipCookie: SPOT_STEP_SKIP_COOKIE/);
+    const strip = readFileSync("src/components/portal/setup-progress.tsx", "utf8");
+    expect(strip).toContain("s.skipCookie");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Opening the add form from outside                                   */
+/* ------------------------------------------------------------------ */
+
+describe("opening the add form from the welcome strip", () => {
+  const g = globalThis as Record<string, unknown>;
+  const saved = { window: g.window, document: g.document, raf: g.requestAnimationFrame };
+  let target: EventTarget;
+  let clicked: number;
+  let scrolled: number;
+
+  beforeEach(() => {
+    target = new EventTarget();
+    clicked = 0;
+    scrolled = 0;
+    // a form box whose first button is "Open my spot", as after a submit
+    const firstButton = { click: () => { clicked++; } };
+    const root = {
+      querySelector: () => firstButton,
+      scrollIntoView: () => { scrolled++; },
+    };
+    g.window = target;
+    g.document = { getElementById: (id: string) => (id === ADD_SPOT_ANCHOR ? root : null) };
+    g.requestAnimationFrame = (cb: () => void) => { cb(); return 1; };
+    return () => { g.window = saved.window; g.document = saved.document; g.requestAnimationFrame = saved.raf; };
+  });
+
+  it("asks the form to open and presses nothing", () => {
+    let asked = 0;
+    const off = onAddSpotOpenRequest(() => { asked++; });
+    expect(openAddSpotForm()).toBe(true);
+    expect(asked).toBe(1);
+    expect(clicked).toBe(0);
+    expect(scrolled).toBe(1);
+    off();
+    openAddSpotForm();
+    expect(asked).toBe(1);
+  });
+
+  it("returns false on a page without the form, so the caller can go to one", () => {
+    g.document = { getElementById: () => null };
+    let asked = 0;
+    const off = onAddSpotOpenRequest(() => { asked++; });
+    expect(openAddSpotForm()).toBe(false);
+    expect(asked).toBe(0);
+    off();
+  });
+
+  it("uses one event name on both sides", () => {
+    let heard = 0;
+    target.addEventListener(ADD_SPOT_OPEN_EVENT, () => { heard++; });
+    openAddSpotForm();
+    expect(heard).toBe(1);
+  });
+
+  it("the form listens, and nothing simulates a click on it any more", () => {
+    const form = readFileSync("src/components/spotguide/add-spot.tsx", "utf8");
+    expect(form).toContain("useAddSpotOpenRequest(");
+    for (const f of ["src/components/spotguide/welcome-strip.tsx", "src/components/spotguide/spotguide-provider.tsx", "src/components/spotguide/add-spot-open.ts"]) {
+      expect(readFileSync(f, "utf8")).not.toMatch(/\.click\(\)/);
+    }
   });
 });

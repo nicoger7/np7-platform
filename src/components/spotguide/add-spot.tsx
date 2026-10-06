@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSpotguide } from "./spotguide-provider";
+import { useAddSpotOpenRequest } from "./add-spot-open";
 import { CONDITIONS, INFRASTRUCTURE_TAGS } from "@/lib/spotguide";
 import { PinPicker } from "./pin-picker";
 import { LevelPicker } from "./level-picker";
@@ -30,6 +31,11 @@ export function AddSpot({ destId, destName, destinations, accent = "#00afdb" }: 
   function toggle(list: "conditions" | "infrastructure", v: string) {
     setF((p) => ({ ...p, [list]: p[list].includes(v) ? p[list].filter((x) => x !== v) : [...p[list], v] }));
   }
+  // The welcome strip and /spotguide#sg-add-spot ask for the form with an event
+  // instead of pressing its button (add-spot-open.ts, Nico, 6 Oct 2026). Only
+  // ever sent for a signed-in rider, so no sign-up detour here. A rider who has
+  // just added a spot keeps seeing that confirmation and its choices.
+  useAddSpotOpenRequest(() => setOpen(true));
   function addCustomTag() {
     const t = customTag.trim().slice(0, 40);
     if (!t) return;

@@ -10,12 +10,32 @@
  * It is the member-progression ladder itself (member-level.ts LEVELS, which is
  * progression.ts RANKS), re-exported rather than retyped, so a rank added there
  * reaches the form, the filter and the stored spot data together. Pure: the
- * index filter runs it in the browser.
+ * index filter runs it in the browser, the spots API runs it on the server.
+ *
+ * The add-a-spot form's own helpers (isSpotLevel, normalizeSpotLevels) live
+ * here too, so the form, its API and the filter share one module rather than
+ * two that each define the list.
  */
-import { LEVELS } from "@/lib/member-level";
+import { LEVELS, type Level } from "@/lib/member-level";
 
 export const SPOT_LEVELS = LEVELS;
-export type SpotLevel = (typeof SPOT_LEVELS)[number];
+export type SpotLevel = Level;
+
+export function isSpotLevel(v: unknown): v is SpotLevel {
+  return typeof v === "string" && (SPOT_LEVELS as readonly string[]).includes(v);
+}
+
+/**
+ * A submitted level list, cleaned: known levels only, each once, in ladder
+ * order (Beginner first). Ladder order matters because the single `level`
+ * column is "the first one", and the admin editor already writes it that way,
+ * so a member's spot and an NP7 spot read the same.
+ */
+export function normalizeSpotLevels(raw: unknown): SpotLevel[] {
+  if (!Array.isArray(raw)) return [];
+  const picked = new Set(raw.filter(isSpotLevel));
+  return SPOT_LEVELS.filter((l) => picked.has(l));
+}
 
 /** Position on the ladder, or -1 for anything that is not a level. */
 export function spotLevelIndex(level: string | null | undefined): number {

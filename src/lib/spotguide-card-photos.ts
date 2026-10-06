@@ -8,10 +8,19 @@
  * places DO have photos, just not in the two fields that fallback looks at.
  *
  * This looks further, only for the cards that need it: the destination's own
- * gallery, its public spots' galleries, rider photos the team approved, and a
- * magazine cover named after the place (pickRealPhoto decides the order). A
+ * gallery, its public spots' galleries, photos NP7 itself added to a spot, and
+ * a magazine cover named after the place (pickRealPhoto decides the order). A
  * card with none of those keeps its satellite tile, which the card itself now
  * shows in a lighter, branded treatment (dest-card-image.tsx).
+ *
+ * Member uploads are left out on purpose. Their status reads 'approved', but
+ * nobody approved them: /api/portal/spotguide/photo stores every upload as
+ * 'approved' so it shows at once, and only member flags hide one later. Inside
+ * a spot row that is fine, it is one picture among the spot's own. As a card it
+ * would be the face of a whole destination on the index, on every neighbour's
+ * "Where next" row and in the map popup, chosen by whoever signed up and
+ * uploaded first. Votes do not change that: the uploader can upvote their own
+ * photo and a second account is one magic link away. So only source 'np7'.
  *
  * Kept beside spotguide-data.ts rather than inside it so the data layer's own
  * query stays as it is. Any failure returns the cards unchanged: a picture is
@@ -50,7 +59,9 @@ export async function withRealCardPhotos<T extends { id: string; name: string; i
     const spots = (spotRes?.data ?? []) as Row[];
     const spotIds = spots.map((s) => s.id as string);
     const photoRes = spotIds.length
-      ? await sb.from("spot_photos").select("spot_id, url").in("spot_id", spotIds).eq("status", "approved").order("sort_order")
+      // NP7's own spot photos only, never an unreviewed member upload (see the header)
+      ? await sb.from("spot_photos").select("spot_id, url")
+          .in("spot_id", spotIds).eq("status", "approved").eq("source", "np7").order("sort_order")
       : { data: [] };
 
     const galleryByDest = new Map<string, string[]>();

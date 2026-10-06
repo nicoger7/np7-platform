@@ -23,6 +23,14 @@ export const ADD_SPOT_ANCHOR = "sg-add-spot";
 export const SPOTS_ANCHOR = "sg-spots";
 
 /**
+ * The window event that asks the add-a-spot form to open (add-spot-open.ts).
+ * The form listens for it instead of having its button pressed from outside:
+ * a pressed "first button" turned out to be whatever the form shows first,
+ * which after a submit is a link to the new spot, not an empty form.
+ */
+export const ADD_SPOT_OPEN_EVENT = "np7:add-spot-open";
+
+/**
  * How old an account may be and still count as "just joined".
  *
  * Sign-up is a magic link: the account exists the moment the form is sent, the
@@ -52,6 +60,31 @@ export const welcomeSeenKey = (userId: string) => `np7_sg_welcome_${userId}`;
 export function welcomeHeadline(firstName?: string | null): string {
   const n = (firstName ?? "").trim().split(/\s+/)[0] ?? "";
   return n ? `You're in, ${n}.` : "You're in.";
+}
+
+/* ------------------------------------------------------------------ */
+/* "Add your home spot" on the member home                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The cookie a "Not now" on that step sets. A cookie, not localStorage, because
+ * the server builds the checklist: it drops the step before the page is drawn,
+ * so the count is right and a finished strip never flashes back for a moment.
+ */
+export const SPOT_STEP_SKIP_COOKIE = "np7_skip_spot_step";
+
+/**
+ * Does the member home's setup list carry "Add your home spot"?
+ *
+ * The list is "the profile is done" and removes itself when it is, so a set-up
+ * member is never nagged. An extra step for everyone would bring "1 step to go"
+ * back to every finished member, trip guests who never open the spotguide
+ * included, for good. So only riders with no booking get it: they joined for
+ * the community and the guide, and this is their next move. One "Not now"
+ * removes it. And only while the spotguide is public, since the step links in.
+ */
+export function showHomeSpotStep(o: { spotguideLive: boolean; bookingCount: number; skipped: boolean }): boolean {
+  return o.spotguideLive && o.bookingCount === 0 && !o.skipped;
 }
 
 /* ------------------------------------------------------------------ */
@@ -112,8 +145,11 @@ export function blogCoverFor(
 /**
  * The best real photo we hold for a destination, or null.
  * Order = how surely the picture shows THIS place: the destination's own
- * gallery, then its spots' curated galleries, then rider photos the team
- * approved, then a magazine cover named after it.
+ * gallery, then its spots' curated galleries, then photos NP7 added to a spot,
+ * then a magazine cover named after it. `spotPhotos` must hold NP7's own spot
+ * photos only: a member upload is live the moment it is sent, with nobody
+ * reviewing it, so it is no card for a whole destination (the caller,
+ * spotguide-card-photos.ts, filters on source 'np7').
  */
 export function pickRealPhoto(src: {
   gallery?: (string | null)[] | null;

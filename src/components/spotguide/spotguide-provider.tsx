@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { AuthModal } from "@/components/shared/auth-modal";
 import { hasAuthCookie } from "@/lib/has-auth-cookie";
 import { isFreshAccount, welcomeSeenKey, ADD_SPOT_ANCHOR, SPOTS_ANCHOR } from "@/lib/spotguide-nudge";
-import { WelcomeStrip, openAddSpotForm } from "./welcome-strip";
+import { WelcomeStrip } from "./welcome-strip";
+import { openAddSpotForm } from "./add-spot-open";
 import type { RatingSummary, ForecastTally, InfraShare } from "@/lib/spotguide";
 import type { PublicSpot } from "@/lib/spotguide-data";
 
@@ -131,8 +132,8 @@ export function SpotguideProvider({ destId, initialLoggedIn = false, accent = "v
    * /spotguide#sg-add-spot opens the add form on arrival. The welcome strip on
    * a destination page and the member home's "Add your home spot" step both
    * land here, so one tap from either ends in an open form, not a scroll hunt.
-   * Waits for `loggedIn`: pressed any earlier, the form's own button would
-   * still take the rider for a guest and open the sign-up modal instead.
+   * Waits for `loggedIn`: a guest following a shared link should meet the
+   * form's own "sign up to add a spot" box, not a form they cannot send.
    */
   useEffect(() => {
     if (!loggedIn) return;
