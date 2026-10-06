@@ -1,7 +1,7 @@
 import "server-only";
 import { sumReceived } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
-import { coveredExtraTotal } from "@/lib/group-booking";
+import { coveredExtraTotal, coveredReceivedTotal } from "@/lib/group-booking";
 
 /**
  * Bring a booking's money flags and status up to what has actually been paid.
@@ -59,7 +59,17 @@ export async function syncBookingMoneyStatus(db: Db, bookingId: string): Promise
   // Without this a payer who settled only their own share would be flagged
   // "paid in full" while the group's balance was still open.
   const covered = booking.covered_by_booking_id ? 0 : await coveredExtraTotal(db, bookingId).catch(() => 0);
-  const received = sumReceived((pays ?? []) as Parameters<typeof sumReceived>[0]);
+  /* And the money already on those companions' bookings, or a payer whose
+     payment was split onto a companion reads as part-paid and gets knocked
+     back from "paid" to "confirmed" (coveredReceivedTotal, 6 Oct 2026). When
+     it cannot be read, nothing changes: a failed read is not a reason to
+     flip a booking's money flags. */
+  let coveredIn = 0;
+  if (covered > 0) {
+    try { coveredIn = await coveredReceivedTotal(db, bookingId); }
+    catch { return null; }
+  }
+  const received = sumReceived((pays ?? []) as Parameters<typeof sumReceived>[0]) + coveredIn;
   const total = (Number(booking.agreed_price) || 0) + addons + covered;
 
   const status = String(booking.status ?? "").toLowerCase();

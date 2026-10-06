@@ -40,7 +40,7 @@ import { publicOrigin } from "@/lib/public-origin";
 import { readRows } from "@/lib/db-read";
 import { sumReceived, type PaymentLike } from "@/lib/payment-totals";
 import { effectiveAddonStatus } from "@/lib/addons";
-import { coveredExtraTotal } from "@/lib/group-booking";
+import { coveredExtraTotal, coveredReceivedTotal } from "@/lib/group-booking";
 import { guestCountry, onlineMethodsFor, canPayOnline, cardRegionFor, transferCountryFor, crossBorderTransferFor, type PayKind , paymentDescription } from "@/lib/payment-methods";
 import { foreignAsk, type ForeignAsk } from "@/lib/fx";
 import { cardFee, type CardRegion } from "@/lib/card-fee";
@@ -142,7 +142,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       .filter((a) => effectiveAddonStatus(a) === "confirmed" && a.payment_mode !== "direct")
       .reduce((n, a) => n + (Number(a.price) || 0), 0);
     const covered = await coveredExtraTotal(db, id);
-    outstanding = r2((Number(booking.agreed_price) || 0) + addons + covered - sumReceived(pays));
+    // The money already on the companions' bookings counts too, or a payer
+    // whose payment was split onto a companion is offered it a second time.
+    const coveredIn = covered > 0 ? await coveredReceivedTotal(db, id) : 0;
+    outstanding = r2((Number(booking.agreed_price) || 0) + addons + covered - sumReceived(pays) - coveredIn);
   } catch (e) {
     console.error("[portal-pay] could not read what is owed on this booking:", e instanceof Error ? e.message : e);
     return bad("Could not start the payment. Please try again in a moment.", 500);

@@ -1,5 +1,6 @@
 import "server-only";
 import { effectiveAddonStatus } from "@/lib/addons";
+import { sumReceived, type PaymentLike } from "@/lib/payment-totals";
 
 /**
  * Group bookings, phase 1: one payer covers several travellers.
@@ -50,6 +51,35 @@ export async function getCoveredBookings(db: any, payerBookingId: string): Promi
 export async function coveredExtraTotal(db: any, payerBookingId: string): Promise<number> {
   const covered = await getCoveredBookings(db, payerBookingId);
   return r2(covered.reduce((s, c) => s + c.total, 0));
+}
+
+/**
+ * Money already sitting on the bookings this payer covers.
+ *
+ * The group's MONEY runs through the payer, but the team sometimes moves part
+ * of a payment onto a companion's booking ("alloc" rows) so each traveller's
+ * own revenue shows for the P&L. Every place that measured a payer against the
+ * whole group's price then counted only the payer's own ledger, so the moved
+ * money vanished: Jana Heinen, Tim Cederquist and Wilfred Wagt were fully paid
+ * and their trip pages showed EUR 2,990, 7,280 and 2,390 still open, with a Pay
+ * button for it (Nico, 6 Oct 2026: "something wrong with jana for bonaire").
+ *
+ * So wherever a payer's price includes what they cover, their money must
+ * include what sits on those bookings too: the price and the money are pooled
+ * the same way. Throws on a failed read, because "nothing is there" and "we
+ * could not look" must not come out as the same number.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function coveredReceivedTotal(db: any, payerBookingId: string): Promise<number> {
+  const { data: covered, error } = await db
+    .from("exp_bookings").select("id").eq("covered_by_booking_id", payerBookingId);
+  if (error) throw new Error(error.message ?? String(error));
+  const ids = ((covered ?? []) as { id: string }[]).map((c) => c.id);
+  if (!ids.length) return 0;
+  const { data: pays, error: payErr } = await db
+    .from("exp_payments").select("amount, direction, type, status, received_at, date, created_at").in("booking_id", ids);
+  if (payErr) throw new Error(payErr.message ?? String(payErr));
+  return sumReceived((pays ?? []) as PaymentLike[]);
 }
 
 /** Who pays for a covered booking — null when it pays for itself. */

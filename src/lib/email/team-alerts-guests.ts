@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase";
 import { publicOrigin } from "@/lib/public-origin";
 import { sumReceived } from "@/lib/payment-totals";
-import { coveredExtraTotal } from "@/lib/group-booking";
+import { coveredExtraTotal, coveredReceivedTotal } from "@/lib/group-booking";
 import { guestRequestsIn, GUEST_REQUEST_MARK } from "@/lib/guest-request";
 import {
   recipientsFor, mailTeam, nobody, money, fmtRange, whoIs,
@@ -67,7 +67,13 @@ function tripVars(b: AnyRow) {
 async function paidSoFar(db: Db, bookingId: string): Promise<number | null> {
   const { data, error } = await db.from("exp_payments").select("amount,type,direction,status").eq("booking_id", bookingId);
   if (error) return null;
-  return sumReceived(data ?? []);
+  // A payer's money includes what was moved onto the companions they cover,
+  // the same way their target includes those companions' prices.
+  try {
+    return sumReceived(data ?? []) + (await coveredReceivedTotal(db, bookingId));
+  } catch {
+    return null;
+  }
 }
 
 /**

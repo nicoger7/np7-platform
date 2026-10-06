@@ -136,6 +136,9 @@ export type BookingPaymentInputs = {
   settledStages: { deposit: number; downpayment: number };
   /** What a payer's plan carries on top of their own trip (group bookings, migration 198). */
   coveredExtra: number;
+  /** Money already on the bookings this payer covers (lib/group-booking
+   *  coveredReceivedTotal). Pooled with the payer's own, like coveredExtra. */
+  coveredPaid: number;
   /** Σ of bank transfers the guest has started and Stripe has not confirmed.
    *  Never added to `paid`: it is not in the bank and not in exp_payments. */
   inFlight: number;
@@ -143,7 +146,7 @@ export type BookingPaymentInputs = {
   transfer: TransferInFlight | null;
 };
 
-const EMPTY_PAYMENT_INPUTS = (): BookingPaymentInputs => ({ cfg: null, settledStages: { deposit: 0, downpayment: 0 }, coveredExtra: 0, inFlight: 0, transfer: null });
+const EMPTY_PAYMENT_INPUTS = (): BookingPaymentInputs => ({ cfg: null, settledStages: { deposit: 0, downpayment: 0 }, coveredExtra: 0, coveredPaid: 0, inFlight: 0, transfer: null });
 
 /**
  * The rows a payment plan needs that the booking row does not carry, for a
@@ -249,6 +252,21 @@ export async function getBookingPaymentInputs(bookingIds: string[]): Promise<Map
         if (!e) continue;
         e.coveredExtra += (Number(c.agreed_price) || 0) + confirmedAddonsSum(extraRows.filter((a) => a.booking_id === c.id));
       }
+      /* And the money on those bookings. The team moves part of a payer's
+         payment onto a companion so each traveller's own revenue shows; the
+         plan then billed the companion's price and lost the money, and three
+         fully paid payers read as owing EUR 2,390 to 7,280 (Nico, 6 Oct 2026). */
+      const { data: cPays, error: cPayErr } = await db.from("exp_payments")
+        .select("booking_id, amount, direction, type, status").in("booking_id", covered.map((c) => c.id));
+      if (!cPayErr) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const payRows = (cPays ?? []) as any[];
+        for (const c of covered) {
+          const e = out.get(c.covered_by_booking_id);
+          if (!e) continue;
+          e.coveredPaid += sumReceived(payRows.filter((p) => p.booking_id === c.id));
+        }
+      }
     }
   } catch { /* tolerant: defaults stand, the engine's own fallback */ }
   return out;
@@ -272,7 +290,8 @@ export async function getPaymentSteps(bookings: MemberBooking[]): Promise<Map<st
       bookedAt: b.created_at,
       edition: b.edition,
       total,
-      paid: b.paid,
+      // The payer's own money plus what sits on the companions they cover.
+      paid: b.paid + i.coveredPaid,
       cfg: i.cfg,
       settledStages: i.settledStages,
       coveredByBookingId: b.covered_by_booking_id,

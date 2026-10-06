@@ -54,7 +54,7 @@ export default async function BookingDetail({ params }: Props) {
   if (!b) notFound();
 
   const chip = bookingStatus(b);
-  const [galleryGroups, paid, hotel, stay, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, marketingConsent, preTrip, tripVideos, guides, videoDownloadsRemaining, hasReview, voucherCredit] = await Promise.all([
+  const [galleryGroups, ownPaid, hotel, stay, coaches, downloadsRemaining, addonsTotal, flights, arrival, crew, photosShared, marketingConsent, preTrip, tripVideos, guides, videoDownloadsRemaining, hasReview, voucherCredit] = await Promise.all([
     b.edition?.id ? getTripGalleryGroupsForBooking(b.edition.id, b.id).catch(() => []) : Promise.resolve([]),
     getBookingPaid(b.id).catch(() => 0),
     getBookingHotel(b.id).catch(() => null),
@@ -121,7 +121,12 @@ export default async function BookingDetail({ params }: Props) {
   // so the member's plan matches the invoices exactly. Same loader and same
   // derivation the home page reads for every upcoming trip, so the two can
   // never disagree about what is owed and by when.
-  const payInputs = (await getBookingPaymentInputs([b.id])).get(b.id) ?? { cfg: null, settledStages: { deposit: 0, downpayment: 0 }, coveredExtra: 0, inFlight: 0, transfer: null };
+  const payInputs = (await getBookingPaymentInputs([b.id])).get(b.id) ?? { cfg: null, settledStages: { deposit: 0, downpayment: 0 }, coveredExtra: 0, coveredPaid: 0, inFlight: 0, transfer: null };
+  /* A payer's money is pooled like their price: their own payments plus what
+     the team moved onto the companions they cover. Without it Jana Heinen,
+     Tim Cederquist and Wilfred Wagt, all fully paid, read as owing the moved
+     amount and were offered a Pay button for it (Nico, 6 Oct 2026). */
+  const paid = Math.round((ownPaid + payInputs.coveredPaid) * 100) / 100;
   const payCfg = payInputs.cfg;
   const picture = paymentPicture({
     status: b.status,
