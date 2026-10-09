@@ -181,7 +181,12 @@ export async function PATCH(
   // Voiding an add-on invoice releases its stamped add-on rows, so they are
   // billable again on the next add-on invoice. (A later re-issue toggle does
   // NOT re-stamp — the rows may have been billed elsewhere meanwhile.)
-  if (body.status === "void" && data?.type === "addon_invoice") {
+  // A FINAL invoice stamps add-ons too (stampFinalAddons), so cancelling one
+  // must release them the same way. It did not: Minna Mäntynen's cancelled
+  // NP7-XP-2026-0087 kept all three of her add-ons, which then could not be
+  // edited ("already on invoice …") and could never be billed again (Nico,
+  // 9 Oct 2026).
+  if (body.status === "void" && (data?.type === "addon_invoice" || data?.type === "final_invoice")) {
     await db.from("exp_booking_addons").update({ invoiced_in: null }).eq("invoiced_in", id);
   }
 
