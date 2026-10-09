@@ -310,9 +310,20 @@ export function BankFeed({ view }: { view: FeedView }) {
 
   /* Connect a credit to an invoice. A credit that is already partly placed
      offers only what is left of it; the server refuses more than it holds. */
-  function connect(t: Tx, documentId: string, fromSuggestion = false) {
+  /* Money in: what one Connect places. A typed amount wins; otherwise what the
+     invoice still owes, never more than the credit has left. It used to place
+     the whole remaining credit on the first invoice pressed, so Minna's €6,650
+     (three weeks in one transfer) could only ever land on one week, and a €750
+     invoice would have swallowed all of it (Nico, 9 Oct 2026). */
+  function placeAmount(t: Tx, owes: number): number {
     const left = t.invoiceAllocated > 0 ? t.invoiceRemaining : Number(t.amount);
-    return act(t.id, { action: "match", allocations: [{ documentId, amount: left }], fromSuggestion });
+    const typed = Number(allocAmount);
+    if (allocAmount.trim() && Number.isFinite(typed) && typed > 0) return typed;
+    return owes > 0.01 ? Math.min(left, owes) : left;
+  }
+
+  function connect(t: Tx, documentId: string, owes: number, fromSuggestion = false) {
+    return act(t.id, { action: "match", allocations: [{ documentId, amount: placeAmount(t, owes) }], fromSuggestion });
   }
 
   const openRow = (t: Tx) => {
@@ -570,6 +581,16 @@ export function BankFeed({ view }: { view: FeedView }) {
                                     {money(t.invoiceAllocated)} of this credit is placed · {money(t.invoiceRemaining)} still to place.
                                   </p>
                                 )}
+                                <div className="mb-4">
+                                  <label className={label}>Amount to place</label>
+                                  <input
+                                    value={allocAmount}
+                                    onChange={(e) => setAllocAmount(e.target.value)}
+                                    inputMode="decimal"
+                                    placeholder={`blank = what the invoice owes, up to ${money(t.invoiceAllocated > 0 ? t.invoiceRemaining : Number(t.amount))}`}
+                                    className="admin-input text-sm px-3 py-1.5 rounded-lg w-full sm:w-80"
+                                  />
+                                </div>
                                 <div className="fin-label mb-2">Best guesses</div>
                                 {t.suggestions.length ? (
                                   <div className="flex flex-col gap-2 mb-4">
@@ -594,11 +615,11 @@ export function BankFeed({ view }: { view: FeedView }) {
                                           </div>
                                         </div>
                                         <button
-                                          onClick={() => connect(t, s.candidate.documentId, true)}
+                                          onClick={() => connect(t, s.candidate.documentId, s.candidate.remaining, true)}
                                           disabled={busyId === t.id}
                                           className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[var(--admin-accent)] text-[var(--admin-accent-contrast)] disabled:opacity-50"
                                         >
-                                          Connect
+                                          Place {money(placeAmount(t, s.candidate.remaining))}
                                         </button>
                                       </div>
                                     ))}
@@ -620,13 +641,14 @@ export function BankFeed({ view }: { view: FeedView }) {
                                   {filteredCandidates.map((c) => (
                                     <button
                                       key={c.documentId}
-                                      onClick={() => connect(t, c.documentId)}
+                                      onClick={() => connect(t, c.documentId, c.remaining)}
                                       disabled={busyId === t.id}
                                       className="fin-row text-left px-3 py-2 rounded-lg disabled:opacity-50"
                                     >
                                       <span className="font-medium">{c.guestName ?? "Unnamed"}</span>
                                       <span className="admin-faint"> · {c.invoiceNumber ?? "no number"} · owes {money(c.remaining, c.currency ?? "EUR")}</span>
-                                      {c.experienceTitle && <span className="admin-faint"> · {c.experienceTitle}</span>}
+                                      {c.experienceTitle && <span className="admin-faint"> · {[c.experienceTitle, c.editionLabel].filter(Boolean).join(" · ")}</span>}
+                                      <span className="float-right text-xs font-bold text-[#0aa3c7]">Place {money(placeAmount(t, c.remaining))}</span>
                                     </button>
                                   ))}
                                   {!filteredCandidates.length && (
