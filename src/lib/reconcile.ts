@@ -67,9 +67,11 @@ export type BookingRecon = {
 export const round2 = (n: number) => Math.round(((n || 0) + Number.EPSILON) * 100) / 100;
 
 /** Signed contribution of a payment to "money received": refunds subtract, cost
- *  rows don't count, cancelled rows don't count. Add-on payments are money for
- *  an EXTRA service on top of the trip price, so they don't count toward the
- *  trip total/balance either (they're tracked as their own line). */
+ *  rows don't count, cancelled rows don't count. Add-on payments DO count: the
+ *  trip total has included confirmed add-ons for a long time, and payment-totals
+ *  always counted them. Skipping them here meant an add-on invoice could never
+ *  read as paid, even by its own payment, and the bank feed kept offering it
+ *  again (Minna Mäntynen's €4,400, Nico, 9 Oct 2026). */
 export function paymentInflow(p: Pick<ReconPayment, "amount" | "type" | "direction" | "status">): number {
   if (p.direction === "cost") return 0;
   if (p.status === "cancelled") return 0;
@@ -79,7 +81,6 @@ export function paymentInflow(p: Pick<ReconPayment, "amount" | "type" | "directi
   // invoice against money nobody had received. Two functions summing the same
   // ledger differently is the bug; this side was the wrong one.
   if (p.status === "pending") return 0;
-  if (p.type === "addon") return 0;
   const sign = p.type === "refund" ? -1 : 1;
   return sign * (Number(p.amount) || 0);
 }

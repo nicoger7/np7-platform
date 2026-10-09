@@ -41,7 +41,11 @@ export async function promoteProformaIfPaid(bookingId: string): Promise<Promotio
     .from("exp_payments")
     .select("id, amount, type, direction, status, document_id")
     .eq("booking_id", bookingId);
+  // Add-on money pays for the extra, not the trip, so it never settles a trip
+  // pro-forma. paymentInflow() counts add-ons now (they are part of the booking
+  // total); this filter keeps promotion exactly as it was.
   const inflow = ((pays ?? []) as { amount: number | null; type: string | null; direction: string | null; status: string | null }[])
+    .filter((p) => p.type !== "addon")
     .reduce((s, p) => s + paymentInflow(p), 0);
 
   const { data: bk0 } = await db.from("exp_bookings").select("agreed_price").eq("id", bookingId).maybeSingle();
