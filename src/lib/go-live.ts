@@ -28,6 +28,10 @@ import {
  *    field stays there as an override.
  */
 
+
+/** Beds start to matter this many days before departure (the hotel's rooming list). */
+const BEDS_DUE_DAYS = 30;
+
 export type CheckSeverity = "blocker" | "warning";
 
 /**
@@ -325,9 +329,9 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       // otherwise, because the weeks that don't are the ones that break.
       ok("packingList", "Packing list", "warning",
         has(c.packing_list) || (eds.length > 0 && eds.every((x) => has(x.packing_list))),
-        `${content_}?tab=pretrip`, "The pre-trip email is held back without it", {
-        fix: { table: "exp_content", id, column: "packing_list", kind: "textarea", title: "Packing list", help: "One item per line. Shown in the member portal and the pre-trip email.", value: (c.packing_list as string) ?? null },
-      }),
+        // A link, not the quick-edit popup: a packing list is long and gets
+        // written next to the rest of the pre-trip content (Nico, 9 Oct 2026).
+        `${content_}?tab=pretrip`, "The pre-trip email is held back without it"),
 
       // ── the page copy ────────────────────────────────────────────────────
       // Two different failures, and the second one is invisible without help:
@@ -345,7 +349,7 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
       }),
       ok("windFacts", "Wind facts", "warning", has(c.wind_range) || has(c.wind_probability), `${content_}?tab=story`,
         "No wind range or probability — the quick-facts bar and the ‘You can count on it’ band have nothing"),
-      ok("review", "A guest review", "warning", (reviewCount.get(id) ?? 0) > 0, "/admin/guest-reviews",
+      ok("review", "A guest review", "warning", (reviewCount.get(id) ?? 0) > 0, `${content_}?tab=reviews`,
         "No review on this experience — the strongest thing on the page is missing",
         { okDetail: `${reviewCount.get(id) ?? 0} on the page` }),
       ok("weekTitle", "Week headline", "warning",
@@ -436,9 +440,16 @@ export async function runGoLiveChecks(): Promise<ExperienceReport[]> {
         ok("components", "Components linked", "warning", sellable.length === 0 || noComponents.length === 0, `${base}?tab=packages`,
           `${noComponents.length} of ${sellable.length} sellable package${sellable.length === 1 ? "" : "s"} with no components — the included-list and the cost sheet run empty`,
           { okDetail: sellable.length ? "Every sellable package has components" : undefined }),
-        ok("beds", "Beds assigned", "warning", !sleeps || secured === 0 || unbedded.length === 0, `${base}?tab=rooms`,
+        /* Beds are the hotel's rooming list, not something a week needs to go
+           on sale, so like the group chat they only count close to departure
+           (Nico, 9 Oct 2026: "beds assigned, that's not relevant for launch"). */
+        ok("beds", "Beds assigned", "warning",
+          !sleeps || secured === 0 || unbedded.length === 0 || (edDaysToStart != null && edDaysToStart > BEDS_DUE_DAYS),
+          `${base}?tab=rooms`,
           `${unbedded.length} of ${secured} secured guest${secured === 1 ? "" : "s"} with no bed yet`,
-          { okDetail: sleeps && secured > 0 ? `All ${secured} secured guests have a bed` : undefined }),
+          { okDetail: sleeps && secured > 0
+            ? unbedded.length === 0 ? `All ${secured} secured guests have a bed` : `Not needed yet, due ${BEDS_DUE_DAYS} days before the trip (${unbedded.length} still without a bed)`
+            : undefined }),
         ok("deposit", "Deposit decided", "warning", ed.deposit != null, `${base}?tab=details`,
           "Not set — the payment plan falls back to a €300 default nobody chose", {
             okDetail: Number(ed.deposit) === 0 ? "No deposit — 50% downpayment secures the spot" : `€${ed.deposit}`,
