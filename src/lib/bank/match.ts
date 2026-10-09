@@ -178,6 +178,7 @@ export function suggestForTransaction(tx: MatchInput, candidates: MatchCandidate
     }
 
     // ── 5. The amount. Confirms, never decides. ──────────────────────────────
+    const amountFits = Math.abs(c.remaining - amount) < 0.01 || Math.abs(c.invoiced - amount) < 0.01;
     if (Math.abs(c.remaining - amount) < 0.01) {
       score += 45;
       reasons.push("Settles the invoice exactly");
@@ -224,7 +225,10 @@ export function suggestForTransaction(tx: MatchInput, candidates: MatchCandidate
       score,
       reasons,
       identified,
-      confidence: identified ? "exact" : score >= 80 ? "strong" : "possible",
+      // "Exact" means the whole transfer IS this invoice. A reference that names
+      // the invoice while the amount is something else (one transfer paying
+      // three weeks) is a strong lead, not an exact match (Nico, 9 Oct 2026).
+      confidence: identified && amountFits ? "exact" : identified || score >= 80 ? "strong" : "possible",
     });
   }
 
